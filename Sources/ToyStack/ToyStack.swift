@@ -9,6 +9,18 @@ struct ToyStack {
         print("Headers: ", headers)
         print("Content: ", content)
 
+        // Test HTMLParser
+        let html = content
+        let parser = HTMLParser(body: html)
+        let root = parser.parse()
+        print(root)
+
+        // Test HTMLParser - part 2
+        let html2 = "<html><body><p>Hello</p></body></html>"
+        let parser2 = HTMLParser(body: html2)
+        let root2 = parser2.parse()
+        print(root2)
+
         // Test Element and TextNode from DOMNode
         // Top-down: create parent first, then the children
         let div = Element(tag: "div", attributes: ["class": "wrapper"], parent: nil)
