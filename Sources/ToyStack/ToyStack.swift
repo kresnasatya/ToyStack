@@ -34,6 +34,11 @@ struct ToyStack {
         print(div.children[0])
         print(div.children[0].children[0])
 
+        // Test CSS Parser
+        let css = "p { color: red; } div p { margin: 0 }"
+        let rules = CSSParser(css).parse()
+        print(rules.count)
+
         // Test Rect
         let rect = Rect(left: 10, top: 20, right: 100, bottom: 80)
         print("Contains (50, 50): ", rect.containsPoint(50, 50))
