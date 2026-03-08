@@ -1,56 +1,57 @@
-import XCTest
+import Testing
+import CoreGraphics
 
 @testable import Core
 
-final class RectTests: XCTestCase {
+@Suite struct RectTests {
 
     // MARK: - Initialization
-    func testInitStoresEdges() {
+    @Test func initStoresEdges() {
         let r = Rect(left: 10, top: 20, right: 100, bottom: 80)
-        XCTAssertEqual(r.left, 10)
-        XCTAssertEqual(r.top, 20)
-        XCTAssertEqual(r.right, 100)
-        XCTAssertEqual(r.bottom, 80)
+        #expect(r.left == 10)
+        #expect(r.top == 20)
+        #expect(r.right == 100)
+        #expect(r.bottom == 80)
     }
 
     // MARK: - containsPoint inclusive left/top, exclusive right/bottom
-    func testContainsPointInsideRect() {
+    @Test func containsPointInsideRect() {
         let r = Rect(left: 0, top: 0, right: 100, bottom: 50)
-        XCTAssertTrue(r.containsPoint(50, 25))
+        #expect(r.containsPoint(50, 25))
     }
 
-    func testContainsPointOnLeftEdge() {
+    @Test func containsPointOnLeftEdge() {
         let r = Rect(left: 0, top: 0, right: 100, bottom: 50)
-        XCTAssertTrue(r.containsPoint(0, 0))  // inclusive
+        #expect(r.containsPoint(0, 0))  // inclusive
     }
 
-    func testContainsPointOnRightEdge() {
+    @Test func containsPointOnRightEdge() {
         let r = Rect(left: 0, top: 0, right: 100, bottom: 50)
-        XCTAssertFalse(r.containsPoint(100, 25))  // exclusive
+        #expect(!r.containsPoint(100, 25))  // exclusive
     }
 
-    func testContainsPointOutside() {
+    @Test func containsPointOutside() {
         let r = Rect(left: 0, top: 0, right: 100, bottom: 50)
-        XCTAssertFalse(r.containsPoint(200, 25))
+        #expect(!r.containsPoint(200, 25))
     }
 
     // MARK: - cgRect (convert conversion to CoreGraphics)
-    func testCGRectConversion() {
+    @Test func cgRectConversion() {
         let r = Rect(left: 10, top: 20, right: 60, bottom: 80)
         let cg = r.cgRect
-        XCTAssertEqual(cg.origin.x, 10)
-        XCTAssertEqual(cg.origin.y, 20)
-        XCTAssertEqual(cg.size.width, 50)  // right - left
-        XCTAssertEqual(cg.size.height, 60)  // bottom - top
+        #expect(cg.origin.x == 10)
+        #expect(cg.origin.y == 20)
+        #expect(cg.size.width == 50)  // right - left
+        #expect(cg.size.height == 60)  // bottom - top
     }
 
     // MARK: - init(cgRect:) - round trip
-    func testInitFromCGRect() {
+    @Test func initFromCGRect() {
         let cg = CGRect(x: 5, y: 15, width: 40, height: 30)
         let r = Rect(cgRect: cg)
-        XCTAssertEqual(r.left, 5)
-        XCTAssertEqual(r.top, 15)
-        XCTAssertEqual(r.right, 45)  // minX + width
-        XCTAssertEqual(r.bottom, 45)  // minY + height
+        #expect(r.left == 5)
+        #expect(r.top == 15)
+        #expect(r.right == 45)  // minX + width
+        #expect(r.bottom == 45)  // minY + height
     }
 }

@@ -1,103 +1,103 @@
-import XCTest
+import Testing
 
 @testable import Core
 
-final class URLTests: XCTestCase {
+@Suite struct URLTests {
     // MARK - init (parsing)
-    func testParsesHTTPSScheme() {
+    @Test func parsesHTTPSScheme() {
         let url = URL("https://example.com/path")
-        XCTAssertEqual(url.scheme, "https")
+        #expect(url.scheme == "https")
     }
 
-    func testParsesHTTPScheme() {
+    @Test func parsesHTTPScheme() {
         let url = URL("http://example.com/")
-        XCTAssertEqual(url.scheme, "http")
+        #expect(url.scheme == "http")
     }
 
-    func testParsesHost() {
+    @Test func parsesHost() {
         let url = URL("https://example.com/path")
-        XCTAssertEqual(url.host, "example.com")
+        #expect(url.host == "example.com")
     }
 
-    func testParsesPath() {
+    @Test func parsesPath() {
         let url = URL("https://example.com/some/path")
-        XCTAssertEqual(url.path, "/some/path")
+        #expect(url.path == "/some/path")
     }
 
-    func testDefaultPortHTTPS() {
+    @Test func defaultPortHTTPS() {
         let url = URL("https://example.com/")
-        XCTAssertEqual(url.port, 443)
+        #expect(url.port == 443)
     }
 
-    func testDefaultPortHTTP() {
+    @Test func defaultPortHTTP() {
         let url = URL("http://example.com/")
-        XCTAssertEqual(url.port, 80)
+        #expect(url.port == 80)
     }
 
-    func testCustomPort() {
+    @Test func customPort() {
         let url = URL("https://example.com:8080/")
-        XCTAssertEqual(url.port, 8080)
-        XCTAssertEqual(url.host, "example.com")
+        #expect(url.port == 8080)
+        #expect(url.host == "example.com")
     }
 
-    func testMissingPathDefaultsToSlash() {
+    @Test func missingPathDefaultsToSlash() {
         let url = URL("https://example.com")
-        XCTAssertEqual(url.path, "/")
+        #expect(url.path == "/")
     }
 
     // MARK: - toString
 
-    func testToStringOmitsDefaultHTTPSPort() {
+    @Test func toStringOmitsDefaultHTTPSPort() {
         let url = URL("https://example.com/path")
-        XCTAssertEqual(url.toString(), "https://example.com/path")
+        #expect(url.toString() == "https://example.com/path")
     }
 
-    func testToStringOmitsDefaultHTTPPort() {
+    @Test func toStringOmitsDefaultHTTPPort() {
         let url = URL("http://example.com/path")
-        XCTAssertEqual(url.toString(), "http://example.com/path")
+        #expect(url.toString() == "http://example.com/path")
     }
 
-    func testToStringIncludesCustomPort() {
+    @Test func toStringIncludesCustomPort() {
         let url = URL("http://example.com:8080/path")
-        XCTAssertEqual(url.toString(), "http://example.com:8080/path")
+        #expect(url.toString() == "http://example.com:8080/path")
     }
 
     // MARK: - origin
 
-    func testOrigin() {
+    @Test func origin() {
         let url = URL("https://example.com/path")
-        XCTAssertEqual(url.origin(), "https://example.com:443")
+        #expect(url.origin() == "https://example.com:443")
     }
 
     // MARK: - resolve
 
-    func testResolveAbsoluteURL() {
+    @Test func resolveAbsoluteURL() {
         let base = URL("https://example.com/a/b")
         let resolved = base.resolve("https://other.com/c")
-        XCTAssertEqual(resolved.toString(), "https://other.com/c")
+        #expect(resolved.toString() == "https://other.com/c")
     }
 
-    func testResolveAbsolutePath() {
+    @Test func resolveAbsolutePath() {
         let base = URL("https://example.com/a/b")
         let resolved = base.resolve("/c")
-        XCTAssertEqual(resolved.toString(), "https://example.com/c")
+        #expect(resolved.toString() == "https://example.com/c")
     }
 
-    func testResolveRelativePath() {
+    @Test func resolveRelativePath() {
         let base = URL("https://example.com/a/b")
         let resolved = base.resolve("c")
-        XCTAssertEqual(resolved.toString(), "https://example.com/a/c")
+        #expect(resolved.toString() == "https://example.com/a/c")
     }
 
-    func testResolveParentRelativePath() {
+    @Test func resolveParentRelativePath() {
         let base = URL("https://example.com/a/b/c")
         let resolved = base.resolve("../d")
-        XCTAssertEqual(resolved.toString(), "https://example.com/a/d")
+        #expect(resolved.toString() == "https://example.com/a/d")
     }
 
-    func testResolveProtocolRelative() {
+    @Test func resolveProtocolRelative() {
         let base = URL("https://example.com/path")
         let resolved = base.resolve("//other.com/page")
-        XCTAssertEqual(resolved.toString(), "https://other.com/page")
+        #expect(resolved.toString() == "https://other.com/page")
     }
 }

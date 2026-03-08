@@ -1,8 +1,8 @@
-import XCTest
+import Testing
 
 @testable import Core
 
-final class HTMLParserTests: XCTestCase {
+@Suite struct HTMLParserTests {
 
     // MARK: - Helper for cast to Element
     private func el(_ node: any DOMNode) -> Element {
@@ -10,76 +10,76 @@ final class HTMLParserTests: XCTestCase {
     }
 
     // MARK: - Implicit structure - always produces html > body
-    func testImplicitHTMLStructure() {
+    @Test func implicitHTMLStructure() {
         let root = el(HTMLParser(body: "").parse())
-        XCTAssertEqual(root.tag, "html")
-        XCTAssertEqual(root.children.count, 1)
-        XCTAssertEqual(el(root.children[0]).tag, "body")
+        #expect(root.tag == "html")
+        #expect(root.children.count == 1)
+        #expect(el(root.children[0]).tag == "body")
     }
 
     // MARK: - Implicit structure produces html > head + body
-    func testImplicitHeadAndBody() {
+    @Test func implicitHeadAndBody() {
         let root = el(HTMLParser(body: "<title>T</title><p>hi</p>").parse())
-        XCTAssertEqual(root.children.count, 2)
-        XCTAssertEqual(el(root.children[0]).tag, "head")
-        XCTAssertEqual(el(root.children[1]).tag, "body")
+        #expect(root.children.count == 2)
+        #expect(el(root.children[0]).tag == "head")
+        #expect(el(root.children[1]).tag == "body")
     }
 
     // MARK: Text content goes into body
-    func testTextInBody() {
+    @Test func textInBody() {
         let root = el(HTMLParser(body: "hello").parse())
         let body = el(root.children[0])
-        XCTAssertEqual(body.children.count, 1)
+        #expect(body.children.count == 1)
         let text = body.children[0] as! TextNode
-        XCTAssertEqual(text.text, "hello")
+        #expect(text.text == "hello")
     }
 
     // MARK: - Nested tags
-    func testNestedParagraph() {
+    @Test func nestedParagraph() {
         let root = el(HTMLParser(body: "<p>world</p>").parse())
         let body = el(root.children[0])
         let p = el(body.children[0])
-        XCTAssertEqual(p.tag, "p")
+        #expect(p.tag == "p")
         let text = p.children[0] as! TextNode
-        XCTAssertEqual(text.text, "world")
+        #expect(text.text == "world")
     }
 
     // MARK: - Attributes are parsed
-    func testAttributeParsing() {
+    @Test func attributeParsing() {
         let root = el(HTMLParser(body: #"<a href="/home">link</a>"#).parse())
         let body = el(root.children[0])
         let a = el(body.children[0])
-        XCTAssertEqual(a.tag, "a")
-        XCTAssertEqual(a.attributes["href"], "/home")
+        #expect(a.tag == "a")
+        #expect(a.attributes["href"] == "/home")
     }
 
     // MARK: - Self-closing tags don't swallow siblings
-    func testSelfClosingBr() {
+    @Test func selfClosingBr() {
         let root = el(HTMLParser(body: "before<br>after").parse())
         let body = el(root.children[0])
         // br is a child of body, not a parent of "after"
-        XCTAssertEqual(body.children.count, 3)
-        XCTAssertEqual(el(body.children[1]).tag, "br")
+        #expect(body.children.count == 3)
+        #expect(el(body.children[1]).tag == "br")
     }
 
     // MARK: - Comments and doctype are skipped
-    func testDoctypeIsIgnored() {
+    @Test func doctypeIsIgnored() {
         let root = el(HTMLParser(body: "<!DOCTYPE html><p>ok</p>").parse())
         let body = el(root.children[0])
-        XCTAssertEqual(el(body.children[0]).tag, "p")
+        #expect(el(body.children[0]).tag == "p")
     }
 
-    func testHTMLIsIgnored() {
-        let root = el(HTMLParser(body: "<-!--- comment ---><p>text</p>").parse())
+    @Test func htmlIsIgnored() {
+        let root = el(HTMLParser(body: "<!-- comment --><p>text</p>").parse())
         let body = el(root.children[0])
-        XCTAssertEqual(el(body.children[0]).tag, "p")
+        #expect(el(body.children[0]).tag == "p")
     }
 
     // MARK: - Whitespace-only text is discarded
-    func testWhiteSpaceOnlyTextDiscarded() {
+    @Test func whiteSpaceOnlyTextDiscarded() {
         let root = el(HTMLParser(body: "<p>    </p>").parse())
         let body = el(root.children[0])
         let p = el(body.children[0])
-        XCTAssertTrue(p.children.isEmpty)
+        #expect(p.children.isEmpty)
     }
 }

@@ -1,90 +1,90 @@
-import XCTest
+import Testing
 
 @testable import Core
 
-final class DOMNodeTests: XCTestCase {
+@Suite struct DOMNodeTests {
 
     // MARK: - Element initialization
-    func testElementTagIsLowercased() {
+    @Test func elementTagIsLowercased() {
         let el = Element(tag: "div", attributes: [:], parent: nil)
-        XCTAssertEqual(el.tag, "div")
+        #expect(el.tag == "div")
     }
 
-    func testElementStoreAttributes() {
+    @Test func elementStoreAttributes() {
         let el = Element(tag: "a", attributes: ["href": "/home", "class": "nav"], parent: nil)
-        XCTAssertEqual(el.attributes["href"], "/home")
-        XCTAssertEqual(el.attributes["class"], "nav")
+        #expect(el.attributes["href"] == "/home")
+        #expect(el.attributes["class"] == "nav")
     }
 
-    func testElementDefaultsAreEmpty() {
+    @Test func elementDefaultsAreEmpty() {
         let el = Element(tag: "p", attributes: [:], parent: nil)
-        XCTAssertTrue(el.children.isEmpty)
-        XCTAssertNil(el.parent)
-        XCTAssertTrue(el.style.isEmpty)
-        XCTAssertFalse(el.isFocused)
+        #expect(el.children.isEmpty)
+        #expect(el.parent == nil)
+        #expect(el.style.isEmpty)
+        #expect(!el.isFocused)
     }
 
     // MARK: - Element description
-    func testElementDescription() {
+    @Test func elementDescription() {
         let el = Element(tag: "span", attributes: [:], parent: nil)
-        XCTAssertEqual(el.description, "<span>")
+        #expect(el.description == "<span>")
     }
 
     // MARK: - TextNode initialization
-    func testTextNodeStoresText() {
+    @Test func textNodeStoresText() {
         let node = TextNode(text: "Hello", parent: nil)
-        XCTAssertEqual(node.text, "Hello")
+        #expect(node.text == "Hello")
     }
 
-    func testTextNodeDefaultsAreEmpty() {
+    @Test func textNodeDefaultsAreEmpty() {
         let node = TextNode(text: "Hi", parent: nil)
-        XCTAssertTrue(node.children.isEmpty)
-        XCTAssertNil(node.parent)
-        XCTAssertTrue(node.style.isEmpty)
-        XCTAssertFalse(node.isFocused)
+        #expect(node.children.isEmpty)
+        #expect(node.parent == nil)
+        #expect(node.style.isEmpty)
+        #expect(!node.isFocused)
     }
 
     // MARK: TextNode description
-    func testTextNodeDescription() {
+    @Test func textNodeDescription() {
         let node = TextNode(text: "world", parent: nil)
-        XCTAssertEqual(node.description, "\"world\"")
+        #expect(node.description == "\"world\"")
     }
 
     // MARK: Parent-child relationships
-    func testParentChildLink() {
+    @Test func parentChildLink() {
         let parent = Element(tag: "div", attributes: [:], parent: nil)
         let child = TextNode(text: "hi", parent: parent)
         parent.children.append(child)
 
-        XCTAssertEqual(parent.children.count, 1)
+        #expect(parent.children.count == 1)
         // Verify the child's parent is the same object
-        XCTAssert(child.parent === parent)
+        #expect(child.parent === parent)
     }
 
-    func testNestedElements() {
+    @Test func nestedElements() {
         let root = Element(tag: "html", attributes: [:], parent: nil)
         let body = Element(tag: "body", attributes: [:], parent: root)
         let text = TextNode(text: "content", parent: body)
         root.children.append(body)
         body.children.append(text)
 
-        XCTAssertEqual(root.children.count, 1)
-        XCTAssertEqual(body.children.count, 1)
-        XCTAssert(body.parent === root)
-        XCTAssert(text.parent === body)
+        #expect(root.children.count == 1)
+        #expect(body.children.count == 1)
+        #expect(body.parent === root)
+        #expect(text.parent === body)
     }
 
     // MARK: - Style and isFocused Mutation
 
-    func testStyleCanBeSet() {
+    @Test func styleCanBeSet() {
         let el = Element(tag: "p", attributes: [:], parent: nil)
         el.style["color"] = "red"
-        XCTAssertEqual(el.style["color"], "red")
+        #expect(el.style["color"] == "red")
     }
 
-    func testIsFocusedCanBeToggled() {
+    @Test func isFocusedCanBeToggled() {
         let el = Element(tag: "input", attributes: [:], parent: nil)
         el.isFocused = true
-        XCTAssertTrue(el.isFocused)
+        #expect(el.isFocused)
     }
 }
