@@ -151,8 +151,8 @@ class CSSParser {
         var out: any CSSSelector = TagSelector(tag: (try? word())?.lowercased() ?? "")
         skipWhitespace()
         while i < chars.count && chars[i] != "{" {
-            let tag = (try? word())?.lowercased() ?? ""
-            let inner = TagSelector(tag: tag)
+            guard let tag = try? word() else { break }
+            let inner = TagSelector(tag: tag.lowercased())
             out = DescendantSelector(ancestor: out, descendant: inner)
             skipWhitespace()
         }
