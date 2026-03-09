@@ -43,9 +43,9 @@ actor CookieJar {
     }
 }
 
-// MARK: - URL
+// MARK: - BrowserURL
 
-class URL {
+public class BrowserURL: @unchecked Sendable {
 
     // The URL scheme (http or https)
     let scheme: String
@@ -61,7 +61,7 @@ class URL {
 
     // Parses a raw URL string like "https://example.com/path"
     // into it's individual components: scheme, host, port, and path.
-    init(_ rawURL: String) {
+    public init(_ rawURL: String) {
         guard let schemeRange = rawURL.range(of: "://") else {
             fatalError("Invalid URL: missing scheme")
         }
@@ -94,7 +94,7 @@ class URL {
     // network response, allowing other tasks to run in the meantime.
     // "throws" means this function can fail and propagate errors to the caller,
     // who must handle them with "try".
-    func request(referrer: URL? = nil, payload: String? = nil) async throws -> (
+    func request(referrer: BrowserURL? = nil, payload: String? = nil) async throws -> (
         headers: [String: String], content: String
     ) {
         // If a payload (body) is provided, use POST. Otherwise GET.
@@ -211,19 +211,19 @@ class URL {
     // Resolve a (possibly relative) URL againt this URL's base
     // e.g. if self is "https://example.com/a/b" and rawURL is "../c",
     // the result is "https://example.com/c"
-    func resolve(_ rawURL: String) -> URL {
+    func resolve(_ rawURL: String) -> BrowserURL {
         // Absolute URL - use it directly
         if rawURL.contains("://") {
-            return URL(rawURL)
+            return BrowserURL(rawURL)
         }
 
         // Protocol-relative URL like "//example.com/path" - inherit the scheme
         if rawURL.hasPrefix("//") {
-            return URL("\(scheme):\(rawURL)")
+            return BrowserURL("\(scheme):\(rawURL)")
         }
         // Absolute path - inherit scheme, host, and port
         if rawURL.hasPrefix("/") {
-            return URL("\(scheme)://\(host):\(port)\(rawURL)")
+            return BrowserURL("\(scheme)://\(host):\(port)\(rawURL)")
         }
 
         // Relative path - resolve against the current path's directory
@@ -243,7 +243,7 @@ class URL {
             }
         }
 
-        return URL("\(scheme)://\(host):\(port)\(dir)/\(relURL)")
+        return BrowserURL("\(scheme)://\(host):\(port)\(dir)/\(relURL)")
     }
 
     // Returns just the origin (scheme + host + port), used for
