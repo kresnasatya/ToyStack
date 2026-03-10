@@ -1,7 +1,7 @@
 import Foundation
 import JavaScriptCore
 
-class BrowserJSContext: @unchecked Sendable {
+class JSRuntime: @unchecked Sendable {
     private let jsContext = JSContext()!
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]

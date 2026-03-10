@@ -17,7 +17,7 @@ public class Tab: ObservableObject {
     private var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(any CSSSelector, [String: String])] = []
-    private var js: BrowserJSContext!
+    private var js: JSRuntime!
 
     init(tabHeight: CGFloat) {
         self.tabHeight = tabHeight
@@ -31,7 +31,7 @@ public class Tab: ObservableObject {
         scroll = 0
         self.url = url
         nodes = HTMLParser(body: body).parse()
-        js = BrowserJSContext(tab: self)
+        js = JSRuntime(tab: self)
 
         // Parse Content-Security-Policy header
         allowedOrigins = nil

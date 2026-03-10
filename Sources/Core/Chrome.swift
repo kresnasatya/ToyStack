@@ -1,8 +1,8 @@
 import CoreGraphics
 
 @MainActor
-public class BrowserChrome {
-    weak var browser: BrowserApp?
+public class Chrome {
+    weak var browser: Browser?
 
     private let font: BrowserFont
     private let fontHeight: CGFloat

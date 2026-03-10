@@ -2,7 +2,7 @@ import Combine
 import SwiftUI
 
 @MainActor
-public class BrowserApp: ObservableObject {
+public class Browser: ObservableObject {
     @Published public var tabs: [Core.Tab] = []
     @Published public var activeTab: Core.Tab? {
         didSet {
@@ -10,11 +10,11 @@ public class BrowserApp: ObservableObject {
                 .sink { [weak self] _ in self?.objectWillChange.send() }
         }
     }
-    public let chrome: BrowserChrome
+    public let chrome: Chrome
     private var tabObserver: AnyCancellable?
 
     public init() {
-        chrome = BrowserChrome()
+        chrome = Chrome()
         chrome.browser = self
     }
 
@@ -25,3 +25,6 @@ public class BrowserApp: ObservableObject {
         tabs.append(tab)
     }
 }
+
+// BrowserURL -> WebURL
+// Rename module Core into Engine
