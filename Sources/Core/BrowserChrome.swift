@@ -132,7 +132,7 @@ public class BrowserChrome {
     func click(x: CGFloat, y: CGFloat) async {
         focus = nil
         if newtabRect.containsPoint(x, y) {
-            await browser?.newTab(BrowserURL("https://browser.engineering"))
+            await browser?.newTab(WebURL("https://browser.engineering"))
         } else if backRect.containsPoint(x, y) {
             await browser?.activeTab?.goBack()
         } else if addressRect.containsPoint(x, y) {
@@ -159,7 +159,7 @@ public class BrowserChrome {
 
     public func enter() async {
         if focus == "address bar" {
-            await browser?.activeTab?.load(BrowserURL(addressBar))
+            await browser?.activeTab?.load(WebURL(addressBar))
             focus = nil
         }
     }

@@ -18,7 +18,7 @@ public class BrowserApp: ObservableObject {
         chrome.browser = self
     }
 
-    public func newTab(_ url: BrowserURL) async {
+    public func newTab(_ url: WebURL) async {
         let tab = BrowserTab(tabHeight: HEIGHT - chrome.bottom)
         await tab.load(url)
         activeTab = tab

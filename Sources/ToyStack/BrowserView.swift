@@ -45,7 +45,7 @@ public struct BrowserView: View {
         }
         .frame(width: WIDTH, height: HEIGHT)
         .task {
-            await app.newTab(BrowserURL("https://browser.engineering"))
+            await app.newTab(WebURL("https://browser.engineering"))
         }
     }
 }

@@ -43,9 +43,9 @@ actor CookieJar {
     }
 }
 
-// MARK: - BrowserURL
+// MARK: - WebURL
 
-public class BrowserURL: @unchecked Sendable {
+public class WebURL: @unchecked Sendable {
 
     // The URL scheme (http or https)
     let scheme: String
@@ -94,7 +94,7 @@ public class BrowserURL: @unchecked Sendable {
     // network response, allowing other tasks to run in the meantime.
     // "throws" means this function can fail and propagate errors to the caller,
     // who must handle them with "try".
-    func request(referrer: BrowserURL? = nil, payload: String? = nil) async throws -> (
+    func request(referrer: WebURL? = nil, payload: String? = nil) async throws -> (
         headers: [String: String], content: String
     ) {
         // If a payload (body) is provided, use POST. Otherwise GET.
@@ -228,19 +228,19 @@ public class BrowserURL: @unchecked Sendable {
     // Resolve a (possibly relative) URL againt this URL's base
     // e.g. if self is "https://example.com/a/b" and rawURL is "../c",
     // the result is "https://example.com/c"
-    func resolve(_ rawURL: String) -> BrowserURL {
+    func resolve(_ rawURL: String) -> WebURL {
         // Absolute URL - use it directly
         if rawURL.contains("://") {
-            return BrowserURL(rawURL)
+            return WebURL(rawURL)
         }
 
         // Protocol-relative URL like "//example.com/path" - inherit the scheme
         if rawURL.hasPrefix("//") {
-            return BrowserURL("\(scheme):\(rawURL)")
+            return WebURL("\(scheme):\(rawURL)")
         }
         // Absolute path - inherit scheme, host, and port
         if rawURL.hasPrefix("/") {
-            return BrowserURL("\(scheme)://\(host):\(port)\(rawURL)")
+            return WebURL("\(scheme)://\(host):\(port)\(rawURL)")
         }
 
         // Relative path - resolve against the current path's directory
@@ -260,7 +260,7 @@ public class BrowserURL: @unchecked Sendable {
             }
         }
 
-        return BrowserURL("\(scheme)://\(host):\(port)\(dir)/\(relURL)")
+        return WebURL("\(scheme)://\(host):\(port)\(dir)/\(relURL)")
     }
 
     // Returns just the origin (scheme + host + port), used for

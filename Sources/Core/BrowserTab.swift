@@ -6,14 +6,14 @@ public class BrowserTab: ObservableObject {
 
     @Published private(set) var renderVersion: Int = 0
 
-    private(set) var url: BrowserURL!
+    private(set) var url: WebURL!
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [any PaintCommand] = []
 
     private var scroll: CGFloat = 0
     private let tabHeight: CGFloat
-    private var history: [BrowserURL] = []
+    private var history: [WebURL] = []
     private var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(any CSSSelector, [String: String])] = []
@@ -23,7 +23,7 @@ public class BrowserTab: ObservableObject {
         self.tabHeight = tabHeight
     }
 
-    func load(_ url: BrowserURL, payload: String? = nil) async {
+    func load(_ url: WebURL, payload: String? = nil) async {
         guard let (headers, body) = try? await url.request(referrer: self.url, payload: payload)
         else { return }
 
@@ -38,7 +38,7 @@ public class BrowserTab: ObservableObject {
         if let csp = headers["content-security-policy"] {
             let parts = csp.split(separator: " ").map(String.init)
             if parts.first == "default-src" {
-                allowedOrigins = parts.dropFirst().map { BrowserURL($0).origin() }
+                allowedOrigins = parts.dropFirst().map { WebURL($0).origin() }
             }
         }
 
@@ -84,7 +84,7 @@ public class BrowserTab: ObservableObject {
         render()
     }
 
-    func allowedRequest(_ url: BrowserURL) -> Bool {
+    func allowedRequest(_ url: WebURL) -> Bool {
         allowedOrigins == nil || (allowedOrigins?.contains(url.origin()) ?? false)
     }
 
