@@ -1,9 +1,22 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+import Core
+import SwiftUI
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
 
 @main
-struct ToyStack {
-    static func main() async throws {
-        print("Hello from ToyStack!")
+struct ToyStack: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
+    var body: some Scene {
+        Window("ToyStack", id: "main") {
+            BrowserView()
+                .frame(width: WIDTH, height: HEIGHT)
+        }
+        .windowResizability(.contentSize)
     }
 }

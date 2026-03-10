@@ -16,7 +16,14 @@ let package = Package(
             dependencies: ["Core"]
         ),
         .target(
-            name: "Core"
+            name: "Core",
+            resources: [
+                .process("Resources/runtime.js"),
+                .process("Resources/browser.css"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
         ),
         .testTarget(
             name: "ToyStackTests",

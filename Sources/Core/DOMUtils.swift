@@ -3,8 +3,8 @@ import CoreText
 import Foundation
 
 // MARK: - Layout Constants
-let WIDTH: CGFloat = 800
-let HEIGHT: CGFloat = 600
+public let WIDTH: CGFloat = 800
+public let HEIGHT: CGFloat = 600
 let HSTEP: CGFloat = 13
 let VSTEP: CGFloat = 18
 let SCROLL_STEP: CGFloat = 100
@@ -37,7 +37,7 @@ struct BrowserFont {
 
 // MARK: - Font Cache
 // Building a CTFont is expensive; cache by (size, weight, style).
-private var fontCache: [String: BrowserFont] = [:]
+nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
 
 func getFont(size: Int, weight: String, style: String) -> BrowserFont {
     let key = "\(size)-\(weight)-\(style)"
@@ -73,7 +73,7 @@ let inheritedProperties: [String: String] = [
 //   2. Matching stylesheet rules (sorted by priority before calling)
 //   3. Inline style attribute
 func applyStyle(node: any DOMNode, rules: [(any CSSSelector, [String: String])]) {
-    node.style == [:]
+    node.style = [:]
 
     // Step 1: start with inherited or default values
     for (property, defaultValue) in inheritedProperties {

@@ -200,6 +200,23 @@ public class BrowserURL: @unchecked Sendable {
         return (headers, content)
     }
 
+    // Synchronous wrapper around request() for use in JavaScriptCore @convention(block) callbacks
+    // JS callbacks must return immediately, so we block the current thread with a DispatchSemaphore
+    // until the async request completes.
+    func requestSync(payload: String? = nil) -> (headers: [String: String], content: String)? {
+        final class ResultBox: @unchecked Sendable {
+            var value: (headers: [String: String], content: String)?
+        }
+        let box = ResultBox()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            box.value = try? await self.request(payload: payload)
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return box.value
+    }
+
     // Returns the URL as a string, omitting the port if it's the default.
     func toString() -> String {
         var portPart = ":\(port)"

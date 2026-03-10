@@ -3,7 +3,7 @@ import Foundation
 // MARK: - CSSSelector Protocol
 // Any selector can test whether it matches a DOM node and report it's priority.
 // Higher priority wins when two rules set the same property.
-protocol CSSSelector {
+protocol CSSSelector: Sendable {
     var priority: Int { get }
     func matches(_ node: any DOMNode) -> Bool
 }
