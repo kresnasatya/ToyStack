@@ -66,17 +66,17 @@ public struct BrowserView: View {
         .frame(width: WIDTH, height: HEIGHT)
         .gesture(
             SpatialTapGesture()
-            .onEnded({ value in
-                Task { @MainActor in
-                    let x = value.location.x
-                    let y = value.location.y
-                    if y < app.chrome.bottom {
-                        await app.chrome.click(x: x, y: y)
-                    } else {
-                        await app.activeTab?.click(x: x, y:y - app.chrome.bottom)
+                .onEnded({ value in
+                    Task { @MainActor in
+                        let x = value.location.x
+                        let y = value.location.y
+                        if y < app.chrome.bottom {
+                            await app.chrome.click(x: x, y: y)
+                        } else {
+                            await app.activeTab?.click(x: x, y: y - app.chrome.bottom)
+                        }
                     }
-                }
-            })
+                })
         )
         .task {
             await app.newTab(WebURL("https://browser.engineering"))
