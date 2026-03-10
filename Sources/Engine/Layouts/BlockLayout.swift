@@ -75,7 +75,7 @@ class BlockLayout: LayoutObject {
     // Walks inline DOM content: text nodes produces words, elements produces inputs.
     private func recurse(_ n: any DOMNode) {
         if let textNode = n as? TextNode {
-            for word in textNode.text.split(separator: " ") {
+            for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
                 addWord(node: n, word: String(word))
             }
         } else if let el = n as? Element {

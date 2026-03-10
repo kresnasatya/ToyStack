@@ -105,7 +105,7 @@ public class Tab: ObservableObject {
             guard cmd.rect.top <= self.scroll + tabHeight,
                 cmd.rect.bottom >= self.scroll
             else { return nil }
-            return (cmd, self.scroll - offset)
+            return (cmd, self.scroll)
         })
     }
 
