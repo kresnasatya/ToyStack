@@ -5,11 +5,11 @@ class BrowserJSContext: @unchecked Sendable {
     private let jsContext = JSContext()!
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]
-    private weak var tab: BrowserTab?
+    private weak var tab: Core.Tab?
 
     private static let eventDispatchJS = "new Node(__handle).dispatchEvent(new Event(__type))"
 
-    init(tab: BrowserTab) {
+    init(tab: Core.Tab) {
         self.tab = tab
         registerCallbacks()
         loadRuntime()

@@ -3,8 +3,8 @@ import SwiftUI
 
 @MainActor
 public class BrowserApp: ObservableObject {
-    @Published public var tabs: [BrowserTab] = []
-    @Published public var activeTab: BrowserTab? {
+    @Published public var tabs: [Core.Tab] = []
+    @Published public var activeTab: Core.Tab? {
         didSet {
             tabObserver = activeTab?.$renderVersion
                 .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -19,7 +19,7 @@ public class BrowserApp: ObservableObject {
     }
 
     public func newTab(_ url: WebURL) async {
-        let tab = BrowserTab(tabHeight: HEIGHT - chrome.bottom)
+        let tab = Core.Tab(tabHeight: HEIGHT - chrome.bottom)
         await tab.load(url)
         activeTab = tab
         tabs.append(tab)

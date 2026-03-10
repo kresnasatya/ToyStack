@@ -72,7 +72,7 @@ public class BrowserChrome {
                 color: "black"))
 
         // Tab buttons
-        let tabs: [BrowserTab] = browser?.tabs ?? []
+        let tabs: [Core.Tab] = browser?.tabs ?? []
         for (i, tab) in tabs.enumerated() {
             let bounds = tabRect(i)
             cmds.append(
@@ -139,7 +139,7 @@ public class BrowserChrome {
             focus = "address bar"
             addressBar = ""
         } else {
-            let tabs: [BrowserTab] = browser?.tabs ?? []
+            let tabs: [Core.Tab] = browser?.tabs ?? []
             for (i, tab) in tabs.enumerated() {
                 if tabRect(i).containsPoint(x, y) {
                     browser?.activeTab = tab

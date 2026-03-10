@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 @MainActor
-public class BrowserTab: ObservableObject {
+public class Tab: ObservableObject {
 
     @Published private(set) var renderVersion: Int = 0
 
