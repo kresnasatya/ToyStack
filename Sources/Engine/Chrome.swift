@@ -1,8 +1,18 @@
 import CoreGraphics
 
+// Defines the tab management interface that Chrome depends on.
+// Marked @MainActor to match Browser's isolation and prevent Swift 6 data races.
+// Chrome only needs to manage tabs - it doesn't need to know about Browser internals.
+@MainActor
+public protocol TabManager: AnyObject {
+    var tabs: [Tab] { get }
+    var activeTab: Tab? { get set }
+    func newTab(_ url: WebURL) async
+}
+
 @MainActor
 public class Chrome {
-    weak var browser: Browser?
+    weak var tabManager: (any TabManager)?
 
     private let font: BrowserFont
     private let fontHeight: CGFloat
@@ -72,7 +82,7 @@ public class Chrome {
                 color: "black"))
 
         // Tab buttons
-        let tabs: [Engine.Tab] = browser?.tabs ?? []
+        let tabs: [Engine.Tab] = tabManager?.tabs ?? []
         for (i, tab) in tabs.enumerated() {
             let bounds = tabRect(i)
             cmds.append(
@@ -87,7 +97,7 @@ public class Chrome {
                 DrawText(
                     x1: bounds.left + padding, y1: bounds.top + padding, text: "Tab \(i)",
                     font: font, color: "black"))
-            if tab === browser?.activeTab {
+            if tab === tabManager?.activeTab {
                 cmds.append(
                     DrawLine(
                         x1: 0, y1: bounds.bottom, x2: bounds.left, y2: bounds.bottom,
@@ -119,7 +129,7 @@ public class Chrome {
                     x1: addressRect.left + padding + w, y1: addressRect.top,
                     x2: addressRect.left + padding + w, y2: addressRect.bottom, color: "red",
                     thickness: 1))
-        } else if let url = browser?.activeTab?.url {
+        } else if let url = tabManager?.activeTab?.url {
             cmds.append(
                 DrawText(
                     x1: addressRect.left + padding, y1: addressRect.top, text: url.toString(),
@@ -132,17 +142,17 @@ public class Chrome {
     func click(x: CGFloat, y: CGFloat) async {
         focus = nil
         if newtabRect.containsPoint(x, y) {
-            await browser?.newTab(WebURL("https://browser.engineering"))
+            await tabManager?.newTab(WebURL("https://browser.engineering"))
         } else if backRect.containsPoint(x, y) {
-            await browser?.activeTab?.goBack()
+            await tabManager?.activeTab?.goBack()
         } else if addressRect.containsPoint(x, y) {
             focus = "address bar"
             addressBar = ""
         } else {
-            let tabs: [Engine.Tab] = browser?.tabs ?? []
+            let tabs: [Engine.Tab] = tabManager?.tabs ?? []
             for (i, tab) in tabs.enumerated() {
                 if tabRect(i).containsPoint(x, y) {
-                    browser?.activeTab = tab
+                    tabManager?.activeTab = tab
                     break
                 }
             }
@@ -159,7 +169,7 @@ public class Chrome {
 
     public func enter() async {
         if focus == "address bar" {
-            await browser?.activeTab?.load(WebURL(addressBar))
+            await tabManager?.activeTab?.load(WebURL(addressBar))
             focus = nil
         }
     }

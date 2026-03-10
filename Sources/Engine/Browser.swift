@@ -15,7 +15,7 @@ public class Browser: ObservableObject {
 
     public init() {
         chrome = Chrome()
-        chrome.browser = self
+        chrome.tabManager = self
     }
 
     public func newTab(_ url: WebURL) async {
@@ -26,5 +26,6 @@ public class Browser: ObservableObject {
     }
 }
 
-// BrowserURL -> WebURL
-// Rename module Core into Engine
+// Explicitly declares Browser as a TabManager implementor.
+// All required members (tabs, activeTab, newTab) are already defined in the class.
+extension Browser: TabManager {}
