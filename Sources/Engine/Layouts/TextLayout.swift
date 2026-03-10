@@ -32,12 +32,10 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)  // CSS px -> typhographic points
         font = getFont(size: sizeInt, weight: weight, style: styleStr)
-        width = font.measure(word)
+        width = font.measure(word) + font.measure(" ")
 
         if let prev = previous as? InlineLayoutItem {
-            // Position after the previous sibling, with a space-width gap.
-            let space = prev.font.measure(" ")
-            x = prev.x + space + prev.width
+            x = prev.x + prev.width
         } else {
             x = parent!.x
         }

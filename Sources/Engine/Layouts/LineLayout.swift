@@ -27,6 +27,11 @@ class LineLayout: LayoutObject {
         // First pass: let each child calculate its own width, x, and height.
         for child in children { child.layout() }
 
+        // Trim trailing space from last word - no word follows it on this line.
+        if let lastText = children.last as? TextLayout {
+            lastText.width = lastText.font.measure(lastText.word)
+        }
+
         guard !children.isEmpty else {
             height = 0
             return
