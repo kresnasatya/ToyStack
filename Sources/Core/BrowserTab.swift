@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 @MainActor
-class BrowserTab: ObservableObject {
+public class BrowserTab: ObservableObject {
 
     @Published private(set) var renderVersion: Int = 0
 
@@ -109,7 +109,7 @@ class BrowserTab: ObservableObject {
         })
     }
 
-    func scrollDown() {
+    public func scrollDown() {
         let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
         scroll = min(scroll + SCROLL_STEP, maxY)
         renderVersion += 1
@@ -122,7 +122,7 @@ class BrowserTab: ObservableObject {
         await load(back)
     }
 
-    func keypress(_ char: String) {
+    public func keypress(_ char: String) {
         guard let f = focus else { return }
         if js.dispatchEvent(type: "keydown", elt: f) { return }
         f.attributes["value", default: ""] += char

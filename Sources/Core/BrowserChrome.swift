@@ -1,14 +1,14 @@
 import CoreGraphics
 
 @MainActor
-class BrowserChrome {
+public class BrowserChrome {
     weak var browser: BrowserApp?
 
     private let font: BrowserFont
     private let fontHeight: CGFloat
     private let padding: CGFloat = 5
 
-    let bottom: CGFloat  // total chrome height - tab reads this
+    public let bottom: CGFloat  // total chrome height - tab reads this
 
     private let tabbarTop: CGFloat
     private let tabbarBottom: CGFloat
@@ -55,7 +55,7 @@ class BrowserChrome {
             right: tabsStart + tabWidth * CGFloat(i + 1), bottom: tabbarBottom)
     }
 
-    func paint() -> [any PaintCommand] {
+    public func paint() -> [any PaintCommand] {
         var cmds: [any PaintCommand] = []
 
         // White background + bottom border
@@ -149,7 +149,7 @@ class BrowserChrome {
         }
     }
 
-    func keypress(_ char: String) -> Bool {
+    public func keypress(_ char: String) -> Bool {
         if focus == "address bar" {
             addressBar += char
             return true
@@ -157,7 +157,7 @@ class BrowserChrome {
         return false
     }
 
-    func enter() async {
+    public func enter() async {
         if focus == "address bar" {
             await browser?.activeTab?.load(BrowserURL(addressBar))
             focus = nil

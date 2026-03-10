@@ -13,7 +13,10 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
             name: "ToyStack",
-            dependencies: ["Core"]
+            dependencies: ["Core"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
         ),
         .target(
             name: "Core",

@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - Rect
 // An axis-aligned rectangle used for layout bounds, hit-testing, and painting.
 // Stored as four edges rather than (origin, size) to match the Python API.
-struct Rect {
+public struct Rect {
     var left: CGFloat
     var top: CGFloat
     var right: CGFloat

@@ -23,7 +23,7 @@ extension Color {
 // MARK: - PaintCommand Protocol
 // Every draw command stores a bounding rect (for visibility culling)
 // and can execute itself into SwiftUI GraphicsContext.
-protocol PaintCommand {
+public protocol PaintCommand {
     var rect: Rect { get }
     func execute(scroll: CGFloat, context: inout GraphicsContext)
 }
