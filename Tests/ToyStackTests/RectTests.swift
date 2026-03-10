@@ -1,7 +1,7 @@
-import Testing
 import CoreGraphics
+import Testing
 
-@testable import Core
+@testable import Engine
 
 @Suite struct RectTests {
 

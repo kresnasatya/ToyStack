@@ -13,13 +13,13 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
             name: "ToyStack",
-            dependencies: ["Core"],
+            dependencies: ["Engine"],
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ]
         ),
         .target(
-            name: "Core",
+            name: "Engine",
             resources: [
                 .process("Resources/runtime.js"),
                 .process("Resources/browser.css"),
@@ -30,7 +30,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ToyStackTests",
-            dependencies: ["Core"]
+            dependencies: ["Engine"]
         ),
     ]
 )

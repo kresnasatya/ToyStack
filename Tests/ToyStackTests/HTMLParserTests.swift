@@ -1,6 +1,6 @@
 import Testing
 
-@testable import Core
+@testable import Engine
 
 @Suite struct HTMLParserTests {
 

@@ -5,11 +5,11 @@ class JSRuntime: @unchecked Sendable {
     private let jsContext = JSContext()!
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]
-    private weak var tab: Core.Tab?
+    private weak var tab: Engine.Tab?
 
     private static let eventDispatchJS = "new Node(__handle).dispatchEvent(new Event(__type))"
 
-    init(tab: Core.Tab) {
+    init(tab: Engine.Tab) {
         self.tab = tab
         registerCallbacks()
         loadRuntime()
