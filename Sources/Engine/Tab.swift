@@ -129,7 +129,7 @@ public class Tab: ObservableObject {
         render()
     }
 
-    func click(x: CGFloat, y: CGFloat) async {
+    public func click(x: CGFloat, y: CGFloat) async {
         focus?.isFocused = false
         focus = nil
 

@@ -139,7 +139,7 @@ public class Chrome {
         return cmds
     }
 
-    func click(x: CGFloat, y: CGFloat) async {
+    public func click(x: CGFloat, y: CGFloat) async {
         focus = nil
         if newtabRect.containsPoint(x, y) {
             await tabManager?.newTab(WebURL("https://browser.engineering"))
