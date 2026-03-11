@@ -115,6 +115,11 @@ public class Tab: ObservableObject {
         renderVersion += 1
     }
 
+    public func scrollUp() {
+        scroll = max(scroll - SCROLL_STEP, 0)
+        renderVersion += 1
+    }
+
     func goBack() async {
         guard history.count > 1 else { return }
         history.removeLast()

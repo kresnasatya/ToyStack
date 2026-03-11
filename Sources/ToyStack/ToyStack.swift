@@ -49,6 +49,8 @@ public struct BrowserView: View {
                     Task { @MainActor in
                         if event.keyCode == 125 {  // Down arrow
                             app.activeTab?.scrollDown()
+                        } else if event.keyCode == 126 {  // Up arrow
+                            app.activeTab?.scrollUp()
                         } else if event.keyCode == 36 {  // Return
                             await app.chrome.enter()
                         } else if let char = event.characters, !char.isEmpty {
@@ -63,7 +65,22 @@ public struct BrowserView: View {
                         }
                     }
                     return nil  // consume the event
-                })
+                }
+            )
+            NSEvent.addLocalMonitorForEvents(
+                matching: .scrollWheel,
+                handler: { [weak app] event in
+                    guard let app else { return event }
+                    Task { @MainActor in
+                        if event.scrollingDeltaY > 0 {
+                            app.activeTab?.scrollUp()
+                        } else if event.scrollingDeltaY < 0 {
+                            app.activeTab?.scrollDown()
+                        }
+                    }
+                    return nil
+                }
+            )
         }
         .frame(width: WIDTH, height: HEIGHT)
         .gesture(
