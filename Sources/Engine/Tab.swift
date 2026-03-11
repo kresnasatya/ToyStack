@@ -111,6 +111,22 @@ public class Tab: ObservableObject {
         })
     }
 
+    public func scrollbarCommands() -> [any PaintCommand] {
+        guard let doc = document else { return [] }
+        let docHeight = doc.height
+        guard docHeight > tabHeight else { return [] }
+
+        let scrollbarWidth: CGFloat = 8
+        let barHeight = (tabHeight / docHeight) * tabHeight
+        let barTop = (scroll / docHeight) * tabHeight
+
+        let barRect = Rect(
+            left: tabWidth - scrollbarWidth, top: barTop, right: tabWidth,
+            bottom: barTop + barHeight)
+
+        return [DrawRect(rect: barRect, color: "blue")]
+    }
+
     public func resize(width: CGFloat, height: CGFloat) {
         tabWidth = width
         tabHeight = height

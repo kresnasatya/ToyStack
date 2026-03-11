@@ -34,6 +34,11 @@ public struct BrowserView: View {
                     c.translateBy(x: 0, y: offset)
                     cmd.execute(scroll: scroll, context: &c)
                 }
+                for cmd in tab.scrollbarCommands() {
+                    var c = ctx
+                    c.translateBy(x: 0, y: offset)
+                    cmd.execute(scroll: 0, context: &c)
+                }
             }
             for cmd in app.chrome.paint() {
                 cmd.execute(scroll: 0, context: &ctx)
