@@ -59,9 +59,26 @@ public class WebURL: @unchecked Sendable {
     // The path component (e.g., "/path/to/resource")
     let path: String
 
+    let mimeType: String
+
     // Parses a raw URL string like "https://example.com/path"
     // into it's individual components: scheme, host, port, and path.
     public init(_ rawURL: String) {
+        if rawURL.hasPrefix("data:") {
+            scheme = "data"
+            host = ""
+            port = 0
+            let afterScheme = String(rawURL.dropFirst(5))  // remove "data:"
+            if let commaIdx = afterScheme.firstIndex(of: ",") {
+                mimeType = String(afterScheme[afterScheme.startIndex..<commaIdx])
+                path = String(afterScheme[afterScheme.index(after: commaIdx)...])
+            } else {
+                mimeType = ""
+                path = ""
+            }
+            return
+        }
+
         guard let schemeRange = rawURL.range(of: "://") else {
             fatalError("Invalid URL: missing scheme")
         }
@@ -90,6 +107,7 @@ public class WebURL: @unchecked Sendable {
         }
         host = hostPart
         port = defaultPort
+        mimeType = ""
     }
 
     // "async" means this function can be suspended while waiting for the
@@ -105,6 +123,10 @@ public class WebURL: @unchecked Sendable {
             // Read the file at `path` and return its contents
             let content = try String(contentsOfFile: path, encoding: .utf8)
             return (headers: [:], content: content)
+        }
+
+        if scheme == "data" {
+            return (headers: [:], content: path)
         }
 
         // If a payload (body) is provided, use POST. Otherwise GET.
@@ -240,6 +262,9 @@ public class WebURL: @unchecked Sendable {
         if scheme == "https" && port == 443 { portPart = "" }
         if scheme == "http" && port == 80 { portPart = "" }
         if scheme == "file" { portPart = "" }
+        if scheme == "data" {
+            return "data:\(mimeType),\(path)"
+        }
         return "\(scheme)://\(host)\(portPart)\(path)"
     }
 
