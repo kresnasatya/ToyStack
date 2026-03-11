@@ -12,6 +12,7 @@ class LineLayout: LayoutObject {
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
+    var minHeight: CGFloat = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -33,7 +34,7 @@ class LineLayout: LayoutObject {
         }
 
         guard !children.isEmpty else {
-            height = 0
+            height = minHeight
             return
         }
 
