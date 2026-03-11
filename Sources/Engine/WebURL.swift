@@ -43,6 +43,41 @@ actor CookieJar {
     }
 }
 
+// MARK: - CacheEntry
+
+struct CacheEntry {
+    let headers: [String: String]
+    let content: String
+    let timestamp: Date  // when it was cached
+    let maxAge: Int  // how many seconds it's valid (-1 = no limit set)
+}
+
+// MARK: - ResponseCache
+
+actor ResponseCache {
+    static let shared = ResponseCache()
+
+    private var storage: [String: CacheEntry] = [:]
+
+    func get(_ url: String) -> (headers: [String: String], content: String)? {
+        guard let entry = storage[url] else { return nil }
+        if entry.maxAge >= 0 {
+            let age = Date().timeIntervalSince(entry.timestamp)
+            if age > Double(entry.maxAge) {
+                storage.removeValue(forKey: url)  // expired, remove it
+                return nil
+            }
+        }
+
+        return (entry.headers, entry.content)
+    }
+
+    func set(_ url: String, headers: [String: String], content: String, maxAge: Int) {
+        storage[url] = CacheEntry(
+            headers: headers, content: content, timestamp: Date(), maxAge: maxAge)
+    }
+}
+
 // MARK: - WebURL
 
 public class WebURL: @unchecked Sendable {
@@ -152,6 +187,14 @@ public class WebURL: @unchecked Sendable {
         // If a payload (body) is provided, use POST. Otherwise GET.
         let method = payload != nil ? "POST" : "GET"
 
+        // Check the cache first (only for GET request)
+        let cacheKey = toString()
+        if method == "GET" {
+            if let cached = await ResponseCache.shared.get(cacheKey) {
+                return cached
+            }
+        }
+
         // URLComponents is a Foundation type that safely builds a URL
         // from its individual parts (scheme, host, port, path)
         var components = Foundation.URLComponents()
@@ -256,6 +299,26 @@ public class WebURL: @unchecked Sendable {
         }
 
         let content = String(data: data, encoding: .utf8) ?? ""
+
+        if method == "GET" && httpResponse.statusCode == 200 {
+            let cacheControl = headers["cache-control"] ?? ""
+            if cacheControl.contains("no-store") {
+                // don't cache
+            } else if cacheControl.contains("max-age="),
+                let range = cacheControl.range(of: "max-age="),
+                let maxAge = Int(
+                    cacheControl[range.upperBound...].prefix(while: { $0.isNumber })
+                )
+            {
+                await ResponseCache.shared.set(
+                    cacheKey, headers: headers, content: content, maxAge: maxAge)
+            } else if cacheControl.isEmpty {
+                // no Cache-Control header - cache with no expiry
+                await ResponseCache.shared.set(
+                    cacheKey, headers: headers, content: content, maxAge: -1)
+            }
+        }
+
         return (headers, content)
     }
 
