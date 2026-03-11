@@ -12,15 +12,17 @@ public class Tab: ObservableObject {
     private(set) var displayList: [any PaintCommand] = []
 
     private var scroll: CGFloat = 0
-    private let tabHeight: CGFloat
+    private var tabHeight: CGFloat
+    private var tabWidth: CGFloat
     private var history: [WebURL] = []
     private var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(any CSSSelector, [String: String])] = []
     private var js: JSRuntime!
 
-    init(tabHeight: CGFloat) {
+    init(tabHeight: CGFloat, tabWidth: CGFloat) {
         self.tabHeight = tabHeight
+        self.tabWidth = tabWidth
     }
 
     func load(_ url: WebURL, payload: String? = nil) async {
@@ -92,7 +94,7 @@ public class Tab: ObservableObject {
         applyStyle(
             node: nodes, rules: rules.sorted(by: { cascadePriority($0) < cascadePriority($1) }))
         let doc = DocumentLayout(node: nodes)
-        doc.layout()
+        doc.layout(availableWidth: tabWidth)
         document = doc
         var list: [any PaintCommand] = []
         paintTree(doc, into: &list)
@@ -107,6 +109,12 @@ public class Tab: ObservableObject {
             else { return nil }
             return (cmd, self.scroll)
         })
+    }
+
+    public func resize(width: CGFloat, height: CGFloat) {
+        tabWidth = width
+        tabHeight = height
+        render()
     }
 
     public func scrollDown() {

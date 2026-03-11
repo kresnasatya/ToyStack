@@ -27,10 +27,19 @@ public class Chrome {
 
     private let newtabRect: Rect
     private let backRect: Rect
-    private let addressRect: Rect
+    private var addressRect: Rect {
+        Rect(
+            left: backRect.right + padding,
+            top: urlbarTop + padding,
+            right: currentWidth - padding,
+            bottom: urlbarBottom - padding
+        )
+    }
 
     private var focus: String?  // "address bar" or nil
     private var addressBar: String = ""
+
+    private var currentWidth: CGFloat = WIDTH
 
     init() {
         font = getFont(size: 20, weight: "normal", style: "normal")
@@ -51,10 +60,6 @@ public class Chrome {
         backRect = Rect(
             left: padding, top: urlbarTop + padding, right: padding + backWidth,
             bottom: urlbarBottom - padding)
-
-        addressRect = Rect(
-            left: backRect.right + padding, top: urlbarTop + padding, right: WIDTH - padding,
-            bottom: urlbarBottom - padding)
     }
 
     private func tabRect(_ i: Int) -> Rect {
@@ -65,14 +70,19 @@ public class Chrome {
             right: tabsStart + tabWidth * CGFloat(i + 1), bottom: tabbarBottom)
     }
 
+    func resize(width: CGFloat) {
+        currentWidth = width
+    }
+
     public func paint() -> [any PaintCommand] {
         var cmds: [any PaintCommand] = []
 
         // White background + bottom border
         cmds.append(
-            DrawRect(rect: Rect(left: 0, top: 0, right: WIDTH, bottom: bottom), color: "white"))
+            DrawRect(
+                rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: "white"))
         cmds.append(
-            DrawLine(x1: 0, y1: bottom, x2: WIDTH, y2: bottom, color: "black", thickness: 1))
+            DrawLine(x1: 0, y1: bottom, x2: currentWidth, y2: bottom, color: "black", thickness: 1))
 
         // New tab button
         cmds.append(DrawOutline(rect: newtabRect, color: "black", thickness: 1))
@@ -104,7 +114,7 @@ public class Chrome {
                         color: "black", thickness: 1))
                 cmds.append(
                     DrawLine(
-                        x1: bounds.right, y1: bounds.bottom, x2: WIDTH, y2: bounds.bottom,
+                        x1: bounds.right, y1: bounds.bottom, x2: currentWidth, y2: bounds.bottom,
                         color: "black", thickness: 1))
             }
         }

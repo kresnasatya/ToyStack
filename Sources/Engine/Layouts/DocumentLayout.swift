@@ -17,11 +17,15 @@ class DocumentLayout: LayoutObject {
     }
 
     func layout() {
+        layout(availableWidth: WIDTH)
+    }
+
+    func layout(availableWidth: CGFloat = WIDTH) {
         let child = BlockLayout(node: node, parent: self, previous: nil)
         children.append(child)
 
         // Content area starts one step from each edge to add a small margin.
-        width = WIDTH - 2 * HSTEP
+        width = availableWidth - 2 * HSTEP
         x = HSTEP
         y = VSTEP
 

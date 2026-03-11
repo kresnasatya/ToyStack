@@ -15,9 +15,7 @@ struct ToyStack: App {
     var body: some Scene {
         Window("ToyStack", id: "main") {
             BrowserView()
-                .frame(width: WIDTH, height: HEIGHT)
         }
-        .windowResizability(.contentSize)
     }
 }
 
@@ -82,7 +80,9 @@ public struct BrowserView: View {
                 }
             )
         }
-        .frame(width: WIDTH, height: HEIGHT)
+        .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
+            app.resize(to: newSize)
+        }
         .gesture(
             SpatialTapGesture()
                 .onEnded({ value in
