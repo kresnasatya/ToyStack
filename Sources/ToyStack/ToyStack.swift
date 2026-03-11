@@ -56,6 +56,8 @@ public struct BrowserView: View {
                             if scalar >= 0x20 && scalar < 0x7F {
                                 if !app.chrome.keypress(char) {
                                     app.activeTab?.keypress(char)
+                                } else {
+                                    app.objectWillChange.send()
                                 }
                             }
                         }
@@ -72,6 +74,7 @@ public struct BrowserView: View {
                         let y = value.location.y
                         if y < app.chrome.bottom {
                             await app.chrome.click(x: x, y: y)
+                            app.objectWillChange.send()
                         } else {
                             await app.activeTab?.click(x: x, y: y - app.chrome.bottom)
                         }
