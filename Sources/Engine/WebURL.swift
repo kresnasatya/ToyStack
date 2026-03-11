@@ -79,6 +79,15 @@ public class WebURL: @unchecked Sendable {
             return
         }
 
+        if rawURL.hasPrefix("view-source:") {
+            scheme = "view-source"
+            host = ""
+            port = 0
+            mimeType = ""
+            path = String(rawURL.dropFirst(12))  // remove "view-source:"
+            return
+        }
+
         guard let schemeRange = rawURL.range(of: "://") else {
             fatalError("Invalid URL: missing scheme")
         }
@@ -127,6 +136,17 @@ public class WebURL: @unchecked Sendable {
 
         if scheme == "data" {
             return (headers: [:], content: path)
+        }
+
+        if scheme == "view-source" {
+            let innerURL = WebURL(path)
+            let (_, content) = try await innerURL.request()
+            let escaped =
+                content
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+            return (headers: [:], content: escaped)
         }
 
         // If a payload (body) is provided, use POST. Otherwise GET.
@@ -264,6 +284,9 @@ public class WebURL: @unchecked Sendable {
         if scheme == "file" { portPart = "" }
         if scheme == "data" {
             return "data:\(mimeType),\(path)"
+        }
+        if scheme == "view-source" {
+            return "view-source:\(path)"
         }
         return "\(scheme)://\(host)\(portPart)\(path)"
     }
