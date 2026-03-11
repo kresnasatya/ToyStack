@@ -66,7 +66,9 @@ public class WebURL: @unchecked Sendable {
             fatalError("Invalid URL: missing scheme")
         }
         scheme = String(rawURL[rawURL.startIndex..<schemeRange.lowerBound])
-        assert(scheme == "http" || scheme == "https", "Unsupported scheme: \(scheme)")
+        assert(
+            scheme == "http" || scheme == "https" || scheme == "file",
+            "Unsupported scheme: \(scheme)")
 
         var rest = String(rawURL[schemeRange.upperBound...])
         if !rest.contains("/") {
@@ -79,7 +81,7 @@ public class WebURL: @unchecked Sendable {
         let pathPart = String(rest[slashIdx...])
         path = pathPart.isEmpty ? "/" : pathPart
 
-        var defaultPort = scheme == "https" ? 443 : 80
+        var defaultPort = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
         if hostPart.contains(":") {
             // A custom part was provided, e.g. "example.com:8080"
             let parts = hostPart.split(separator: ":", maxSplits: 1)
@@ -99,6 +101,12 @@ public class WebURL: @unchecked Sendable {
     ) async throws -> (
         headers: [String: String], content: String
     ) {
+        if scheme == "file" {
+            // Read the file at `path` and return its contents
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            return (headers: [:], content: content)
+        }
+
         // If a payload (body) is provided, use POST. Otherwise GET.
         let method = payload != nil ? "POST" : "GET"
 
@@ -231,6 +239,7 @@ public class WebURL: @unchecked Sendable {
         var portPart = ":\(port)"
         if scheme == "https" && port == 443 { portPart = "" }
         if scheme == "http" && port == 80 { portPart = "" }
+        if scheme == "file" { portPart = "" }
         return "\(scheme)://\(host)\(portPart)\(path)"
     }
 
