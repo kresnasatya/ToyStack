@@ -94,7 +94,9 @@ public class WebURL: @unchecked Sendable {
     // network response, allowing other tasks to run in the meantime.
     // "throws" means this function can fail and propagate errors to the caller,
     // who must handle them with "try".
-    func request(referrer: WebURL? = nil, payload: String? = nil) async throws -> (
+    func request(
+        referrer: WebURL? = nil, payload: String? = nil, extraHeaders: [String: String] = [:]
+    ) async throws -> (
         headers: [String: String], content: String
     ) {
         // If a payload (body) is provided, use POST. Otherwise GET.
@@ -116,6 +118,13 @@ public class WebURL: @unchecked Sendable {
         var urlRequest = URLRequest(url: foundationURL)
         urlRequest.httpMethod = method
         urlRequest.setValue(host, forHTTPHeaderField: "Host")
+        urlRequest.setValue("close", forHTTPHeaderField: "Connection")
+        urlRequest.setValue(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15",
+            forHTTPHeaderField: "User-Agent")
+        for (key, value) in extraHeaders {
+            urlRequest.setValue(value, forHTTPHeaderField: key)
+        }
 
         // Check if we have a stored cookie for this host.
         // "await" is required here because CookieJar is an actor -
