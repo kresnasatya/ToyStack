@@ -152,11 +152,11 @@ public class WebURL: @unchecked Sendable {
             fatalError("Invalid response type")
         }
 
-        print("version: HTTP/1.1")
-        print("status: ", httpResponse.statusCode)
-        print(
-            "explaination: ",
-            HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))
+        // print("version: HTTP/1.1")
+        // print("status: ", httpResponse.statusCode)
+        // print(
+        //     "explaination: ",
+        //     HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))
 
         // allHeaderFields is a dictionary of response headers from the server.
         // We lowercase all keys for consistent, case-insensitive lookups later.
