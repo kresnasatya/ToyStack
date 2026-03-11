@@ -215,6 +215,7 @@ public class WebURL: @unchecked Sendable {
         urlRequest.setValue(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15",
             forHTTPHeaderField: "User-Agent")
+        urlRequest.setValue("gzip", forHTTPHeaderField: "Accept-Encoding")
         for (key, value) in extraHeaders {
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
