@@ -60,7 +60,11 @@ class HTMLParser {
         }
         implicitTags(nil)
         let parent = unfinished.last!
-        let node = TextNode(text: text, parent: parent)
+        let processedText =
+            text
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+        let node = TextNode(text: processedText, parent: parent)
         parent.children.append(node)
     }
 
