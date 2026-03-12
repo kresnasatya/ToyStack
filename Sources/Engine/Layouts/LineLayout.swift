@@ -54,6 +54,17 @@ class LineLayout: LayoutObject {
             child.y = baseline - child.font.ascent
         }
 
+        if isRTL {
+            // Find where the last child ends
+            let lastChild = children.last!
+            let usedWidth = lastChild.x + lastChild.width - x
+            let offset = width - usedWidth
+
+            for child in children {
+                child.x += offset
+            }
+        }
+
         let maxDescent = inlineChildren.map(\.font.descent).max() ?? 0
         // Line height adds 25% extra space above and below (the 1.25 factor).
         height = 1.25 * (maxAscent + maxDescent)
