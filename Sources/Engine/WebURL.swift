@@ -123,13 +123,34 @@ public class WebURL: @unchecked Sendable {
             return
         }
 
-        guard let schemeRange = rawURL.range(of: "://") else {
-            fatalError("Invalid URL: missing scheme")
+        if rawURL.hasPrefix("about:") {
+            scheme = "about"
+            host = ""
+            port = 0
+            path = String(rawURL.dropFirst(6))  // "blank" from "about:blank"
+            mimeType = ""
+            return
         }
-        scheme = String(rawURL[rawURL.startIndex..<schemeRange.lowerBound])
-        assert(
-            scheme == "http" || scheme == "https" || scheme == "file",
-            "Unsupported scheme: \(scheme)")
+
+        guard let schemeRange = rawURL.range(of: "://") else {
+            scheme = "about"
+            host = ""
+            port = 0
+            path = "blank"
+            mimeType = ""
+            return
+        }
+
+        let parsedScheme = String(rawURL[rawURL.startIndex..<schemeRange.lowerBound])
+        guard parsedScheme == "http" || parsedScheme == "https" || parsedScheme == "file" else {
+            scheme = "about"
+            host = ""
+            port = 0
+            path = "blank"
+            mimeType = ""
+            return
+        }
+        scheme = parsedScheme
 
         var rest = String(rawURL[schemeRange.upperBound...])
         if !rest.contains("/") {
@@ -163,6 +184,10 @@ public class WebURL: @unchecked Sendable {
     ) async throws -> (
         headers: [String: String], content: String
     ) {
+        if scheme == "about" {
+            return (headers: [:], content: "")
+        }
+
         if scheme == "file" {
             // Read the file at `path` and return its contents
             let content = try String(contentsOfFile: path, encoding: .utf8)
@@ -351,6 +376,9 @@ public class WebURL: @unchecked Sendable {
         }
         if scheme == "view-source" {
             return "view-source:\(path)"
+        }
+        if scheme == "about" {
+            return "about:\(path)"
         }
         return "\(scheme)://\(host)\(portPart)\(path)"
     }
