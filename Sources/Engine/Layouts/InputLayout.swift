@@ -32,7 +32,9 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)
-        font = getFont(size: sizeInt, weight: weight, style: styleStr)
+        font = getFont(
+            size: sizeInt, weight: weight, style: styleStr,
+            family: element.style["font-family"] ?? "serif")
 
         // All inputs have the same fixed width regardless of content
         width = InputLayout.inputWidthPx

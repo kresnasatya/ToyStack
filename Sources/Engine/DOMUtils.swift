@@ -40,8 +40,8 @@ struct BrowserFont {
 // Building a CTFont is expensive; cache by (size, weight, style).
 nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
 
-func getFont(size: Int, weight: String, style: String) -> BrowserFont {
-    let key = "\(size)-\(weight)-\(style)"
+func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
+    let key = "\(size)-\(weight)-\(style)-\(family)"
     if let cached = fontCache[key] { return cached }
 
     // Map Python-style strings ("bold", "italic"/"roman") to CoreText traits.
@@ -49,9 +49,18 @@ func getFont(size: Int, weight: String, style: String) -> BrowserFont {
     if weight == "bold" { traits.insert(.traitBold) }
     if style == "italic" { traits.insert(.traitItalic) }
 
-    let attrs = [kCTFontSymbolicTrait: traits.rawValue] as CFDictionary
-    let descriptor = CTFontDescriptorCreateWithAttributes(attrs)
-    let ctFont = CTFontCreateWithFontDescriptor(descriptor, CGFloat(size), nil)
+    let ctFont: CTFont
+    if family == "monospace" {
+        let baseFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
+        ctFont =
+            CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
+            ?? baseFont
+    } else {
+        let attrs = [kCTFontSymbolicTrait: traits.rawValue] as CFDictionary
+        let descriptor = CTFontDescriptorCreateWithAttributes(attrs)
+        ctFont = CTFontCreateWithFontDescriptor(descriptor, CGFloat(size), nil)
+    }
+
     let font = BrowserFont(ctFont: ctFont)
     fontCache[key] = font
     return font
@@ -61,6 +70,7 @@ func getFont(size: Int, weight: String, style: String) -> BrowserFont {
 // These defaults are used when a node has no parent (root element)
 // and when a property was not set by any CSS rule.
 let inheritedProperties: [String: String] = [
+    "font-family": "serif",
     "font-size": "16px",
     "font-style": "normal",
     "font-weight": "normal",

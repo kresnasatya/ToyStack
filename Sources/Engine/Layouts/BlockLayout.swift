@@ -76,8 +76,16 @@ class BlockLayout: LayoutObject {
     // Walks inline DOM content: text nodes produces words, elements produces inputs.
     private func recurse(_ n: any DOMNode) {
         if let textNode = n as? TextNode {
-            for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
-                addWord(node: n, word: String(word))
+            if isInsidePre(textNode) {
+                let segments = textNode.text.components(separatedBy: "\n")
+                for (i, segment) in segments.enumerated() {
+                    if i > 0 { newLine() }
+                    if !segment.isEmpty { addWord(node: n, word: segment) }
+                }
+            } else {
+                for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
+                    addWord(node: n, word: String(word))
+                }
             }
         } else if let el = n as? Element {
             if el.tag == "br" {
@@ -97,7 +105,9 @@ class BlockLayout: LayoutObject {
         if style == "normal" { style = "roman" }
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)
-        let font = getFont(size: sizeInt, weight: weight, style: style)
+        let font = getFont(
+            size: sizeInt, weight: weight, style: style,
+            family: node.style["font-family"] ?? "serif")
         let w = font.measure(word)
 
         if isInsideAbbr(node) && word.contains(where: { $0.isLowercase }) {
@@ -105,7 +115,7 @@ class BlockLayout: LayoutObject {
             return
         }
 
-        if cursorX + w > width {
+        if cursorX + w > width && !isInsidePre(node) {
             if word.contains("\u{00AD}") {
                 let parts = word.components(separatedBy: "\u{00AD}")
                 var chunk = ""
@@ -163,7 +173,9 @@ class BlockLayout: LayoutObject {
         if style == "normal" { style = "roman" }
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)
-        let font = getFont(size: sizeInt, weight: weight, style: style)
+        let font = getFont(
+            size: sizeInt, weight: weight, style: style,
+            family: node.style["font-family"] ?? "serif")
         cursorX += w + font.measure(" ")
     }
 
@@ -171,6 +183,17 @@ class BlockLayout: LayoutObject {
         var current = node.parent
         while let c = current {
             if let el = c as? Element, el.tag == "abbr" { return true }
+            current = c.parent
+        }
+        return false
+    }
+
+    private func isInsidePre(_ node: any DOMNode) -> Bool {
+        var current: (any DOMNode)? = node
+        while let c = current {
+            if let el = c as? Element, el.tag == "pre" {
+                return true
+            }
             current = c.parent
         }
         return false
@@ -199,8 +222,12 @@ class BlockLayout: LayoutObject {
             let displayText = isLower ? text.uppercased() : text
             let font =
                 isLower
-                ? getFont(size: smallSize, weight: "bold", style: styleStr)
-                : getFont(size: sizeInt, weight: weight, style: styleStr)
+                ? getFont(
+                    size: smallSize, weight: "bold", style: styleStr,
+                    family: node.style["font-family"] ?? "serif")
+                : getFont(
+                    size: sizeInt, weight: weight, style: styleStr,
+                    family: node.style["font-family"] ?? "serif")
             let w = font.measure(displayText)
             if cursorX + w > width { newLine() }
             let line = children.last!

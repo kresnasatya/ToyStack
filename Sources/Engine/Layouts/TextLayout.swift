@@ -33,7 +33,11 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)  // CSS px -> typhographic points
-        font = fontOverride ?? getFont(size: sizeInt, weight: weight, style: styleStr)
+        font =
+            fontOverride
+            ?? getFont(
+                size: sizeInt, weight: weight, style: styleStr,
+                family: node.style["font-family"] ?? "serif")
         width = font.measure(displayWord ?? word) + font.measure(" ")
 
         if let prev = previous as? InlineLayoutItem {
