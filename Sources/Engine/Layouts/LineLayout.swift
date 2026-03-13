@@ -13,6 +13,7 @@ class LineLayout: LayoutObject {
     var width: CGFloat = 0
     var height: CGFloat = 0
     var minHeight: CGFloat = 0
+    var centered: Bool = false
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -59,6 +60,16 @@ class LineLayout: LayoutObject {
             let lastChild = children.last!
             let usedWidth = lastChild.x + lastChild.width - x
             let offset = width - usedWidth
+
+            for child in children {
+                child.x += offset
+            }
+        }
+
+        if centered {
+            let lastChild = children.last!
+            let usedWidth = lastChild.x + lastChild.width - x
+            let offset = (width - usedWidth) / 2
 
             for child in children {
                 child.x += offset
