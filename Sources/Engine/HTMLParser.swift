@@ -113,6 +113,12 @@ class HTMLParser {
         if tagName.hasPrefix("!") {
             return
         }
+        if tagName == "p" {
+            closeIfOpen("p", stoppedBy: [])  // <p> can never contain another </p>
+        }
+        if tagName == "li" {
+            closeIfOpen("li", stoppedBy: ["ul", "ol"])  // don't cross list boundaries
+        }
         implicitTags(tagName)
 
         if tagName.hasPrefix("/") {
@@ -195,6 +201,25 @@ class HTMLParser {
                 addTag("/head")
             } else {
                 break
+            }
+        }
+    }
+
+    // Walks the stack from top; closes up to and including `target`.
+    // Stops without closing if a tag in `stoppers` is encountered first.
+    private func closeIfOpen(_ target: String, stoppedBy stoppers: Set<String>) {
+        for idx in stride(from: unfinished.count - 1, through: 0, by: -1) {
+            let t = unfinished[idx].tag
+            if stoppers.contains(t) { return }  // hit a boundary - don't cross it
+            if t == target {
+                // pop everything from the top down to target (inclusive)
+                while unfinished.count > idx {
+                    let node = unfinished.removeLast()
+                    if !unfinished.isEmpty {
+                        unfinished.last!.children.append(node)
+                    }
+                }
+                return
             }
         }
     }
