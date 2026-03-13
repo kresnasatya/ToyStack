@@ -100,7 +100,32 @@ class BlockLayout: LayoutObject {
         let font = getFont(size: sizeInt, weight: weight, style: style)
         let w = font.measure(word)
 
-        if cursorX + w > width { newLine() }
+        if cursorX + w > width {
+            if word.contains("\u{00AD}") {
+                let parts = word.components(separatedBy: "\u{00AD}")
+                var chunk = ""
+                var breakIdx = -1
+                for (i, part) in parts.dropLast().enumerated() {
+                    let candidate = chunk + part + "-"
+                    if cursorX + font.measure(candidate) <= width {
+                        chunk = chunk + part
+                        breakIdx = i
+                    }
+                }
+                if breakIdx >= 0 {
+                    let line = children.last!
+                    let prev = line.children.last
+                    line.children.append(
+                        TextLayout(node: node, word: chunk + "-", parent: line, previous: prev))
+                    newLine()
+                    addWord(
+                        node: node, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}"))
+                    return
+                }
+            }
+            newLine()
+        }
+
         let line = children.last!
         let prevWord = line.children.last
         let textLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)

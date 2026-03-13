@@ -64,6 +64,7 @@ class HTMLParser {
             text
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&shy;", with: "\u{00AD}")
         let node = TextNode(text: processedText, parent: parent)
         parent.children.append(node)
     }
