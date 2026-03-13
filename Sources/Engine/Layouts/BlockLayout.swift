@@ -100,6 +100,11 @@ class BlockLayout: LayoutObject {
         let font = getFont(size: sizeInt, weight: weight, style: style)
         let w = font.measure(word)
 
+        if isInsideAbbr(node) && word.contains(where: { $0.isLowercase }) {
+            addAbbrWord(node: node, word: word)
+            return
+        }
+
         if cursorX + w > width {
             if word.contains("\u{00AD}") {
                 let parts = word.components(separatedBy: "\u{00AD}")
@@ -160,6 +165,51 @@ class BlockLayout: LayoutObject {
         let sizeInt = Int(sizePx * 0.75)
         let font = getFont(size: sizeInt, weight: weight, style: style)
         cursorX += w + font.measure(" ")
+    }
+
+    private func isInsideAbbr(_ node: any DOMNode) -> Bool {
+        var current = node.parent
+        while let c = current {
+            if let el = c as? Element, el.tag == "abbr" { return true }
+            current = c.parent
+        }
+        return false
+    }
+
+    private func addAbbrWord(node: any DOMNode, word: String) {
+        // Split into runs: (text, isLowerCase)
+        var runs: [(String, Bool)] = []
+        for ch in word {
+            let isLower = ch.isLowercase
+            if runs.last?.1 == isLower {
+                runs[runs.count - 1].0.append(ch)
+            } else {
+                runs.append((String(ch), isLower))
+            }
+        }
+
+        let weight = node.style["font-weight"] ?? "normal"
+        var styleStr = node.style["font-style"] ?? "normal"
+        if styleStr == "normal" { styleStr = "roman" }
+        let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizeInt = Int(sizePx * 0.75)
+        let smallSize = Int(Double(sizeInt) * 0.75)  // 75% of normal
+
+        for (text, isLower) in runs {
+            let displayText = isLower ? text.uppercased() : text
+            let font =
+                isLower
+                ? getFont(size: smallSize, weight: "bold", style: styleStr)
+                : getFont(size: sizeInt, weight: weight, style: styleStr)
+            let w = font.measure(displayText)
+            if cursorX + w > width { newLine() }
+            let line = children.last!
+            let prev = line.children.last
+            let textLayout = TextLayout(node: node, word: text, parent: line, previous: prev)
+            textLayout.fontOverride = font
+            textLayout.displayWord = displayText
+            line.children.append(textLayout)
+        }
     }
 
     // The bounding rectangle for this block.

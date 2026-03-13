@@ -15,6 +15,8 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var height: CGFloat = 0
     // font is set during layout(); LineLayout reads it for baseline aligment.
     var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+    var fontOverride: BrowserFont? = nil
+    var displayWord: String? = nil
 
     init(node: any DOMNode, word: String, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -31,8 +33,8 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)  // CSS px -> typhographic points
-        font = getFont(size: sizeInt, weight: weight, style: styleStr)
-        width = font.measure(word) + font.measure(" ")
+        font = fontOverride ?? getFont(size: sizeInt, weight: weight, style: styleStr)
+        width = font.measure(displayWord ?? word) + font.measure(" ")
 
         if let prev = previous as? InlineLayoutItem {
             x = prev.x + prev.width
@@ -45,7 +47,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
     func paint() -> [any PaintCommand] {
         let color = node.style["color"] ?? "black"
-        return [DrawText(x1: x, y1: y, text: word, font: font, color: color)]
+        return [DrawText(x1: x, y1: y, text: displayWord ?? word, font: font, color: color)]
     }
 
     func shouldPaint() -> Bool {
