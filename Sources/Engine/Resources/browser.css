@@ -16,6 +16,9 @@ small {
 big {
     font-size: 110%;
 }
+sup {
+    font-size: 50%;
+}
 input {
     font-size: 16px;
     font-weight: normal;

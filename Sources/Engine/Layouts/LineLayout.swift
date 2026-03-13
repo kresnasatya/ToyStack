@@ -51,8 +51,12 @@ class LineLayout: LayoutObject {
         let baseline = y + 1.25 * maxAscent
 
         for child in inlineChildren {
-            // Place each item so its top aligns with (baseline - its own ascent).
-            child.y = baseline - child.font.ascent
+            if let el = child.node as? Element, el.tag == "sup" {
+                child.y = baseline - maxAscent
+            } else {
+                // Place each item so its top aligns with (baseline - its own ascent).
+                child.y = baseline - child.font.ascent
+            }
         }
 
         if isRTL {
