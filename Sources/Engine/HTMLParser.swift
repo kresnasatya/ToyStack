@@ -31,21 +31,59 @@ class HTMLParser {
     func parse() -> any DOMNode {
         var text = ""
         var inTag = false
-        for ch in body {
-            if ch == "<" {
-                inTag = true
-                if !text.isEmpty {
-                    addText(text)
+        var inComment = false
+        var i = body.startIndex
+
+        while i < body.endIndex {
+            let ch = body[i]
+
+            if inComment {
+                // Look for "--->" to end the comment
+                if body[i...].hasPrefix("-->") {
+                    inComment = false
+                    i = body.index(i, offsetBy: 3)  // skip pas "-->"
+                } else {
+                    i = body.index(i, offsetBy: 1)  // skip comment content
                 }
-                text = ""
-            } else if ch == ">" {
-                inTag = false
-                addTag(text)
-                text = ""
+            } else if inTag {
+                if ch == ">" {
+                    inTag = false
+                    addTag(text)
+                    text = ""
+                } else {
+                    text.append(ch)
+                }
+                i = body.index(i, offsetBy: 1)
             } else {
-                text.append(ch)
+                // not in tag, not in comment
+                if ch == "<" {
+                    if body[i...].hasPrefix("<!--") {
+                        inComment = true
+                        if !text.isEmpty {
+                            addText(text)
+                            text = ""
+                        }
+                        i = body.index(i, offsetBy: 4)
+                    } else {
+                        inTag = true
+                        if !text.isEmpty {
+                            addText(text)
+                            text = ""
+                        }
+                        text = ""
+                        i = body.index(i, offsetBy: 1)
+                    }
+                } else if ch == ">" {
+                    // bare ">" outside a tag - treat as text
+                    text.append(ch)
+                    i = body.index(i, offsetBy: 1)
+                } else {
+                    text.append(ch)
+                    i = body.index(i, offsetBy: 1)
+                }
             }
         }
+
         if !inTag && !text.isEmpty {
             addText(text)
         }
