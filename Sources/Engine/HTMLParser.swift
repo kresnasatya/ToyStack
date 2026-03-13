@@ -30,6 +30,7 @@ class HTMLParser {
     // Returns the root DOM node (always an <html> Element after implicit_tags).
     func parse() -> any DOMNode {
         var text = ""
+        var quoteChar: Character? = nil
         var inTag = false
         var inComment = false
         var inScript = false
@@ -55,7 +56,16 @@ class HTMLParser {
                     i = body.index(i, offsetBy: 1)  // skip comment content
                 }
             } else if inTag {
-                if ch == ">" {
+                if let q = quoteChar {
+                    // inside a quoted attribute value - only the matching quote exits
+                    if ch == q { quoteChar = nil }
+                    text.append(ch)
+                    i = body.index(i, offsetBy: 1)
+                } else if ch == "\"" || ch == "'" {
+                    quoteChar = ch  // entering a quoted value
+                    text.append(ch)
+                    i = body.index(i, offsetBy: 1)
+                } else if ch == ">" {
                     let tagText = text  // save before clearing
                     inTag = false
                     addTag(text)
@@ -69,6 +79,7 @@ class HTMLParser {
                     }
                 } else {
                     text.append(ch)
+                    i = body.index(i, offsetBy: 1)
                 }
             } else {
                 // not in tag, not in comment
@@ -161,7 +172,27 @@ class HTMLParser {
     // Parses a raw tag string like `a href="url" class="foo"` into (tag, attrs).
     // Tag name is lowercased; attribute keys are lowercased; quotes are stripped.
     private func getAttributes(_ raw: String) -> (String, [String: String]) {
-        let parts = raw.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        let raw = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+        var parts: [String] = []
+        var current = ""
+        var inQuote: Character? = nil
+
+        for ch in raw {
+            if let q = inQuote {
+                if ch == q { inQuote = nil }
+                current.append(ch)
+            } else if ch == "\"" || ch == "'" {
+                inQuote = ch
+                current.append(ch)
+            } else if ch == " " || ch == "\t" {
+                if !current.isEmpty { parts.append(current) }
+                current = ""
+            } else {
+                current.append(ch)
+            }
+        }
+        if !current.isEmpty { parts.append(current) }
+
         guard !parts.isEmpty else {
             return ("", [:])
         }
