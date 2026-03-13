@@ -76,12 +76,8 @@ class BlockLayout: LayoutObject {
     // Walks inline DOM content: text nodes produces words, elements produces inputs.
     private func recurse(_ n: any DOMNode) {
         if let textNode = n as? TextNode {
-            let segments = textNode.text.components(separatedBy: "\n")
-            for (i, segment) in segments.enumerated() {
-                if i > 0 { paragraphBreak() }
-                for word in segment.split(whereSeparator: { $0.isWhitespace }) {
-                    addWord(node: n, word: String(word))
-                }
+            for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
+                addWord(node: n, word: String(word))
             }
         } else if let el = n as? Element {
             if el.tag == "br" {
@@ -110,14 +106,6 @@ class BlockLayout: LayoutObject {
         let textLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)
         line.children.append(textLayout)
         // cursorX not increment here; LineLayout handles positioning in layout().
-    }
-
-    private func paragraphBreak() {
-        newLine()  // close current line; new empty line become the spacer
-        if let spacer = children.last as? LineLayout {
-            spacer.minHeight = BlockLayout.paragraphSpacing
-        }
-        newLine()  // fresh line ready for next words.
     }
 
     // Starts a new LineLayout row for inline content.
