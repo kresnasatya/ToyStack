@@ -32,12 +32,21 @@ class HTMLParser {
         var text = ""
         var inTag = false
         var inComment = false
+        var inScript = false
         var i = body.startIndex
 
         while i < body.endIndex {
             let ch = body[i]
 
-            if inComment {
+            if inScript {
+                if isScriptClose(at: i) {
+                    inScript = false
+                    // don't advance i - let </script> fall through to normal tag processing
+                } else {
+                    // skip script content - don't parse it as HTML
+                    i = body.index(i, offsetBy: 1)
+                }
+            } else if inComment {
                 // Look for "--->" to end the comment
                 if body[i...].hasPrefix("-->") {
                     inComment = false
@@ -47,13 +56,20 @@ class HTMLParser {
                 }
             } else if inTag {
                 if ch == ">" {
+                    let tagText = text  // save before clearing
                     inTag = false
                     addTag(text)
                     text = ""
+                    i = body.index(i, offsetBy: 1)
+                    let firstWord =
+                        tagText.split(separator: " ", maxSplits: 1)
+                        .first.map { String($0).lowercased() } ?? ""
+                    if firstWord == "script" {
+                        inScript = true
+                    }
                 } else {
                     text.append(ch)
                 }
-                i = body.index(i, offsetBy: 1)
             } else {
                 // not in tag, not in comment
                 if ch == "<" {
@@ -222,5 +238,15 @@ class HTMLParser {
                 return
             }
         }
+    }
+
+    // Exit when you see the </script followed by one of: space, tab, `\v`, `\r`, or `>`.
+    private func isScriptClose(at i: String.Index) -> Bool {
+        let marker = "</script"
+        guard body.distance(from: i, to: body.endIndex) >= marker.count else { return false }
+        let end = body.index(i, offsetBy: marker.count)
+        guard String(body[i..<end]).lowercased() == marker else { return false }
+        if end >= body.endIndex { return true }
+        return " \t\r\u{000B}/>".contains(body[end])
     }
 }
