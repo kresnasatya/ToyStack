@@ -22,6 +22,12 @@ class HTMLParser {
         "title", "style", "script",
     ]
 
+    // Formatting tags
+    static let formattingTags: Set<String> = [
+        "b", "i", "u", "em", "strong", "small",
+        "s", "span", "code", "cite", "mark",
+    ]
+
     init(body: String) {
         self.body = body
     }
@@ -149,11 +155,41 @@ class HTMLParser {
         implicitTags(tagName)
 
         if tagName.hasPrefix("/") {
-            // Closing tag: pop the stack and attach the node to it's parent.
-            // If only one element remains it's the root - don't pop it yet.
-            if unfinished.count == 1 {
+            let baseTag = String(tagName.dropFirst())
+
+            // Mis-nested formatting tag: e.g. <b><i>text</b>
+            if HTMLParser.formattingTags.contains(baseTag),
+                let targetIdx = unfinished.lastIndex(where: { $0.tag == baseTag }),
+                targetIdx < unfinished.count - 1
+            {
+                // Save formatting tags opened after (before) the target - they need reopening
+                let toReopen = unfinished[(targetIdx + 1)...]
+                    .filter({ HTMLParser.formattingTags.contains($0.tag) })
+                    .map({ $0.tag })
+
+                // Close everything above the target
+                while unfinished.count > targetIdx + 1 {
+                    let node = unfinished.removeLast()
+                    unfinished.last!.children.append(node)
+                }
+
+                // Close the target itself
+                if unfinished.count > 1 {
+                    let node = unfinished.removeLast()
+                    unfinished.last!.children.append(node)
+                }
+
+                // Reopen the formatting tags (same order they were originally opened)
+                for tag in toReopen {
+                    let parent: (any DOMNode)? = unfinished.last
+                    let node = Element(tag: tag, attributes: [:], parent: parent)
+                    unfinished.append(node)
+                }
                 return
             }
+
+            // Normal close
+            if unfinished.count == 1 { return }
             let node = unfinished.removeLast()
             unfinished.last!.children.append(node)
         } else if HTMLParser.selfClosingTags.contains(tagName) {
