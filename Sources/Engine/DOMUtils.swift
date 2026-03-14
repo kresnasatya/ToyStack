@@ -56,9 +56,10 @@ func getFont(size: Int, weight: String, style: String, family: String = "serif")
             CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
             ?? baseFont
     } else {
-        let attrs = [kCTFontSymbolicTrait: traits.rawValue] as CFDictionary
-        let descriptor = CTFontDescriptorCreateWithAttributes(attrs)
-        ctFont = CTFontCreateWithFontDescriptor(descriptor, CGFloat(size), nil)
+        let baseFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
+        ctFont =
+            CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
+            ?? baseFont
     }
 
     let font = BrowserFont(ctFont: ctFont)
