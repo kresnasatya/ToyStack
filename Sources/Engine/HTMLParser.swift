@@ -119,7 +119,7 @@ class HTMLParser {
 
     // Creates a TextNode and attaches it to innermost open element.
     // Whitespace-only strings are discarded - they carry no visual content.
-    private func addText(_ text: String) {
+    func addText(_ text: String) {
         if text.allSatisfy({ $0.isWhitespace }) {
             return
         }
@@ -134,7 +134,7 @@ class HTMLParser {
         parent.children.append(node)
     }
 
-    private func addTag(_ tag: String) {
+    func addTag(_ tag: String) {
         let (tagName, attributes) = getAttributes(tag)
         // Comments (<!--) and doctypes (<!DOCTYPE) start with "!" - skip them.
         if tagName.hasPrefix("!") {
@@ -218,7 +218,7 @@ class HTMLParser {
     }
 
     // Closes all remaining open elements and returns the single root node.
-    private func finish() -> any DOMNode {
+    func finish() -> any DOMNode {
         if unfinished.isEmpty {
             implicitTags(nil)
         }

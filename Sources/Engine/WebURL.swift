@@ -201,12 +201,7 @@ public class WebURL: @unchecked Sendable {
         if scheme == "view-source" {
             let innerURL = WebURL(path)
             let (_, content) = try await innerURL.request()
-            let escaped =
-                content
-                .replacingOccurrences(of: "&", with: "&amp;")
-                .replacingOccurrences(of: "<", with: "&lt;")
-                .replacingOccurrences(of: ">", with: "&gt;")
-            return (headers: [:], content: escaped)
+            return (headers: [:], content: HTMLSyntaxHighlighter(body: content).highlight())
         }
 
         // If a payload (body) is provided, use POST. Otherwise GET.
