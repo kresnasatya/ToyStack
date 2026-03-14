@@ -14,6 +14,7 @@ extension Color {
         case "gray", "grey": self = .gray
         case "orange": self = .orange
         case "lightblue": self = Color(red: 0.68, green: 0.85, blue: 0.90)
+        case "lightgray", "lightgrey": self = Color(red: 0.83, green: 0.83, blue: 0.85)
         case "transparent": self = .clear
         default: self = .black
         }

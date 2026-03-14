@@ -23,6 +23,20 @@ struct TagSelector: CSSSelector {
     }
 }
 
+// MARK: - ClassSelector
+// Matches Element nodes that have given class in their class attribute.
+// Example: ClassSelector("links") matches <nav class="links">.
+struct ClassSelector: CSSSelector {
+    let cls: String
+    let priority: Int = 10
+
+    func matches(_ node: any DOMNode) -> Bool {
+        guard let element = node as? Element else { return false }
+        let classes = element.attributes["class"]?.split(separator: " ").map(String.init) ?? []
+        return classes.contains(cls)
+    }
+}
+
 // MARK: - DescendantSelector
 // Matches a node when: the node matches `descendant` AND some ancestor
 // of that node matches `ancestor`.
@@ -148,11 +162,22 @@ class CSSParser {
     // A single word -> TagSelector. Multiple words separated by spaces ->
     // DescendantSelector chain, e.g. "div p span" builds nested selectors.
     func selector() -> any CSSSelector {
-        var out: any CSSSelector = TagSelector(tag: (try? word())?.lowercased() ?? "")
+        var out: any CSSSelector
+        if let w = try? word() {
+            let lower = w.lowercased()
+            out =
+                lower.hasPrefix(".")
+                ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower)
+        } else {
+            out = TagSelector(tag: "")
+        }
         skipWhitespace()
         while i < chars.count && chars[i] != "{" {
             guard let tag = try? word() else { break }
-            let inner = TagSelector(tag: tag.lowercased())
+            let lower = tag.lowercased()
+            let inner: any CSSSelector =
+                lower.hasPrefix(".")
+                ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower)
             out = DescendantSelector(ancestor: out, descendant: inner)
             skipWhitespace()
         }
