@@ -25,6 +25,7 @@ class BlockLayout: LayoutObject {
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
+    let extraNodes: [any DOMNode]  // non-empty = anonymous block box
     var x: CGFloat = 0
     var y: CGFloat = 0
     var width: CGFloat = 0
@@ -35,6 +36,14 @@ class BlockLayout: LayoutObject {
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
+        self.extraNodes = []
+        self.parent = parent
+        self.previous = previous
+    }
+
+    init(nodes: [any DOMNode], parent: any LayoutObject, previous: (any LayoutObject)?) {
+        self.node = nodes[0]
+        self.extraNodes = nodes
         self.parent = parent
         self.previous = previous
     }
@@ -57,20 +66,40 @@ class BlockLayout: LayoutObject {
 
         let mode = layoutMode()
         if mode == "block" {
-            // Block mode: one BlockLayout per DOM child, stacked vertically.
             var prev: (any LayoutObject)? = nil
+            var inlineRun: [any DOMNode] = []
+
             for child in node.children {
                 if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
                     continue
                 }
-                let next = BlockLayout(node: child, parent: self, previous: prev)
-                children.append(next)
-                prev = next
+                let isBlock =
+                    (child as? Element).map { BlockLayout.blockElements.contains($0.tag) } ?? false
+                if isBlock {
+                    if !inlineRun.isEmpty {
+                        let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                        children.append(anon)
+                        prev = anon
+                        inlineRun = []
+                    }
+                    let next = BlockLayout(node: child, parent: self, previous: prev)
+                    children.append(next)
+                    prev = next
+                } else {
+                    inlineRun.append(child)
+                }
+            }
+            if !inlineRun.isEmpty {
+                let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                children.append(anon)
             }
         } else {
-            // Inline mode: wrap text and inputs into lines.
             newLine()
-            recurse(node)
+            if !extraNodes.isEmpty {
+                for n in extraNodes { recurse(n) }
+            } else {
+                recurse(node)
+            }
         }
 
         for child in children { child.layout() }
@@ -84,6 +113,7 @@ class BlockLayout: LayoutObject {
 
     // Returns "block" if any child Element has a block-level tag; else "inline".
     private func layoutMode() -> String {
+        if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
         let hasBlockChild = node.children.contains(where: {
             guard let el = $0 as? Element else { return false }
