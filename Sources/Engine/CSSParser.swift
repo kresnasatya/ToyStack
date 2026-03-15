@@ -37,6 +37,19 @@ struct ClassSelector: CSSSelector {
     }
 }
 
+// MARK: - SelectorSequence
+// Matches when ALL selectors in the sequence match the same node.
+// Example: SelectorSequence([TagSelector("span"), ClassSelector("announce")])
+//          matches <span class="announce">
+struct SelectorSequence: CSSSelector {
+    let selectors: [any CSSSelector]
+    var priority: Int { selectors.reduce(0, { $0 + $1.priority }) }
+
+    func matches(_ node: any DOMNode) -> Bool {
+        selectors.allSatisfy({ $0.matches(node) })
+    }
+}
+
 // MARK: - DescendantSelector
 // Matches a node when its ancestors satisfy all selectors left-to-right.
 // Stores a flat list instead of nested pairs for 0(n+d) matching.
@@ -259,26 +272,35 @@ class CSSParser {
         return props
     }
 
+    // Converts one word token (e.g. "span.announce") into a simple or sequence selector.
+    // Splits on "." to separate to optional tag from zero or more class names.
+    private func parseSimpleSelector(_ token: String) -> any CSSSelector {
+        let parts = token.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        var selectors: [any CSSSelector] = []
+        if let tag = parts.first, !tag.isEmpty {
+            selectors.append(TagSelector(tag: tag))
+        }
+        for cls in parts.dropFirst() where !cls.isEmpty {
+            selectors.append(ClassSelector(cls: cls))
+        }
+        guard !selectors.isEmpty else { return TagSelector(tag: "") }
+        return selectors.count == 1 ? selectors[0] : SelectorSequence(selectors: selectors)
+    }
+
     // Parses a selector.
     // Collects all simple selectors into a flat array, then wraps in
     // DescendantSelector only when there are multiple parts.
     func selector() -> any CSSSelector {
         var parts: [any CSSSelector] = []
         if let w = try? word() {
-            let lower = w.lowercased()
-            parts.append(
-                lower.hasPrefix(".")
-                    ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower))
+            parts.append(parseSimpleSelector(w.lowercased()))
         } else {
             return TagSelector(tag: "")
         }
         skipWhitespace()
         while i < chars.count && chars[i] != "{" {
             guard let tag = try? word() else { break }
-            let lower = tag.lowercased()
-            parts.append(
-                lower.hasPrefix(".")
-                    ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower))
+            parts.append(parseSimpleSelector(tag.lowercased()))
             skipWhitespace()
         }
         return parts.count == 1 ? parts[0] : DescendantSelector(selectors: parts)
