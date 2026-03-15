@@ -72,6 +72,11 @@ class CSSParser {
     // Swift String indexing is not integer-based, so convert to [Character].
     private let chars: [Character]
     private var i: Int = 0
+    private static let borderStyleKeywords: Set<String> = [
+        "none", "hidden", "solid", "dashed", "dotted",
+        "double", "groove", "ridge", "inset", "outset",
+    ]
+    private static let borderWidthKeywords: Set<String> = ["thin", "medium", "thick"]
 
     init(_ s: String) {
         self.chars = Array(s)
@@ -135,13 +140,108 @@ class CSSParser {
         return (prop.lowercased(), val)
     }
 
+    // MARK: - Shortand expansion
+
+    // Dispatch - returns nil for regular (non-shorthand) properties.
+    // To add new shorthand: one case line here.
+    private static func expand(shorthand: String, tokens: [String]) -> [String: String]? {
+        switch shorthand {
+        case "font": return expandFont(tokens)
+        case "border": return expandBorder(tokens, prefix: "border")
+        case "outline": return expandBorder(tokens, prefix: "outline")
+        case "margin": return expandBox(tokens, prefix: "margin")
+        case "padding": return expandBox(tokens, prefix: "padding")
+        default: return nil
+        }
+    }
+
+    // font: [style] [weight] size family
+    private static func expandFont(_ tokens: [String]) -> [String: String] {
+        var props: [String: String] = [:]
+        var t = tokens
+        if let f = t.first, f == "italic" || f == "oblique" {
+            props["font-style"] = t.removeFirst()
+        }
+        if let f = t.first, f == "bold" {
+            props["font-weight"] = t.removeFirst()
+        }
+        if let f = t.first, f.hasSuffix("px") || f.hasSuffix("%") || f.hasSuffix("em") {
+            props["font-size"] = t.removeFirst()
+        }
+        if !t.isEmpty {
+            props["font-family"] = t.joined(separator: " ")
+        }
+        return props
+    }
+
+    // border/outline: [width] [style] [color] - order-independent
+    private static func expandBorder(_ tokens: [String], prefix: String) -> [String: String] {
+        var props: [String: String] = [:]
+        for token in tokens {
+            if token.hasSuffix("px") || token.hasSuffix("em") || borderWidthKeywords.contains(token)
+            {
+                props["\(prefix)-width"] = token
+            } else if borderStyleKeywords.contains(token) {
+                props["\(prefix)-style"] = token
+            } else {
+                props["\(prefix)-color"] = token
+            }
+        }
+        return props
+    }
+
+    // margin/padding: 1-4 values -> top right bottom left
+    private static func expandBox(_ tokens: [String], prefix: String) -> [String: String] {
+        var props: [String: String] = [:]
+        switch tokens.count {
+        case 1:
+            props["\(prefix)-top"] = tokens[0]
+            props["\(prefix)-right"] = tokens[0]
+            props["\(prefix)-bottom"] = tokens[0]
+            props["\(prefix)-left"] = tokens[0]
+        case 2:
+            props["\(prefix)-top"] = tokens[0]
+            props["\(prefix)-right"] = tokens[1]
+            props["\(prefix)-bottom"] = tokens[0]
+            props["\(prefix)-left"] = tokens[1]
+        case 3:
+            props["\(prefix)-top"] = tokens[0]
+            props["\(prefix)-right"] = tokens[1]
+            props["\(prefix)-bottom"] = tokens[2]
+            props["\(prefix)-left"] = tokens[1]
+        default:
+            props["\(prefix)-top"] = tokens[0]
+            props["\(prefix)-right"] = tokens[1]
+            props["\(prefix)-bottom"] = tokens[2]
+            props["\(prefix)-left"] = tokens[3]
+        }
+        return props
+    }
+
+    private static func isShortHand(_ prop: String) -> Bool {
+        ["font", "border", "outline", "margin", "padding"].contains(prop)
+    }
+
     // Parses a CSS rule body: everything between { and }.
     // On a malformed declaration it skips to the next ";" and continues.
     func body() -> [String: String] {
         var props: [String: String] = [:]
         while i < chars.count && chars[i] != "}" {
             if let (prop, val) = try? pair() {
-                props[prop] = val
+                var tokens = [val]
+                if CSSParser.isShortHand(prop) {
+                    skipWhitespace()
+                    while i < chars.count && chars[i] != ";" && chars[i] != "}" {
+                        guard let t = try? word() else { break }
+                        tokens.append(t)
+                        skipWhitespace()
+                    }
+                }
+                if let expanded = CSSParser.expand(shorthand: prop, tokens: tokens) {
+                    for (k, v) in expanded { props[k] = v }
+                } else {
+                    props[prop] = val
+                }
                 skipWhitespace()
                 _ = try? literal(";")
                 skipWhitespace()

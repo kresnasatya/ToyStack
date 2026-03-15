@@ -316,6 +316,16 @@ class BlockLayout: LayoutObject {
             commands.append(DrawRect(rect: self.selfRect(), color: bgcolor))
         }
 
+        let borderStyle = node.style["border-style"] ?? "none"
+        if borderStyle != "none",
+            let widthStr = node.style["border-width"],
+            let borderPx = Double(widthStr.dropLast(2))
+        {
+            let color = node.style["border-color"] ?? "black"
+            commands.append(
+                DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
+        }
+
         if let el = node as? Element, el.tag == "li" {
             let bulletX = x - BlockLayout.liIndent
             let bulletY = y + (VSTEP - BlockLayout.bulletSize) / 2
