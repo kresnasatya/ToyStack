@@ -74,6 +74,18 @@ struct DescendantSelector: CSSSelector {
     }
 }
 
+// MARK: - ImportantSelector
+// Wraps any selector and adds 10_000 to priority, implementing !important.
+// The base selector still controls which nodes match; only priority changes.
+struct ImportantSelector: CSSSelector {
+    let base: any CSSSelector
+    var priority: Int { base.priority + 10_000 }
+
+    func matches(_ node: any DOMNode) -> Bool {
+        base.matches(node)
+    }
+}
+
 // MARK: - CSSParseError
 enum CSSParseError: Error {
     case parseError
@@ -236,10 +248,11 @@ class CSSParser {
         ["font", "border", "outline", "margin", "padding"].contains(prop)
     }
 
-    // Parses a CSS rule body: everything between { and }.
-    // On a malformed declaration it skips to the next ";" and continues.
-    func body() -> [String: String] {
-        var props: [String: String] = [:]
+    // Parse a rule body, separating normal from !important
+    private func bodyParts() -> (normal: [String: String], important: [String: String]) {
+        var normal: [String: String] = [:]
+        var important: [String: String] = [:]
+
         while i < chars.count && chars[i] != "}" {
             if let (prop, val) = try? pair() {
                 var tokens = [val]
@@ -251,10 +264,24 @@ class CSSParser {
                         skipWhitespace()
                     }
                 }
+
+                // Detect !important after the value(s).
+                // "!" is not a word char so the shorthand loop already stopped here.
+                skipWhitespace()
+                var isImportant = false
+                if i < chars.count && chars[i] == "!" {
+                    i += 1
+                    if let keyword = try? word(), keyword.lowercased() == "important" {
+                        isImportant = true
+                    }
+                }
+
                 if let expanded = CSSParser.expand(shorthand: prop, tokens: tokens) {
-                    for (k, v) in expanded { props[k] = v }
+                    for (k, v) in expanded {
+                        isImportant ? (important[k] = v) : (normal[k] = v)
+                    }
                 } else {
-                    props[prop] = val
+                    isImportant ? (important[prop] = val) : (normal[prop] = val)
                 }
                 skipWhitespace()
                 _ = try? literal(";")
@@ -269,7 +296,14 @@ class CSSParser {
                 }
             }
         }
-        return props
+        return (normal, important)
+    }
+
+    // Parses a CSS rule body: everything between { and }.
+    // On a malformed declaration it skips to the next ";" and continues.
+    func body() -> [String: String] {
+        let parts = bodyParts()
+        return parts.normal.merging(parts.important) { _, imp in imp }
     }
 
     // Converts one word token (e.g. "span.announce") into a simple or sequence selector.
@@ -315,9 +349,14 @@ class CSSParser {
             let sel = selector()
             if (try? literal("{")) != nil {
                 skipWhitespace()
-                let props = body()
+                let parts = bodyParts()
                 if (try? literal("}")) != nil {
-                    rules.append((sel, props))
+                    if !parts.normal.isEmpty {
+                        rules.append((sel, parts.normal))
+                    }
+                    if !parts.important.isEmpty {
+                        rules.append((ImportantSelector(base: sel), parts.important))
+                    }
                 }
             } else {
                 let found = ignoreUntil(["}"])
