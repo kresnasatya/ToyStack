@@ -51,6 +51,10 @@ class BlockLayout: LayoutObject {
         // Stack below the previous sibling, or start at the parent's y.
         y = previous.map { $0.y + $0.height } ?? parent!.y
 
+        if let el = node as? Element, el.attributes["id"] == "toc" {
+            y += VSTEP
+        }
+
         let mode = layoutMode()
         if mode == "block" {
             // Block mode: one BlockLayout per DOM child, stacked vertically.
@@ -72,6 +76,10 @@ class BlockLayout: LayoutObject {
         for child in children { child.layout() }
         // Height is the sum of all children's heights.
         height = children.reduce(0) { $0 + $1.height }
+
+        if let el = node as? Element, el.attributes["id"] == "toc" {
+            height += VSTEP
+        }
     }
 
     // Returns "block" if any child Element has a block-level tag; else "inline".
@@ -275,6 +283,15 @@ class BlockLayout: LayoutObject {
                 bottom: bulletY + BlockLayout.bulletSize
             )
             commands.append(DrawRect(rect: bulletRect, color: "black"))
+        }
+
+        if let el = node as? Element, el.attributes["id"] == "toc" {
+            let headerRect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
+            commands.append(DrawRect(rect: headerRect, color: "gray"))
+            let font = getFont(size: 12, weight: "bold", style: "roman")
+            commands.append(
+                DrawText(
+                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: "white"))
         }
 
         return commands
