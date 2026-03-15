@@ -66,6 +66,19 @@ public class Tab: ObservableObject {
             rules.append(contentsOf: CSSParser(styleBody).parse())
         }
 
+        // Collect inline <style> sheets and append their rules
+        let styleNodes = treeToList(nodes)
+            .compactMap({ $0 as? Element })
+            .filter({ $0.tag == "style" })
+
+        for styleNode in styleNodes {
+            let css = styleNode.children
+                .compactMap({ $0 as? TextNode })
+                .map({ $0.text })
+                .joined()
+            rules.append(contentsOf: CSSParser(css).parse())
+        }
+
         // Load and execute linked scripts
         let scriptNodes = treeToList(nodes)
             .compactMap { $0 as? Element }
