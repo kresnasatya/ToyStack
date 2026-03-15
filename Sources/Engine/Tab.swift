@@ -104,8 +104,9 @@ public class Tab: ObservableObject {
     }
 
     func render() {
-        applyStyle(
-            node: nodes, rules: rules.sorted(by: { cascadePriority($0) < cascadePriority($1) }))
+        let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+        precomputeHas(node: nodes, rules: sortedRules)
+        applyStyle(node: nodes, rules: sortedRules)
         let doc = DocumentLayout(node: nodes)
         doc.layout(availableWidth: tabWidth)
         document = doc

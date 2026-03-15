@@ -9,6 +9,7 @@ protocol DOMNode: AnyObject {
     var parent: (any DOMNode)? { get set }
     var style: [String: String] { get set }
     var isFocused: Bool { get set }
+    var satisfiedHas: Set<Int> { get set }
 }
 
 // MARK: - Element
@@ -20,6 +21,7 @@ class Element: DOMNode {
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
     var isFocused: Bool = false
+    var satisfiedHas: Set<Int> = []
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
         self.tag = tag
@@ -42,6 +44,7 @@ class TextNode: DOMNode {
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
     var isFocused: Bool = false
+    var satisfiedHas: Set<Int> = []
 
     init(text: String, parent: (any DOMNode)?) {
         self.text = text

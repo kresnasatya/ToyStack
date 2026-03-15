@@ -5,6 +5,7 @@ import Foundation
 // Higher priority wins when two rules set the same property.
 protocol CSSSelector: Sendable {
     var priority: Int { get }
+    var hasSelectors: [HasSelector] { get }
     func matches(_ node: any DOMNode) -> Bool
 }
 
@@ -14,6 +15,7 @@ protocol CSSSelector: Sendable {
 struct TagSelector: CSSSelector {
     let tag: String
     let priority: Int = 1
+    var hasSelectors: [HasSelector] { [] }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else {
@@ -29,6 +31,7 @@ struct TagSelector: CSSSelector {
 struct ClassSelector: CSSSelector {
     let cls: String
     let priority: Int = 10
+    var hasSelectors: [HasSelector] { [] }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else { return false }
@@ -44,6 +47,7 @@ struct ClassSelector: CSSSelector {
 struct SelectorSequence: CSSSelector {
     let selectors: [any CSSSelector]
     var priority: Int { selectors.reduce(0, { $0 + $1.priority }) }
+    var hasSelectors: [HasSelector] { selectors.flatMap { $0.hasSelectors } }
 
     func matches(_ node: any DOMNode) -> Bool {
         selectors.allSatisfy({ $0.matches(node) })
@@ -57,6 +61,7 @@ struct SelectorSequence: CSSSelector {
 struct DescendantSelector: CSSSelector {
     let selectors: [any CSSSelector]  // left-to-right: [most-ancestral, ..., node]
     var priority: Int { selectors.reduce(0, { $0 + $1.priority }) }
+    var hasSelectors: [HasSelector] { selectors.flatMap { $0.hasSelectors } }
 
     func matches(_ node: any DOMNode) -> Bool {
         // The node itself must match the rightmost selector.
@@ -80,9 +85,32 @@ struct DescendantSelector: CSSSelector {
 struct ImportantSelector: CSSSelector {
     let base: any CSSSelector
     var priority: Int { base.priority + 10_000 }
+    var hasSelectors: [HasSelector] { base.hasSelectors }
 
     func matches(_ node: any DOMNode) -> Bool {
         base.matches(node)
+    }
+}
+
+// MARK: - HasSelector
+// Matches a node if any of its descendants matches the inner selector.
+// Example: HasSelector(TagSelector("p")) matches any element containing a <p>.
+struct HasSelector: CSSSelector {
+    nonisolated(unsafe) private static var counter: Int = 0
+    let id: Int
+    let inner: any CSSSelector
+    var priority: Int { inner.priority }
+    var hasSelectors: [HasSelector] { [self] }
+
+    init(inner: any CSSSelector) {
+        self.id = HasSelector.counter
+        HasSelector.counter += 1
+        self.inner = inner
+    }
+
+    // O(1) - reads the precomputed result set on the node
+    func matches(_ node: any DOMNode) -> Bool {
+        node.satisfiedHas.contains(id)
     }
 }
 
@@ -321,22 +349,46 @@ class CSSParser {
         return selectors.count == 1 ? selectors[0] : SelectorSequence(selectors: selectors)
     }
 
+    // Reads one compound selector: optinal tag/class token, then zero or more :has(...) suffixes
+    // Returns nil if nothing can be parsed (used as a break signal in selector()).
+    private func parseCompoundSelector() -> (any CSSSelector)? {
+        var parts: [any CSSSelector] = []
+
+        if let w = try? word() {
+            parts.append(parseSimpleSelector(w.lowercased()))
+        }
+
+        while i < chars.count && chars[i] == ":" {
+            i += 1  // consume ":"
+            guard let keyword = try? word(), keyword == "has" else { break }
+            guard (try? literal("(")) != nil else { break }
+            skipWhitespace()
+            let inner = selector()
+            skipWhitespace()
+            _ = try? literal(")")
+            parts.append(HasSelector(inner: inner))
+        }
+
+        guard !parts.isEmpty else { return nil }
+        return parts.count == 1 ? parts[0] : SelectorSequence(selectors: parts)
+    }
+
     // Parses a selector.
     // Collects all simple selectors into a flat array, then wraps in
     // DescendantSelector only when there are multiple parts.
     func selector() -> any CSSSelector {
-        var parts: [any CSSSelector] = []
-        if let w = try? word() {
-            parts.append(parseSimpleSelector(w.lowercased()))
-        } else {
+        guard let first = parseCompoundSelector() else {
             return TagSelector(tag: "")
         }
+
+        var parts: [any CSSSelector] = [first]
         skipWhitespace()
-        while i < chars.count && chars[i] != "{" {
-            guard let tag = try? word() else { break }
-            parts.append(parseSimpleSelector(tag.lowercased()))
+        while i < chars.count && chars[i] != "{" && chars[i] != ")" {
+            guard let compound = parseCompoundSelector() else { break }
+            parts.append(compound)
             skipWhitespace()
         }
+
         return parts.count == 1 ? parts[0] : DescendantSelector(selectors: parts)
     }
 

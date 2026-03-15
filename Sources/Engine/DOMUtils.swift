@@ -78,6 +78,32 @@ let inheritedProperties: [String: String] = [
     "color": "black",
 ]
 
+// Precomputes :has() selector-results in single O(n) pass.
+// Must be called before applyStyle() before each render cycle.
+func precomputeHas(node: any DOMNode, rules: [(any CSSSelector, [String: String])]) {
+    let allNodes = treeToList(node)
+
+    // Reset from previous render
+    for n in allNodes { n.satisfiedHas = [] }
+
+    let allHasSelectors = rules.flatMap({ $0.0.hasSelectors })
+    guard !allHasSelectors.isEmpty else { return }
+
+    // Process in reverse pre-order so children are always handled before parents
+    // Reversed pre-order guarantees: when we process node N, all N's children
+    // are already processed.
+    for n in allNodes.reversed() {
+        for hs in allHasSelectors {
+            for child in n.children {
+                if hs.inner.matches(child) || child.satisfiedHas.contains(hs.id) {
+                    n.satisfiedHas.insert(hs.id)
+                    break
+                }
+            }
+        }
+    }
+}
+
 // MARK: - CSS Cascade (style function)
 // Walks the entire DOM tree and sets node.style on every node.
 // Order of precedence (lowest -> highest):
