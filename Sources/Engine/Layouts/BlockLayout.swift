@@ -12,6 +12,10 @@ class BlockLayout: LayoutObject {
         "dt", "dd", "figure", "figcaption", "main", "div",
         "table", "form", "fieldset", "legend", "details", "summary",
     ]
+
+    // Tags that must not appear in layout tree.
+    static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
+
     static let inputWidthPx: CGFloat = 200
     static let paragraphSpacing: CGFloat = 18.0
 
@@ -44,6 +48,9 @@ class BlockLayout: LayoutObject {
             // Block mode: one BlockLayout per DOM child, stacked vertically.
             var prev: (any LayoutObject)? = nil
             for child in node.children {
+                if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
+                    continue
+                }
                 let next = BlockLayout(node: child, parent: self, previous: prev)
                 children.append(next)
                 prev = next
