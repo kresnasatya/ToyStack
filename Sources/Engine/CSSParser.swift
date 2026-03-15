@@ -38,25 +38,26 @@ struct ClassSelector: CSSSelector {
 }
 
 // MARK: - DescendantSelector
-// Matches a node when: the node matches `descendant` AND some ancestor
-// of that node matches `ancestor`.
-// Example: DescendantSelector(div, p) matches <p> elements inside a <div>.
+// Matches a node when its ancestors satisfy all selectors left-to-right.
+// Stores a flat list instead of nested pairs for 0(n+d) matching.
+// Example: ["div", "p", "span"] matches <span> inside <p> inside <div>.
 struct DescendantSelector: CSSSelector {
-    let ancestor: any CSSSelector
-    let descendant: any CSSSelector
-    var priority: Int { ancestor.priority + descendant.priority }
+    let selectors: [any CSSSelector]  // left-to-right: [most-ancestral, ..., node]
+    var priority: Int { selectors.reduce(0, { $0 + $1.priority }) }
 
     func matches(_ node: any DOMNode) -> Bool {
-        guard descendant.matches(node) else {
-            return false
-        }
-        // Walk up the parent chain looking for a matching ancestor.
+        // The node itself must match the rightmost selector.
+        guard selectors.last!.matches(node) else { return false }
+
+        // Single walk up the ancestor chain, consuming selectors right-to-left.
+        var j = selectors.count - 2
         var current = node.parent
         while let p = current {
-            if ancestor.matches(p) { return true }
+            if j < 0 { return true }
+            if selectors[j].matches(p) { j -= 1 }
             current = p.parent
         }
-        return false
+        return j < 0
     }
 }
 
@@ -259,29 +260,28 @@ class CSSParser {
     }
 
     // Parses a selector.
-    // A single word -> TagSelector. Multiple words separated by spaces ->
-    // DescendantSelector chain, e.g. "div p span" builds nested selectors.
+    // Collects all simple selectors into a flat array, then wraps in
+    // DescendantSelector only when there are multiple parts.
     func selector() -> any CSSSelector {
-        var out: any CSSSelector
+        var parts: [any CSSSelector] = []
         if let w = try? word() {
             let lower = w.lowercased()
-            out =
+            parts.append(
                 lower.hasPrefix(".")
-                ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower)
+                    ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower))
         } else {
-            out = TagSelector(tag: "")
+            return TagSelector(tag: "")
         }
         skipWhitespace()
         while i < chars.count && chars[i] != "{" {
             guard let tag = try? word() else { break }
             let lower = tag.lowercased()
-            let inner: any CSSSelector =
+            parts.append(
                 lower.hasPrefix(".")
-                ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower)
-            out = DescendantSelector(ancestor: out, descendant: inner)
+                    ? ClassSelector(cls: String(lower.dropFirst())) : TagSelector(tag: lower))
             skipWhitespace()
         }
-        return out
+        return parts.count == 1 ? parts[0] : DescendantSelector(selectors: parts)
     }
 
     // Parses a full stylesheet. Returns all valid (selector, body) rules.
