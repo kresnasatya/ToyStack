@@ -18,6 +18,8 @@ class BlockLayout: LayoutObject {
 
     static let inputWidthPx: CGFloat = 200
     static let paragraphSpacing: CGFloat = 18.0
+    static let liIndent: CGFloat = 20.0
+    static let bulletSize: CGFloat = 8.0
 
     let node: any DOMNode
     let parent: (any LayoutObject)?
@@ -40,6 +42,12 @@ class BlockLayout: LayoutObject {
     func layout() {
         x = parent!.x
         width = parent!.width
+
+        if let el = node as? Element, el.tag == "li" {
+            x += BlockLayout.liIndent
+            width -= BlockLayout.liIndent
+        }
+
         // Stack below the previous sibling, or start at the parent's y.
         y = previous.map { $0.y + $0.height } ?? parent!.y
 
@@ -253,9 +261,23 @@ class BlockLayout: LayoutObject {
 
     // Emits a DrawRect if this element has a non-transparent background color
     func paint() -> [any PaintCommand] {
+        var commands: [any PaintCommand] = []
         let bgcolor = node.style["background-color"] ?? "transparent"
-        guard bgcolor != "transparent" else { return [] }
-        return [DrawRect(rect: selfRect(), color: bgcolor)]
+        if bgcolor != "transparent" {
+            commands.append(DrawRect(rect: self.selfRect(), color: bgcolor))
+        }
+
+        if let el = node as? Element, el.tag == "li" {
+            let bulletX = x - BlockLayout.liIndent
+            let bulletY = y + (VSTEP - BlockLayout.bulletSize) / 2
+            let bulletRect = Rect(
+                left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
+                bottom: bulletY + BlockLayout.bulletSize
+            )
+            commands.append(DrawRect(rect: bulletRect, color: "black"))
+        }
+
+        return commands
     }
 
     // <input> and <button> are painted by InputLayout, not BlockLayout.
