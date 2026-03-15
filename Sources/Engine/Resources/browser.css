@@ -5,6 +5,9 @@ pre {
     background-color: gray;
     font-family: monospace;
 }
+code {
+    font-family: monospace;
+}
 a {
     color: blue;
 }
