@@ -3,16 +3,6 @@ import CoreGraphics
 // MARK: - BlockLayout
 // Lays out one DOM node, either stacking block children or flowing inline content.
 class BlockLayout: LayoutObject {
-    // Tags that force block layout mode when found among siblings.
-    static let blockElements: Set<String> = [
-        "html", "body", "article", "section", "nav",
-        "aside", "h1", "h2", "h3", "h4", "h5", "h6", "hgroup",
-        "header", "foother", "address", "p", "hr", "pre",
-        "blockquote", "ol", "ul", "menu", "li", "dl",
-        "dt", "dd", "figure", "figcaption", "main", "div",
-        "table", "form", "fieldset", "legend", "details", "summary",
-    ]
-
     // Tags that must not appear in layout tree.
     static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
 
@@ -74,8 +64,7 @@ class BlockLayout: LayoutObject {
                 if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
                     continue
                 }
-                let isBlock =
-                    (child as? Element).map { BlockLayout.blockElements.contains($0.tag) } ?? false
+                let isBlock = child.style["display"] == "block"
                 if isBlock {
                     if let el = child as? Element, el.tag == "h6" {
                         if !inlineRun.isEmpty {
@@ -134,13 +123,12 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    // Returns "block" if any child Element has a block-level tag; else "inline".
+    // Returns "block" if any child has display:block in its computed style; else "inline"
     private func layoutMode() -> String {
         if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
         let hasBlockChild = node.children.contains(where: {
-            guard let el = $0 as? Element else { return false }
-            return BlockLayout.blockElements.contains(el.tag)
+            $0.style["display"] == "block"
         })
         if hasBlockChild { return "block" }
         if let el = node as? Element {
