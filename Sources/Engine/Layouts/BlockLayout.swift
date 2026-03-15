@@ -68,6 +68,7 @@ class BlockLayout: LayoutObject {
         if mode == "block" {
             var prev: (any LayoutObject)? = nil
             var inlineRun: [any DOMNode] = []
+            var pendingRunIn: Element? = nil
 
             for child in node.children {
                 if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
@@ -76,15 +77,33 @@ class BlockLayout: LayoutObject {
                 let isBlock =
                     (child as? Element).map { BlockLayout.blockElements.contains($0.tag) } ?? false
                 if isBlock {
-                    if !inlineRun.isEmpty {
-                        let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                        children.append(anon)
-                        prev = anon
-                        inlineRun = []
+                    if let el = child as? Element, el.tag == "h6" {
+                        if !inlineRun.isEmpty {
+                            let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                            children.append(anon)
+                            prev = anon
+                            inlineRun = []
+                        }
+                        pendingRunIn = el
+                    } else {
+                        if !inlineRun.isEmpty {
+                            let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                            children.append(anon)
+                            prev = anon
+                            inlineRun = []
+                        }
+                        if let runIn = pendingRunIn {
+                            let next = BlockLayout(
+                                nodes: [runIn, child], parent: self, previous: prev)
+                            children.append(next)
+                            prev = next
+                            pendingRunIn = nil
+                        } else {
+                            let next = BlockLayout(node: child, parent: self, previous: prev)
+                            children.append(next)
+                            prev = next
+                        }
                     }
-                    let next = BlockLayout(node: child, parent: self, previous: prev)
-                    children.append(next)
-                    prev = next
                 } else {
                     inlineRun.append(child)
                 }
@@ -92,6 +111,10 @@ class BlockLayout: LayoutObject {
             if !inlineRun.isEmpty {
                 let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
                 children.append(anon)
+            }
+            if let runIn = pendingRunIn {
+                let next = BlockLayout(node: runIn, parent: self, previous: prev)
+                children.append(next)
             }
         } else {
             newLine()
