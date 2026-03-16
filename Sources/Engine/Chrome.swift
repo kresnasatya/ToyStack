@@ -27,9 +27,10 @@ public class Chrome {
 
     private let newtabRect: Rect
     private let backRect: Rect
+    private let forwardRect: Rect
     private var addressRect: Rect {
         Rect(
-            left: backRect.right + padding,
+            left: forwardRect.right + padding,
             top: urlbarTop + padding,
             right: currentWidth - padding,
             bottom: urlbarBottom - padding
@@ -60,6 +61,10 @@ public class Chrome {
         backRect = Rect(
             left: padding, top: urlbarTop + padding, right: padding + backWidth,
             bottom: urlbarBottom - padding)
+        let forwardWidth = font.measure(">") + 2 * padding
+        forwardRect = Rect(
+            left: backRect.right + padding, top: urlbarTop + padding,
+            right: backRect.right + padding + forwardWidth, bottom: urlbarBottom - padding)
     }
 
     private func tabRect(_ i: Int) -> Rect {
@@ -119,12 +124,22 @@ public class Chrome {
             }
         }
 
-        // Back button
-        cmds.append(DrawOutline(rect: backRect, color: "black", thickness: 1))
+        // Back button - gray when nothing to go back to
+        let backColor = tabManager?.activeTab?.canGoBack == true ? "black" : "gray"
+        cmds.append(DrawOutline(rect: backRect, color: backColor, thickness: 1))
         cmds.append(
             DrawText(
-                x1: backRect.left + padding, y1: backRect.top, text: "<", font: font, color: "black"
+                x1: backRect.left + padding, y1: backRect.top, text: "<", font: font,
+                color: backColor
             ))
+
+        // Forward button - gray when nothing to go forward to
+        let fwdColor = tabManager?.activeTab?.canGoForward == true ? "black" : "gray"
+        cmds.append(DrawOutline(rect: forwardRect, color: fwdColor, thickness: 1))
+        cmds.append(
+            DrawText(
+                x1: forwardRect.left + padding, y1: forwardRect.top, text: ">", font: font,
+                color: fwdColor))
 
         // Address bar
         cmds.append(DrawOutline(rect: addressRect, color: "black", thickness: 1))
@@ -155,6 +170,8 @@ public class Chrome {
             await tabManager?.newTab(WebURL("https://browser.engineering"))
         } else if backRect.containsPoint(x, y) {
             await tabManager?.activeTab?.goBack()
+        } else if forwardRect.containsPoint(x, y) {
+            await tabManager?.activeTab?.goForward()
         } else if addressRect.containsPoint(x, y) {
             focus = "address bar"
             addressBar = ""

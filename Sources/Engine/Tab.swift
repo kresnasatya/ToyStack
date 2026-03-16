@@ -16,10 +16,14 @@ public class Tab: ObservableObject {
     private var tabHeight: CGFloat
     private var tabWidth: CGFloat
     private var history: [WebURL] = []
+    private var historyIndex: Int = -1
     private var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(any CSSSelector, [String: String])] = []
     private var js: JSRuntime!
+
+    var canGoBack: Bool { historyIndex > 0 }
+    var canGoForward: Bool { historyIndex < history.count - 1 }
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
         self.tabHeight = tabHeight
@@ -27,10 +31,18 @@ public class Tab: ObservableObject {
     }
 
     func load(_ url: WebURL, payload: String? = nil) async {
+        // Truncate any forward history beyond the current position
+        // then record this new URL as the current entry.
+        history = Array(history.prefix(historyIndex + 1))
+        history.append(url)
+        historyIndex = history.count - 1
+        await performLoad(url, payload: payload)
+    }
+
+    private func performLoad(_ url: WebURL, payload: String? = nil) async {
         guard let (headers, body) = try? await url.request(referrer: self.url, payload: payload)
         else { return }
 
-        history.append(url)
         scroll = 0
         self.url = url
         nodes = HTMLParser(body: body).parse()
@@ -189,10 +201,15 @@ public class Tab: ObservableObject {
     }
 
     func goBack() async {
-        guard history.count > 1 else { return }
-        history.removeLast()
-        let back = history.removeLast()
-        await load(back)
+        guard canGoBack else { return }
+        historyIndex -= 1
+        await performLoad(history[historyIndex])
+    }
+
+    func goForward() async {
+        guard canGoForward else { return }
+        historyIndex += 1
+        await performLoad(history[historyIndex])
     }
 
     public func keypress(_ char: String) {
