@@ -167,7 +167,7 @@ public class Chrome {
     public func click(x: CGFloat, y: CGFloat) async {
         focus = nil
         if newtabRect.containsPoint(x, y) {
-            await tabManager?.newTab(WebURL("https://browser.engineering"))
+            await tabManager?.newTab(WebURL("about:blank"))
         } else if backRect.containsPoint(x, y) {
             await tabManager?.activeTab?.goBack()
         } else if forwardRect.containsPoint(x, y) {
