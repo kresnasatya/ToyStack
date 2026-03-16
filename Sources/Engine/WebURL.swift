@@ -96,6 +96,8 @@ public class WebURL: @unchecked Sendable {
 
     let mimeType: String
 
+    var fragment: String? = nil
+
     // Parses a raw URL string like "https://example.com/path"
     // into it's individual components: scheme, host, port, and path.
     public init(_ rawURL: String) {
@@ -161,7 +163,12 @@ public class WebURL: @unchecked Sendable {
         let slashIdx = rest.firstIndex(of: "/")!
         var hostPart = String(rest[rest.startIndex..<slashIdx])
         let pathPart = String(rest[slashIdx...])
-        path = pathPart.isEmpty ? "/" : pathPart
+        if let hashIdx = pathPart.firstIndex(of: "#") {
+            path = String(pathPart[pathPart.startIndex..<hashIdx])
+            fragment = String(pathPart[pathPart.index(after: hashIdx)...])
+        } else {
+            path = pathPart.isEmpty ? "/" : pathPart
+        }
 
         var defaultPort = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
         if hostPart.contains(":") {
@@ -375,13 +382,21 @@ public class WebURL: @unchecked Sendable {
         if scheme == "about" {
             return "about:\(path)"
         }
-        return "\(scheme)://\(host)\(portPart)\(path)"
+
+        var result = "\(scheme)://\(host)\(portPart)\(path)"
+        if let f = fragment { result += "#\(f)" }
+        return result
     }
 
     // Resolve a (possibly relative) URL againt this URL's base
     // e.g. if self is "https://example.com/a/b" and rawURL is "../c",
     // the result is "https://example.com/c"
     func resolve(_ rawURL: String) -> WebURL {
+        // Check from fragment URL
+        if rawURL.hasPrefix("#") {
+            return WebURL("\(scheme)://\(host):\(port)\(path)\(rawURL)")
+        }
+
         // Absolute URL - use it directly
         if rawURL.contains("://") {
             return WebURL(rawURL)

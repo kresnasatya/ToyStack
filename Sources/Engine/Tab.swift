@@ -121,6 +121,9 @@ public class Tab: ObservableObject {
         }
 
         render()
+        if let fragment = url.fragment {
+            scrollToFragment(fragment)
+        }
     }
 
     func allowedRequest(_ url: WebURL) -> Bool {
@@ -138,6 +141,16 @@ public class Tab: ObservableObject {
         paintTree(doc, into: &list)
         displayList = list
         renderVersion += 1
+    }
+
+    private func scrollToFragment(_ id: String) {
+        guard let doc = document else { return }
+        let target = treeToList(doc).first(where: {
+            ($0.node as? Element)?.attributes["id"] == id
+        })
+        if let target = target {
+            scroll = target.y
+        }
     }
 
     public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
@@ -244,7 +257,18 @@ public class Tab: ObservableObject {
                 // fall through to parent
             } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"] {
                 if js.dispatchEvent(type: "click", elt: el) { return }
-                await load(url.resolve(href))
+                if href.hasPrefix("#") {
+                    let resolved = url.resolve(href)
+                    // Push to history without reolading the page
+                    history = Array(history.prefix(historyIndex + 1))
+                    history.append(resolved)
+                    historyIndex = history.count - 1
+                    self.url = resolved
+                    scrollToFragment(String(href.dropFirst()))
+                    renderVersion += 1
+                } else {
+                    await load(url.resolve(href))
+                }
                 return
             } else if let el = node as? Element, el.tag == "input" {
                 if js.dispatchEvent(type: "click", elt: el) { return }
