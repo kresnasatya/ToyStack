@@ -56,6 +56,10 @@ public struct BrowserView: View {
                             app.activeTab?.scrollUp()
                         } else if event.keyCode == 36 {  // Return
                             await app.chrome.enter()
+                        } else if event.keyCode == 51 {
+                            if app.chrome.backspace() {
+                                app.objectWillChange.send()
+                            }
                         } else if let char = event.characters, !char.isEmpty {
                             let scalar = char.unicodeScalars.first!.value
                             if scalar >= 0x20 && scalar < 0x7F {

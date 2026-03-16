@@ -177,6 +177,14 @@ public class Chrome {
         return false
     }
 
+    public func backspace() -> Bool {
+        if focus == "address bar" {
+            addressBar = String(addressBar.dropLast())
+            return true
+        }
+        return false
+    }
+
     public func enter() async {
         if focus == "address bar" {
             await tabManager?.activeTab?.load(WebURL(addressBar))
