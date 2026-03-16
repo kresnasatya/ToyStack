@@ -116,6 +116,24 @@ public class Tab: ObservableObject {
         renderVersion += 1
     }
 
+    public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
+        let adjustedY = y + scroll
+        guard let doc = document else { return nil }
+        let objs = treeToList(doc).filter {
+            $0.x <= x && x < $0.x + $0.width
+                && $0.y <= adjustedY && adjustedY < $0.y + $0.height
+        }
+        guard let hit = objs.last else { return nil }
+        var elt: (any DOMNode)? = hit.node
+        while let node = elt {
+            if let el = node as? Element, el.tag == "a", let href = el.attributes["href"] {
+                return url?.resolve(href)
+            }
+            elt = node.parent
+        }
+        return nil
+    }
+
     public func visibleCommands(offset: CGFloat) -> [(command: any PaintCommand, scroll: CGFloat)] {
         displayList.compactMap({ cmd in
             guard cmd.rect.top <= self.scroll + tabHeight,

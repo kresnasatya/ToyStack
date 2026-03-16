@@ -88,6 +88,23 @@ public struct BrowserView: View {
                     return nil
                 }
             )
+            NSEvent.addLocalMonitorForEvents(
+                matching: .otherMouseDown,
+                handler: { [weak app] event in
+                    guard let app, event.buttonNumber == 2 else { return event }
+                    Task { @MainActor in
+                        let loc = event.locationInWindow
+                        let x = loc.x
+                        let y = app.windowSize.height - loc.y  // flip: AppKit y=0 is at bottom
+                        guard y >= app.chrome.bottom else { return }
+                        let tabY = y - app.chrome.bottom
+                        if let linkURL = app.activeTab?.linkURL(at: x, y: tabY) {
+                            await app.newTab(linkURL)
+                        }
+                    }
+                    return nil
+                }
+            )
         }
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
             app.resize(to: newSize)
