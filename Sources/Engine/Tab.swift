@@ -45,6 +45,7 @@ public class Tab: ObservableObject {
 
         scroll = 0
         self.url = url
+        visitedURL.insert(url.toString())
         nodes = HTMLParser(body: body).parse()
         js = JSRuntime(tab: self)
 
@@ -134,6 +135,19 @@ public class Tab: ObservableObject {
         let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
         precomputeHas(node: nodes, rules: sortedRules)
         applyStyle(node: nodes, rules: sortedRules)
+
+        // Override color for visited links
+        for node in treeToList(nodes) {
+            guard let el = node as? Element, el.tag == "a",
+                let href = el.attributes["href"]
+            else {
+                continue
+            }
+            if visitedURL.contains(url.resolve(href).toString()) {
+                el.style["color"] = "purple"
+            }
+        }
+
         let doc = DocumentLayout(node: nodes)
         doc.layout(availableWidth: tabWidth)
         document = doc
