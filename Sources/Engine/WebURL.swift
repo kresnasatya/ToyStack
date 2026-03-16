@@ -229,7 +229,12 @@ public class WebURL: @unchecked Sendable {
         components.host = host
         components.port =
             (scheme == "https" && port == 443) || (scheme == "http" && port == 80) ? nil : port
-        components.path = path
+        if let questionIdx = path.firstIndex(of: "?") {
+            components.path = String(path[path.startIndex..<questionIdx])
+            components.percentEncodedQuery = String(path[path.index(after: questionIdx)...])
+        } else {
+            components.path = path
+        }
 
         guard let foundationURL = components.url else {
             fatalError("Could not construct URL from components")

@@ -204,12 +204,24 @@ public class Chrome {
 
     public func enter() async {
         if focus == "address bar" {
-            await tabManager?.activeTab?.load(WebURL(addressBar))
+            let input = addressBar
+            focus = nil
+            let url = isURL(input) ? WebURL(input) : searchURL(for: input)
+            await tabManager?.activeTab?.load(url)
             focus = nil
         }
     }
 
     func blur() {
         focus = nil
+    }
+
+    private func isURL(_ input: String) -> Bool {
+        input.hasPrefix("http://") || input.hasPrefix("https://") || input.hasPrefix("file://")
+    }
+
+    private func searchURL(for query: String) -> WebURL {
+        let escaped = query.replacingOccurrences(of: " ", with: "+")
+        return WebURL("https://google.com/search?q=\(escaped)")
     }
 }
