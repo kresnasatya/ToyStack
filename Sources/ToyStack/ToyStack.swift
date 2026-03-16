@@ -106,6 +106,12 @@ public struct BrowserView: View {
                 }
             )
         }
+        .onChange(
+            of: (app.activeTab?.title ?? "ToyStack"),
+            perform: { newTitle in
+                NSApp.windows.first?.title = newTitle
+            }
+        )
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
             app.resize(to: newSize)
         }

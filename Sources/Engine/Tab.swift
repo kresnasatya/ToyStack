@@ -10,6 +10,7 @@ public class Tab: ObservableObject {
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [any PaintCommand] = []
+    public private(set) var title: String = "New Tab"
 
     private var scroll: CGFloat = 0
     private var tabHeight: CGFloat
@@ -34,6 +35,17 @@ public class Tab: ObservableObject {
         self.url = url
         nodes = HTMLParser(body: body).parse()
         js = JSRuntime(tab: self)
+
+        // Extract the title
+        let titleText =
+            treeToList(nodes)
+            .compactMap({ $0 as? Element })
+            .first(where: { $0.tag == "title" })?.children
+            .compactMap({ $0 as? TextNode })
+            .map(\.text)
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        title = titleText.isEmpty ? url.toString() : titleText
 
         // Parse Content-Security-Policy header
         allowedOrigins = nil
