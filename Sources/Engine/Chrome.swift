@@ -40,6 +40,8 @@ public class Chrome {
 
     private var focus: String?  // "address bar" or nil
     private var addressBar: String = ""
+    private var cursorIndex: Int = 0
+    private var isAllSelected: Bool = false
 
     private var currentWidth: CGFloat = WIDTH
 
@@ -163,16 +165,31 @@ public class Chrome {
         // Address bar
         cmds.append(DrawOutline(rect: addressRect, color: "black", thickness: 1))
         if focus == "address bar" {
-            cmds.append(
-                DrawText(
-                    x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
-                    font: font, color: "black"))
-            let w = font.measure(addressBar)
-            cmds.append(
-                DrawLine(
-                    x1: addressRect.left + padding + w, y1: addressRect.top,
-                    x2: addressRect.left + padding + w, y2: addressRect.bottom, color: "red",
-                    thickness: 1))
+            if isAllSelected {
+                // Blue selection highlight behind the text
+                let textWidth = font.measure(addressBar)
+                let selRect = Rect(
+                    left: addressRect.left + padding, top: addressRect.top,
+                    right: addressRect.left + padding + textWidth, bottom: addressRect.bottom)
+                cmds.append(DrawRect(rect: selRect, color: "lightblue"))
+                cmds.append(
+                    DrawText(
+                        x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
+                        font: font, color: "black"))
+            } else {
+                cmds.append(
+                    DrawText(
+                        x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
+                        font: font, color: "black"))
+                let textBeforeCursor = String(addressBar.prefix(cursorIndex))
+                let w = font.measure(textBeforeCursor)
+                cmds.append(
+                    DrawLine(
+                        x1: addressRect.left + padding + w, y1: addressRect.top,
+                        x2: addressRect.left + padding + w, y2: addressRect.bottom, color: "red",
+                        thickness: 1))
+            }
+
         } else if let url = tabManager?.activeTab?.url {
             cmds.append(
                 DrawText(
@@ -201,7 +218,9 @@ public class Chrome {
             }
         } else if addressRect.containsPoint(x, y) {
             focus = "address bar"
-            addressBar = ""
+            addressBar = tabManager?.activeTab?.url?.toString() ?? ""
+            cursorIndex = addressBar.count
+            isAllSelected = true
         } else {
             let tabs: [Engine.Tab] = tabManager?.tabs ?? []
             for (i, tab) in tabs.enumerated() {
@@ -215,7 +234,15 @@ public class Chrome {
 
     public func keypress(_ char: String) -> Bool {
         if focus == "address bar" {
-            addressBar += char
+            if isAllSelected {
+                addressBar = char
+                cursorIndex = 1
+                isAllSelected = false
+            } else {
+                let idx = addressBar.index(addressBar.startIndex, offsetBy: cursorIndex)
+                addressBar.insert(contentsOf: char, at: idx)
+                cursorIndex += 1
+            }
             return true
         }
         return false
@@ -223,7 +250,42 @@ public class Chrome {
 
     public func backspace() -> Bool {
         if focus == "address bar" {
-            addressBar = String(addressBar.dropLast())
+            if isAllSelected {
+                addressBar = ""
+                cursorIndex = 0
+                isAllSelected = false
+            } else if cursorIndex > 0 {
+                let end = addressBar.index(addressBar.startIndex, offsetBy: cursorIndex)
+                let start = addressBar.index(before: end)
+                addressBar.remove(at: start)
+                cursorIndex -= 1
+            }
+            return true
+        }
+        return false
+    }
+
+    public func cursorLeft() -> Bool {
+        if focus == "address bar" {
+            if isAllSelected {
+                isAllSelected = false
+                cursorIndex = 0
+            } else {
+                cursorIndex = max(0, cursorIndex - 1)
+            }
+            return true
+        }
+        return false
+    }
+
+    public func cursorRight() -> Bool {
+        if focus == "address bar" {
+            if isAllSelected {
+                isAllSelected = false
+                cursorIndex = addressBar.count
+            } else {
+                cursorIndex = min(addressBar.count, cursorIndex + 1)
+            }
             return true
         }
         return false
@@ -233,14 +295,16 @@ public class Chrome {
         if focus == "address bar" {
             let input = addressBar
             focus = nil
+            isAllSelected = false
             let url = isURL(input) ? WebURL(input) : searchURL(for: input)
             await tabManager?.activeTab?.load(url)
             focus = nil
         }
     }
 
-    func blur() {
+    public func blur() {
         focus = nil
+        isAllSelected = false
     }
 
     private func isURL(_ input: String) -> Bool {

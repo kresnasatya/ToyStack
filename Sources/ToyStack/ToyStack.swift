@@ -60,6 +60,14 @@ public struct BrowserView: View {
                             if app.chrome.backspace() {
                                 app.objectWillChange.send()
                             }
+                        } else if event.keyCode == 123 {  // left arrow
+                            if app.chrome.cursorLeft() {
+                                app.objectWillChange.send()
+                            }
+                        } else if event.keyCode == 124 {  // right arrow
+                            if app.chrome.cursorRight() {
+                                app.objectWillChange.send()
+                            }
                         } else if let char = event.characters, !char.isEmpty {
                             let scalar = char.unicodeScalars.first!.value
                             if scalar >= 0x20 && scalar < 0x7F {
@@ -125,6 +133,7 @@ public struct BrowserView: View {
                             await app.chrome.click(x: x, y: y)
                             app.objectWillChange.send()
                         } else {
+                            app.chrome.blur()
                             await app.activeTab?.click(x: x, y: y - app.chrome.bottom)
                         }
                     }
