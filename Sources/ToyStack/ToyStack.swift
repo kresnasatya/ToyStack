@@ -8,12 +8,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+private struct WindowReader: NSViewRepresentable {
+    let onWindow: (NSWindow) -> Void
+    func makeNSView(context: Context) -> some NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let w = view.window { onWindow(w) }
+        }
+        return view
+    }
+    func updateNSView(_ nsView: NSViewType, context: Context) {}
+}
+
 @main
 struct ToyStack: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        Window("ToyStack", id: "main") {
+        WindowGroup("ToyStack", id: "browser", for: UUID.self) { _ in
             BrowserView()
         }
     }
@@ -22,6 +34,8 @@ struct ToyStack: App {
 @MainActor
 public struct BrowserView: View {
     @StateObject private var app = Browser()
+    @Environment(\.openWindow) private var openWindow
+    @State private var browserWindow: NSWindow?
 
     public init() {}
 
@@ -44,13 +58,22 @@ public struct BrowserView: View {
                 cmd.execute(scroll: 0, context: &ctx)
             }
         }
+        .background(
+            WindowReader { window in
+                browserWindow = window
+            }
+        )
         .onAppear {
             NSEvent.addLocalMonitorForEvents(
                 matching: .keyDown,
                 handler: { [weak app] event in
+                    guard event.window === browserWindow else { return event }
                     guard let app else { return event }
                     Task { @MainActor in
-                        if event.keyCode == 125 {  // Down arrow
+                        if event.modifierFlags.contains(.command) && event.keyCode == 45 {  // Cmd+N
+                            print("new window triggered")
+                            openWindow(id: "browser", value: UUID())
+                        } else if event.keyCode == 125 {  // Down arrow
                             app.activeTab?.scrollDown()
                         } else if event.keyCode == 126 {  // Up arrow
                             app.activeTab?.scrollUp()
@@ -85,6 +108,7 @@ public struct BrowserView: View {
             NSEvent.addLocalMonitorForEvents(
                 matching: .scrollWheel,
                 handler: { [weak app] event in
+                    guard event.window === browserWindow else { return event }
                     guard let app else { return event }
                     Task { @MainActor in
                         if event.scrollingDeltaY > 0 {
@@ -99,6 +123,7 @@ public struct BrowserView: View {
             NSEvent.addLocalMonitorForEvents(
                 matching: .otherMouseDown,
                 handler: { [weak app] event in
+                    guard event.window === browserWindow else { return event }
                     guard let app, event.buttonNumber == 2 else { return event }
                     Task { @MainActor in
                         let loc = event.locationInWindow
@@ -117,7 +142,7 @@ public struct BrowserView: View {
         .onChange(
             of: (app.activeTab?.title ?? "ToyStack"),
             perform: { newTitle in
-                NSApp.windows.first?.title = newTitle
+                NSApp.keyWindow?.title = newTitle
             }
         )
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
