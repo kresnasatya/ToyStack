@@ -30,12 +30,13 @@ public class Chrome {
     private let forwardRect: Rect
     private var addressRect: Rect {
         Rect(
-            left: forwardRect.right + padding,
+            left: bookmarkRect.right + padding,
             top: urlbarTop + padding,
             right: currentWidth - padding,
             bottom: urlbarBottom - padding
         )
     }
+    private let bookmarkRect: Rect
 
     private var focus: String?  // "address bar" or nil
     private var addressBar: String = ""
@@ -65,6 +66,12 @@ public class Chrome {
         forwardRect = Rect(
             left: backRect.right + padding, top: urlbarTop + padding,
             right: backRect.right + padding + forwardWidth, bottom: urlbarBottom - padding)
+
+        let bookmarkWidth = font.measure("*") + 2 * padding
+        bookmarkRect = Rect(
+            left: forwardRect.right + padding, top: urlbarTop + padding,
+            right: forwardRect.right + padding + bookmarkWidth,
+            bottom: urlbarBottom - padding)
     }
 
     private func tabRect(_ i: Int) -> Rect {
@@ -141,6 +148,18 @@ public class Chrome {
                 x1: forwardRect.left + padding, y1: forwardRect.top, text: ">", font: font,
                 color: fwdColor))
 
+        // Bookmark button - yellow fill when current page is bookmarked
+        let currentURLStr = tabManager?.activeTab?.url?.toString() ?? ""
+        let isBookmarked = bookmarks.contains(currentURLStr)
+        if isBookmarked {
+            cmds.append(DrawRect(rect: bookmarkRect, color: "yellow"))
+        }
+        cmds.append(DrawOutline(rect: bookmarkRect, color: "black", thickness: 1))
+        cmds.append(
+            DrawText(
+                x1: bookmarkRect.left + padding, y1: bookmarkRect.top, text: "*", font: font,
+                color: "black"))
+
         // Address bar
         cmds.append(DrawOutline(rect: addressRect, color: "black", thickness: 1))
         if focus == "address bar" {
@@ -172,6 +191,14 @@ public class Chrome {
             await tabManager?.activeTab?.goBack()
         } else if forwardRect.containsPoint(x, y) {
             await tabManager?.activeTab?.goForward()
+        } else if bookmarkRect.containsPoint(x, y) {
+            if let urlStr = tabManager?.activeTab?.url?.toString() {
+                if let idx = bookmarks.firstIndex(of: urlStr) {
+                    bookmarks.remove(at: idx)  // un-bookmark
+                } else {
+                    bookmarks.append(urlStr)
+                }
+            }
         } else if addressRect.containsPoint(x, y) {
             focus = "address bar"
             addressBar = ""
@@ -218,6 +245,7 @@ public class Chrome {
 
     private func isURL(_ input: String) -> Bool {
         input.hasPrefix("http://") || input.hasPrefix("https://") || input.hasPrefix("file://")
+            || input.hasPrefix("about:")
     }
 
     private func searchURL(for query: String) -> WebURL {

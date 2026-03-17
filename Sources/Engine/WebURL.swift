@@ -192,6 +192,18 @@ public class WebURL: @unchecked Sendable {
         headers: [String: String], content: String
     ) {
         if scheme == "about" {
+            if path == "bookmarks" {
+                let items = bookmarks.map { url in
+                    " <li><a href=\"\(url)\">\(url)</a></li>"
+                }.joined(separator: "\n")
+                let html = """
+                    <html><body>
+                    <h1>Bookmarks</h1>
+                    <ul>\n\(items)\n</ul>
+                    </body></html
+                    """
+                return (headers: [:], content: html)
+            }
             return (headers: [:], content: "")
         }
 
