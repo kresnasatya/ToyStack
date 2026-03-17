@@ -71,7 +71,6 @@ public struct BrowserView: View {
                     guard let app else { return event }
                     Task { @MainActor in
                         if event.modifierFlags.contains(.command) && event.keyCode == 45 {  // Cmd+N
-                            print("new window triggered")
                             openWindow(id: "browser", value: UUID())
                         } else if event.keyCode == 125 {  // Down arrow
                             app.activeTab?.scrollDown()
