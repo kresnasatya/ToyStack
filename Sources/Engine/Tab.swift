@@ -312,6 +312,18 @@ public class Tab: ObservableObject {
         render()
     }
 
+    public func enterKey() async {
+        guard let f = focus else { return }
+        var cursor: (any DOMNode)? = f
+        while let c = cursor {
+            if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil {
+                await submitForm(fe)
+                return
+            }
+            cursor = c.parent
+        }
+    }
+
     private func submitForm(_ elt: Element) async {
         if js.dispatchEvent(type: "submit", elt: elt) { return }
         let inputs = treeToList(elt)

@@ -291,7 +291,8 @@ public class Chrome {
         return false
     }
 
-    public func enter() async {
+    @discardableResult
+    public func enter() async -> Bool {
         if focus == "address bar" {
             let input = addressBar
             focus = nil
@@ -299,7 +300,9 @@ public class Chrome {
             let url = isURL(input) ? WebURL(input) : searchURL(for: input)
             await tabManager?.activeTab?.load(url)
             focus = nil
+            return true
         }
+        return false
     }
 
     public func blur() {

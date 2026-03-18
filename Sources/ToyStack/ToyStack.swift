@@ -77,7 +77,9 @@ public struct BrowserView: View {
                         } else if event.keyCode == 126 {  // Up arrow
                             app.activeTab?.scrollUp()
                         } else if event.keyCode == 36 {  // Return
-                            await app.chrome.enter()
+                            if !(await app.chrome.enter()) {
+                                await app.activeTab?.enterKey()
+                            }
                         } else if event.keyCode == 51 {
                             if app.chrome.backspace() {
                                 app.objectWillChange.send()
