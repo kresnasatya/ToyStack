@@ -342,7 +342,15 @@ public class Tab: ObservableObject {
                 .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             return "\(name)=\(value)"
         }).joined(separator: "&")
-        await load(url.resolve(elt.attributes["action"]!), payload: body)
+
+        let action = url.resolve(elt.attributes["action"]!)
+        let method = elt.attributes["method"]?.lowercased() ?? "get"
+
+        if method == "post" {
+            await load(action, payload: body)
+        } else {
+            await load(WebURL("\(action.toString())?\(body)"))
+        }
     }
 }
 
