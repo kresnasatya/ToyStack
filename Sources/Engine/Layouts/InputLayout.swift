@@ -61,7 +61,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         // 1. Background color.
         let bgcolor = element.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
-            cmds.append(DrawRect(rect: selfRect(), color: bgcolor))
+            cmds.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
         }
 
         // 2. Text: the value attribute for <input>, the label for <button>.
@@ -76,13 +76,15 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
         }
         let color = element.style["color"] ?? "black"
-        cmds.append(DrawText(x1: x, y1: y, text: text, font: font, color: color))
+        cmds.append(DrawText(x1: x, y1: y, text: text, font: font, color: color, source: self))
 
         // 3. Cursor line when this element has focus (user is typing into it)
         if element.isFocused {
             let cx = x + font.measure(text)
             cmds.append(
-                DrawLine(x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1))
+                DrawLine(
+                    x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1,
+                    source: self))
         }
         return cmds
     }

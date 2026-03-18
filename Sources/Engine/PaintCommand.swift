@@ -36,6 +36,13 @@ public protocol PaintCommand {
 struct DrawRect: PaintCommand {
     let rect: Rect
     let color: String
+    let source: (any LayoutObject)?
+
+    init(rect: Rect, color: String, source: (any LayoutObject)? = nil) {
+        self.rect = rect
+        self.color = color
+        self.source = source
+    }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
         // Shift the rectangle up by the scroll offfset to simulate scrolling.
@@ -55,12 +62,17 @@ struct DrawLine: PaintCommand {
     let rect: Rect  // rect.left/top = start point, right/bottom = end point
     let color: String
     let thickness: CGFloat
+    let source: (any LayoutObject)?
 
     // DrawLine stores its endpoints in a Rect for uniform culling in Tab.draw()
-    init(x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat) {
+    init(
+        x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat,
+        source: (any LayoutObject)? = nil
+    ) {
         self.rect = Rect(left: x1, top: y1, right: x2, bottom: y2)
         self.color = color
         self.thickness = thickness
+        self.source = source
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
@@ -78,13 +90,18 @@ struct DrawText: PaintCommand {
     let text: String
     let font: BrowserFont
     let color: String
+    let source: (any LayoutObject)?
 
-    init(x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String) {
+    init(
+        x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String,
+        source: (any LayoutObject)? = nil
+    ) {
         self.rect = Rect(
             left: x1, top: y1, right: x1 + font.measure(text), bottom: y1 + font.linespace)
         self.text = text
         self.font = font
         self.color = color
+        self.source = source
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {

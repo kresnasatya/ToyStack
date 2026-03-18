@@ -51,7 +51,10 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
     func paint() -> [any PaintCommand] {
         let color = node.style["color"] ?? "black"
-        return [DrawText(x1: x, y1: y, text: displayWord ?? word, font: font, color: color)]
+        return [
+            DrawText(
+                x1: x, y1: y, text: displayWord ?? word, font: font, color: color, source: self)
+        ]
     }
 
     func shouldPaint() -> Bool {

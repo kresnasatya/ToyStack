@@ -313,7 +313,7 @@ class BlockLayout: LayoutObject {
         var commands: [any PaintCommand] = []
         let bgcolor = node.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
-            commands.append(DrawRect(rect: self.selfRect(), color: bgcolor))
+            commands.append(DrawRect(rect: self.selfRect(), color: bgcolor, source: self))
         }
 
         let borderStyle = node.style["border-style"] ?? "none"
@@ -333,16 +333,17 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            commands.append(DrawRect(rect: bulletRect, color: "black"))
+            commands.append(DrawRect(rect: bulletRect, color: "black", source: self))
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             let headerRect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            commands.append(DrawRect(rect: headerRect, color: "gray"))
+            commands.append(DrawRect(rect: headerRect, color: "gray", source: self))
             let font = getFont(size: 12, weight: "bold", style: "roman")
             commands.append(
                 DrawText(
-                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: "white"))
+                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: "white",
+                    source: self))
         }
 
         return commands

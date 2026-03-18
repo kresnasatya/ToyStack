@@ -246,26 +246,31 @@ public class Tab: ObservableObject {
         render()
     }
 
+    private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
+        if let c = cmd as? DrawRect, let s = c.source { return s }
+        if let c = cmd as? DrawText, let s = c.source { return s }
+        if let c = cmd as? DrawLine, let s = c.source { return s }
+        return nil
+    }
+
     public func click(x: CGFloat, y: CGFloat) async {
         focus?.isFocused = false
         focus = nil
 
         let adjustedY = y + scroll
-        guard let doc = document else {
+        let hits = displayList.filter({
+            $0.rect.left <= x && x < $0.rect.right
+                && $0.rect.top <= adjustedY && adjustedY < $0.rect.bottom
+        })
+        guard
+            let source = hits.last(where: { sourceOf($0) != nil }).flatMap({
+                sourceOf($0)
+            })
+        else {
             render()
             return
         }
-
-        let objs = treeToList(doc).filter {
-            $0.x <= x && x < $0.x + $0.width
-                && $0.y <= adjustedY && adjustedY < $0.y + $0.height
-        }
-        guard let hit = objs.last else {
-            render()
-            return
-        }
-
-        var elt: (any DOMNode)? = hit.node
+        var elt: (any DOMNode)? = source.node
         while let node = elt {
             if node is TextNode {
                 // fall through to parent
