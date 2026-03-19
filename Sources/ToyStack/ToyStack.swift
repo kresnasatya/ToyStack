@@ -156,6 +156,7 @@ public struct BrowserView: View {
                         let x = value.location.x
                         let y = value.location.y
                         if y < app.chrome.bottom {
+                            app.activeTab?.blur()
                             await app.chrome.click(x: x, y: y)
                             app.objectWillChange.send()
                         } else {

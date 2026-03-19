@@ -246,6 +246,12 @@ public class Tab: ObservableObject {
         render()
     }
 
+    public func blur() {
+        focus?.isFocused = false
+        focus = nil
+        render()
+    }
+
     private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
         if let c = cmd as? DrawRect, let s = c.source { return s }
         if let c = cmd as? DrawText, let s = c.source { return s }
