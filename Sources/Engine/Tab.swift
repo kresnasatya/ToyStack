@@ -1,5 +1,11 @@
+import AppKit
 import Combine
 import Foundation
+
+private struct HistoryEntry {
+    let url: WebURL
+    let payload: String?  // nil = GET, non-nil = POST
+}
 
 @MainActor
 public class Tab: ObservableObject {
@@ -15,7 +21,7 @@ public class Tab: ObservableObject {
     private var scroll: CGFloat = 0
     private var tabHeight: CGFloat
     private var tabWidth: CGFloat
-    private var history: [WebURL] = []
+    private var history: [HistoryEntry] = []
     private var historyIndex: Int = -1
     private var focus: Element?
     private var allowedOrigins: [String]?
@@ -34,7 +40,7 @@ public class Tab: ObservableObject {
         // Truncate any forward history beyond the current position
         // then record this new URL as the current entry.
         history = Array(history.prefix(historyIndex + 1))
-        history.append(url)
+        history.append(HistoryEntry(url: url, payload: payload))
         historyIndex = history.count - 1
         await performLoad(url, payload: payload)
     }
@@ -237,13 +243,29 @@ public class Tab: ObservableObject {
     func goBack() async {
         guard canGoBack else { return }
         historyIndex -= 1
-        await performLoad(history[historyIndex])
+        let entry = history[historyIndex]
+        if let payload = entry.payload {
+            let alert = NSAlert()
+            alert.messageText = "Resubmit form?"
+            alert.informativeText =
+                "This page was loaded by submitting a form. Do you want to resubmit it?"
+            alert.addButton(withTitle: "Resubmit")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() == .alertFirstButtonReturn {
+                await performLoad(entry.url, payload: payload)
+            } else {
+                historyIndex += 1  // user said no - undo the index change
+            }
+        } else {
+            await performLoad(entry.url)
+        }
     }
 
     func goForward() async {
         guard canGoForward else { return }
         historyIndex += 1
-        await performLoad(history[historyIndex])
+        let entry = history[historyIndex]
+        await performLoad(entry.url, payload: entry.payload)
     }
 
     public func keypress(_ char: String) {
@@ -293,7 +315,7 @@ public class Tab: ObservableObject {
                     let resolved = url.resolve(href)
                     // Push to history without reolading the page
                     history = Array(history.prefix(historyIndex + 1))
-                    history.append(resolved)
+                    history.append(HistoryEntry(url: resolved, payload: nil))
                     historyIndex = history.count - 1
                     self.url = resolved
                     scrollToFragment(String(href.dropFirst()))
