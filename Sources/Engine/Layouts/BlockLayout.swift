@@ -154,8 +154,10 @@ class BlockLayout: LayoutObject {
         } else if let el = n as? Element {
             if el.tag == "br" {
                 newLine()
-            } else if el.tag == "input" || el.tag == "button" {
+            } else if el.tag == "input" {
                 addInput(el)
+            } else if el.tag == "button" {
+                addButton(el)
             } else {
                 for child in el.children { recurse(child) }
             }
@@ -240,6 +242,17 @@ class BlockLayout: LayoutObject {
         let font = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
+        cursorX += w + font.measure(" ")
+    }
+
+    private func addButton(_ node: Element) {
+        let w = InputLayout.inputWidthPx
+        if cursorX + w > width { newLine() }
+        let line = children.last!
+        let prevItem = line.children.last
+        let button = ButtonLayout(node: node, parent: line, previous: prevItem)
+        line.children.append(button)
+        let font = getFont(size: 12, weight: "normal", style: "roman")
         cursorX += w + font.measure(" ")
     }
 
