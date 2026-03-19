@@ -47,6 +47,13 @@ public class Tab: ObservableObject {
         self.url = url
         visitedURL.insert(url.toString())
         nodes = HTMLParser(body: body).parse()
+
+        for node in treeToList(nodes) {
+            if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox" {
+                el.isChecked = el.attributes["checked"] != nil
+            }
+        }
+
         js = JSRuntime(tab: self)
 
         // Extract the title
@@ -297,6 +304,11 @@ public class Tab: ObservableObject {
                 return
             } else if let el = node as? Element, el.tag == "input" {
                 if js.dispatchEvent(type: "click", elt: el) { return }
+                if el.attributes["type"] == "checkbox" {
+                    el.isChecked.toggle()
+                    render()
+                    return
+                }
                 el.attributes["value"] = ""
                 focus = el
                 el.isFocused = true
@@ -338,14 +350,22 @@ public class Tab: ObservableObject {
             }
             .filter({
                 $0.tag == "input" && $0.attributes["name"] != nil
+                    && ($0.attributes["type"] != "checkbox" || $0.isChecked)
             })
         let body = inputs.map({ input -> String in
             let name =
                 input.attributes["name"]!
                 .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            let value =
-                (input.attributes["value"] ?? "")
-                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            let value: String
+            if input.attributes["type"] == "checkbox " {
+                value =
+                    (input.attributes["value"] ?? "on")
+                    .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            } else {
+                value =
+                    (input.attributes["value"] ?? "")
+                    .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            }
             return "\(name)=\(value)"
         }).joined(separator: "&")
 

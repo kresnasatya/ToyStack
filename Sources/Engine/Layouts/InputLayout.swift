@@ -36,8 +36,10 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
 
-        // All inputs have the same fixed width regardless of content
         width = InputLayout.inputWidthPx
+        if (node as? Element)?.attributes["type"] == "checkbox" {
+            width = font.linespace
+        }
 
         if let prev = previous as? InlineLayoutItem {
             let space = prev.font.measure(" ")
@@ -62,6 +64,17 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         let bgcolor = element.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
             cmds.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
+        }
+
+        // For input checkbox
+        if element.attributes["type"] == "checkbox" {
+            cmds.append(DrawRect(rect: selfRect(), color: "white", source: self))
+            cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 1))
+            if element.isChecked {
+                cmds.append(
+                    DrawText(x1: x, y1: y, text: "X", font: font, color: "black", source: self))
+            }
+            return cmds
         }
 
         // 2. Text: the value attribute for <input>, the label for <button>.

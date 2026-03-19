@@ -21,6 +21,7 @@ class Element: DOMNode {
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
     var isFocused: Bool = false
+    var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
