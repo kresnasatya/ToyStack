@@ -88,6 +88,16 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] (handle: Int) -> [Int] in
+                guard let self, let node = self.handleToNode[handle] else { return [] }
+                return node.children
+                    .compactMap({ $0 as? Element })
+                    .map({ self.getHandle($0) })
+            } as @convention(block) (Int) -> [Int],
+            forKeyedSubscript: "_children" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (method: String, url: String, body: String?) -> String in
                 return MainActor.assumeIsolated({
                     guard let self, let tab = self.tab else { return "" }

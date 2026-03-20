@@ -47,6 +47,15 @@ Object.defineProperty(Node.prototype, "innerHTML", {
   },
 });
 
+Object.defineProperty(Node.prototype, "children", {
+  get: function () {
+    var handles = _children(this.handle);
+    return handles.map(function (h) {
+      return new Node(h);
+    });
+  },
+});
+
 function Event(type) {
   this.type = type;
   this.do_default = true;
