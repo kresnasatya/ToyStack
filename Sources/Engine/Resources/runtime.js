@@ -11,6 +11,10 @@ document = {
       return Node(h);
     });
   },
+  createElement: function (tag) {
+    var handle = _createElement(tag);
+    return new Node(handle);
+  },
 };
 
 function Node(handle) {
@@ -19,6 +23,14 @@ function Node(handle) {
 
 Node.prototype.getAttribute = function (attr) {
   return _getAttribute(this.handle, attr);
+};
+
+Node.prototype.appendChild = function (child) {
+  _appendChild(this.handle, child.handle);
+};
+
+Node.prototype.insertBefore = function (child, ref) {
+  _insertBefore(this.handle, child.handle, ref.handle);
 };
 
 var LISTENERS = {};

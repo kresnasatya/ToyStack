@@ -98,6 +98,47 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] (tag: String) -> Int in
+                guard let self else { return -1 }
+                let elt = Element(tag: tag, attributes: [:], parent: nil)
+                return self.getHandle(elt)
+            } as @convention(block) (String) -> Int,
+            forKeyedSubscript: "_createElement" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (parentHandle: Int, childHandle: Int) in
+                MainActor.assumeIsolated({
+                    guard let self, let tab = self.tab,
+                        let parent = self.handleToNode[parentHandle],
+                        let child = self.handleToNode[childHandle]
+                    else { return }
+                    child.parent = parent
+                    parent.children.append(child)
+                    tab.render()
+                })
+            } as @convention(block) (Int, Int) -> Void,
+            forKeyedSubscript: "_appendChild" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
+                MainActor.assumeIsolated({
+                    guard let self, let tab = self.tab,
+                        let parent = self.handleToNode[parentHandle],
+                        let child = self.handleToNode[childHandle],
+                        let ref = self.handleToNode[refHandle],
+                        let idx = parent.children.firstIndex(where: { $0 === ref })
+                    else { return }
+                    child.parent = parent
+                    parent.children.insert(child, at: idx)
+                    tab.render()
+                })
+            } as @convention(block) (Int, Int, Int) -> Void,
+            forKeyedSubscript: "_insertBefore" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (method: String, url: String, body: String?) -> String in
                 return MainActor.assumeIsolated({
                     guard let self, let tab = self.tab else { return "" }
