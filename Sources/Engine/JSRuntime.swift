@@ -122,6 +122,22 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] (parentHandle: Int, childHandle: Int) -> Int in
+                return MainActor.assumeIsolated({
+                    guard let self, let tab = self.tab,
+                        let parent = self.handleToNode[parentHandle],
+                        let child = self.handleToNode[childHandle]
+                    else { return -1 }
+                    parent.children.removeAll { $0 === child }
+                    child.parent = nil
+                    tab.render()
+                    return childHandle
+                })
+            } as @convention(block) (Int, Int) -> Int,
+            forKeyedSubscript: "_removeChild" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
                 MainActor.assumeIsolated({
                     guard let self, let tab = self.tab,

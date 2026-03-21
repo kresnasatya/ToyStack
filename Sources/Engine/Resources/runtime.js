@@ -33,6 +33,11 @@ Node.prototype.insertBefore = function (child, ref) {
   _insertBefore(this.handle, child.handle, ref.handle);
 };
 
+Node.prototype.removeChild = function (child) {
+  var handle = _removeChild(this.handle, child.handle);
+  return new Node(handle);
+};
+
 var LISTENERS = {};
 
 Node.prototype.addEventListener = function (type, listener) {
