@@ -40,6 +40,10 @@ Node.prototype.removeChild = function (child) {
   return new Node(handle);
 };
 
+Node.prototype.setAttribute = function (attr, value) {
+  _setAttribute(this.handle, attr, value.toString());
+};
+
 var LISTENERS = {};
 
 Node.prototype.addEventListener = function (type, listener) {
@@ -66,10 +70,28 @@ Node.prototype.dispatchEvent = function (evt) {
   return evt.do_default;
 };
 
+Object.defineProperty(Node.prototype, "id", {
+  get: function () {
+    return _getAttribute(this.handle, "id");
+  },
+  set: function (value) {
+    _setAttribute(this.handle, "id", value.toString());
+  },
+});
+
 Object.defineProperty(Node.prototype, "innerHTML", {
+  get: function () {
+    return _serializeInner(this.handle);
+  },
   set: function (s) {
     _innerHTML(this.handle, s.toString());
     __defineIDs(); // re-scan after DOM changes
+  },
+});
+
+Object.defineProperty(Node.prototype, "outerHTML", {
+  get: function () {
+    return _serializeOuter(this.handle);
   },
 });
 

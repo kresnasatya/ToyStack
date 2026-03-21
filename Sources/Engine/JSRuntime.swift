@@ -43,6 +43,16 @@ class JSRuntime: @unchecked Sendable {
         return handle
     }
 
+    private func serialize(_ node: any DOMNode) -> String {
+        if let text = node as? TextNode {
+            return text.text
+        }
+        guard let elt = node as? Element else { return "" }
+        let attrs = elt.attributes.map { " \($0.key)=\($0.value)" }.joined()
+        let inner = elt.children.map { serialize($0) }.joined()
+        return "<\(elt.tag)\(attrs)>\(inner)</\(elt.tag)>"
+    }
+
     private func registerCallbacks() {
         jsContext.setObject(
             {
@@ -89,12 +99,36 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] (handle: Int, attr: String, value: String) in
+                guard let self, let elt = self.handleToNode[handle] as? Element else { return }
+                elt.attributes[attr] = value
+            } as @convention(block) (Int, String, String) -> Void,
+            forKeyedSubscript: "_setAttribute" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (handle: Int) -> Int in
                 guard let self, let node = self.handleToNode[handle] else { return -1 }
                 guard let parent = node.parent else { return -1 }
                 return self.getHandle(parent)
             } as @convention(block) (Int) -> Int,
             forKeyedSubscript: "_getParent" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int) -> String in
+                guard let self, let node = self.handleToNode[handle] else { return "" }
+                return node.children.map { self.serialize($0) }.joined()
+            } as @convention(block) (Int) -> String,
+            forKeyedSubscript: "_serializeInner" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int) -> String in
+                guard let self, let node = self.handleToNode[handle] else { return "" }
+                return self.serialize(node)
+            } as @convention(block) (Int) -> String,
+            forKeyedSubscript: "_serializeOuter" as NSString)
 
         jsContext.setObject(
             {
