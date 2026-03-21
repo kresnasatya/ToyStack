@@ -89,6 +89,15 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] (handle: Int) -> Int in
+                guard let self, let node = self.handleToNode[handle] else { return -1 }
+                guard let parent = node.parent else { return -1 }
+                return self.getHandle(parent)
+            } as @convention(block) (Int) -> Int,
+            forKeyedSubscript: "_getParent" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (handle: Int, s: String) in
                 MainActor.assumeIsolated({
                     guard let self, let tab = self.tab,

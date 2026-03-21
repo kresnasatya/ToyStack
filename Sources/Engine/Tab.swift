@@ -307,49 +307,54 @@ public class Tab: ObservableObject {
             render()
             return
         }
-        var elt: (any DOMNode)? = source.node
-        while let node = elt {
-            if node is TextNode {
-                // fall through to parent
-            } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"] {
-                if js.dispatchEvent(type: "click", elt: el) { return }
-                if href.hasPrefix("#") {
-                    let resolved = url.resolve(href)
-                    // Push to history without reolading the page
-                    history = Array(history.prefix(historyIndex + 1))
-                    history.append(HistoryEntry(url: resolved, payload: nil))
-                    historyIndex = history.count - 1
-                    self.url = resolved
-                    scrollToFragment(String(href.dropFirst()))
-                    renderVersion += 1
-                } else {
-                    await load(url.resolve(href))
-                }
-                return
-            } else if let el = node as? Element, el.tag == "input" {
-                if js.dispatchEvent(type: "click", elt: el) { return }
-                if el.attributes["type"] == "checkbox" {
-                    el.isChecked.toggle()
-                    render()
+
+        // Dispatch once on the innermost element - JS bubbles it up the tree
+        let prevented = js.dispatchEvent(type: "click", elt: source.node)
+
+        if !prevented {
+            var elt: (any DOMNode)? = source.node
+            while let node = elt {
+                if node is TextNode {
+                    // fall through to parent
+                } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"]
+                {
+                    if href.hasPrefix("#") {
+                        let resolved = url.resolve(href)
+                        // Push to history without reolading the page
+                        history = Array(history.prefix(historyIndex + 1))
+                        history.append(HistoryEntry(url: resolved, payload: nil))
+                        historyIndex = history.count - 1
+                        self.url = resolved
+                        scrollToFragment(String(href.dropFirst()))
+                        renderVersion += 1
+                    } else {
+                        await load(url.resolve(href))
+                    }
                     return
-                }
-                el.attributes["value"] = ""
-                focus = el
-                el.isFocused = true
-                render()
-                return
-            } else if let el = node as? Element, el.tag == "button" {
-                if js.dispatchEvent(type: "click", elt: el) { return }
-                var cursor: (any DOMNode)? = el
-                while let c = cursor {
-                    if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil {
-                        await submitForm(fe)
+                } else if let el = node as? Element, el.tag == "input" {
+                    if el.attributes["type"] == "checkbox" {
+                        el.isChecked.toggle()
+                        render()
                         return
                     }
-                    cursor = c.parent
+                    el.attributes["value"] = ""
+                    focus = el
+                    el.isFocused = true
+                    render()
+                    return
+                } else if let el = node as? Element, el.tag == "button" {
+                    var cursor: (any DOMNode)? = el
+                    while let c = cursor {
+                        if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil
+                        {
+                            await submitForm(fe)
+                            return
+                        }
+                        cursor = c.parent
+                    }
                 }
+                elt = node.parent
             }
-            elt = node.parent
         }
         render()
     }

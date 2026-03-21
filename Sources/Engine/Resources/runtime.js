@@ -57,6 +57,12 @@ Node.prototype.dispatchEvent = function (evt) {
   for (var i = 0; i < list.length; i++) {
     list[i].call(this, evt);
   }
+  if (!evt.stop_propagation) {
+    var parentHandle = _getParent(this.handle);
+    if (parentHandle !== -1) {
+      new Node(parentHandle).dispatchEvent(evt);
+    }
+  }
   return evt.do_default;
 };
 
@@ -79,10 +85,15 @@ Object.defineProperty(Node.prototype, "children", {
 function Event(type) {
   this.type = type;
   this.do_default = true;
+  this.stop_propagation = false;
 }
 
 Event.prototype.preventDefault = function () {
   this.do_default = false;
+};
+
+Event.prototype.stopPropagation = function () {
+  this.stop_propagation = true;
 };
 
 function XMLHttpRequest() {}
