@@ -141,6 +141,8 @@ class JSRuntime: @unchecked Sendable {
                     let newNodes = (doc.children.first as? Element)?.children
                     elt.children = newNodes ?? []
                     for child in elt.children { child.parent = elt }
+                    tab.runNewScripts(in: elt)
+                    tab.reloadStylesheets()
                     tab.render()
                 })
             } as @convention(block) (Int, String) -> Void,
@@ -175,6 +177,8 @@ class JSRuntime: @unchecked Sendable {
                     else { return }
                     child.parent = parent
                     parent.children.append(child)
+                    tab.runNewScripts(in: child)
+                    tab.reloadStylesheets()
                     tab.render()
                 })
             } as @convention(block) (Int, Int) -> Void,
@@ -190,6 +194,7 @@ class JSRuntime: @unchecked Sendable {
                     else { return -1 }
                     parent.children.removeAll { $0 === child }
                     child.parent = nil
+                    tab.reloadStylesheets()
                     tab.render()
                     return childHandle
                 })
@@ -208,6 +213,8 @@ class JSRuntime: @unchecked Sendable {
                     else { return }
                     child.parent = parent
                     parent.children.insert(child, at: idx)
+                    tab.runNewScripts(in: child)
+                    tab.reloadStylesheets()
                     tab.render()
                 })
             } as @convention(block) (Int, Int, Int) -> Void,

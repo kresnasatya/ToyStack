@@ -27,6 +27,7 @@ public class Tab: ObservableObject {
     private var allowedOrigins: [String]?
     private var rules: [(any CSSSelector, [String: String])] = []
     private var js: JSRuntime!
+    private var loadedScriptURLs: Set<String> = []
 
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex < history.count - 1 }
@@ -132,6 +133,7 @@ public class Tab: ObservableObject {
                 continue
             }
             js.run(script: scriptURL.toString(), code: scriptBody)
+            loadedScriptURLs.insert(scriptURL.toString())
         }
 
         js.defineIDs()
@@ -144,6 +146,43 @@ public class Tab: ObservableObject {
 
     func allowedRequest(_ url: WebURL) -> Bool {
         allowedOrigins == nil || (allowedOrigins?.contains(url.origin()) ?? false)
+    }
+
+    func runNewScripts(in root: any DOMNode) {
+        for node in treeToList(root) {
+            guard let el = node as? Element, el.tag == "script",
+                let src = el.attributes["src"]
+            else { continue }
+            let scriptURL = url.resolve(src)
+            guard allowedRequest(scriptURL) else {
+                print("Blocked script", src, "due to CSP")
+                continue
+            }
+            let urlStr = scriptURL.toString()
+            guard !loadedScriptURLs.contains(urlStr) else { continue }
+            guard let (_, body) = scriptURL.requestSync() else { continue }
+            loadedScriptURLs.insert(urlStr)
+            js.run(script: urlStr, code: body)
+        }
+    }
+
+    func reloadStylesheets() {
+        rules = defaultStyleSheet
+        for node in treeToList(nodes) {
+            guard let el = node as? Element else { continue }
+            if el.tag == "link", el.attributes["rel"] == "stylesheet",
+                let href = el.attributes["href"]
+            {
+                let styleURL = url.resolve(href)
+                guard allowedRequest(styleURL) else { continue }
+                guard let (_, body) = styleURL.requestSync() else { continue }
+                rules.append(contentsOf: CSSParser(body).parse())
+            }
+            if el.tag == "style" {
+                let css = el.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+                rules.append(contentsOf: CSSParser(css).parse())
+            }
+        }
     }
 
     func render() {
