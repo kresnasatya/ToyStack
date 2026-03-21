@@ -1,3 +1,5 @@
+var __globalThis = this;
+
 console = {
   log: function (x) {
     _log(x);
@@ -61,6 +63,7 @@ Node.prototype.dispatchEvent = function (evt) {
 Object.defineProperty(Node.prototype, "innerHTML", {
   set: function (s) {
     _innerHTML(this.handle, s.toString());
+    __defineIDs(); // re-scan after DOM changes
   },
 });
 
@@ -93,3 +96,10 @@ XMLHttpRequest.prototype.open = function (method, url, is_async) {
 XMLHttpRequest.prototype.send = function (body) {
   this.responseText = _XHRSend(this.method, this.url, body);
 };
+
+function __defineIDs() {
+  var ids = _getIDs();
+  for (var id in ids) {
+    __globalThis[id] = new Node(ids[id]);
+  }
+}

@@ -64,6 +64,23 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] () -> [String: Int] in
+                guard let self, let tab = self.tab else { return [:] }
+                return MainActor.assumeIsolated({
+                    var result: [String: Int] = [:]
+                    for node in treeToList(tab.nodes) {
+                        guard let elt = node as? Element,
+                            let id = elt.attributes["id"]
+                        else { continue }
+                        result[id] = self.getHandle(elt)
+                    }
+                    return result
+                })
+            } as @convention(block) () -> [String: Int],
+            forKeyedSubscript: "_getIDs" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (handle: Int, attr: String) -> String in
                 guard let self, let elt = self.handleToNode[handle] as? Element else { return "" }
                 return elt.attributes[attr] ?? ""
@@ -172,6 +189,10 @@ class JSRuntime: @unchecked Sendable {
                 })
             } as @convention(block) (String, String, String?) -> String,
             forKeyedSubscript: "_XHRSend" as NSString)
+    }
+
+    func defineIDs() {
+        jsContext.evaluateScript("__defineIDs()")
     }
 
     private func loadRuntime() {

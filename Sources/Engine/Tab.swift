@@ -134,6 +134,8 @@ public class Tab: ObservableObject {
             js.run(script: scriptURL.toString(), code: scriptBody)
         }
 
+        js.defineIDs()
+
         render()
         if let fragment = url.fragment {
             scrollToFragment(fragment)
