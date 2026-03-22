@@ -227,6 +227,9 @@ class BlockLayout: LayoutObject {
 
     // Adds a fixed-width InputLayout to the current line.
     private func addInput(_ node: Element) {
+        // For input type hidden
+        if node.attributes["type"] == "hidden" { return }
+
         let w = BlockLayout.inputWidthPx
         if cursorX + w > width { newLine() }
         let line = children.last!

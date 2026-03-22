@@ -80,7 +80,13 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         // 2. Text: the value attribute for <input>, the label for <button>.
         var text = ""
         if element.tag == "input" {
-            text = element.attributes["value"] ?? ""
+            let value = element.attributes["value"] ?? ""
+            // For input type password, mask their content
+            if element.attributes["type"] == "password" {
+                text = String(repeating: "*", count: value.count)
+            } else {
+                text = value
+            }
         } else if element.tag == "button" {
             if element.children.count == 1,
                 let textNode = element.children[0] as? TextNode
