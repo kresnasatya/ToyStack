@@ -299,7 +299,19 @@ public class Chrome {
             let input = addressBar
             focus = nil
             isAllSelected = false
-            let url = isURL(input) ? WebURL(input) : searchURL(for: input)
+            let rawInput = isURL(input) ? input : nil
+            let url: WebURL
+            if let raw = rawInput {
+                if raw.hasPrefix("http://") || raw.hasPrefix("https://") || raw.hasPrefix("file://")
+                    || raw.hasPrefix("about:")
+                {
+                    url = WebURL(raw)
+                } else {
+                    url = WebURL("https://\(raw)")  // bare domain like example.com
+                }
+            } else {
+                url = searchURL(for: input)
+            }
             await tabManager?.activeTab?.load(url)
             focus = nil
             return true
@@ -315,6 +327,7 @@ public class Chrome {
     private func isURL(_ input: String) -> Bool {
         input.hasPrefix("http://") || input.hasPrefix("https://") || input.hasPrefix("file://")
             || input.hasPrefix("about:")
+            || (input.contains(".") && !input.contains(" "))
     }
 
     private func searchURL(for query: String) -> WebURL {
