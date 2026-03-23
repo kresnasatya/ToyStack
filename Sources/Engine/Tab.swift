@@ -17,6 +17,7 @@ public class Tab: ObservableObject {
     private(set) var document: DocumentLayout?
     private(set) var displayList: [any PaintCommand] = []
     public private(set) var title: String = "New Tab"
+    private(set) var isSecure: Bool = false
 
     private var scroll: CGFloat = 0
     private var tabHeight: CGFloat
@@ -47,8 +48,29 @@ public class Tab: ObservableObject {
     }
 
     private func performLoad(_ url: WebURL, payload: String? = nil) async {
-        guard let (headers, body) = try? await url.request(referrer: self.url, payload: payload)
-        else { return }
+        let headers: [String: String]
+        let body: String
+        let certErrorCodes: [URLError.Code] = [
+            .serverCertificateUntrusted,
+            .serverCertificateHasBadDate,
+            .serverCertificateNotYetValid,
+            .serverCertificateHasUnknownRoot,
+        ]
+
+        do {
+            (headers, body) = try await url.request(referrer: self.url, payload: payload)
+        } catch let error as URLError where certErrorCodes.contains(error.code) {
+            let alert = NSAlert()
+            alert.messageText = "Certificate Error"
+            alert.informativeText =
+                "The certificate for \(url.host) is invalid. Your connection may not be private."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        } catch {
+            return
+        }
+        isSecure = url.scheme == "https"
 
         scroll = 0
         self.url = url

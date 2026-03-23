@@ -191,9 +191,11 @@ public class Chrome {
             }
 
         } else if let url = tabManager?.activeTab?.url {
+            let isSecure = tabManager?.activeTab?.isSecure ?? false
+            let displayText = isSecure ? "\u{1F512} \(url.toString())" : url.toString()
             cmds.append(
                 DrawText(
-                    x1: addressRect.left + padding, y1: addressRect.top, text: url.toString(),
+                    x1: addressRect.left + padding, y1: addressRect.top, text: displayText,
                     font: font, color: "black"))
         }
 
