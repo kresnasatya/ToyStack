@@ -107,6 +107,72 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject(
             {
+                [weak self] () -> String in
+                guard let self, let tab = self.tab else { return "" }
+                let host = MainActor.assumeIsolated({ tab.url?.host ?? "" })
+                guard !host.isEmpty else { return "" }
+                var result = ""
+                let semaphore = DispatchSemaphore(value: 0)
+                Task {
+                    if let (cookie, params) = await CookieJar.shared.get(host) {
+                        if params["httponly"] != "true" {
+                            result = cookie
+                        }
+                    }
+                    semaphore.signal()
+                }
+                semaphore.wait()
+                return result
+            } as @convention(block) () -> String,
+            forKeyedSubscript: "_getCookie" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (cookieStr: String) in
+                guard let self, let tab = self.tab else { return }
+                let host = MainActor.assumeIsolated({ tab.url?.host ?? "" })
+                guard !host.isEmpty else { return }
+                let semaphore = DispatchSemaphore(value: 0)
+                Task {
+                    // Block if existing cookie has HttpOnly
+                    if let (_, params) = await CookieJar.shared.get(host) {
+                        if params["httponly"] == "true" {
+                            semaphore.signal()
+                            return
+                        }
+                    }
+
+                    // Parse the new cookie string (same logic as Set-Cookie header in WebURL.swift)
+                    var newCookieStr = cookieStr
+                    var cookieParams: [String: String] = [:]
+                    if cookieStr.contains(";") {
+                        let parts = cookieStr.split(separator: ";", maxSplits: 1)
+                        newCookieStr = String(parts[0])
+                        if parts.count > 1 {
+                            for param in String(parts[1]).split(separator: ";") {
+                                let trimmed = param.trimmingCharacters(in: .whitespaces)
+                                if trimmed.contains("=") {
+                                    let kv = trimmed.split(separator: "=", maxSplits: 1)
+                                    cookieParams[String(kv[0]).lowercased()] = String(kv[1])
+                                        .lowercased()
+                                } else {
+                                    // Js cannot set HttpOnly - silently ignore it
+                                    let key = trimmed.lowercased()
+                                    if key != "httponly" {
+                                        cookieParams[key] = "true"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    await CookieJar.shared.set(host, cookie: newCookieStr, params: cookieParams)
+                    semaphore.signal()
+                }
+                semaphore.wait()
+            } as @convention(block) (String) -> Void, forKeyedSubscript: "_setCookie" as NSString)
+
+        jsContext.setObject(
+            {
                 [weak self] (handle: Int) -> Int in
                 guard let self, let node = self.handleToNode[handle] else { return -1 }
                 guard let parent = node.parent else { return -1 }

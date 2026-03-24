@@ -19,6 +19,15 @@ document = {
   },
 };
 
+Object.defineProperty(document, "cookie", {
+  get: function () {
+    return _getCookie();
+  },
+  set: function (s) {
+    _setCookie(s.toString());
+  },
+});
+
 function Node(handle) {
   this.handle = handle;
 }
