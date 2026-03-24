@@ -384,14 +384,16 @@ public class WebURL: @unchecked Sendable {
     // Synchronous wrapper around request() for use in JavaScriptCore @convention(block) callbacks
     // JS callbacks must return immediately, so we block the current thread with a DispatchSemaphore
     // until the async request completes.
-    func requestSync(payload: String? = nil) -> (headers: [String: String], content: String)? {
+    func requestSync(payload: String? = nil, extraHeaders: [String: String] = [:]) -> (
+        headers: [String: String], content: String
+    )? {
         final class ResultBox: @unchecked Sendable {
             var value: (headers: [String: String], content: String)?
         }
         let box = ResultBox()
         let semaphore = DispatchSemaphore(value: 0)
         Task {
-            box.value = try? await self.request(payload: payload)
+            box.value = try? await self.request(payload: payload, extraHeaders: extraHeaders)
             semaphore.signal()
         }
         semaphore.wait()

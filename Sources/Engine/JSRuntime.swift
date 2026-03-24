@@ -296,11 +296,24 @@ class JSRuntime: @unchecked Sendable {
                         print("Cross-origin XHR blocked by CSP")
                         return ""
                     }
-                    guard fullURL.origin() == tab.url.origin() else {
+                    // Same-origin: proceed directly
+                    if fullURL.origin() == tab.url.origin() {
+                        guard let (_, out) = fullURL.requestSync(payload: body) else { return "" }
+                        return out
+                    }
+                    // Cross-origin: send Origin header, check Access-Control-Allow-Origin
+                    let origin = tab.url.origin()
+                    guard
+                        let (headers, out) = fullURL.requestSync(
+                            payload: body,
+                            extraHeaders: ["Origin": origin]
+                        )
+                    else { return "" }
+                    let allowed = headers["access-control-allow-origin"] ?? ""
+                    guard allowed == "*" || allowed == origin else {
                         print("Cross-origin XHR request not allowed")
                         return ""
                     }
-                    guard let (_, out) = fullURL.requestSync(payload: body) else { return "" }
                     return out
                 })
             } as @convention(block) (String, String, String?) -> String,
