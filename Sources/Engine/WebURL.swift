@@ -27,19 +27,33 @@ actor CookieJar {
 
     // "private" means only code inside this actor can touch this variable directly.
     // Outside code must go through get() and set() method below.
-    private var storage: [String: (String, [String: String])] = [:]
+    private var storage: [String: (cookie: String, params: [String: String], expires: Date?)] = [:]
 
     // Returns the cookie and it's params for a given host, or nil if not found.
     // Since this is an actor method, callers must use "await" to call it.
     func get(_ host: String) -> (String, [String: String])? {
-        return storage[host]
+        guard let entry = storage[host] else { return nil }
+        if let expires = entry.expires, Date() > expires {
+            storage.removeValue(forKey: host)
+            return nil
+        }
+        return (entry.cookie, entry.params)
     }
 
     // Stores a cookie and it's params for a given host.
     // Again, callers must use "await" - the actor serializes all writes,
     // so no two tasks can write at the same time.
     func set(_ host: String, cookie: String, params: [String: String]) {
-        storage[host] = (cookie, params)
+        var expires: Date? = nil
+        if let maxAge = params["max-age"], let seconds = Double(maxAge) {
+            expires = Date().addingTimeInterval(seconds)
+        } else if let expiresStr = params["expires"] {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            expires = formatter.date(from: expiresStr)
+        }
+        storage[host] = (cookie: cookie, params: params, expires: expires)
     }
 }
 
