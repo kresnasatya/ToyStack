@@ -29,6 +29,7 @@ public class Tab: ObservableObject {
     private var rules: [(any CSSSelector, [String: String])] = []
     private var js: JSRuntime!
     private var loadedScriptURLs: Set<String> = []
+    private var referrerPolicy: String = ""
 
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex < history.count - 1 }
@@ -58,7 +59,7 @@ public class Tab: ObservableObject {
         ]
 
         do {
-            (headers, body) = try await url.request(referrer: self.url, payload: payload)
+            (headers, body) = try await url.request(referrer: effectiveReferrer(for: url), payload: payload)
         } catch let error as URLError where certErrorCodes.contains(error.code) {
             let alert = NSAlert()
             alert.messageText = "Certificate Error"
@@ -98,6 +99,7 @@ public class Tab: ObservableObject {
 
         // Parse Content-Security-Policy header
         allowedOrigins = nil
+        referrerPolicy = headers["referrer-policy"] ?? ""
         if let csp = headers["content-security-policy"] {
             let parts = csp.split(separator: " ").map(String.init)
             if parts.first == "default-src" {
@@ -123,7 +125,7 @@ public class Tab: ObservableObject {
                 print("Blocked style", link.attributes["href"]!, "due to CSP")
                 continue
             }
-            guard let (_, styleBody) = try? await styleURL.request(referrer: url) else { continue }
+            guard let (_, styleBody) = try? await styleURL.request(referrer: effectiveReferrer(for: styleURL)) else { continue }
             rules.append(contentsOf: CSSParser(styleBody).parse())
         }
 
@@ -151,7 +153,7 @@ public class Tab: ObservableObject {
                 print("Blocked script", scriptNode.attributes["src"]!, "due to CSP")
                 continue
             }
-            guard let (_, scriptBody) = try? await scriptURL.request(referrer: url) else {
+            guard let (_, scriptBody) = try? await scriptURL.request(referrer: effectiveReferrer(for: scriptURL)) else {
                 continue
             }
             js.run(script: scriptURL.toString(), code: scriptBody)
@@ -163,6 +165,17 @@ public class Tab: ObservableObject {
         render()
         if let fragment = url.fragment {
             scrollToFragment(fragment)
+        }
+    }
+
+    private func effectiveReferrer(for targetURL: WebURL) -> WebURL? {
+        switch referrerPolicy {
+            case "no-referrer":
+                return nil
+            case "same-origin":
+                return url?.origin() == targetURL.origin() ? url : nil
+            default:
+                return url // no policy: always send referrer
         }
     }
 

@@ -277,6 +277,9 @@ public class WebURL: @unchecked Sendable {
         for (key, value) in extraHeaders {
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
+        if let ref = referrer {
+            urlRequest.setValue(ref.toString(), forHTTPHeaderField: "Referer")
+        }
 
         // Check if we have a stored cookie for this host.
         // "await" is required here because CookieJar is an actor -
