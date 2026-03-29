@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import Foundation
 
 private struct HistoryEntry {
@@ -8,10 +7,7 @@ private struct HistoryEntry {
 }
 
 @MainActor
-public class Tab: ObservableObject {
-
-    @Published private(set) var renderVersion: Int = 0
-
+public class Tab {
     private(set) var url: WebURL!
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
@@ -37,7 +33,12 @@ public class Tab: ObservableObject {
     private(set) var taskRunner: TaskRunner = TaskRunner()
     private(set) var accessibilityTree: AccessibilityNode? = nil
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
+
     private var needsRender: Bool = false
+    private var needsStyle: Bool = false
+    private var needsLayout: Bool = false
+    private var needsAccessibility: Bool = false
+    private var needsPaint: Bool = false
 
     weak var browser: Browser?
 
@@ -176,7 +177,8 @@ public class Tab: ObservableObject {
 
         js.defineIDs()
 
-        render()
+        setNeedsRender()
+
         if let fragment = url.fragment {
             scrollToFragment(fragment)
         }
@@ -235,55 +237,76 @@ public class Tab: ObservableObject {
     }
 
     func render() {
-        let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
-        precomputeHas(node: nodes, rules: sortedRules)
+        if needsStyle {
+            let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+            precomputeHas(node: nodes, rules: sortedRules)
 
-        // Save old styles before applying new ones, for animation detection
-        var oldStyles: [ObjectIdentifier: [String: String]] = [:]
-        for node in treeToList(nodes) {
-            oldStyles[ObjectIdentifier(node)] = node.style
+            // Save old styles before applying new ones, for animation detection
+            var oldStyles: [ObjectIdentifier: [String: String]] = [:]
+            for node in treeToList(nodes) {
+                oldStyles[ObjectIdentifier(node)] = node.style
+            }
+
+            applyStyle(node: nodes, rules: sortedRules)
+
+            // Detect style changes and create animations
+            for node in treeToList(nodes) {
+                let old = oldStyles[ObjectIdentifier(node)] ?? [:]
+                let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
+                for (property, animation) in newAnimations {
+                    node.animations[property] = animation
+                }
+            }
+
+            // Override color for visited links
+            for node in treeToList(nodes) {
+                guard let el = node as? Element, el.tag == "a",
+                    let href = el.attributes["href"]
+                else {
+                    continue
+                }
+                if visitedURL.contains(url.resolve(href).toString()) {
+                    el.style["color"] = "purple"
+                }
+            }
+
+            needsStyle = false
+            needsLayout = true
         }
 
-        applyStyle(node: nodes, rules: sortedRules)
+        if needsLayout {
+            let doc = DocumentLayout(node: nodes)
+            doc.layout(availableWidth: tabWidth)
+            document = doc
 
-        // Detect style changes and create animations
-        for node in treeToList(nodes) {
-            let old = oldStyles[ObjectIdentifier(node)] ?? [:]
-            let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
-            for (property, animation) in newAnimations {
-                node.animations[property] = animation
-            }
+            needsLayout = false
+            needsAccessibility = true
+            needsPaint = true
         }
 
-        // Override color for visited links
-        for node in treeToList(nodes) {
-            guard let el = node as? Element, el.tag == "a",
-                let href = el.attributes["href"]
-            else {
-                continue
-            }
-            if visitedURL.contains(url.resolve(href).toString()) {
-                el.style["color"] = "purple"
-            }
+        if needsAccessibility {
+            // Build accessibility tree
+            let a11yTree = AccessibilityNode(node: nodes)
+            a11yTree.build()
+            accessibilityTree = a11yTree
+
+            needsAccessibility = false
         }
 
-        let doc = DocumentLayout(node: nodes)
-        doc.layout(availableWidth: tabWidth)
-        document = doc
-        var list: [Any] = []
-        paintTree(doc, into: &list)
-        displayList = list
+        if needsPaint {
+            guard let doc = document else { return }
+            var list: [Any] = []
+            paintTree(doc, into: &list)
+            displayList = list
+            needsPaint = false
+        }
 
-        // Build accessibility tree
-        let a11yTree = AccessibilityNode(node: nodes)
-        a11yTree.build()
-        accessibilityTree = a11yTree
-
-        renderVersion += 1
+        browser?.setNeedsAnimationFrame(self)
     }
 
     func runAnimationFrame() {
         js.run(script: "raf", code: "__runRAFHandlers()")
+        let needsComposite = needsStyle || needsLayout
         var needsPaint = false
         for node in treeToList(nodes) {
             for (property, animation) in node.animations {
@@ -297,12 +320,24 @@ public class Tab: ObservableObject {
                 }
             }
         }
-        if needsPaint { render() }
+
+        if needsPaint {
+            setNeedsPaint()
+        }
+
+        if needsRender {
+            needsRender = false
+            render()
+        }
 
         let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
+
+        // nil signals Browser to do a full composite
+        // dict signals Browser to only update specific layers
+        let updates: [ObjectIdentifier: VisualEffect]? = needsComposite ? nil : compositedUpdates
         let data = CommitData(
             url: url!, scroll: scroll, height: docHeight, displayList: displayList,
-            compositedUpdates: compositedUpdates, accessibilityTree: accessibilityTree, focus: focus
+            compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus
         )
         compositedUpdates = [:]
         browser?.commit(tab: self, data: data)
@@ -370,18 +405,19 @@ public class Tab: ObservableObject {
     public func resize(width: CGFloat, height: CGFloat) {
         tabWidth = width
         tabHeight = height
-        render()
+
+        setNeedsRender()
     }
 
     public func scrollDown() {
         let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
         scroll = min(scroll + SCROLL_STEP, maxY)
-        renderVersion += 1
+        browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollUp() {
         scroll = max(scroll - SCROLL_STEP, 0)
-        renderVersion += 1
+        browser?.setNeedsAnimationFrame(self)
     }
 
     func goBack() async {
@@ -416,13 +452,15 @@ public class Tab: ObservableObject {
         guard let f = focus else { return }
         if js.dispatchEvent(type: "keydown", elt: f) { return }
         f.attributes["value", default: ""] += char
-        render()
+
+        setNeedsRender()
     }
 
     public func blur() {
         focus?.isFocused = false
         focus = nil
-        render()
+
+        setNeedsRender()
     }
 
     private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
@@ -447,7 +485,7 @@ public class Tab: ObservableObject {
                 sourceOf($0)
             })
         else {
-            render()
+            setNeedsRender()
             return
         }
 
@@ -469,7 +507,7 @@ public class Tab: ObservableObject {
                         historyIndex = history.count - 1
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
-                        renderVersion += 1
+                        browser?.setNeedsAnimationFrame(self)
                     } else {
                         await load(url.resolve(href))
                     }
@@ -477,13 +515,13 @@ public class Tab: ObservableObject {
                 } else if let el = node as? Element, el.tag == "input" {
                     if el.attributes["type"] == "checkbox" {
                         el.isChecked.toggle()
-                        render()
+                        setNeedsRender()
                         return
                     }
                     el.attributes["value"] = ""
                     focus = el
                     el.isFocused = true
-                    render()
+                    setNeedsRender()
                     return
                 } else if let el = node as? Element, el.tag == "button" {
                     var cursor: (any DOMNode)? = el
@@ -499,7 +537,7 @@ public class Tab: ObservableObject {
                 elt = node.parent
             }
         }
-        render()
+        setNeedsRender()
     }
 
     public func enterKey() async {
@@ -552,7 +590,21 @@ public class Tab: ObservableObject {
     }
 
     func setNeedsRender() {
+        needsStyle = true
         needsRender = true
+        browser?.setNeedsAnimationFrame(self)
+    }
+
+    func setNeedsLayout() {
+        needsLayout = true
+        needsRender = true
+        browser?.setNeedsAnimationFrame(self)
+    }
+
+    func setNeedsPaint() {
+        needsPaint = true
+        needsRender = true
+        browser?.setNeedsAnimationFrame(self)
     }
 }
 

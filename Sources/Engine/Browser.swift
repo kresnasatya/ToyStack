@@ -1,18 +1,11 @@
-import Combine
 import SwiftUI
 
 @MainActor
 public class Browser: ObservableObject {
     @Published public var tabs: [Engine.Tab] = []
-    @Published public var activeTab: Engine.Tab? {
-        didSet {
-            tabObserver = activeTab?.$renderVersion
-                .sink { [weak self] _ in self?.objectWillChange.send() }
-        }
-    }
+    @Published public var activeTab: Engine.Tab?
     public let chrome: Chrome
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
-    private var tabObserver: AnyCancellable?
     private var animationTimer: Timer?
     public var accessibilityIsOn: Bool = false
     private var compositedLayers: [CompositedLayer] = []
@@ -20,6 +13,11 @@ public class Browser: ObservableObject {
     private var activeTabDisplayList: [Any] = []
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
     public private(set) var activeTabScroll: CGFloat = 0
+
+    private var needsComposite: Bool = false
+    private var needsRaster: Bool = false
+    private var needsDraw: Bool = false
+    private var needsAnimationFrame: Bool = true
 
     public init() {
         chrome = Chrome()
@@ -62,6 +60,8 @@ public class Browser: ObservableObject {
     }
 
     private func animationTick() {
+        guard needsAnimationFrame else { return }
+        needsAnimationFrame = false
         activeTab?.runAnimationFrame()
     }
 
@@ -69,11 +69,15 @@ public class Browser: ObservableObject {
         guard tab === activeTab else { return }
         activeTabDisplayList = data.displayList
         activeTabScroll = data.scroll
-        compositedUpdates = data.compositedUpdates
-        composite()
-        rasterTab()
-        paintDrawList()
-        objectWillChange.send()
+        compositedUpdates = data.compositedUpdates ?? [:]
+
+        if data.compositedUpdates == nil {
+            setNeedsComposite()  // nil -> full composite + raster + draw
+        } else {
+            setNeedsDrawOnly()
+        }
+
+        compositeRasterAndDraw()
     }
 
     private func composite() {
@@ -154,6 +158,42 @@ public class Browser: ObservableObject {
                 drawList.append(currentEffect)
             }
         }
+    }
+
+    func setNeedsComposite() {
+        needsComposite = true
+        needsRaster = true
+        needsDraw = true
+    }
+
+    func setNeedsRaster() {
+        needsRaster = true
+        needsDraw = true
+    }
+
+    func setNeedsDrawOnly() {
+        needsDraw = true
+    }
+
+    func setNeedsAnimationFrame(_ tab: Engine.Tab) {
+        if tab === activeTab {
+            needsAnimationFrame = true
+        }
+    }
+
+    private func compositeRasterAndDraw() {
+        guard needsComposite || needsRaster || needsDraw else { return }
+
+        if needsComposite { composite() }
+        if needsRaster { rasterTab() }
+        if needsDraw {
+            paintDrawList()
+            objectWillChange.send()
+        }
+
+        needsComposite = false
+        needsRaster = false
+        needsDraw = false
     }
 }
 
