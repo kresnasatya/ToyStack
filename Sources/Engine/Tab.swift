@@ -39,6 +39,8 @@ public class Tab: ObservableObject {
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
     private var needsRender: Bool = false
 
+    weak var browser: Browser?
+
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
         self.tabHeight = tabHeight
         self.tabWidth = tabWidth
@@ -287,7 +289,8 @@ public class Tab: ObservableObject {
             for (property, animation) in node.animations {
                 if let value = animation.animate() {
                     node.style[property] = value
-                    compositedUpdates[ObjectIdentifier(node)] = node.layoutObject as? VisualEffect
+                    compositedUpdates[ObjectIdentifier(node)] =
+                        node.layoutObject as? Engine.VisualEffect
                     needsPaint = true
                 } else {
                     node.animations.removeValue(forKey: property)
@@ -295,6 +298,14 @@ public class Tab: ObservableObject {
             }
         }
         if needsPaint { render() }
+
+        let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
+        let data = CommitData(
+            url: url!, scroll: scroll, height: docHeight, displayList: displayList,
+            compositedUpdates: compositedUpdates, accessibilityTree: accessibilityTree, focus: focus
+        )
+        compositedUpdates = [:]
+        browser?.commit(tab: self, data: data)
     }
 
     private func scrollToFragment(_ id: String) {

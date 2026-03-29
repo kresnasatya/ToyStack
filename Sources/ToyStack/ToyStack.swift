@@ -43,11 +43,11 @@ public struct BrowserView: View {
         Canvas { ctx, size in
             if let tab = app.activeTab {
                 let offset = app.chrome.bottom
-                for (item, scroll) in tab.visibleCommands(offset: offset) {
+                for item in app.drawList {
                     var c = ctx
-                    c.translateBy(x: 0, y: offset)
+                    c.translateBy(x: 0, y: offset - app.activeTabScroll)
                     if let cmd = item as? any PaintCommand {
-                        cmd.execute(scroll: scroll, context: &c)
+                        cmd.execute(scroll: 0, context: &c)
                     } else if let ve = item as? Engine.VisualEffect {
                         ve.execute(context: &c)
                     }

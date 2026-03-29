@@ -114,6 +114,24 @@ struct HasSelector: CSSSelector {
     }
 }
 
+// MARK: - PseudoclassSelector
+// Matches when the base selector matches AND the pseudo-class condition holds.
+// Example: PseudoClassSelector("focus", TagSelector("input")) matches focused <input>.
+struct PseudoclassSelector: CSSSelector {
+    let pseudoclass: String
+    let base: any CSSSelector
+    var priority: Int { base.priority }
+    var hasSelectors: [HasSelector] { base.hasSelectors }
+
+    func matches(_ node: any DOMNode) -> Bool {
+        guard base.matches(node) else { return false }
+        switch pseudoclass {
+        case "focus": return node.isFocused
+        default: return false
+        }
+    }
+}
+
 // MARK: - CSSParseError
 enum CSSParseError: Error {
     case parseError
@@ -360,13 +378,22 @@ class CSSParser {
 
         while i < chars.count && chars[i] == ":" {
             i += 1  // consume ":"
-            guard let keyword = try? word(), keyword == "has" else { break }
-            guard (try? literal("(")) != nil else { break }
-            skipWhitespace()
-            let inner = selector()
-            skipWhitespace()
-            _ = try? literal(")")
-            parts.append(HasSelector(inner: inner))
+            guard let keyword = try? word() else { break }
+            if keyword == "has" {
+                guard (try? literal("(")) != nil else { break }
+                skipWhitespace()
+                let inner = selector()
+                skipWhitespace()
+                _ = try? literal(")")
+                parts.append(HasSelector(inner: inner))
+            } else {
+                // treat as pseudo-class (e.g. :focus)
+                let base =
+                    parts.isEmpty
+                    ? TagSelector(tag: "")
+                    : (parts.count == 1 ? parts[0] : SelectorSequence(selectors: parts))
+                parts = [PseudoclassSelector(pseudoclass: keyword.lowercased(), base: base)]
+            }
         }
 
         guard !parts.isEmpty else { return nil }

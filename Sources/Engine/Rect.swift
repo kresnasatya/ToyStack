@@ -42,4 +42,9 @@ public struct Rect {
             left: min(self.left, other.left), top: min(self.top, other.top),
             right: max(self.right, other.right), bottom: max(self.bottom, other.bottom))
     }
+
+    func intersects(_ other: Rect) -> Bool {
+        return left < other.right && right > other.left
+            && top < other.bottom && bottom > other.top
+    }
 }

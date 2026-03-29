@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit  // NSAttributedString for text measurement on macOS
 import CoreText
 import Foundation
@@ -180,6 +181,16 @@ func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
     return result
 }
 
+// Flattens the display list tree.
+func treeToList(_ item: Any, into list: inout [Any]) {
+    list.append(item)
+    if let ve = item as? VisualEffect {
+        for child in ve.children {
+            treeToList(child, into: &list)
+        }
+    }
+}
+
 // Walks the layout tree and collects all paint commands into display_list.
 func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     if obj.shouldPaint() {
@@ -315,4 +326,26 @@ func getTabIndex(_ node: DOMNode) -> Int {
         let idx = Int(val)
     else { return 9_999_999 }
     return idx
+}
+
+func speakText(_ text: String) {
+    let synthesizer = AVSpeechSynthesizer()
+    let utterance = AVSpeechUtterance(string: text)
+    synthesizer.speak(utterance)
+}
+
+func dpx(_ cssPx: CGFloat, zoom: CGFloat) -> CGFloat {
+    return cssPx * zoom
+}
+
+func addParentPointers(_ items: [Any], parent: VisualEffect? = nil) {
+    for item in items {
+        if let ve = item as? VisualEffect {
+            ve.parent = parent
+            addParentPointers(ve.children, parent: ve)
+        } else if let pc = item as? (any PaintCommand) {
+            var cmd = pc
+            cmd.parentEffect = parent
+        }
+    }
 }
