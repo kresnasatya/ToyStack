@@ -66,6 +66,7 @@ public struct BrowserView: View {
                 cmd.execute(scroll: 0, context: &ctx)
             }
         }
+        .background(Color.white)
         .background(
             WindowReader { window in
                 browserWindow = window
