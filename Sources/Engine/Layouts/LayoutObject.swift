@@ -13,7 +13,7 @@ protocol LayoutObject: AnyObject {
     var height: CGFloat { get set }
 
     func layout()
-    func paint() -> [any PaintCommand]
+    func paint() -> [Any]
     func shouldPaint() -> Bool
 
 }

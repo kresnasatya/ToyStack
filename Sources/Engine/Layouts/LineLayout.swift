@@ -85,6 +85,25 @@ class LineLayout: LayoutObject {
         height = 1.25 * (maxAscent + maxDescent)
     }
 
-    func paint() -> [any PaintCommand] { [] }
+    func paint() -> [Any] {
+        var cmds: [any PaintCommand] = []
+        var focusedNode: DOMNode? = nil
+        for child in children {
+            if child.node.isFocused { focusedNode = child.node }
+        }
+        if let focused = focusedNode {
+            let color = focused.style["outline-color"] ?? "black"
+            let widthStr = (focused.style["outline-width"] ?? "2px").replacingOccurrences(
+                of: "px", with: "")
+            let thickness = CGFloat(Double(widthStr) ?? 2.0)
+            cmds.append(DrawOutline(rect: selfRect(), color: color, thickness: thickness))
+        }
+        return cmds
+    }
+
+    func selfRect() -> Rect {
+        Rect(left: x, top: y, right: x + width, bottom: y + height)
+    }
+
     func shouldPaint() -> Bool { true }
 }

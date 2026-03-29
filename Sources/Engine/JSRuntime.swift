@@ -318,6 +318,31 @@ class JSRuntime: @unchecked Sendable {
                 })
             } as @convention(block) (String, String, String?) -> String,
             forKeyedSubscript: "_XHRSend" as NSString)
+
+        // requestAnimationFrame - schedules one animation frame on the tab
+        jsContext.setObject(
+            {
+                [weak self] in
+                guard let tab = self?.tab else { return }
+                Task { @MainActor in
+                    tab.runAnimationFrame()
+                }
+            } as @convention(block) () -> Void,
+            forKeyedSubscript: "requestAnimationFrame" as NSString)
+
+        // __styleSet__ - sets a CSS property on a node from JS, triggers re-render
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int, attr: String, value: String) in
+                guard let self = self, let node = self.handleToNode[handle] else { return }
+                Task {
+                    @MainActor in
+                    node.style[attr] = value
+                    self.tab?.setNeedsRender()
+                    self.tab?.render()
+                }
+            } as @convention(block) (Int, String, String) -> Void,
+            forKeyedSubscript: "__styleSet__" as NSString)
     }
 
     func defineIDs() {

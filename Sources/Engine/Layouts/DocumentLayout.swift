@@ -35,7 +35,7 @@ class DocumentLayout: LayoutObject {
     }
 
     // DocumentLayout draws nothing itself - only its BlockLayout child does.
-    func paint() -> [any PaintCommand] { [] }
+    func paint() -> [Any] { [] }
     func shouldPaint() -> Bool {
         true
     }

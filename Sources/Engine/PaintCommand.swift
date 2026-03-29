@@ -28,6 +28,7 @@ extension Color {
 // and can execute itself into SwiftUI GraphicsContext.
 public protocol PaintCommand {
     var rect: Rect { get }
+    var parentEffect: VisualEffect? { get set }
     func execute(scroll: CGFloat, context: inout GraphicsContext)
 }
 
@@ -37,6 +38,7 @@ struct DrawRect: PaintCommand {
     let rect: Rect
     let color: String
     let source: (any LayoutObject)?
+    var parentEffect: VisualEffect? = nil
 
     init(rect: Rect, color: String, source: (any LayoutObject)? = nil) {
         self.rect = rect
@@ -63,6 +65,7 @@ struct DrawLine: PaintCommand {
     let color: String
     let thickness: CGFloat
     let source: (any LayoutObject)?
+    var parentEffect: VisualEffect? = nil
 
     // DrawLine stores its endpoints in a Rect for uniform culling in Tab.draw()
     init(
@@ -91,6 +94,7 @@ struct DrawText: PaintCommand {
     let font: BrowserFont
     let color: String
     let source: (any LayoutObject)?
+    var parentEffect: VisualEffect? = nil
 
     init(
         x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String,
@@ -120,11 +124,42 @@ struct DrawOutline: PaintCommand {
     let rect: Rect
     let color: String
     let thickness: CGFloat
+    var parentEffect: VisualEffect? = nil
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
         let r = CGRect(
             x: rect.left, y: rect.top - scroll, width: rect.right - rect.left,
             height: rect.bottom - rect.top)
         context.stroke(Path(r), with: .color(Color(cssName: color)), lineWidth: thickness)
+    }
+}
+
+// MARK: - DrawCompositedLayer
+struct DrawCompositedLayer: PaintCommand {
+    var rect: Rect
+    var parentEffect: VisualEffect?
+    let layer: CompositedLayer
+
+    init(layer: CompositedLayer) {
+        self.layer = layer
+        self.rect = layer.absoluteBounds()
+    }
+
+    func execute(scroll: CGFloat, context: inout GraphicsContext) {
+        var ctx = context
+        layer.raster(context: &ctx)
+    }
+}
+
+// MARK: - DrawRRect
+struct DrawRRect: PaintCommand {
+    var rect: Rect
+    var parentEffect: VisualEffect?
+    let radius: CGFloat
+    let color: Color
+
+    func execute(scroll: CGFloat, context: inout GraphicsContext) {
+        let path = Path(roundedRect: rect.cgRect, cornerRadius: radius)
+        context.fill(path, with: .color(color))
     }
 }

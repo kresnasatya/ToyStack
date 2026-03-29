@@ -15,7 +15,7 @@ public class Tab: ObservableObject {
     private(set) var url: WebURL!
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
-    private(set) var displayList: [any PaintCommand] = []
+    private(set) var displayList: [Any] = []
     public private(set) var title: String = "New Tab"
     private(set) var isSecure: Bool = false
 
@@ -33,6 +33,11 @@ public class Tab: ObservableObject {
 
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex < history.count - 1 }
+
+    private(set) var taskRunner: TaskRunner = TaskRunner()
+    private(set) var accessibilityTree: AccessibilityNode? = nil
+    private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
+    private var needsRender: Bool = false
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
         self.tabHeight = tabHeight
@@ -59,7 +64,8 @@ public class Tab: ObservableObject {
         ]
 
         do {
-            (headers, body) = try await url.request(referrer: effectiveReferrer(for: url), payload: payload)
+            (headers, body) = try await url.request(
+                referrer: effectiveReferrer(for: url), payload: payload)
         } catch let error as URLError where certErrorCodes.contains(error.code) {
             let alert = NSAlert()
             alert.messageText = "Certificate Error"
@@ -125,7 +131,10 @@ public class Tab: ObservableObject {
                 print("Blocked style", link.attributes["href"]!, "due to CSP")
                 continue
             }
-            guard let (_, styleBody) = try? await styleURL.request(referrer: effectiveReferrer(for: styleURL)) else { continue }
+            guard
+                let (_, styleBody) = try? await styleURL.request(
+                    referrer: effectiveReferrer(for: styleURL))
+            else { continue }
             rules.append(contentsOf: CSSParser(styleBody).parse())
         }
 
@@ -153,7 +162,10 @@ public class Tab: ObservableObject {
                 print("Blocked script", scriptNode.attributes["src"]!, "due to CSP")
                 continue
             }
-            guard let (_, scriptBody) = try? await scriptURL.request(referrer: effectiveReferrer(for: scriptURL)) else {
+            guard
+                let (_, scriptBody) = try? await scriptURL.request(
+                    referrer: effectiveReferrer(for: scriptURL))
+            else {
                 continue
             }
             js.run(script: scriptURL.toString(), code: scriptBody)
@@ -170,12 +182,12 @@ public class Tab: ObservableObject {
 
     private func effectiveReferrer(for targetURL: WebURL) -> WebURL? {
         switch referrerPolicy {
-            case "no-referrer":
-                return nil
-            case "same-origin":
-                return url?.origin() == targetURL.origin() ? url : nil
-            default:
-                return url // no policy: always send referrer
+        case "no-referrer":
+            return nil
+        case "same-origin":
+            return url?.origin() == targetURL.origin() ? url : nil
+        default:
+            return url  // no policy: always send referrer
         }
     }
 
@@ -223,7 +235,23 @@ public class Tab: ObservableObject {
     func render() {
         let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
         precomputeHas(node: nodes, rules: sortedRules)
+
+        // Save old styles before applying new ones, for animation detection
+        var oldStyles: [ObjectIdentifier: [String: String]] = [:]
+        for node in treeToList(nodes) {
+            oldStyles[ObjectIdentifier(node)] = node.style
+        }
+
         applyStyle(node: nodes, rules: sortedRules)
+
+        // Detect style changes and create animations
+        for node in treeToList(nodes) {
+            let old = oldStyles[ObjectIdentifier(node)] ?? [:]
+            let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
+            for (property, animation) in newAnimations {
+                node.animations[property] = animation
+            }
+        }
 
         // Override color for visited links
         for node in treeToList(nodes) {
@@ -240,10 +268,33 @@ public class Tab: ObservableObject {
         let doc = DocumentLayout(node: nodes)
         doc.layout(availableWidth: tabWidth)
         document = doc
-        var list: [any PaintCommand] = []
+        var list: [Any] = []
         paintTree(doc, into: &list)
         displayList = list
+
+        // Build accessibility tree
+        let a11yTree = AccessibilityNode(node: nodes)
+        a11yTree.build()
+        accessibilityTree = a11yTree
+
         renderVersion += 1
+    }
+
+    func runAnimationFrame() {
+        js.run(script: "raf", code: "__runRAFHandlers()")
+        var needsPaint = false
+        for node in treeToList(nodes) {
+            for (property, animation) in node.animations {
+                if let value = animation.animate() {
+                    node.style[property] = value
+                    compositedUpdates[ObjectIdentifier(node)] = node.layoutObject as? VisualEffect
+                    needsPaint = true
+                } else {
+                    node.animations.removeValue(forKey: property)
+                }
+            }
+        }
+        if needsPaint { render() }
     }
 
     private func scrollToFragment(_ id: String) {
@@ -274,16 +325,22 @@ public class Tab: ObservableObject {
         return nil
     }
 
-    public func visibleCommands(offset: CGFloat) -> [(command: any PaintCommand, scroll: CGFloat)] {
-        displayList.compactMap({ cmd in
-            guard cmd.rect.top <= self.scroll + tabHeight,
-                cmd.rect.bottom >= self.scroll
-            else { return nil }
-            return (cmd, self.scroll)
+    public func visibleCommands(offset: CGFloat) -> [(command: Any, scroll: CGFloat)] {
+        displayList.compactMap({ item in
+            let rect: Rect?
+            if let cmd = item as? any PaintCommand {
+                rect = cmd.rect
+            } else if let ve = item as? VisualEffect {
+                rect = ve.rect
+            } else {
+                rect = nil
+            }
+            guard let r = rect, r.top <= scroll + tabHeight, r.bottom >= scroll else { return nil }
+            return (item, scroll)
         })
     }
 
-    public func scrollbarCommands() -> [any PaintCommand] {
+    public func scrollbarCommands() -> [Any] {
         guard let doc = document else { return [] }
         let docHeight = doc.height
         guard docHeight > tabHeight else { return [] }
@@ -369,7 +426,8 @@ public class Tab: ObservableObject {
         focus = nil
 
         let adjustedY = y + scroll
-        let hits = displayList.filter({
+        let paintHits = displayList.compactMap({ $0 as? any PaintCommand })
+        let hits = paintHits.filter({
             $0.rect.left <= x && x < $0.rect.right
                 && $0.rect.top <= adjustedY && adjustedY < $0.rect.bottom
         })
@@ -480,6 +538,10 @@ public class Tab: ObservableObject {
         } else {
             await load(WebURL("\(action.toString())?\(body)"))
         }
+    }
+
+    func setNeedsRender() {
+        needsRender = true
     }
 }
 

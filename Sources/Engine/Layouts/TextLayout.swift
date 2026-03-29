@@ -23,6 +23,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         self.word = word
         self.parent = parent
         self.previous = previous
+        node.layoutObject = self
     }
 
     func layout() {
@@ -49,7 +50,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         height = font.linespace  // used by LineLayout to compute line height
     }
 
-    func paint() -> [any PaintCommand] {
+    func paint() -> [Any] {
         let color = node.style["color"] ?? "black"
         return [
             DrawText(

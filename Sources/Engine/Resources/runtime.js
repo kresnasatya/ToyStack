@@ -145,3 +145,36 @@ function __defineIDs() {
     __globalThis[id] = new Node(ids[id]);
   }
 }
+
+// CSS style property setter - bridges node.style.prop = value to Swift
+Object.defineProperty(Node.prototype, "style", {
+  get: function () {
+    var handle = this.handle;
+    return new Proxy(
+      {},
+      {
+        set: function (target, attr, value) {
+          __styleSet__(handle, attr, value.toString());
+          return true;
+        },
+      },
+    );
+  },
+});
+
+// requestAnimationFrame - schedules a callback before the next paint
+var __RAFHandlers = [];
+
+function __runRAFHandlers() {
+  var handlers = __RAFHandlers;
+  __RAFHandlers = [];
+  for (var i = 0; i < handlers.length; i++) {
+    handlers[i]();
+  }
+}
+
+window = {};
+window.requestAnimationFrame = function (callback) {
+  __RAFHandlers.push(callback);
+  requestAnimationFrame();
+};

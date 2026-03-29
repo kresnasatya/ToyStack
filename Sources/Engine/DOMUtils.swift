@@ -1,6 +1,7 @@
 import AppKit  // NSAttributedString for text measurement on macOS
 import CoreText
 import Foundation
+import SwiftUI
 
 // MARK: - Layout Constants
 public let WIDTH: CGFloat = 800
@@ -180,7 +181,7 @@ func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
 }
 
 // Walks the layout tree and collects all paint commands into display_list.
-func paintTree(_ obj: any LayoutObject, into displayList: inout [any PaintCommand]) {
+func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     if obj.shouldPaint() {
         displayList.append(contentsOf: obj.paint())
     }
@@ -188,4 +189,130 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any PaintComman
     for child in obj.children {
         paintTree(child, into: &displayList)
     }
+}
+
+// Number of frames for CSS transitions
+let NUM_ANIMATION_FRAMES = 10
+
+func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String:
+    NumericAnimation]
+{
+    let animatedProperties = ["opacity", "transform"]
+    var animations: [String: NumericAnimation] = [:]
+    for property in animatedProperties {
+        guard let oldVal = oldStyle[property],
+            let newVal = newStyle[property],
+            oldVal != newVal
+        else { continue }
+        if property == "opacity",
+            let old = Double(oldVal),
+            let new = Double(newVal)
+        {
+            animations[property] = NumericAnimation(
+                oldValue: old, newValue: new, numFrames: NUM_ANIMATION_FRAMES)
+        }
+    }
+    return animations
+}
+
+func parseTransform(_ value: String) -> CGPoint? {
+    let pattern = #"translate\(([0-9.]+)px,\s*([0-9.]+)px\)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+        let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
+        let xRange = Range(match.range(at: 1), in: value),
+        let yRange = Range(match.range(at: 2), in: value),
+        let x = Double(value[xRange]),
+        let y = Double(value[yRange])
+    else { return nil }
+    return CGPoint(x: x, y: y)
+}
+
+func localToAbsolute(_ obj: LayoutObject, x: CGFloat, y: CGFloat) -> CGPoint {
+    var x = x
+    var y = y
+    var current: LayoutObject? = obj
+    while let o = current {
+        x += o.x
+        y += o.y
+        if let block = o as? BlockLayout,
+            let t = parseTransform(block.node.style["transform"] ?? "")
+        {
+            x += t.x
+            y += t.y
+        }
+        current = o.parent
+    }
+    return CGPoint(x: x, y: y)
+}
+
+func absoluteToLocal(_ obj: LayoutObject, x: CGFloat, y: CGFloat) -> CGPoint {
+    var chain: [LayoutObject] = []
+    var current: LayoutObject? = obj
+    while let o = current {
+        chain.append(o)
+        current = o.parent
+    }
+    var x = x
+    var y = y
+    for o in chain.reversed() {
+        x -= o.x
+        y -= o.y
+        if let block = o as? BlockLayout,
+            let t = parseTransform(block.node.style["transform"] ?? "")
+        {
+            x -= t.x
+            y -= t.y
+        }
+    }
+    return CGPoint(x: x, y: y)
+}
+
+func paintVisualEffects(node: DOMNode, cmds: [any PaintCommand], rect: Rect) -> [Any] {
+    let opacity = Double(node.style["opacity"] ?? "1.0") ?? 1.0
+    let blendModeStr = node.style["mix-blend-mode"]
+    let translation = parseTransform(node.style["transform"] ?? "")
+    let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
+    let borderRadius = CGFloat(Double(radiusStr) ?? 0)
+
+    var effectCmds: [Any] = cmds
+    if borderRadius > 0 {
+        let clip = Blend(
+            opacity: 1.0, blendMode: .normal, node: node,
+            children: [
+                DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: .clear)
+            ])
+        effectCmds = [clip] + effectCmds
+    }
+
+    let blendMode: GraphicsContext.BlendMode? = {
+        switch blendModeStr {
+        case "multiply": return .multiply
+        case "difference": return .difference
+        case "destination-in": return .destinationIn
+        default: return nil
+        }
+    }()
+
+    let blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: effectCmds)
+    let transform = Transform(translation: translation, rect: rect, node: node, children: [blend])
+    return [transform]
+}
+
+func absoluteBoundsForObj(_ obj: LayoutObject) -> Rect {
+    let origin = localToAbsolute(obj, x: obj.x, y: obj.y)
+    return Rect(
+        left: origin.x, top: origin.y, right: origin.x + obj.width, bottom: origin.y + obj.height)
+}
+
+func isFocusable(_ node: DOMNode) -> Bool {
+    guard let el = node as? Element else { return false }
+    return ["input", "button", "a"].contains(el.tag) || el.attributes["tabindex"] != nil
+}
+
+func getTabIndex(_ node: DOMNode) -> Int {
+    guard let el = node as? Element,
+        let val = el.attributes["tabindex"],
+        let idx = Int(val)
+    else { return 9_999_999 }
+    return idx
 }

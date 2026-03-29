@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 
 // MARK: - InputLayout
 // Lays out <input> and <button> elements at a fixed width 200px.
@@ -22,6 +23,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         self.node = node
         self.parent = parent
         self.previous = previous
+        node.layoutObject = self
     }
 
     func layout() {
@@ -54,16 +56,26 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [any PaintCommand] {
+    func paint() -> [Any] {
         guard let element = node as? Element else {
             return []
         }
         var cmds: [any PaintCommand] = []
 
-        // 1. Background color.
+        // 1. Background color and radius.
         let bgcolor = element.style["background-color"] ?? "transparent"
+        let radiusStr = (element.style["border-radius"] ?? "0px").replacingOccurrences(
+            of: "px", with: "")
+        let borderRadius = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" {
-            cmds.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
+            if borderRadius > 0 {
+                cmds.append(
+                    DrawRRect(
+                        rect: selfRect(), parentEffect: nil, radius: borderRadius,
+                        color: Color(cssName: bgcolor)))
+            } else {
+                cmds.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
+            }
         }
 
         // For input checkbox
@@ -105,7 +117,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                     x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1,
                     source: self))
         }
-        return cmds
+
+        return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())
     }
 
     // The bounding rectangle for background and hit-testing.

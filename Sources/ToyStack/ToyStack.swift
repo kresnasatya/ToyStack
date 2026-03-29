@@ -43,15 +43,23 @@ public struct BrowserView: View {
         Canvas { ctx, size in
             if let tab = app.activeTab {
                 let offset = app.chrome.bottom
-                for (cmd, scroll) in tab.visibleCommands(offset: offset) {
+                for (item, scroll) in tab.visibleCommands(offset: offset) {
                     var c = ctx
                     c.translateBy(x: 0, y: offset)
-                    cmd.execute(scroll: scroll, context: &c)
+                    if let cmd = item as? any PaintCommand {
+                        cmd.execute(scroll: scroll, context: &c)
+                    } else if let ve = item as? Engine.VisualEffect {
+                        ve.execute(context: &c)
+                    }
                 }
-                for cmd in tab.scrollbarCommands() {
+                for item in tab.scrollbarCommands() {
                     var c = ctx
                     c.translateBy(x: 0, y: offset)
-                    cmd.execute(scroll: 0, context: &c)
+                    if let cmd = item as? any PaintCommand {
+                        cmd.execute(scroll: 0, context: &c)
+                    } else if let ve = item as? Engine.VisualEffect {
+                        ve.execute(context: &c)
+                    }
                 }
             }
             for cmd in app.chrome.paint() {
