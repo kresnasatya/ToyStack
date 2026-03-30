@@ -22,7 +22,7 @@ public class Tab {
     private var historyIndex: Int = -1
     private var focus: Element?
     private var allowedOrigins: [String]?
-    private var rules: [(any CSSSelector, [String: String])] = []
+    private var rules: [(String?, any CSSSelector, [String: String])] = []
     private var js: JSRuntime!
     private var loadedScriptURLs: Set<String> = []
     private var referrerPolicy: String = ""
@@ -617,7 +617,7 @@ public class Tab {
     }
 }
 
-private let defaultStyleSheet: [(any CSSSelector, [String: String])] = {
+private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = {
     guard let url = Bundle.module.url(forResource: "browser", withExtension: "css"),
         let source = try? String(contentsOf: url, encoding: .utf8)
     else { return [] }

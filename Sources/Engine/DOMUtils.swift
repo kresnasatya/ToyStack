@@ -86,13 +86,13 @@ let inheritedProperties: [String: String] = [
 
 // Precomputes :has() selector-results in single O(n) pass.
 // Must be called before applyStyle() before each render cycle.
-func precomputeHas(node: any DOMNode, rules: [(any CSSSelector, [String: String])]) {
+func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])]) {
     let allNodes = treeToList(node)
 
     // Reset from previous render
     for n in allNodes { n.satisfiedHas = [] }
 
-    let allHasSelectors = rules.flatMap({ $0.0.hasSelectors })
+    let allHasSelectors = rules.flatMap({ $0.1.hasSelectors })
     guard !allHasSelectors.isEmpty else { return }
 
     // Process in reverse pre-order so children are always handled before parents
@@ -116,7 +116,9 @@ func precomputeHas(node: any DOMNode, rules: [(any CSSSelector, [String: String]
 //   1. Inherited value from parent (or default if at root)
 //   2. Matching stylesheet rules (sorted by priority before calling)
 //   3. Inline style attribute
-func applyStyle(node: any DOMNode, rules: [(any CSSSelector, [String: String])]) {
+func applyStyle(
+    node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])], darkMode: Bool = false
+) {
     node.style = [:]
 
     // Step 1: start with inherited or default values
@@ -125,7 +127,8 @@ func applyStyle(node: any DOMNode, rules: [(any CSSSelector, [String: String])])
     }
 
     // Step 2: apply all matching CSS rules in cascade order.
-    for (selector, body) in rules {
+    for (media, selector, body) in rules {
+        if (media == "dark") != darkMode { continue }
         guard selector.matches(node) else { continue }
         for (property, value) in body {
             node.style[property] = value
@@ -151,14 +154,14 @@ func applyStyle(node: any DOMNode, rules: [(any CSSSelector, [String: String])])
     }
 
     for child in node.children {
-        applyStyle(node: child, rules: rules)
+        applyStyle(node: child, rules: rules, darkMode: darkMode)
     }
 }
 
 // MARK: - Cascade Priority
 // Used as the sort key when ordering CSS rules before applying them.
-func cascadePriority(_ rule: (any CSSSelector, [String: String])) -> Int {
-    rule.0.priority
+func cascadePriority(_ rule: (String?, any CSSSelector, [String: String])) -> Int {
+    rule.1.priority
 }
 
 // MARK: - Tree Utilities

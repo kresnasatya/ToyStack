@@ -419,25 +419,55 @@ class CSSParser {
         return parts.count == 1 ? parts[0] : DescendantSelector(selectors: parts)
     }
 
+    private func mediaQuery() throws -> String {
+        try literal("@")
+        skipWhitespace()
+        guard (try? word()) == "media" else { throw CSSParseError.parseError }
+        skipWhitespace()
+        try literal("(")
+        skipWhitespace()
+        let prop = try word()
+        skipWhitespace()
+        try literal(":")
+        skipWhitespace()
+        let val = try word()
+        skipWhitespace()
+        try literal(")")
+        guard prop == "prefers-color-scheme" else { throw CSSParseError.parseError }
+        return val  // "dark" or "light"
+    }
+
     // Parses a full stylesheet. Returns all valid (selector, body) rules.
     // Skips over malformed rules using error recovery.
-    func parse() -> [(any CSSSelector, [String: String])] {
-        var rules: [(any CSSSelector, [String: String])] = []
+    func parse() -> [(String?, any CSSSelector, [String: String])] {
+        var rules: [(String?, any CSSSelector, [String: String])] = []
+        var media: String? = nil
         while i < chars.count {
-            skipWhitespace()
-            let sel = selector()
-            if (try? literal("{")) != nil {
-                skipWhitespace()
-                let parts = bodyParts()
-                if (try? literal("}")) != nil {
+            do {
+                if i < chars.count && chars[i] == "@" && media == nil {
+                    media = try mediaQuery()
+                    skipWhitespace()
+                    try literal("{")
+                    skipWhitespace()
+                } else if i < chars.count && chars[i] == "}" && media != nil {
+                    try literal("}")
+                    media = nil
+                    skipWhitespace()
+                } else {
+                    let sel = selector()
+                    try literal("{")
+                    skipWhitespace()
+                    let parts = bodyParts()
+                    try literal("}")
+                    skipWhitespace()
                     if !parts.normal.isEmpty {
-                        rules.append((sel, parts.normal))
+                        rules.append((media, sel, parts.normal))
                     }
                     if !parts.important.isEmpty {
-                        rules.append((ImportantSelector(base: sel), parts.important))
+                        rules.append((media, ImportantSelector(base: sel), parts.important))
                     }
                 }
-            } else {
+            } catch {
                 let found = ignoreUntil(["}"])
                 if found == "}" {
                     _ = try? literal("}")
