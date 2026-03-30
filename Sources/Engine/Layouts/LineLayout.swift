@@ -14,6 +14,7 @@ class LineLayout: LayoutObject {
     var height: CGFloat = 0
     var minHeight: CGFloat = 0
     var centered: Bool = false
+    var zoom: CGFloat = 1.0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -22,6 +23,7 @@ class LineLayout: LayoutObject {
     }
 
     func layout() {
+        zoom = parent!.zoom
         width = parent!.width
         x = parent!.x
         y = previous.map { $0.y + $0.height } ?? parent!.y

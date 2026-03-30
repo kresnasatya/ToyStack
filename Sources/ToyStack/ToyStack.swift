@@ -106,6 +106,12 @@ public struct BrowserView: View {
                             case 2:  // Ctrl+D
                                 app.toggleDarkMode()
                                 app.objectWillChange.send()
+                            case 24:  // Ctrl+=
+                                app.incrementZoom(true)
+                            case 27:  // Ctrl+-
+                                app.incrementZoom(false)
+                            case 29:  // Ctrl+0
+                                app.resetZoom()
                             default:
                                 break
                             }

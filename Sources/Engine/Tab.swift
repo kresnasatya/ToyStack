@@ -42,6 +42,8 @@ public class Tab {
 
     private(set) var darkMode: Bool = false
 
+    private var zoom: CGFloat = 1.0
+
     weak var browser: Browser?
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
@@ -279,7 +281,7 @@ public class Tab {
 
         if needsLayout {
             let doc = DocumentLayout(node: nodes)
-            doc.layout(availableWidth: tabWidth)
+            doc.layout(availableWidth: tabWidth, zoom: zoom)
             document = doc
 
             needsLayout = false
@@ -621,6 +623,23 @@ public class Tab {
 
     func setDarkMode(_ val: Bool) {
         darkMode = val
+        setNeedsRender()
+    }
+
+    func zoomBy(_ increment: Bool) {
+        if increment {
+            zoom *= 1.1
+            scroll *= 1.1
+        } else {
+            zoom *= 1 / 1.1
+            scroll *= 1 / 1.1
+        }
+        setNeedsRender()
+    }
+
+    func resetZoom() {
+        scroll /= zoom
+        zoom = 1.0
         setNeedsRender()
     }
 }

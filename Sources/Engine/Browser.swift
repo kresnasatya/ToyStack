@@ -209,6 +209,14 @@ public class Browser: ObservableObject {
         darkMode = !darkMode
         activeTab?.setDarkMode(darkMode)
     }
+
+    public func incrementZoom(_ increment: Bool) {
+        activeTab?.zoomBy(increment)
+    }
+
+    public func resetZoom() {
+        activeTab?.resetZoom()
+    }
 }
 
 // Explicitly declares Browser as a TabManager implementor.

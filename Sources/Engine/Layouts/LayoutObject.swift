@@ -11,6 +11,7 @@ protocol LayoutObject: AnyObject {
     var y: CGFloat { get set }
     var width: CGFloat { get set }
     var height: CGFloat { get set }
+    var zoom: CGFloat { get set }
 
     func layout()
     func paint() -> [Any]

@@ -16,6 +16,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
+    var zoom: CGFloat = 1.0
+
     // font is set during layout(); LineLayout reads it for baseline alignment.
     var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
 
@@ -27,18 +29,19 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
+        zoom = parent!.zoom
         guard let element = node as? Element else { return }
 
         let weight = element.style["font-weight"] ?? "normal"
         var styleStr = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(sizePx * 0.75)
+        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
 
-        width = InputLayout.inputWidthPx
+        width = dpx(InputLayout.inputWidthPx, zoom: zoom)
         if (node as? Element)?.attributes["type"] == "checkbox" {
             width = font.linespace
         }

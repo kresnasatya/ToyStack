@@ -23,6 +23,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
     var width: CGFloat = 0
     var height: CGFloat = 0
+    var zoom: CGFloat = 1.0
     var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
 
     private var cursorX: CGFloat = 0
@@ -34,18 +35,19 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
+        zoom = parent!.zoom
         guard let element = node as? Element else { return }
 
         let weight = element.style["font-weight"] ?? "normal"
         var styleStr = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(sizePx * 0.75)
+        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
 
-        width = InputLayout.inputWidthPx
+        width = dpx(InputLayout.inputWidthPx, zoom: zoom)
         if let prev = previous as? InlineLayoutItem {
             x = prev.x + prev.font.measure(" ") + prev.width
         } else {
@@ -87,7 +89,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         var style = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(sizePx * 0.75)
+        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
         let font = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
@@ -100,7 +102,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
 
     private func addInput(_ node: Element) {
-        let w = InputLayout.inputWidthPx
+        let w = dpx(InputLayout.inputWidthPx, zoom: zoom)
         if cursorX + w > width { newLine() }
         let line = children.last!
         let prev = line.children.last

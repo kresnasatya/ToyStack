@@ -20,6 +20,7 @@ class BlockLayout: LayoutObject {
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
+    var zoom: CGFloat = 1.0
 
     // cursorX tracks the horizontal position within the current inline line.
     private var cursorX: CGFloat = 0
@@ -40,6 +41,7 @@ class BlockLayout: LayoutObject {
     }
 
     func layout() {
+        zoom = parent!.zoom
         x = parent!.x
         width = parent!.width
 
@@ -171,7 +173,7 @@ class BlockLayout: LayoutObject {
         var style = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(sizePx * 0.75)
+        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
         let font = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
@@ -247,6 +249,7 @@ class BlockLayout: LayoutObject {
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
         cursorX += w + font.measure(" ")
+        width = dpx(BlockLayout.inputWidthPx, zoom: zoom)
     }
 
     private func addButton(_ node: Element) {

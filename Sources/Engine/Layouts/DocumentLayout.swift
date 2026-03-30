@@ -11,6 +11,7 @@ class DocumentLayout: LayoutObject {
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
+    var zoom: CGFloat = 1.0
 
     init(node: any DOMNode) {
         self.node = node
@@ -20,14 +21,15 @@ class DocumentLayout: LayoutObject {
         layout(availableWidth: WIDTH)
     }
 
-    func layout(availableWidth: CGFloat = WIDTH) {
+    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0) {
+        self.zoom = zoom
         let child = BlockLayout(node: node, parent: self, previous: nil)
         children.append(child)
 
         // Content area starts one step from each edge to add a small margin.
-        width = availableWidth - 2 * HSTEP
-        x = HSTEP
-        y = VSTEP
+        width = availableWidth - 2 * dpx(HSTEP, zoom: zoom)
+        x = dpx(HSTEP, zoom: zoom)
+        y = dpx(VSTEP, zoom: zoom)
 
         child.layout()
         // Document height equals the single child's height.
