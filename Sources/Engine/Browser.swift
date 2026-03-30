@@ -21,6 +21,8 @@ public class Browser: ObservableObject {
 
     public var darkMode: Bool = false
 
+    public var measure = MeasureTime()
+
     public init() {
         chrome = Chrome()
         chrome.tabManager = self
@@ -60,6 +62,7 @@ public class Browser: ObservableObject {
     public func stopAnimationTimer() {
         animationTimer?.invalidate()
         animationTimer = nil
+        measure.close()
     }
 
     private func animationTick() {
@@ -186,7 +189,7 @@ public class Browser: ObservableObject {
 
     private func compositeRasterAndDraw() {
         guard needsComposite || needsRaster || needsDraw else { return }
-
+        measure.start("composite_raster_and_draw")
         if needsComposite { composite() }
         if needsRaster { rasterTab() }
         if needsDraw {
@@ -197,6 +200,7 @@ public class Browser: ObservableObject {
         needsComposite = false
         needsRaster = false
         needsDraw = false
+        measure.stop("composite_raster_and_draw")
     }
 
     public func applyScroll(_ scroll: CGFloat) {
