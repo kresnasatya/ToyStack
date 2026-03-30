@@ -66,7 +66,7 @@ public struct BrowserView: View {
                 cmd.execute(scroll: 0, context: &ctx)
             }
         }
-        .background(Color.white)
+        .background(app.darkMode ? Color.black : Color.white)
         .background(
             WindowReader { window in
                 browserWindow = window
@@ -100,6 +100,14 @@ public struct BrowserView: View {
                         } else if event.keyCode == 124 {  // right arrow
                             if app.chrome.cursorRight() {
                                 app.objectWillChange.send()
+                            }
+                        } else if event.modifierFlags.contains(.control) {
+                            switch event.keyCode {
+                            case 2:  // Ctrl+D
+                                app.toggleDarkMode()
+                                app.objectWillChange.send()
+                            default:
+                                break
                             }
                         } else if let char = event.characters, !char.isEmpty {
                             let scalar = char.unicodeScalars.first!.value

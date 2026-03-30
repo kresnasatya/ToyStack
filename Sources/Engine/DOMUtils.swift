@@ -76,7 +76,7 @@ func getFont(size: Int, weight: String, style: String, family: String = "serif")
 // MARK: - Inherited CSS Properties
 // These defaults are used when a node has no parent (root element)
 // and when a property was not set by any CSS rule.
-let inheritedProperties: [String: String] = [
+nonisolated(unsafe) var inheritedProperties: [String: String] = [
     "font-family": "serif",
     "font-size": "16px",
     "font-style": "normal",
@@ -128,7 +128,10 @@ func applyStyle(
 
     // Step 2: apply all matching CSS rules in cascade order.
     for (media, selector, body) in rules {
-        if (media == "dark") != darkMode { continue }
+        if let m = media {
+            if m == "dark" && !darkMode { continue }
+            if m == "light" && !darkMode { continue }
+        }
         guard selector.matches(node) else { continue }
         for (property, value) in body {
             node.style[property] = value

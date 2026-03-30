@@ -143,12 +143,59 @@ input {
     font-style: normal;
     background-color: lightblue;
 }
+input:focus {
+    outline: 2px solid black;
+}
 button {
     font-size: 16px;
     font-weight: normal;
     font-style: normal;
     background-color: orange;
 }
-.links {
-    background-color: lightgray;
+button:focus {
+    outline: 2px solid black;
+}
+
+@media (prefers-color-scheme: dark) {
+    html {
+        color: white !important;
+        background-color: black !important;
+    }
+    body {
+        color: white !important;
+        background-color: black !important;
+    }
+    li {
+        color: white !important;
+    }
+    p {
+        color: white !important;
+    }
+    a {
+        color: lightblue;
+    }
+
+    a:focus {
+        outline: 2px solid white;
+    }
+
+    input {
+        background-color: #2222ff;
+    }
+
+    input:focus {
+        outline: 2px solid white;
+    }
+
+    div:focus {
+        outline: 2px solid white;
+    }
+
+    button {
+        background-color: #992500;
+    }
+
+    button:focus {
+        outline: 2px solid white;
+    }
 }

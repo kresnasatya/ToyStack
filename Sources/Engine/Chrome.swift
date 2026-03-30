@@ -7,6 +7,7 @@ import CoreGraphics
 public protocol TabManager: AnyObject {
     var tabs: [Tab] { get }
     var activeTab: Tab? { get set }
+    var darkMode: Bool { get }
     func newTab(_ url: WebURL) async
 }
 
@@ -91,19 +92,23 @@ public class Chrome {
     public func paint() -> [any PaintCommand] {
         var cmds: [any PaintCommand] = []
 
+        let darkMode = tabManager?.darkMode ?? false
+        let color = darkMode ? "white" : "black"
+        let bgColor = darkMode ? "black" : "white"
+
         // White background + bottom border
         cmds.append(
             DrawRect(
-                rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: "white"))
+                rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: bgColor))
         cmds.append(
-            DrawLine(x1: 0, y1: bottom, x2: currentWidth, y2: bottom, color: "black", thickness: 1))
+            DrawLine(x1: 0, y1: bottom, x2: currentWidth, y2: bottom, color: color, thickness: 1))
 
         // New tab button
-        cmds.append(DrawOutline(rect: newtabRect, color: "black", thickness: 1))
+        cmds.append(DrawOutline(rect: newtabRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
                 x1: newtabRect.left + padding, y1: newtabRect.top, text: "+", font: font,
-                color: "black"))
+                color: color))
 
         // Tab buttons
         let tabs: [Engine.Tab] = tabManager?.tabs ?? []
@@ -111,30 +116,30 @@ public class Chrome {
             let bounds = tabRect(i)
             cmds.append(
                 DrawLine(
-                    x1: bounds.left, y1: 0, x2: bounds.left, y2: bounds.bottom, color: "black",
+                    x1: bounds.left, y1: 0, x2: bounds.left, y2: bounds.bottom, color: color,
                     thickness: 1))
             cmds.append(
                 DrawLine(
-                    x1: bounds.right, y1: 0, x2: bounds.right, y2: bounds.bottom, color: "black",
+                    x1: bounds.right, y1: 0, x2: bounds.right, y2: bounds.bottom, color: color,
                     thickness: 1))
             cmds.append(
                 DrawText(
                     x1: bounds.left + padding, y1: bounds.top + padding, text: "Tab \(i)",
-                    font: font, color: "black"))
+                    font: font, color: color))
             if tab === tabManager?.activeTab {
                 cmds.append(
                     DrawLine(
                         x1: 0, y1: bounds.bottom, x2: bounds.left, y2: bounds.bottom,
-                        color: "black", thickness: 1))
+                        color: color, thickness: 1))
                 cmds.append(
                     DrawLine(
                         x1: bounds.right, y1: bounds.bottom, x2: currentWidth, y2: bounds.bottom,
-                        color: "black", thickness: 1))
+                        color: color, thickness: 1))
             }
         }
 
         // Back button - gray when nothing to go back to
-        let backColor = tabManager?.activeTab?.canGoBack == true ? "black" : "gray"
+        let backColor = tabManager?.activeTab?.canGoBack == true ? color : "gray"
         cmds.append(DrawOutline(rect: backRect, color: backColor, thickness: 1))
         cmds.append(
             DrawText(
@@ -143,7 +148,7 @@ public class Chrome {
             ))
 
         // Forward button - gray when nothing to go forward to
-        let fwdColor = tabManager?.activeTab?.canGoForward == true ? "black" : "gray"
+        let fwdColor = tabManager?.activeTab?.canGoForward == true ? color : "gray"
         cmds.append(DrawOutline(rect: forwardRect, color: fwdColor, thickness: 1))
         cmds.append(
             DrawText(
@@ -156,14 +161,14 @@ public class Chrome {
         if isBookmarked {
             cmds.append(DrawRect(rect: bookmarkRect, color: "yellow"))
         }
-        cmds.append(DrawOutline(rect: bookmarkRect, color: "black", thickness: 1))
+        cmds.append(DrawOutline(rect: bookmarkRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
                 x1: bookmarkRect.left + padding, y1: bookmarkRect.top, text: "*", font: font,
-                color: "black"))
+                color: color))
 
         // Address bar
-        cmds.append(DrawOutline(rect: addressRect, color: "black", thickness: 1))
+        cmds.append(DrawOutline(rect: addressRect, color: color, thickness: 1))
         if focus == "address bar" {
             if isAllSelected {
                 // Blue selection highlight behind the text
@@ -175,12 +180,12 @@ public class Chrome {
                 cmds.append(
                     DrawText(
                         x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
-                        font: font, color: "black"))
+                        font: font, color: color))
             } else {
                 cmds.append(
                     DrawText(
                         x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
-                        font: font, color: "black"))
+                        font: font, color: color))
                 let textBeforeCursor = String(addressBar.prefix(cursorIndex))
                 let w = font.measure(textBeforeCursor)
                 cmds.append(
@@ -196,7 +201,7 @@ public class Chrome {
             cmds.append(
                 DrawText(
                     x1: addressRect.left + padding, y1: addressRect.top, text: displayText,
-                    font: font, color: "black"))
+                    font: font, color: color))
         }
 
         return cmds

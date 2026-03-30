@@ -19,6 +19,8 @@ public class Browser: ObservableObject {
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
 
+    public var darkMode: Bool = false
+
     public init() {
         chrome = Chrome()
         chrome.tabManager = self
@@ -30,6 +32,7 @@ public class Browser: ObservableObject {
             tabWidth: windowSize.width
         )
         tab.browser = self
+        tab.setDarkMode(darkMode)
         await tab.load(url)
         activeTab = tab
         tabs.append(tab)
@@ -200,6 +203,11 @@ public class Browser: ObservableObject {
         activeTabScroll = scroll
         setNeedsDrawOnly()
         compositeRasterAndDraw()
+    }
+
+    public func toggleDarkMode() {
+        darkMode = !darkMode
+        activeTab?.setDarkMode(darkMode)
     }
 }
 

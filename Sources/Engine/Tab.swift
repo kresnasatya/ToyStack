@@ -40,6 +40,8 @@ public class Tab {
     private var needsAccessibility: Bool = false
     private var needsPaint: Bool = false
 
+    private(set) var darkMode: Bool = false
+
     weak var browser: Browser?
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
@@ -247,7 +249,8 @@ public class Tab {
                 oldStyles[ObjectIdentifier(node)] = node.style
             }
 
-            applyStyle(node: nodes, rules: sortedRules)
+            inheritedProperties["color"] = darkMode ? "white" : "black"
+            applyStyle(node: nodes, rules: sortedRules, darkMode: darkMode)
 
             // Detect style changes and create animations
             for node in treeToList(nodes) {
@@ -614,6 +617,11 @@ public class Tab {
         needsPaint = true
         needsRender = true
         browser?.setNeedsAnimationFrame(self)
+    }
+
+    func setDarkMode(_ val: Bool) {
+        darkMode = val
+        setNeedsRender()
     }
 }
 
