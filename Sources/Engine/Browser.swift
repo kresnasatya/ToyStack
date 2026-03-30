@@ -195,6 +195,12 @@ public class Browser: ObservableObject {
         needsRaster = false
         needsDraw = false
     }
+
+    public func applyScroll(_ scroll: CGFloat) {
+        activeTabScroll = scroll
+        setNeedsDrawOnly()
+        compositeRasterAndDraw()
+    }
 }
 
 // Explicitly declares Browser as a TabManager implementor.

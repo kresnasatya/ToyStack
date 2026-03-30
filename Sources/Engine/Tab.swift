@@ -412,12 +412,12 @@ public class Tab {
     public func scrollDown() {
         let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
         scroll = min(scroll + SCROLL_STEP, maxY)
-        browser?.setNeedsAnimationFrame(self)
+        browser?.applyScroll(scroll)
     }
 
     public func scrollUp() {
         scroll = max(scroll - SCROLL_STEP, 0)
-        browser?.setNeedsAnimationFrame(self)
+        browser?.applyScroll(scroll)
     }
 
     func goBack() async {
@@ -507,7 +507,7 @@ public class Tab {
                         historyIndex = history.count - 1
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
-                        browser?.setNeedsAnimationFrame(self)
+                        browser?.applyScroll(scroll)
                     } else {
                         await load(url.resolve(href))
                     }
