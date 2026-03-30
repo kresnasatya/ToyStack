@@ -220,7 +220,7 @@ class HTMLParser {
             } else if ch == "\"" || ch == "'" {
                 inQuote = ch
                 current.append(ch)
-            } else if ch == " " || ch == "\t" {
+            } else if ch == " " || ch == "\t" || ch == "\n" || ch == "\r" {
                 if !current.isEmpty { parts.append(current) }
                 current = ""
             } else {
