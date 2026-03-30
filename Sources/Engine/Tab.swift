@@ -39,6 +39,7 @@ public class Tab {
     private var needsLayout: Bool = false
     private var needsAccessibility: Bool = false
     private var needsPaint: Bool = false
+    private var needsFocusScroll: Bool = false
 
     private(set) var darkMode: Bool = false
 
@@ -342,6 +343,11 @@ public class Tab {
         if needsRender {
             needsRender = false
             render()
+
+            if needsFocusScroll, let f = focus {
+                scrollTo(f)
+            }
+            needsFocusScroll = false
         }
 
         let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
@@ -355,6 +361,15 @@ public class Tab {
         )
         compositedUpdates = [:]
         browser?.commit(tab: self, data: data)
+    }
+
+    private func scrollTo(_ elt: Element) {
+        guard let doc = document else { return }
+        let objs = treeToList(doc).filter({ $0.node === elt })
+        guard let obj = objs.first else { return }
+        if scroll < obj.y && obj.y < scroll + tabHeight { return }
+        let maxY = max(doc.height + 2 * VSTEP - tabHeight, 0)
+        scroll = max(0, min(obj.y - SCROLL_STEP, maxY))
     }
 
     private func scrollToFragment(_ id: String) {
@@ -477,6 +492,15 @@ public class Tab {
         setNeedsRender()
     }
 
+    func focusElement(_ node: Element?) {
+        if let node = node, node !== focus {
+            needsFocusScroll = true
+        }
+        focus?.isFocused = false
+        focus = node
+        node?.isFocused = true
+    }
+
     private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
         if let c = cmd as? DrawRect, let s = c.source { return s }
         if let c = cmd as? DrawText, let s = c.source { return s }
@@ -485,8 +509,7 @@ public class Tab {
     }
 
     public func click(x: CGFloat, y: CGFloat) async {
-        focus?.isFocused = false
-        focus = nil
+        focusElement(nil)
 
         let adjustedY = y + scroll
         let paintHits = displayList.compactMap({ $0 as? any PaintCommand })
@@ -533,8 +556,7 @@ public class Tab {
                         return
                     }
                     el.attributes["value"] = ""
-                    focus = el
-                    el.isFocused = true
+                    focusElement(el)
                     setNeedsRender()
                     return
                 } else if let el = node as? Element, el.tag == "button" {
