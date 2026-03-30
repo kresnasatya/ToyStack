@@ -311,7 +311,16 @@ public class Tab {
         for node in treeToList(nodes) {
             for (property, animation) in node.animations {
                 if let value = animation.animate() {
-                    node.style[property] = value
+                    if property == "transform-x" || property == "transform-y" {
+                        node.style[property] = value
+                        if let x = node.style["transform-x"],
+                            let y = node.style["transform-y"]
+                        {
+                            node.style["transform"] = "translate(\(x)px, \(y)px)"
+                        }
+                    } else {
+                        node.style[property] = value
+                    }
                     compositedUpdates[ObjectIdentifier(node)] =
                         node.layoutObject as? Engine.VisualEffect
                     needsPaint = true

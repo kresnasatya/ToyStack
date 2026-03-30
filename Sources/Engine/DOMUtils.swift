@@ -202,25 +202,44 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     }
 }
 
-// Number of frames for CSS transitions
-let NUM_ANIMATION_FRAMES = 10
+let REFRESH_RATE_SEC = 1.0 / 60.0
+
+func parseTransition(_ value: String) -> [String: Int] {
+    var properties: [String: Int] = [:]
+    guard !value.isEmpty else { return properties }
+    for item in value.split(separator: ",") {
+        let parts = item.trimmingCharacters(in: .whitespaces)
+            .split(separator: " ", maxSplits: 1)
+        guard parts.count == 2 else { continue }
+        let property = String(parts[0])
+        let durationStr = String(parts[1])
+        guard durationStr.hasSuffix("s"), let seconds = Double(durationStr.dropLast())
+        else { continue }
+        properties[property] = Int(seconds / REFRESH_RATE_SEC)
+    }
+    return properties
+}
 
 func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String:
     NumericAnimation]
 {
-    let animatedProperties = ["opacity", "transform"]
     var animations: [String: NumericAnimation] = [:]
-    for property in animatedProperties {
+    let transitions = parseTransition(newStyle["transition"] ?? "")
+    for (property, numFrames) in transitions {
         guard let oldVal = oldStyle[property],
             let newVal = newStyle[property],
             oldVal != newVal
         else { continue }
-        if property == "opacity",
-            let old = Double(oldVal),
-            let new = Double(newVal)
-        {
+        if property == "opacity", let old = Double(oldVal), let new = Double(newVal) {
             animations[property] = NumericAnimation(
-                oldValue: old, newValue: new, numFrames: NUM_ANIMATION_FRAMES)
+                oldValue: old, newValue: new, numFrames: numFrames)
+        } else if property == "transform", let oldPoint = parseTransform(oldVal),
+            let newPoint = parseTransform(newVal)
+        {
+            animations["transform-x"] = NumericAnimation(
+                oldValue: Double(oldPoint.x), newValue: Double(newPoint.x), numFrames: numFrames)
+            animations["transform-y"] = NumericAnimation(
+                oldValue: Double(oldPoint.y), newValue: Double(newPoint.y), numFrames: numFrames)
         }
     }
     return animations
