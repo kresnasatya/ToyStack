@@ -329,6 +329,12 @@ public class Chrome {
         isAllSelected = false
     }
 
+    public func focusAddressBar() {
+        focus = "address bar"
+        addressBar = tabManager?.activeTab?.url?.toString() ?? ""
+        cursorIndex = addressBar.count
+    }
+
     private func isURL(_ input: String) -> Bool {
         input.hasPrefix("http://") || input.hasPrefix("https://") || input.hasPrefix("file://")
             || input.hasPrefix("about:")

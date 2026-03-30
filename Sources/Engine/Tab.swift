@@ -501,6 +501,30 @@ public class Tab {
         node?.isFocused = true
     }
 
+    @discardableResult
+    public func advanceTab() -> Bool {
+        guard let doc = document else { return false }
+        let focusableElements = treeToList(doc).compactMap({ obj -> Element? in
+            guard let el = obj.node as? Element else { return nil }
+            let tag = el.tag
+            return (tag == "input" || tag == "button" || tag == "a") ? el : nil
+        })
+        guard !focusableElements.isEmpty else { return false }
+        if let current = focus, let idx = focusableElements.firstIndex(where: { $0 === current }) {
+            let next = idx + 1
+            if next < focusableElements.count {
+                focusElement(focusableElements[next])
+                return true
+            } else {
+                focusElement(nil)
+                return false  // signal: wrap to address bar
+            }
+        } else {
+            focusElement(focusableElements[0])
+            return true
+        }
+    }
+
     private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
         if let c = cmd as? DrawRect, let s = c.source { return s }
         if let c = cmd as? DrawText, let s = c.source { return s }
