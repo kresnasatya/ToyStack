@@ -20,7 +20,7 @@ public class Tab {
     private var tabWidth: CGFloat
     private var history: [HistoryEntry] = []
     private var historyIndex: Int = -1
-    private var focus: Element?
+    private(set) var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(String?, any CSSSelector, [String: String])] = []
     private var js: JSRuntime!

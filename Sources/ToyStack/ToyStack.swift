@@ -108,6 +108,8 @@ public struct BrowserView: View {
                             }
                         } else if event.modifierFlags.contains(.control) {
                             switch event.keyCode {
+                            case 0:  // Ctrl+A
+                                app.toggleAccessibility()
                             case 2:  // Ctrl+D
                                 app.toggleDarkMode()
                                 app.objectWillChange.send()

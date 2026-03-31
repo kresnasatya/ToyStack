@@ -197,6 +197,14 @@ func treeToList(_ item: Any, into list: inout [Any]) {
     }
 }
 
+func treeToList(_ node: AccessibilityNode) -> [AccessibilityNode] {
+    var result = [node]
+    for child in node.children {
+        result.append(contentsOf: treeToList(child))
+    }
+    return result
+}
+
 // Walks the layout tree and collects all paint commands into display_list.
 func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     if obj.shouldPaint() {

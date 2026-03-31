@@ -8,6 +8,9 @@ public class Browser: ObservableObject {
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     private var animationTimer: Timer?
     public var accessibilityIsOn: Bool = false
+    private var hasSpokenDocument: Bool = false
+    private var spokenAlerts: [AccessibilityNode] = []
+    private var lastFocus: Element? = nil
     private var compositedLayers: [CompositedLayer] = []
     public private(set) var drawList: [Any] = []
     private var activeTabDisplayList: [Any] = []
@@ -84,6 +87,7 @@ public class Browser: ObservableObject {
         }
 
         compositeRasterAndDraw()
+        updateAccessibility()
     }
 
     private func composite() {
@@ -220,6 +224,63 @@ public class Browser: ObservableObject {
 
     public func resetZoom() {
         activeTab?.resetZoom()
+    }
+
+    private func speakText(_ text: String) {
+        print("SPEAK:", text)
+    }
+
+    private func speakDocument() {
+        guard let tree = activeTab?.accessibilityTree else { return }
+        var text = "Here the document contents: "
+        for node in treeToList(tree) {
+            if !node.text.isEmpty { text += "\n" + node.text }
+        }
+        speakText(text)
+    }
+
+    private func speakNode(_ node: AccessibilityNode, _ prefix: String) {
+        var text = prefix + node.text
+        if !text.isEmpty, let first = node.children.first, first.role == "StaticText" {
+            text += " " + first.text
+        }
+        if !text.isEmpty { speakText(text) }
+    }
+
+    func updateAccessibility() {
+        guard accessibilityIsOn, let tree = activeTab?.accessibilityTree else { return }
+
+        if !hasSpokenDocument {
+            speakDocument()
+            hasSpokenDocument = true
+        }
+
+        let allNodes = treeToList(tree)
+        let activeAlerts = allNodes.filter({ $0.role == "alert " })
+        for alert in activeAlerts {
+            if !spokenAlerts.contains(where: { $0.node === alert.node }) {
+                speakNode(alert, "New alert")
+                spokenAlerts.append(alert)
+            }
+        }
+        spokenAlerts = spokenAlerts.filter({ old in
+            allNodes.contains(where: { $0.node === old.node && $0.role == "alert" })
+        })
+
+        let currentFocus = activeTab?.focus
+        if currentFocus !== lastFocus {
+            if let f = currentFocus,
+                let focused = allNodes.first(where: { $0.node === f })
+            {
+                speakNode(focused, "element focused ")
+            }
+            lastFocus = currentFocus
+        }
+    }
+
+    public func toggleAccessibility() {
+        accessibilityIsOn = !accessibilityIsOn
+        if accessibilityIsOn { hasSpokenDocument = false }
     }
 }
 
