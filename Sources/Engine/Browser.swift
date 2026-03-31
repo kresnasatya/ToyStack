@@ -11,6 +11,9 @@ public class Browser: ObservableObject {
     private var hasSpokenDocument: Bool = false
     private var spokenAlerts: [AccessibilityNode] = []
     private var lastFocus: Element? = nil
+    private var pendingHover: CGPoint? = nil
+    private var hoveredA11yNode: AccessibilityNode? = nil
+    private var needsSpeakHoveredNode: Bool = false
     private var compositedLayers: [CompositedLayer] = []
     public private(set) var drawList: [Any] = []
     private var activeTabDisplayList: [Any] = []
@@ -168,6 +171,22 @@ public class Browser: ObservableObject {
                 drawList.append(currentEffect)
             }
         }
+
+        if let pending = pendingHover {
+            let adjustedY = pending.y + activeTabScroll
+            if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x, y: adjustedY) {
+                if hoveredA11yNode == nil || hit.node !== hoveredA11yNode!.node {
+                    needsSpeakHoveredNode = true
+                }
+                hoveredA11yNode = hit
+            }
+            pendingHover = nil
+        }
+
+        if let hovered = hoveredA11yNode {
+            let color = darkMode ? "white" : "black"
+            drawList.append(DrawOutline(rect: hovered.bounds, color: color, thickness: 2))
+        }
     }
 
     func setNeedsComposite() {
@@ -276,11 +295,24 @@ public class Browser: ObservableObject {
             }
             lastFocus = currentFocus
         }
+
+        if needsSpeakHoveredNode, let hovered = hoveredA11yNode {
+            speakNode(hovered, "Hit test ")
+        }
+
+        needsSpeakHoveredNode = false
     }
 
     public func toggleAccessibility() {
         accessibilityIsOn = !accessibilityIsOn
         if accessibilityIsOn { hasSpokenDocument = false }
+    }
+
+    public func handleHover(x: CGFloat, y: CGFloat) {
+        guard accessibilityIsOn, activeTab?.accessibilityTree != nil else { return }
+        pendingHover = CGPoint(x: x, y: y)
+        setNeedsDrawOnly()
+        compositeRasterAndDraw()
     }
 }
 

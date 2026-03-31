@@ -169,6 +169,21 @@ public struct BrowserView: View {
                     return nil
                 }
             )
+            NSEvent.addLocalMonitorForEvents(
+                matching: .mouseMoved,
+                handler: { [weak app] event in
+                    guard event.window === browserWindow else { return event }
+                    guard let app else { return event }
+                    Task { @MainActor in
+                        let loc = event.locationInWindow
+                        let x = loc.x
+                        let y = app.windowSize.height - loc.y
+                        guard y >= app.chrome.bottom else { return }
+                        let tabY = y - app.chrome.bottom
+                        app.handleHover(x: x, y: tabY)
+                    }
+                    return event
+                })
         }
         .onChange(
             of: (app.activeTab?.title ?? "ToyStack"),
