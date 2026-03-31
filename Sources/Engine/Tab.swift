@@ -449,7 +449,7 @@ public class Tab {
         browser?.applyScroll(scroll)
     }
 
-    func goBack() async {
+    public func goBack() async {
         guard canGoBack else { return }
         historyIndex -= 1
         let entry = history[historyIndex]

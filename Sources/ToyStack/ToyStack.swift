@@ -81,6 +81,8 @@ public struct BrowserView: View {
                     Task { @MainActor in
                         if event.modifierFlags.contains(.command) && event.keyCode == 45 {  // Cmd+N
                             openWindow(id: "browser", value: UUID())
+                        } else if event.modifierFlags.contains(.command) && event.keyCode == 123 {  // Cmd+Left -> go back
+                            await app.activeTab?.goBack()
                         } else if event.keyCode == 125 {  // Down arrow
                             app.activeTab?.scrollDown()
                         } else if event.keyCode == 126 {  // Up arrow
@@ -117,12 +119,20 @@ public struct BrowserView: View {
                             case 2:  // Ctrl+D
                                 app.toggleDarkMode()
                                 app.objectWillChange.send()
+                            case 12:
+                                NSApplication.shared.terminate(nil)
+                            case 17:
+                                await app.newTab(WebURL("about:blank"))
                             case 24:  // Ctrl+=
                                 app.incrementZoom(true)
                             case 27:  // Ctrl+-
                                 app.incrementZoom(false)
                             case 29:  // Ctrl+0
                                 app.resetZoom()
+                            case 37:  // Ctrl+L
+                                app.activeTab?.blur()
+                                app.chrome.focusAddressBar()
+                                app.objectWillChange.send()
                             default:
                                 break
                             }

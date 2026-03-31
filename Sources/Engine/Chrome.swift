@@ -224,10 +224,7 @@ public class Chrome {
                 }
             }
         } else if addressRect.containsPoint(x, y) {
-            focus = "address bar"
-            addressBar = tabManager?.activeTab?.url?.toString() ?? ""
-            cursorIndex = addressBar.count
-            isAllSelected = true
+            focusAddressBar()
         } else {
             let tabs: [Engine.Tab] = tabManager?.tabs ?? []
             for (i, tab) in tabs.enumerated() {
@@ -333,6 +330,7 @@ public class Chrome {
         focus = "address bar"
         addressBar = tabManager?.activeTab?.url?.toString() ?? ""
         cursorIndex = addressBar.count
+        isAllSelected = true
     }
 
     private func isURL(_ input: String) -> Bool {
