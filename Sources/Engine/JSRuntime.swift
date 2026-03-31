@@ -330,6 +330,20 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) () -> Void,
             forKeyedSubscript: "requestAnimationFrame" as NSString)
 
+        // __setTimeout - schedules a JS callback after a delay (milliseconds)
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int, time: Double) in
+                guard let tab = self?.tab else { return }
+                let delay = time / 1000.0
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    Task { @MainActor in
+                        tab.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
+                    }
+                }
+            } as @convention(block) (Int, Double) -> Void,
+            forKeyedSubscript: "__setTimeout" as NSString)
+
         // __styleSet__ - sets a CSS property on a node from JS, triggers re-render
         jsContext.setObject(
             {

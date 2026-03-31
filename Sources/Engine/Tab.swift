@@ -23,7 +23,7 @@ public class Tab {
     private(set) var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(String?, any CSSSelector, [String: String])] = []
-    private var js: JSRuntime!
+    var js: JSRuntime!
     private var loadedScriptURLs: Set<String> = []
     private var referrerPolicy: String = ""
 
