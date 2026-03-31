@@ -245,6 +245,22 @@ public class Browser: ObservableObject {
         activeTab?.resetZoom()
     }
 
+    public func cycleTabs() {
+        guard !tabs.isEmpty, let current = activeTab,
+            let idx = tabs.firstIndex(where: { $0 === current })
+        else {
+            return
+        }
+        let nextIdx = (idx + 1) % tabs.count
+        activeTab = tabs[nextIdx]
+        hoveredA11yNode = nil
+        hasSpokenDocument = false
+        spokenAlerts = []
+        lastFocus = nil
+        needsAnimationFrame = true
+        objectWillChange.send()
+    }
+
     private func speakText(_ text: String) {
         print("SPEAK:", text)
     }

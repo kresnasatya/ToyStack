@@ -102,9 +102,13 @@ public struct BrowserView: View {
                                 app.objectWillChange.send()
                             }
                         } else if event.keyCode == 48 {  // tab keyboard
-                            if !(app.activeTab?.advanceTab() ?? false) {
-                                app.chrome.focusAddressBar()
-                                app.objectWillChange.send()
+                            if event.modifierFlags.contains(.control) {
+                                app.cycleTabs()
+                            } else {
+                                if !(app.activeTab?.advanceTab() ?? false) {
+                                    app.chrome.focusAddressBar()
+                                    app.objectWillChange.send()
+                                }
                             }
                         } else if event.modifierFlags.contains(.control) {
                             switch event.keyCode {
