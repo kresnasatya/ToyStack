@@ -371,14 +371,27 @@ func dpx(_ cssPx: CGFloat, zoom: CGFloat) -> CGFloat {
     return cssPx * zoom
 }
 
-func addParentPointers(_ items: [Any], parent: VisualEffect? = nil) {
-    for item in items {
-        if let ve = item as? VisualEffect {
-            ve.parent = parent
-            addParentPointers(ve.children, parent: ve)
-        } else if let pc = item as? (any PaintCommand) {
-            var cmd = pc
-            cmd.parentEffect = parent
+func addParentPointers(_ items: inout [Any], parent: VisualEffect? = nil) {
+    var visited = Set<ObjectIdentifier>()
+    var stack: [([Any], VisualEffect?)] = [(items, parent)]
+
+    while !stack.isEmpty {
+        let (currentNodes, currentParent) = stack.removeLast()
+        for node in currentNodes {
+            if let ve = node as? VisualEffect {
+                let id = ObjectIdentifier(ve)
+                guard !visited.contains(id) else { continue }
+                visited.insert(id)
+                ve.parent = currentParent
+                // Set parentEffect on any struct PaintCommands directly inside ve.children
+                for i in 0..<ve.children.count {
+                    if var pc = ve.children[i] as? (any PaintCommand) {
+                        pc.parentEffect = ve  // ve is the direct parent of this command
+                        ve.children[i] = pc  // write struct back into the array
+                    }
+                }
+                stack.append((ve.children, ve))
+            }
         }
     }
 }
