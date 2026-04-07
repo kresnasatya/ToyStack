@@ -43,7 +43,11 @@ class BlockLayout: LayoutObject {
     func layout() {
         zoom = parent!.zoom
         x = parent!.x
-        width = parent!.width
+        if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
+            width = CGFloat(w)
+        } else {
+            width = parent!.width
+        }
 
         if let el = node as? Element, el.tag == "li" {
             x += BlockLayout.liIndent
@@ -118,8 +122,15 @@ class BlockLayout: LayoutObject {
         }
 
         for child in children { child.layout() }
-        // Height is the sum of all children's heights.
-        height = children.reduce(0) { $0 + $1.height }
+
+        if let hStr = node.style["height"], hStr.hasSuffix("px"),
+            let h = Double(hStr.dropLast(2))
+        {
+            height = CGFloat(h)
+        } else {
+            // Height is the sum of all children's heights.
+            height = children.reduce(0) { $0 + $1.height }
+        }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             height += VSTEP
