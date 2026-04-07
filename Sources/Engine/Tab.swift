@@ -45,6 +45,8 @@ public class Tab {
 
     private var zoom: CGFloat = 1.0
 
+    private(set) var interestTop: CGFloat = 0
+
     weak var browser: Browser?
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
@@ -88,6 +90,7 @@ public class Tab {
         isSecure = url.scheme == "https"
 
         scroll = 0
+        interestTop = 0
         self.url = url
         visitedURL.insert(url.toString())
         nodes = HTMLParser(body: body).parse()
@@ -372,7 +375,8 @@ public class Tab {
         let updates: [ObjectIdentifier: VisualEffect]? = needsComposite ? nil : compositedUpdates
         let data = CommitData(
             url: url!, scroll: scroll, height: docHeight, displayList: displayList,
-            compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus
+            compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
+            interestTop: interestTop
         )
         compositedUpdates = [:]
         browser?.commit(tab: self, data: data)
@@ -456,12 +460,27 @@ public class Tab {
     public func scrollDown() {
         let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
         scroll = min(scroll + SCROLL_STEP, maxY)
-        browser?.applyScroll(scroll)
+        if !checkInterestRegion() {
+            browser?.applyScroll(scroll)
+        }
     }
 
     public func scrollUp() {
         scroll = max(scroll - SCROLL_STEP, 0)
-        browser?.applyScroll(scroll)
+        if !checkInterestRegion() {
+            browser?.applyScroll(scroll)
+        }
+    }
+
+    @discardableResult
+    private func checkInterestRegion() -> Bool {
+        let interestBottom = interestTop + 4 * HEIGHT
+        if scroll < interestTop || scroll + tabHeight > interestBottom {
+            interestTop = max(0, scroll - HEIGHT)
+            setNeedsLayout()
+            return true  // re-raster triggered
+        }
+        return false
     }
 
     public func goBack() async {
@@ -733,26 +752,30 @@ private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFl
 
     // top-left corner
     if x < rect.left + r && y < rect.top + r {
-        let dx = x - (rect.left + r), dy = y - (rect.top + r)
-        return dx*dx + dy*dy <= r*r
+        let dx = x - (rect.left + r)
+        let dy = y - (rect.top + r)
+        return dx * dx + dy * dy <= r * r
     }
 
     // top-right corner
     if x >= rect.right - r && y < rect.top + r {
-        let dx = x - (rect.right - r), dy = y - (rect.top + r)
-        return dx*dx + dy*dy <= r*r
+        let dx = x - (rect.right - r)
+        let dy = y - (rect.top + r)
+        return dx * dx + dy * dy <= r * r
     }
 
     // bottom-left corner
     if x < rect.left + r && y >= rect.bottom - r {
-        let dx = x - (rect.left + r), dy = y - (rect.bottom - r)
-        return dx*dx + dy*dy <= r*r
+        let dx = x - (rect.left + r)
+        let dy = y - (rect.bottom - r)
+        return dx * dx + dy * dy <= r * r
     }
 
     // bottom-right corner
     if x >= rect.right - r && y >= rect.bottom - r {
-        let dx = x - (rect.right - r), dy = y - (rect.bottom - r)
-        return dx*dx + dy*dy <= r*r
+        let dx = x - (rect.right - r)
+        let dy = y - (rect.bottom - r)
+        return dx * dx + dy * dy <= r * r
     }
 
     return true

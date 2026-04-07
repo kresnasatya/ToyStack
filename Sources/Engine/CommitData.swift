@@ -8,11 +8,12 @@ class CommitData {
     let compositedUpdates: [ObjectIdentifier: VisualEffect]?
     let accessibilityTree: AccessibilityNode?
     let focus: DOMNode?
+    let interestTop: CGFloat
 
     init(
         url: WebURL, scroll: CGFloat, height: CGFloat, displayList: [Any],
         compositedUpdates: [ObjectIdentifier: VisualEffect]?, accessibilityTree: AccessibilityNode?,
-        focus: DOMNode?
+        focus: DOMNode?, interestTop: CGFloat
     ) {
         self.url = url
         self.scroll = scroll
@@ -21,5 +22,6 @@ class CommitData {
         self.compositedUpdates = compositedUpdates
         self.accessibilityTree = accessibilityTree
         self.focus = focus
+        self.interestTop = interestTop
     }
 }

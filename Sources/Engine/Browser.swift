@@ -19,6 +19,7 @@ public class Browser: ObservableObject {
     private var activeTabDisplayList: [Any] = []
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
     public private(set) var activeTabScroll: CGFloat = 0
+    public private(set) var activeTabInterestTop: CGFloat = 0
 
     private var needsComposite: Bool = false
     private var needsRaster: Bool = false
@@ -81,6 +82,7 @@ public class Browser: ObservableObject {
         guard tab === activeTab else { return }
         activeTabDisplayList = data.displayList
         activeTabScroll = data.scroll
+        activeTabInterestTop = data.interestTop
         compositedUpdates = data.compositedUpdates ?? [:]
 
         if data.compositedUpdates == nil {
@@ -94,6 +96,7 @@ public class Browser: ObservableObject {
     }
 
     private func composite() {
+        let interestBottom = activeTabInterestTop + 4 * HEIGHT
         compositedLayers = []
         addParentPointers(&activeTabDisplayList)
         var allCommands: [Any] = []
@@ -108,6 +111,8 @@ public class Browser: ObservableObject {
             return nil
         })
         for cmd in nonComposited {
+            // skip commands entirely outside the interest region
+            guard cmd.rect.bottom >= activeTabInterestTop && cmd.rect.top <= interestBottom else { continue }
             var merged = false
             for layer in compositedLayers.reversed() {
                 if layer.canMerge(cmd) {
