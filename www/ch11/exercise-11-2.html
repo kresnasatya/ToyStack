@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            .box {
+                width: 200px;
+                height: 100px;
+                background-color: lightblue;
+                border-radius: 40px;
+                margin-top: 40px;
+                margin-bottom: 40px;
+            }
+            .sharp {
+                width: 200px;
+                height: 100px;
+                background-color: lightgray;
+                margin-top: 40px;
+                margin-bottom: 40px;
+            }
+        </style>
+    </head>
+    <body>
+        <p>
+            Click the CORNER of the blue box — should NOT fire after your fix.
+        </p>
+        <p>Click the CENTER of the blue box — should fire.</p>
+        <p>Click anywhere on the gray box — should always fire (no radius).</p>
+        <div
+            id="rounded"
+            style="
+                background-color: lightblue;
+                border-radius: 40px;
+                width: 200px;
+                height: 100px;
+            "
+        ></div>
+        <div
+            id="sharp"
+            style="background-color: lightgray; width: 200px; height: 100px"
+        ></div>
+        <div id="result">Click something above.</div>
+        <script>
+            var rounded = document.getElementById("rounded");
+            rounded.addEventListener("click", function () {
+                console.log("rounded clicked");
+                document.getElementById("result").innerHTML =
+                    "Rounded box clicked";
+            });
+            var sharp = document.getElementById("sharp");
+            sharp.addEventListener("click", function () {
+                console.log("sharp clicked");
+                document.getElementById("result").innerHTML =
+                    "Sharp box clicked";
+            });
+        </script>
+    </body>
+</html>

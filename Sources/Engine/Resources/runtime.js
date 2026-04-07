@@ -13,6 +13,12 @@ document = {
       return Node(h);
     });
   },
+  getElementById: function (id) {
+    var ids = _getIDs();
+    var handle = ids[id];
+    if (handle === undefined) return null;
+    return new Node(handle);
+  },
   createElement: function (tag) {
     var handle = _createElement(tag);
     return new Node(handle);
@@ -67,6 +73,14 @@ Node.prototype.dispatchEvent = function (evt) {
   var type = evt.type;
   var handle = this.handle;
   var list = (LISTENERS[handle] && LISTENERS[handle][type]) || [];
+  _log(
+    "dispatchEvent handle=" +
+      handle +
+      " type=" +
+      type +
+      " listeners=" +
+      list.length,
+  );
   for (var i = 0; i < list.length; i++) {
     list[i].call(this, evt);
   }
