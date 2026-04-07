@@ -532,15 +532,29 @@ public class Tab {
         return nil
     }
 
+    private func flattenCommands(_ items: [Any]) -> [any PaintCommand] {
+        var result: [any PaintCommand] = []
+        for item in items {
+            if let pc = item as? any PaintCommand {
+                result.append(pc)
+            } else if let ve = item as? VisualEffect {
+                result.append(contentsOf: flattenCommands(ve.children))
+            }
+        }
+        return result
+    }
+
     public func click(x: CGFloat, y: CGFloat) async {
         focusElement(nil)
 
         let adjustedY = y + scroll
-        let paintHits = displayList.compactMap({ $0 as? any PaintCommand })
-        let hits = paintHits.filter({
-            $0.rect.left <= x && x < $0.rect.right
-                && $0.rect.top <= adjustedY && adjustedY < $0.rect.bottom
+        let allCmds = flattenCommands(displayList)
+
+        let hits = allCmds.filter({ cmd in
+            return cmd.rect.left <= x && x < cmd.rect.right
+                && cmd.rect.top <= adjustedY && adjustedY < cmd.rect.bottom
         })
+
         guard
             let source = hits.last(where: { sourceOf($0) != nil }).flatMap({
                 sourceOf($0)
