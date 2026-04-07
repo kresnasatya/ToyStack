@@ -95,7 +95,7 @@ public class Browser: ObservableObject {
 
     private func composite() {
         compositedLayers = []
-        addParentPointers(activeTabDisplayList)
+        addParentPointers(&activeTabDisplayList)
         var allCommands: [Any] = []
         for item in activeTabDisplayList {
             treeToList(item, into: &allCommands)
@@ -159,6 +159,8 @@ public class Browser: ObservableObject {
                         cloned = blend.clone(child: currentEffect)
                     } else if let transform = newParent as? Transform {
                         cloned = transform.clone(child: currentEffect)
+                    } else if let blur = newParent as? BlurFilter {
+                        cloned = blur.clone(child: currentEffect)
                     } else {
                         cloned = newParent
                     }

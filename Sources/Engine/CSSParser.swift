@@ -204,11 +204,30 @@ class CSSParser {
 
     // Parses one "property: value" declaration. Returns (property, value).
     private func pair() throws -> (String, String) {
+        skipWhitespace()
         let prop = try word()
         skipWhitespace()
         try literal(":")
         skipWhitespace()
-        let val = try word()
+        var val = try word()
+        // Handle CSS function values like blur(5px), translate(10px, 20px)
+        if i < chars.count && chars[i] == "(" {
+            let start = i
+            var depth = 0
+            while i < chars.count {
+                if chars[i] == "(" {
+                    depth += 1
+                    i += 1
+                } else if chars[i] == ")" {
+                    depth -= 1
+                    i += 1
+                    if depth == 0 { break }
+                } else {
+                    i += 1
+                }
+            }
+            val += String(chars[start..<i])
+        }
         return (prop.lowercased(), val)
     }
 

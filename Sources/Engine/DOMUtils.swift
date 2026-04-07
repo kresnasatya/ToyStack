@@ -207,13 +207,21 @@ func treeToList(_ node: AccessibilityNode) -> [AccessibilityNode] {
 
 // Walks the layout tree and collects all paint commands into display_list.
 func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
+    var cmds: [Any] = []
+
     if obj.shouldPaint() {
-        displayList.append(contentsOf: obj.paint())
+        cmds.append(contentsOf: obj.paint())
     }
 
     for child in obj.children {
-        paintTree(child, into: &displayList)
+        paintTree(child, into: &cmds)
     }
+
+    if let block = obj as? BlockLayout {
+        cmds = paintVisualEffects(node: block.node, cmds: cmds, rect: block.selfRect())
+    }
+
+    displayList.append(contentsOf: cmds)
 }
 
 let REFRESH_RATE_SEC = 1.0 / 60.0
@@ -311,12 +319,13 @@ func absoluteToLocal(_ obj: LayoutObject, x: CGFloat, y: CGFloat) -> CGPoint {
     return CGPoint(x: x, y: y)
 }
 
-func paintVisualEffects(node: DOMNode, cmds: [any PaintCommand], rect: Rect) -> [Any] {
+func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
     let opacity = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendModeStr = node.style["mix-blend-mode"]
     let translation = parseTransform(node.style["transform"] ?? "")
     let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
     let borderRadius = CGFloat(Double(radiusStr) ?? 0)
+    let blurRadius = parseBlur(node.style["filter"] ?? "")
 
     var effectCmds: [Any] = cmds
     if borderRadius > 0 {
@@ -326,6 +335,11 @@ func paintVisualEffects(node: DOMNode, cmds: [any PaintCommand], rect: Rect) -> 
                 DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: .clear)
             ])
         effectCmds = [clip] + effectCmds
+    }
+
+    // wrap content in blur layer before opacity is applied
+    if blurRadius > 0 {
+        effectCmds = [BlurFilter(radius: blurRadius, node: node, children: effectCmds)]
     }
 
     let blendMode: GraphicsContext.BlendMode? = {
@@ -394,4 +408,11 @@ func addParentPointers(_ items: inout [Any], parent: VisualEffect? = nil) {
             }
         }
     }
+}
+
+func parseBlur(_ value: String) -> CGFloat {
+    guard value.hasPrefix("blur("), value.hasSuffix(")") else { return 0 }
+    let inner = value.dropFirst(5).dropLast()  // e.g. "2px" or "2"
+    let digits = inner.hasSuffix("px") ? inner.dropLast(2) : inner
+    return CGFloat(Double(digits) ?? 0)
 }

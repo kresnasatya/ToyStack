@@ -341,7 +341,7 @@ class BlockLayout: LayoutObject {
 
     // Emits a DrawRect if this element has a non-transparent background color
     func paint() -> [Any] {
-        var commands: [any PaintCommand] = []
+        var commands: [Any] = []
         let bgcolor = node.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
             commands.append(DrawRect(rect: self.selfRect(), color: bgcolor, source: self))
@@ -377,7 +377,7 @@ class BlockLayout: LayoutObject {
                     source: self))
         }
 
-        return paintVisualEffects(node: node, cmds: commands, rect: selfRect())
+        return commands
     }
 
     // <input> and <button> are painted by InputLayout, not BlockLayout.
