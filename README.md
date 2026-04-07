@@ -2,39 +2,38 @@
 
 A toy browser engine with Swift. Motivated from [Browser Engineering book](https://browser.engineering).
 
+This project comes from curiosity to make a browser engine with Swift programming language. We have browser engines that built with programming languages like C/C++ that used in real-world use case. In 2012 (according to Wikipedia), the browser engine called Servo is built in Rust programming language.
+
+There are three reasons why I want to make the toy browser engine with Swift programming language:
+
+1. Curiosity - as I mention above.
+
+2. Everything is object.
+Everything is object. The web has Document Object Model (DOM). Swift has Object Oriented Programming. That’s it! I don’t want to explain it more detail. Ask Claude!
+
+> How does the DOM relate to Swift’s OOP model in the context of building a browser engine?
+
+3. SwiftUI
+
+In the end, to show the result of the browser engine that build with Swift, we need to wrap it into the desktop app. Luckily, I’m using Apple product like MacBook (macOS) and it has access to the SwiftUI. I don’t need to waste my time to seeking the GUI desktop engine. :)
+
+## What It Covers
+
+The ToyStack follows the Browser Engineering chapters. I have made the project called [Brownie](https://github.com/kresnasatya/brownie). It's a browser engine with Python (the code provided by Browser Engineering book - I just follow and make some fixes). Thanks to the Artificial Intelligence - LLM, I can port the Python code into Swift much easier step by step.
+
+The process divided into 4 chapters:
+
+[X] ch01-10 - It covers Chapter 1 (Downloading Web Pages) to Chapter 10 (Keeping Data Private)
+[X] ch11-14 - It covers Chapter 11 (Adding Visual Effects) to Chapter 14 (Making Content Accessible)
+[ ] ch15 - It covers Chapter 15 (Supporting Embedded Content)
+[ ] ch16 - It covers Chapter 16 (Reusing Previous Computation)
+
 ## NOTE
+
+To run this project, use the command `swift run`.
 
 To run the `right-to-left` text mode, use this command below.
 
 ```sh
 swift run ToyStack -- --rtl
 ```
-
-## Future Optimizations
-
-### Layer Rasterization Cache (Level 3 Compositing)
-
-Currently SwiftUI's `Canvas` re-executes all paint commands in `drawList`
-on every scroll event. There is no off-screen bitmap cache — every Canvas
-refresh re-encodes all draw commands into Metal from scratch.
-
-Python's reference implementation (`brownie`) avoids this using Skia
-`Surface` objects. Each `CompositedLayer` holds a pre-rasterized off-screen
-GPU bitmap. On scroll, Python only blits existing bitmaps without
-re-encoding any paint commands. Layout changes invalidate and re-raster
-only the affected layers.
-
-The three levels of rendering optimization and where ToyStack currently stands:
-
-| Level | Description | brownie | ToyStack |
-|-------|-------------|---------|----------|
-| 1 | Skip work on idle frames | timer only fires on demand | `needsAnimationFrame` guard |
-| 2 | Skip `composite()` on scroll/animation | `needs_composite` flag | `needsComposite` flag |
-| 3 | Reuse rasterized bitmaps, blit on scroll | Skia `Surface` per layer | not implemented |
-
-To achieve Level 3 in Swift, each `CompositedLayer` would need to cache
-its rendered output as a `CGImage` or Metal texture, redraw to it only
-when the layer's content changes (DOM mutation, not scroll), and blit the
-cached texture on scroll. This is essentially reimplementing what Skia
-does, which requires bypassing SwiftUI's `Canvas` and managing GPU
-resources manually via Core Graphics or Metal directly.
