@@ -542,6 +542,7 @@ public class Tab {
 
     private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
         if let c = cmd as? DrawRect, let s = c.source { return s }
+        if let c = cmd as? DrawRRect, let s = c.source { return s }
         if let c = cmd as? DrawText, let s = c.source { return s }
         if let c = cmd as? DrawLine, let s = c.source { return s }
         return nil
@@ -725,3 +726,34 @@ private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = 
     else { return [] }
     return CSSParser(source).parse()
 }()
+
+private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFloat) -> Bool {
+    guard rect.containsPoint(x, y) else { return false }
+    let r = radius
+
+    // top-left corner
+    if x < rect.left + r && y < rect.top + r {
+        let dx = x - (rect.left + r), dy = y - (rect.top + r)
+        return dx*dx + dy*dy <= r*r
+    }
+
+    // top-right corner
+    if x >= rect.right - r && y < rect.top + r {
+        let dx = x - (rect.right - r), dy = y - (rect.top + r)
+        return dx*dx + dy*dy <= r*r
+    }
+
+    // bottom-left corner
+    if x < rect.left + r && y >= rect.bottom - r {
+        let dx = x - (rect.left + r), dy = y - (rect.bottom - r)
+        return dx*dx + dy*dy <= r*r
+    }
+
+    // bottom-right corner
+    if x >= rect.right - r && y >= rect.bottom - r {
+        let dx = x - (rect.right - r), dy = y - (rect.bottom - r)
+        return dx*dx + dy*dy <= r*r
+    }
+
+    return true
+}

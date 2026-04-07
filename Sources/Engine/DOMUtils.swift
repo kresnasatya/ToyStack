@@ -332,7 +332,7 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
         let clip = Blend(
             opacity: 1.0, blendMode: .normal, node: node,
             children: [
-                DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: .clear)
+                DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: "transparent")
             ])
         effectCmds = [clip] + effectCmds
     }

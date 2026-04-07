@@ -156,10 +156,11 @@ struct DrawRRect: PaintCommand {
     var rect: Rect
     var parentEffect: VisualEffect?
     let radius: CGFloat
-    let color: Color
+    let color: String
+    var source: (any LayoutObject)?
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
         let path = Path(roundedRect: rect.cgRect, cornerRadius: radius)
-        context.fill(path, with: .color(color))
+        context.fill(path, with: .color(Color(cssName: color)))
     }
 }

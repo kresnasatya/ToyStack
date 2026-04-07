@@ -343,8 +343,16 @@ class BlockLayout: LayoutObject {
     func paint() -> [Any] {
         var commands: [Any] = []
         let bgcolor = node.style["background-color"] ?? "transparent"
+        let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
+        let borderRadius = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" {
-            commands.append(DrawRect(rect: self.selfRect(), color: bgcolor, source: self))
+            if borderRadius > 0 {
+                commands.append(
+                    DrawRRect(rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor, source: self)
+                )
+            } else {
+                commands.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
+            }
         }
 
         let borderStyle = node.style["border-style"] ?? "none"

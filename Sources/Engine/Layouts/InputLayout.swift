@@ -75,7 +75,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 cmds.append(
                     DrawRRect(
                         rect: selfRect(), parentEffect: nil, radius: borderRadius,
-                        color: Color(cssName: bgcolor)))
+                        color: bgcolor))
             } else {
                 cmds.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
             }
