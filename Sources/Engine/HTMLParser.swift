@@ -48,9 +48,14 @@ class HTMLParser {
             if inScript {
                 if isScriptClose(at: i) {
                     inScript = false
+                    if !text.isEmpty {
+                        addText(text)
+                        text = ""
+                    }
                     // don't advance i - let </script> fall through to normal tag processing
                 } else {
                     // skip script content - don't parse it as HTML
+                    text.append(ch)
                     i = body.index(i, offsetBy: 1)
                 }
             } else if inComment {

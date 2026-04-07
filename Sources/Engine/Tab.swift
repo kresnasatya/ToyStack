@@ -182,6 +182,21 @@ public class Tab {
 
         js.defineIDs()
 
+        // Run inline <script> blocks
+        let inlineScripts = treeToList(nodes)
+            .compactMap { $0 as? Element }
+            .filter { $0.tag == "script" && $0.attributes["src"] == nil }
+
+        for scriptNode in inlineScripts {
+            let code = scriptNode.children
+                .compactMap { $0 as? TextNode }
+                .map(\.text)
+                .joined()
+            if !code.isEmpty {
+                js.run(script: "inline", code: code)
+            }
+        }
+
         setNeedsRender()
 
         if let fragment = url.fragment {
