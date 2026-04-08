@@ -47,6 +47,10 @@ public class Tab {
 
     private(set) var interestTop: CGFloat = 0
 
+    private var scrollFocusNode: Element? = nil
+
+    public var hasScrollElement: Bool { scrollFocusNode != nil }
+
     weak var browser: Browser?
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
@@ -472,6 +476,67 @@ public class Tab {
         }
     }
 
+    public func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
+        let adjustedY = y + scroll
+        guard let doc = document else { return }
+        let scrollBlock = treeToList(doc)
+            .compactMap({ $0 as? BlockLayout })
+            .first(where: { block in
+                guard block.node.style["overflow"] == "scroll" else { return false }
+                let r = block.selfRect()
+                return r.left <= x && x < r.right && r.top <= adjustedY && adjustedY < r.bottom
+            })
+        if let block = scrollBlock, let el = block.node as? Element {
+            let maxScroll = max(0, block.contentHeight - block.height)
+            if deltaY > 0 {
+                el.scrollOffsetY = max(el.scrollOffsetY - SCROLL_STEP, 0)
+            } else {
+                el.scrollOffsetY = min(el.scrollOffsetY + SCROLL_STEP, maxScroll)
+            }
+            scrollFocusNode = el
+            setNeedsRender()
+        } else {
+            if deltaY > 0 { scrollUp() } else { scrollDown() }
+        }
+    }
+
+    private func scrollableAncestor(of obj: any LayoutObject) -> Element? {
+        var current: (any LayoutObject)? = obj
+        while let c = current {
+            if let block = c as? BlockLayout,
+                let el = block.node as? Element,
+                el.style["overflow"] == "scroll"
+            {
+                return el
+            }
+            current = c.parent
+        }
+        return nil
+    }
+
+    private func liveScrollBlock() -> BlockLayout? {
+        guard let node = scrollFocusNode, let doc = document else {
+            return nil
+        }
+        return treeToList(doc).compactMap({ $0 as? BlockLayout })
+            .first(where: { $0.node === node })
+    }
+
+    public func scrollElementDown() {
+        guard let node = scrollFocusNode, let block = liveScrollBlock() else {
+            return
+        }
+        let maxScroll = max(0, block.contentHeight - block.height)
+        node.scrollOffsetY = min(node.scrollOffsetY + SCROLL_STEP, maxScroll)
+        setNeedsRender()
+    }
+
+    public func scrollElementUp() {
+        guard let node = scrollFocusNode else { return }
+        node.scrollOffsetY = max(node.scrollOffsetY - SCROLL_STEP, 0)
+        setNeedsRender()
+    }
+
     @discardableResult
     private func checkInterestRegion() -> Bool {
         let interestBottom = interestTop + 4 * HEIGHT
@@ -598,6 +663,8 @@ public class Tab {
             setNeedsRender()
             return
         }
+
+        scrollFocusNode = scrollableAncestor(of: source)
 
         // Dispatch once on the innermost element - JS bubbles it up the tree
         let prevented = js.dispatchEvent(type: "click", elt: source.node)

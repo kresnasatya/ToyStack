@@ -112,7 +112,9 @@ public class Browser: ObservableObject {
         })
         for cmd in nonComposited {
             // skip commands entirely outside the interest region
-            guard cmd.rect.bottom >= activeTabInterestTop && cmd.rect.top <= interestBottom else { continue }
+            guard cmd.rect.bottom >= activeTabInterestTop && cmd.rect.top <= interestBottom else {
+                continue
+            }
             var merged = false
             for layer in compositedLayers.reversed() {
                 if layer.canMerge(cmd) {
@@ -159,13 +161,15 @@ public class Browser: ObservableObject {
                     currentEffect = existing
                     break
                 } else {
-                    let cloned: VisualEffect
+                    let cloned: Engine.VisualEffect
                     if let blend = newParent as? Blend {
                         cloned = blend.clone(child: currentEffect)
                     } else if let transform = newParent as? Transform {
                         cloned = transform.clone(child: currentEffect)
                     } else if let blur = newParent as? BlurFilter {
                         cloned = blur.clone(child: currentEffect)
+                    } else if let se = newParent as? ScrollEffect {
+                        cloned = se.clone(child: currentEffect)
                     } else {
                         cloned = newParent
                     }

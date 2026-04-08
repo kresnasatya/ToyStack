@@ -213,8 +213,20 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
         cmds.append(contentsOf: obj.paint())
     }
 
-    for child in obj.children {
-        paintTree(child, into: &cmds)
+    if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
+        var childCmds: [Any] = []
+        for child in obj.children {
+            paintTree(child, into: &childCmds)
+        }
+        let effect = ScrollEffect(
+            rect: block.selfRect(), scrollOffset: block.scrollOffset, node: block.node,
+            children: childCmds)
+        cmds.append(effect)
+        cmds.append(contentsOf: block.paintScrollbar())
+    } else {
+        for child in obj.children {
+            paintTree(child, into: &cmds)
+        }
     }
 
     if let block = obj as? BlockLayout {

@@ -27,6 +27,7 @@ class Element: DOMNode {
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
     var animations: [String: NumericAnimation] = [:]
+    var scrollOffsetY: CGFloat = 0
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
         self.tag = tag

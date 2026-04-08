@@ -84,9 +84,20 @@ public struct BrowserView: View {
                         } else if event.modifierFlags.contains(.command) && event.keyCode == 123 {  // Cmd+Left -> go back
                             await app.activeTab?.goBack()
                         } else if event.keyCode == 125 {  // Down arrow
-                            app.activeTab?.scrollDown()
+                            print(
+                                "[key] down arrow hasScrollElement=\(app.activeTab?.hasScrollElement ?? false)"
+                            )
+                            if let tab = app.activeTab, tab.hasScrollElement {
+                                tab.scrollElementDown()
+                            } else {
+                                app.activeTab?.scrollDown()
+                            }
                         } else if event.keyCode == 126 {  // Up arrow
-                            app.activeTab?.scrollUp()
+                            if let tab = app.activeTab, tab.hasScrollElement {
+                                tab.scrollElementUp()
+                            } else {
+                                app.activeTab?.scrollUp()
+                            }
                         } else if event.keyCode == 36 {  // Return
                             if !(await app.chrome.enter()) {
                                 await app.activeTab?.enterKey()
@@ -156,9 +167,17 @@ public struct BrowserView: View {
                     guard event.window === browserWindow else { return event }
                     guard let app else { return event }
                     Task { @MainActor in
-                        if event.scrollingDeltaY > 0 {
+                        guard event.scrollingDeltaY != 0 else { return }
+                        let loc = event.locationInWindow
+                        let x = loc.x
+                        let screenY = app.windowSize.height - loc.y
+                        let contentY = screenY - app.chrome.bottom
+                        if contentY > 0 {
+                            app.activeTab?.scrollAt(
+                                x: x, y: contentY, deltaY: event.scrollingDeltaY)
+                        } else if event.scrollingDeltaY > 0 {
                             app.activeTab?.scrollUp()
-                        } else if event.scrollingDeltaY < 0 {
+                        } else {
                             app.activeTab?.scrollDown()
                         }
                     }

@@ -25,6 +25,9 @@ class BlockLayout: LayoutObject {
     // cursorX tracks the horizontal position within the current inline line.
     private var cursorX: CGFloat = 0
 
+    var scrollOffset: CGFloat = 0
+    var contentHeight: CGFloat = 0
+
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
         self.extraNodes = []
@@ -59,6 +62,10 @@ class BlockLayout: LayoutObject {
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             y += VSTEP
+        }
+
+        if let el = node as? Element, el.style["overflow"] == "scroll" {
+            scrollOffset = el.scrollOffsetY
         }
 
         let mode = layoutMode()
@@ -123,13 +130,16 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout() }
 
+        // Height is the sum of all children's heights.
+        let sumHeight = children.reduce(0) { $0 + $1.height }
         if let hStr = node.style["height"], hStr.hasSuffix("px"),
             let h = Double(hStr.dropLast(2))
         {
+            contentHeight = sumHeight
             height = CGFloat(h)
         } else {
-            // Height is the sum of all children's heights.
-            height = children.reduce(0) { $0 + $1.height }
+            contentHeight = sumHeight
+            height = sumHeight
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
@@ -343,12 +353,15 @@ class BlockLayout: LayoutObject {
     func paint() -> [Any] {
         var commands: [Any] = []
         let bgcolor = node.style["background-color"] ?? "transparent"
-        let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
+        let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(
+            of: "px", with: "")
         let borderRadius = CGFloat(Double(radiusStr) ?? 0)
-        if bgcolor != "transparent" {
+        if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
             if borderRadius > 0 {
                 commands.append(
-                    DrawRRect(rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor, source: self)
+                    DrawRRect(
+                        rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor,
+                        source: self)
                 )
             } else {
                 commands.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
@@ -386,6 +399,17 @@ class BlockLayout: LayoutObject {
         }
 
         return commands
+    }
+
+    func paintScrollbar() -> [Any] {
+        guard node.style["overflow"] == "scroll", contentHeight > height else { return [] }
+        let barWidth: CGFloat = 8
+        let ratio = height / contentHeight
+        let barHeight = ratio * height
+        let barTop = y + (scrollOffset / contentHeight) * height
+        let barRect = Rect(
+            left: x + width - barWidth, top: barTop, right: x + width, bottom: barTop + barHeight)
+        return [DrawRect(rect: barRect, color: "gray")]
     }
 
     // <input> and <button> are painted by InputLayout, not BlockLayout.
