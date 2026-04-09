@@ -2,24 +2,23 @@ import Foundation
 
 class TaskRunner {
     private var tasks: [BrowserTask] = []
-    private let queue = DispatchQueue(label: "browser.tab.taskrunner")
     private var needsQuit = false
 
     func scheduleTask(_ task: BrowserTask) {
-        queue.async {
+        DispatchQueue.main.async {
             self.tasks.append(task)
             self.runNext()
         }
     }
 
     func clearPendingTasks() {
-        queue.async {
+        DispatchQueue.main.async {
             self.tasks.removeAll()
         }
     }
 
     func setNeedsQuit() {
-        queue.async {
+        DispatchQueue.main.async {
             self.needsQuit = true
             self.tasks.removeAll()
         }

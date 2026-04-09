@@ -327,7 +327,11 @@ class JSRuntime: @unchecked Sendable {
                 guard let tab = self?.tab else { return }
                 Task { @MainActor in
                     guard tab.browser?.activeTab === tab else { return }
-                    tab.runAnimationFrame()
+                    let task = BrowserTask(name: "runAnimationFrame", measure: tab.browser?.measure)
+                    {
+                        tab.runAnimationFrame()
+                    }
+                    tab.taskRunner.scheduleTask(task)
                 }
             } as @convention(block) () -> Void,
             forKeyedSubscript: "requestAnimationFrame" as NSString)
@@ -340,7 +344,11 @@ class JSRuntime: @unchecked Sendable {
                 let delay = time / 1000.0
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     Task { @MainActor in
-                        tab.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
+                        let task = BrowserTask(name: "runSetTimeout", measure: tab.browser?.measure)
+                        {
+                            tab.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
+                        }
+                        tab.taskRunner.scheduleTask(task)
                     }
                 }
             } as @convention(block) (Int, Double) -> Void,
@@ -357,7 +365,12 @@ class JSRuntime: @unchecked Sendable {
                 timer.setEventHandler(handler: {
                     Task { @MainActor in
                         guard tab.browser?.activeTab === tab else { return }
-                        tab.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
+                        let task = BrowserTask(
+                            name: "runSetInterval", measure: tab.browser?.measure
+                        ) {
+                            tab.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
+                        }
+                        tab.taskRunner.scheduleTask(task)
                     }
                 })
                 timer.resume()

@@ -30,6 +30,7 @@ public class Tab {
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex < history.count - 1 }
 
+    // Schedules and executes JS-driven tasks (setTimeout, setInterval, rAF).
     private(set) var taskRunner: TaskRunner = TaskRunner()
     private(set) var accessibilityTree: AccessibilityNode? = nil
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
