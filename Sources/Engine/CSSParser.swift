@@ -25,6 +25,18 @@ struct TagSelector: CSSSelector {
     }
 }
 
+// MARK: - IDSelector
+struct IDSelector: CSSSelector {
+    let id: String
+    let priority: Int = 100
+    var hasSelectors: [HasSelector] { [] }
+
+    func matches(_ node: any DOMNode) -> Bool {
+        guard let element = node as? Element else { return false }
+        return element.attributes["id"] == id
+    }
+}
+
 // MARK: - ClassSelector
 // Matches Element nodes that have given class in their class attribute.
 // Example: ClassSelector("links") matches <nav class="links">.
@@ -376,8 +388,15 @@ class CSSParser {
     private func parseSimpleSelector(_ token: String) -> any CSSSelector {
         let parts = token.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
         var selectors: [any CSSSelector] = []
-        if let tag = parts.first, !tag.isEmpty {
-            selectors.append(TagSelector(tag: tag))
+        if let first = parts.first {
+            let hashParts = first.split(separator: "#", omittingEmptySubsequences: false).map(
+                String.init)
+            if let tag = hashParts.first, !tag.isEmpty {
+                selectors.append(TagSelector(tag: tag))
+            }
+            if hashParts.count > 1, let id = hashParts.last, !id.isEmpty {
+                selectors.append(IDSelector(id: id))
+            }
         }
         for cls in parts.dropFirst() where !cls.isEmpty {
             selectors.append(ClassSelector(cls: cls))
