@@ -5,6 +5,7 @@ class JSRuntime: @unchecked Sendable {
     private let jsContext = JSContext()!
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]
+    private var intervalTimes: [Int: DispatchSourceTimer] = [:]
     private weak var tab: Engine.Tab?
 
     private static let eventDispatchJS = "new Node(__handle).dispatchEvent(new Event(__type))"
@@ -209,7 +210,7 @@ class JSRuntime: @unchecked Sendable {
                     for child in elt.children { child.parent = elt }
                     tab.runNewScripts(in: elt)
                     tab.reloadStylesheets()
-                    tab.render()
+                    tab.setNeedsRender()
                 })
             } as @convention(block) (Int, String) -> Void,
             forKeyedSubscript: "_innerHTML" as NSString)
@@ -245,7 +246,7 @@ class JSRuntime: @unchecked Sendable {
                     parent.children.append(child)
                     tab.runNewScripts(in: child)
                     tab.reloadStylesheets()
-                    tab.render()
+                    tab.setNeedsRender()
                 })
             } as @convention(block) (Int, Int) -> Void,
             forKeyedSubscript: "_appendChild" as NSString)
@@ -261,7 +262,7 @@ class JSRuntime: @unchecked Sendable {
                     parent.children.removeAll { $0 === child }
                     child.parent = nil
                     tab.reloadStylesheets()
-                    tab.render()
+                    tab.setNeedsRender()
                     return childHandle
                 })
             } as @convention(block) (Int, Int) -> Int,
@@ -325,6 +326,7 @@ class JSRuntime: @unchecked Sendable {
                 [weak self] in
                 guard let tab = self?.tab else { return }
                 Task { @MainActor in
+                    guard tab.browser?.activeTab === tab else { return }
                     tab.runAnimationFrame()
                 }
             } as @convention(block) () -> Void,
@@ -344,6 +346,54 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (Int, Double) -> Void,
             forKeyedSubscript: "__setTimeout" as NSString)
 
+        //  __setInterval - fires repeatly every `time` ms until clearInterval
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int, time: Double) in
+                guard let tab = self?.tab else { return }
+                let interval = time / 1000.0
+                let timer = DispatchSource.makeTimerSource(queue: .main)
+                timer.schedule(deadline: .now() + interval, repeating: interval)
+                timer.setEventHandler(handler: {
+                    Task { @MainActor in
+                        guard tab.browser?.activeTab === tab else { return }
+                        tab.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
+                    }
+                })
+                timer.resume()
+                self?.intervalTimes[handle] = timer
+            } as @convention(block) (Int, Double) -> Void,
+            forKeyedSubscript: "__setInterval" as NSString)
+
+        // __clearInterval - cancels a previously scheduled interval
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int) in
+                guard let self else { return }
+                if let timer = self.intervalTimes[handle] {
+                    timer.setEventHandler(handler: nil)
+                    timer.cancel()
+                    self.intervalTimes.removeValue(forKey: handle)
+                }
+            } as @convention(block) (Int) -> Void, forKeyedSubscript: "__clearInterval" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (handle: Int, value: Double) in
+                MainActor.assumeIsolated({
+                    guard let self, let elt = self.handleToNode[handle] as? Element,
+                        let tab = self.tab
+                    else { return }
+                    elt.scrollOffsetY = CGFloat(value)
+                    print(
+                        "[scrollTop] elt=\(elt.tag)#\(elt.attributes["id"] ?? "?") value=\(value) stored=\(elt.scrollOffsetY)"
+                    )
+                    // For `_setScrollTop` — only scroll offset changed, no structure/style change, need paint only.
+                    tab.setNeedsPaint()
+                })
+            } as @convention(block) (Int, Double) -> Void,
+            forKeyedSubscript: "_setScrollTop" as NSString)
+
         // __styleSet__ - sets a CSS property on a node from JS, triggers re-render
         jsContext.setObject(
             {
@@ -357,6 +407,13 @@ class JSRuntime: @unchecked Sendable {
                 }
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "__styleSet__" as NSString)
+    }
+
+    deinit {
+        for timer in intervalTimes.values {
+            timer.setEventHandler(handler: nil)
+            timer.cancel()
+        }
     }
 
     func defineIDs() {

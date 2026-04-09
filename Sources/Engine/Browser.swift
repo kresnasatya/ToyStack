@@ -73,7 +73,10 @@ public class Browser: ObservableObject {
     }
 
     private func animationTick() {
-        guard needsAnimationFrame else { return }
+        guard needsAnimationFrame else {
+            print("[animationTick] SKIPPED needsAnimationFrame=false")
+            return
+        }
         needsAnimationFrame = false
         activeTab?.runAnimationFrame()
     }
@@ -111,9 +114,16 @@ public class Browser: ObservableObject {
             return nil
         })
         for cmd in nonComposited {
-            // skip commands entirely outside the interest region
-            guard cmd.rect.bottom >= activeTabInterestTop && cmd.rect.top <= interestBottom else {
-                continue
+            // skip interest region check for commands inside a scroll container
+            let inScrollEffect = sequence(
+                first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
+            )
+            .contains(where: { $0 is ScrollEffect })
+            if !inScrollEffect {
+                guard cmd.rect.bottom >= activeTabInterestTop && cmd.rect.top <= interestBottom
+                else {
+                    continue
+                }
             }
             var merged = false
             for layer in compositedLayers.reversed() {
@@ -269,7 +279,7 @@ public class Browser: ObservableObject {
         spokenAlerts = []
         lastFocus = nil
         needsAnimationFrame = true
-        objectWillChange.send()
+        activeTab?.runAnimationFrame()
     }
 
     private func speakText(_ text: String) {

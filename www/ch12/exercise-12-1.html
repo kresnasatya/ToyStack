@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            body {
+                font-family: monospace;
+                font-size: 13px;
+            }
+            #log {
+                height: 400px;
+                overflow-y: scroll;
+                border: 1px solid #ccc;
+                padding: 4px;
+            }
+            .fast {
+                color: green;
+            }
+            .slow {
+                color: red;
+            }
+        </style>
+    </head>
+    <body>
+        <h3>setInterval Timing Test</h3>
+        <div id="log"></div>
+        <button id="stopBtn">Stop</button>
+
+        <script>
+            var logEl = document.getElementById("log");
+            var stopBtn = document.getElementById("stop_btn");
+            var ids = [];
+            var lastTimes = {};
+
+            function appendLog(msg, cls) {
+                var d = document.createElement("div");
+                d.setAttribute("class", cls || "");
+                d.innerHTML = msg;
+                logEl.appendChild(d);
+                logEl.scrollTop = 10_000_000;
+            }
+
+            function makeExpensiveWork() {
+                // Simulate expensive rendering: spin for ~5ms
+                var end = Date.now() + 5;
+                while (Date.now() < end) {}
+            }
+
+            function makeInterval(label, ms) {
+                lastTimes[label] = Date.now();
+                var id = setInterval(function () {
+                    var now = Date.now();
+                    var actual = now - lastTimes[label];
+                    lastTimes[label] = now;
+                    var drift = actual - ms;
+                    var cls = Math.abs(drift) > ms * 0.2 ? "slow" : "fast";
+                    appendLog(
+                        label +
+                            ": target=" +
+                            ms +
+                            "ms actual=" +
+                            actual +
+                            "ms drift=" +
+                            drift +
+                            "ms",
+                        cls,
+                    );
+                }, ms);
+                ids.push(id);
+            }
+
+            makeInterval("fast  (100ms)", 100);
+            makeInterval("medium(500ms)", 500);
+            makeInterval("slow (1000ms)", 1000);
+
+            // requestAnimationFrame loop doing expensive work
+            function rafLoop() {
+                makeExpensiveWork();
+                window.requestAnimationFrame(rafLoop);
+            }
+            window.requestAnimationFrame(rafLoop);
+
+            document
+                .getElementById("stopBtn")
+                .addEventListener("click", function () {
+                    for (var i = 0; i < ids.length; i++) {
+                        clearInterval(ids[i]);
+                    }
+                    ids = [];
+                    appendLog("--- stopped ---");
+                });
+        </script>
+    </body>
+</html>

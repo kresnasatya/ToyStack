@@ -64,10 +64,6 @@ class BlockLayout: LayoutObject {
             y += VSTEP
         }
 
-        if let el = node as? Element, el.style["overflow"] == "scroll" {
-            scrollOffset = el.scrollOffsetY
-        }
-
         let mode = layoutMode()
         if mode == "block" {
             var prev: (any LayoutObject)? = nil
@@ -144,6 +140,11 @@ class BlockLayout: LayoutObject {
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             height += VSTEP
+        }
+
+        if let el = node as? Element, el.style["overflow"] == "scroll" {
+            let maxScroll = max(0, contentHeight - height)
+            scrollOffset = min(el.scrollOffsetY, maxScroll)
         }
     }
 

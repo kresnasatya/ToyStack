@@ -147,6 +147,14 @@ func applyStyle(
         }
     }
 
+    // normalize overflow-y/overflow-x into overflow.
+    // The engine checks node.style["overflow"] throughout; map the longhand here.
+    if node.style["overflow"] == nil {
+        if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {
+            node.style["overflow"] = "scroll"
+        }
+    }
+
     // Step 4: resolve percentage font-size relative to parent's px value.
     // e.g. "90%" on a node whose parent has "16px" -> "14.4px"
     if let fontSize = node.style["font-size"], fontSize.hasSuffix("%") {
@@ -214,8 +222,16 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
+        print(
+            "[paintTree] scroll block children=\(obj.children.count) contentH=\(block.contentHeight) scrollOffset=\(block.scrollOffset)"
+        )
         var childCmds: [Any] = []
+        let visibleTop = block.y + block.scrollOffset
+        let visibleBottom = visibleTop + block.height
         for child in obj.children {
+            // skip children completely outside visible scroll
+            if child.y + child.height < visibleTop { continue }
+            if child.y > visibleBottom { break }
             paintTree(child, into: &childCmds)
         }
         let effect = ScrollEffect(

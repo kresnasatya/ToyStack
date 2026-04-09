@@ -176,6 +176,12 @@ Object.defineProperty(Node.prototype, "style", {
   },
 });
 
+Object.defineProperty(Node.prototype, "scrollTop", {
+  set: function (value) {
+    _setScrollTop(this.handle, value);
+  },
+});
+
 // requestAnimationFrame - schedules a callback before the next paint
 var __RAFHandlers = [];
 
@@ -203,5 +209,25 @@ function setTimeout(callback, time_delta) {
 
 function __runSetTimeout(handle) {
   var callback = SET_TIMEOUT_REQUESTS[handle];
+  if (callback) callback();
+}
+
+var SET_INTERVAL_REQUESTS = {};
+var __intervalHandleCounter = 0;
+
+function setInterval(callback, time_delta) {
+  var handle = __intervalHandleCounter++;
+  SET_INTERVAL_REQUESTS[handle] = callback;
+  __setInterval(handle, time_delta);
+  return handle;
+}
+
+function clearInterval(handle) {
+  delete SET_INTERVAL_REQUESTS[handle];
+  __clearInterval(handle);
+}
+
+function __runSetInterval(handle) {
+  var callback = SET_INTERVAL_REQUESTS[handle];
   if (callback) callback();
 }

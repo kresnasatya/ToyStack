@@ -52,3 +52,21 @@ Three implementation options were evaluated for Level 3:
   implement a Metal render pipeline, manage `MTLCommandQueue` and
   `MTLCommandBuffer`. Touches nearly every file in the engine.
 - Suitable as a separate project if the goal is learning Metal specifically.
+
+### Incremental Layout for Overflow Scroll Containers
+
+**Context:** `exercise-12-1.html` appends divs to a `#log` element (`overflow-y: scroll`) via `setInterval`. As the child count grows, `setNeedsRender()` triggers a full pipeline every frame:
+- `applyStyle` — walks entire DOM tree
+- `DocumentLayout` — lays out all children including all appended divs
+- `paintTree` — generates paint commands (mitigated by paint culling)
+
+Layout cost is O(n) and grows unboundedly. At ~200 children, per-frame layout time exceeds one frame budget (16ms), causing a backlog on the main thread. Clicking "Stop" feels delayed because the click event queues behind already-scheduled renders.
+
+**What real browsers do:** Overflow scroll containers are isolated layout contexts. Appending a child only re-lays that subtree, not the whole document. The compositor handles scroll offset cheaply without re-layout.
+
+**Proposed fix:** When a DOM mutation targets a node inside an `overflow: scroll` container, skip the full `DocumentLayout` pass and only re-layout that subtree. Requires:
+1. Tracking which `BlockLayout` owns a mutated node
+2. Re-running layout only from that block downward
+3. Patching `y` positions of siblings below the insertion point
+
+**Affected files:** `Tab.swift` (`render()`), `Layouts/BlockLayout.swift`, `JSRuntime.swift` (mutation bindings).

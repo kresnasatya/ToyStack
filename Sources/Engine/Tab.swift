@@ -264,6 +264,8 @@ public class Tab {
     }
 
     func render() {
+        print(
+            "[render] needsStyle=\(needsStyle) needsLayout=\(needsLayout) needsPaint=\(needsPaint)")
         if needsStyle {
             let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             precomputeHas(node: nodes, rules: sortedRules)
@@ -488,10 +490,11 @@ public class Tab {
             })
         if let block = scrollBlock, let el = block.node as? Element {
             let maxScroll = max(0, block.contentHeight - block.height)
+            let current = min(el.scrollOffsetY, maxScroll)
             if deltaY > 0 {
-                el.scrollOffsetY = max(el.scrollOffsetY - SCROLL_STEP, 0)
+                el.scrollOffsetY = max(current - SCROLL_STEP, 0)
             } else {
-                el.scrollOffsetY = min(el.scrollOffsetY + SCROLL_STEP, maxScroll)
+                el.scrollOffsetY = min(current + SCROLL_STEP, maxScroll)
             }
             scrollFocusNode = el
             setNeedsRender()
@@ -527,13 +530,16 @@ public class Tab {
             return
         }
         let maxScroll = max(0, block.contentHeight - block.height)
-        node.scrollOffsetY = min(node.scrollOffsetY + SCROLL_STEP, maxScroll)
+        let current = min(node.scrollOffsetY, maxScroll)
+        node.scrollOffsetY = min(current + SCROLL_STEP, maxScroll)
         setNeedsRender()
     }
 
     public func scrollElementUp() {
-        guard let node = scrollFocusNode else { return }
-        node.scrollOffsetY = max(node.scrollOffsetY - SCROLL_STEP, 0)
+        guard let node = scrollFocusNode, let block = liveScrollBlock() else { return }
+        let maxScroll = max(0, block.contentHeight - block.height)
+        let current = min(node.scrollOffsetY, maxScroll)
+        node.scrollOffsetY = max(current - SCROLL_STEP, 0)
         setNeedsRender()
     }
 
