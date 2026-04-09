@@ -5,6 +5,24 @@ import SwiftUI
 // Extend this as you encounter more colors in the browser stylesheet.
 extension Color {
     init(cssName: String) {
+        let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
+        // Hex color: #rgb or #rrggbb
+        if name.hasPrefix("#") {
+            let hex = String(name.dropFirst())
+            let expanded =
+                hex.count == 3
+                ? hex.map({
+                    "\($0)\($0)"
+                }).joined() : hex
+            if expanded.count == 6,
+                let r = UInt8(expanded.prefix(2), radix: 16),
+                let g = UInt8(expanded.dropFirst(2).prefix(2), radix: 16),
+                let b = UInt8(expanded.dropFirst(4).prefix(2), radix: 16)
+            {
+                self = Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
+                return
+            }
+        }
         switch cssName.lowercased() {
         case "white": self = .white
         case "black": self = .black
