@@ -7,6 +7,8 @@ public class Browser: ObservableObject {
     public let chrome: Chrome
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     private var animationTimer: Timer?
+    private var nextFrameTime: Date = .distantPast
+    private let FRAME_BUDGET: TimeInterval = 1.0 / 60.0
     public var accessibilityIsOn: Bool = false
     private var hasSpokenDocument: Bool = false
     private var spokenAlerts: [AccessibilityNode] = []
@@ -56,14 +58,24 @@ public class Browser: ObservableObject {
 
     public func startAnimationTimer() {
         guard animationTimer == nil else { return }
+        nextFrameTime = Date()
+        scheduleNextFrame()
+    }
+
+    private func scheduleNextFrame() {
+        let now = Date()
+        // Advance target by one frame; if we're behind, snap to now
+        nextFrameTime = max(nextFrameTime + FRAME_BUDGET, now)
+        let delay = nextFrameTime.timeIntervalSinceNow
         animationTimer = Timer.scheduledTimer(
-            withTimeInterval: 1.0 / 60.0, repeats: true
-        ) {
-            [weak self] _ in
-            Task { @MainActor in
-                self?.animationTick()
-            }
-        }
+            withTimeInterval: max(0, delay), repeats: false,
+            block: {
+                [weak self] _ in
+                Task { @MainActor in
+                    self?.animationTick()
+                    self?.scheduleNextFrame()
+                }
+            })
     }
 
     public func stopAnimationTimer() {
@@ -74,7 +86,6 @@ public class Browser: ObservableObject {
 
     private func animationTick() {
         guard needsAnimationFrame else {
-            print("[animationTick] SKIPPED needsAnimationFrame=false")
             return
         }
         needsAnimationFrame = false
@@ -94,8 +105,13 @@ public class Browser: ObservableObject {
             setNeedsDrawOnly()
         }
 
-        compositeRasterAndDraw()
-        updateAccessibility()
+        // Allow next animation frame to begin before raster/draw finishes
+        needsAnimationFrame = true
+
+        Task { @MainActor in
+            compositeRasterAndDraw()
+            updateAccessibility()
+        }
     }
 
     private func composite() {

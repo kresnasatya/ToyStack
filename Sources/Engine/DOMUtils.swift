@@ -222,9 +222,6 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
-        print(
-            "[paintTree] scroll block children=\(obj.children.count) contentH=\(block.contentHeight) scrollOffset=\(block.scrollOffset)"
-        )
         var childCmds: [Any] = []
         let visibleTop = block.y + block.scrollOffset
         let visibleBottom = visibleTop + block.height

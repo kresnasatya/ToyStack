@@ -398,9 +398,9 @@ class JSRuntime: @unchecked Sendable {
                         let tab = self.tab
                     else { return }
                     elt.scrollOffsetY = CGFloat(value)
-                    print(
-                        "[scrollTop] elt=\(elt.tag)#\(elt.attributes["id"] ?? "?") value=\(value) stored=\(elt.scrollOffsetY)"
-                    )
+                    // print(
+                    //     "[scrollTop] elt=\(elt.tag)#\(elt.attributes["id"] ?? "?") value=\(value) stored=\(elt.scrollOffsetY)"
+                    // )
                     // For `_setScrollTop` — only scroll offset changed, no structure/style change, need paint only.
                     tab.setNeedsPaint()
                 })

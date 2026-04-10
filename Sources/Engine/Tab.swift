@@ -265,8 +265,8 @@ public class Tab {
     }
 
     func render() {
-        print(
-            "[render] needsStyle=\(needsStyle) needsLayout=\(needsLayout) needsPaint=\(needsPaint)")
+        // print(
+        //     "[render] needsStyle=\(needsStyle) needsLayout=\(needsLayout) needsPaint=\(needsPaint)")
         if needsStyle {
             let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             precomputeHas(node: nodes, rules: sortedRules)

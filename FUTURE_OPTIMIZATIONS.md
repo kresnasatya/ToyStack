@@ -70,3 +70,25 @@ Layout cost is O(n) and grows unboundedly. At ~200 children, per-frame layout ti
 3. Patching `y` positions of siblings below the insertion point
 
 **Affected files:** `Tab.swift` (`render()`), `Layouts/BlockLayout.swift`, `JSRuntime.swift` (mutation bindings).
+
+### True Animation/Raster Parallelism (Exercise 12-3 follow-up)
+
+**Context:** Exercise 12-3 splits the frame pipeline into two phases — animation frame (JS + style/layout) on the main thread, and composite/raster/draw enqueued as a separate `Task { @MainActor in }`. The intent is for both threads to do work simultaneously.
+
+**Observed behavior:** The output logs show strictly sequential execution — `[frame] animation END` always precedes `[raster] START`. No true overlap occurs.
+
+**Why:** Both `animationTick` and the raster `Task { @MainActor in }` are bound to `@MainActor`. Swift's cooperative scheduler drains all enqueued `@MainActor` tasks before yielding back to the run loop, so the raster Task completes before the next timer tick fires `animationTick`. Cooperative threading, not parallelism.
+
+**What absolute-time scheduling does achieve (confirmed):** After a slow frame (e.g. 36ms on browser.engineering), the scheduler snaps back to ~16.7ms cadence on the next tick — proving the absolute-time target logic works correctly.
+
+**To get true overlap:** Extract raster state out of `@MainActor` into a separate actor:
+
+```swift
+actor RasterThread {
+    func compositeRasterAndDraw(...) { ... }
+}
+```
+
+Then in `commit()`, call `Task.detached { await rasterThread.compositeRasterAndDraw(...) }`. This runs on a real background thread, genuinely concurrent with the next animation frame on main. Requires extracting `compositedLayers`, `drawList`, and related state from `Browser` into the new actor, and posting `objectWillChange.send()` back to `@MainActor` after raster completes.
+
+**Affected files:** `Browser.swift` (extract raster state + `compositeRasterAndDraw`), `ToyStack.swift` (BrowserView must read draw list via `@MainActor`).
