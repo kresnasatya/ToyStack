@@ -344,8 +344,9 @@ class JSRuntime: @unchecked Sendable {
                 let delay = time / 1000.0
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     Task { @MainActor in
-                        let task = BrowserTask(name: "runSetTimeout", measure: tab.browser?.measure)
-                        {
+                        let task = BrowserTask(
+                            name: "runSetTimeout", priority: .low, measure: tab.browser?.measure
+                        ) {
                             tab.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
                         }
                         tab.taskRunner.scheduleTask(task)
@@ -366,7 +367,7 @@ class JSRuntime: @unchecked Sendable {
                     Task { @MainActor in
                         guard tab.browser?.activeTab === tab else { return }
                         let task = BrowserTask(
-                            name: "runSetInterval", measure: tab.browser?.measure
+                            name: "runSetInterval", priority: .low, measure: tab.browser?.measure
                         ) {
                             tab.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
                         }
