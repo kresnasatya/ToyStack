@@ -737,7 +737,8 @@ public class Tab {
                         historyIndex = history.count - 1
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
-                        browser?.applyScroll(scroll)
+                        interestTop = max(0, scroll - HEIGHT)
+                        setNeedsLayout()
                     } else {
                         await load(url.resolve(href))
                     }
