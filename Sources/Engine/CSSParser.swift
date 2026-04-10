@@ -475,6 +475,25 @@ class CSSParser {
         return val  // "dark" or "light"
     }
 
+    // Skips from current position to the end of a { ... } block.
+    // Call this AFTER the opening "{" has been consumed.
+    // Handles nested braces.
+    private func skipBlock() {
+        var depth = 1
+        while i < chars.count {
+            if chars[i] == "{" {
+                depth += 1
+            } else if chars[i] == "}" {
+                depth -= 1
+                if depth == 0 {
+                    i += 1
+                    return
+                }
+            }
+            i += 1
+        }
+    }
+
     // Parses a full stylesheet. Returns all valid (selector, body) rules.
     // Skips over malformed rules using error recovery.
     func parse() -> [(String?, any CSSSelector, [String: String])] {
@@ -506,8 +525,12 @@ class CSSParser {
                     }
                 }
             } catch {
-                let found = ignoreUntil(["}"])
+                let found = ignoreUntil(["{", "}"])
                 if found == "}" {
+                    _ = try? literal("}")  // consume the "{"
+                    skipBlock()  // skip entire block, counting nested braces
+                    skipWhitespace()
+                } else if found == "}" {
                     _ = try? literal("}")
                     skipWhitespace()
                 } else {
