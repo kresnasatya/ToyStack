@@ -141,17 +141,43 @@ public class Tab {
                     && $0.attributes["href"] != nil
             }
 
-        for link in linkNodes {
+        let measure = MeasureTime()
+
+        // 1. Build ordered list of allowed URLs (preserve source index)
+        let styleURLs: [(index: Int, url: WebURL)] = linkNodes.enumerated().compactMap({
+            (i, link) in
             let styleURL = url.resolve(link.attributes["href"]!)
             guard allowedRequest(styleURL) else {
                 print("Blocked style", link.attributes["href"]!, "due to CSP")
-                continue
+                return nil
             }
-            guard
-                let (_, styleBody) = try? await styleURL.request(
-                    referrer: effectiveReferrer(for: styleURL))
-            else { continue }
-            rules.append(contentsOf: CSSParser(styleBody).parse())
+            return (i, styleURL)
+        })
+
+        // 2. Fetch all in parallel, collect (index, body) pairs
+        var styleBodies: [(index: Int, body: String)] = []
+        measure.start("fetch-styles")
+        await withTaskGroup(of: (Int, String?).self) { group in
+            for (i, styleURL) in styleURLs {
+                let ref = effectiveReferrer(for: styleURL)
+                group.addTask {
+                    measure.start("style-\(i)")
+                    let result = try? await styleURL.request(referrer: ref)
+                    measure.stop("style-\(i)")
+                    return (i, result?.1)
+                }
+            }
+            for await (i, body) in group {
+                if let body { styleBodies.append((i, body)) }
+            }
+        }
+        measure.stop("fetch-styles")
+        measure.close()
+
+        // 3. Sort by source order, then parse
+        styleBodies.sort(by: { $0.index < $1.index })
+        for (_, body) in styleBodies {
+            rules.append(contentsOf: CSSParser(body).parse())
         }
 
         // Collect inline <style> sheets and append their rules
@@ -172,19 +198,41 @@ public class Tab {
             .compactMap { $0 as? Element }
             .filter { $0.tag == "script" && $0.attributes["src"] != nil }
 
-        for scriptNode in scriptNodes {
-            let scriptURL = url.resolve(scriptNode.attributes["src"]!)
+        // 1. Build ordered list of allowed script URLs
+        let scriptURLs: [(index: Int, url: WebURL)] = scriptNodes.enumerated().compactMap({
+            (i, node) in
+            let scriptURL = url.resolve(node.attributes["src"]!)
             guard allowedRequest(scriptURL) else {
-                print("Blocked script", scriptNode.attributes["src"]!, "due to CSP")
-                continue
+                print("Blocked script", node.attributes["src"]!, "due to CSP")
+                return nil
             }
-            guard
-                let (_, scriptBody) = try? await scriptURL.request(
-                    referrer: effectiveReferrer(for: scriptURL))
-            else {
-                continue
+            return (i, scriptURL)
+        })
+
+        // 2. Fetch all in parallel
+        var scriptBodies: [(index: Int, url: WebURL, body: String)] = []
+        measure.start("fetch-scripts")
+        await withTaskGroup(of: (Int, WebURL, String?).self) { group in
+            for (i, scriptURL) in scriptURLs {
+                let ref = effectiveReferrer(for: scriptURL)
+                group.addTask {
+                    measure.start("script-\(i)")
+                    let result = try? await scriptURL.request(referrer: ref)
+                    measure.stop("script-\(i)")
+                    return (i, scriptURL, result?.1)
+                }
             }
-            js.run(script: scriptURL.toString(), code: scriptBody)
+            for await (i, scriptURL, body) in group {
+                if let body { scriptBodies.append((i, scriptURL, body)) }
+            }
+        }
+        measure.stop("fetch-scripts")
+        measure.close()
+
+        // 3. Sort by source order, execute in order
+        scriptBodies.sort(by: { $0.index < $1.index })
+        for (_, scriptURL, body) in scriptBodies {
+            js.run(script: scriptURL.toString(), code: body)
             loadedScriptURLs.insert(scriptURL.toString())
         }
 
@@ -265,8 +313,6 @@ public class Tab {
     }
 
     func render() {
-        // print(
-        //     "[render] needsStyle=\(needsStyle) needsLayout=\(needsLayout) needsPaint=\(needsPaint)")
         if needsStyle {
             let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             precomputeHas(node: nodes, rules: sortedRules)
