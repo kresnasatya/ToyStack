@@ -601,6 +601,13 @@ public class Tab {
         return false
     }
 
+    private func isSameDocument(_ a: WebURL, _ b: WebURL) -> Bool {
+        return a.scheme == b.scheme
+            && a.host == b.host
+            && a.port == b.port
+            && a.path == b.path
+    }
+
     public func goBack() async {
         guard canGoBack else { return }
         historyIndex -= 1
@@ -617,6 +624,16 @@ public class Tab {
             } else {
                 historyIndex += 1  // user said no - undo the index change
             }
+        } else if let currentURL = self.url, isSameDocument(currentURL, entry.url) {
+            // Same-document navigation - only the fragment changed, no reload needed
+            self.url = entry.url
+            if let fragment = entry.url.fragment {
+                scrollToFragment(fragment)
+            } else {
+                scroll = 0  // no fragment -> scroll back to top
+            }
+            interestTop = max(0, scroll - HEIGHT)
+            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
         } else {
             await performLoad(entry.url)
         }
@@ -626,7 +643,19 @@ public class Tab {
         guard canGoForward else { return }
         historyIndex += 1
         let entry = history[historyIndex]
-        await performLoad(entry.url, payload: entry.payload)
+        if let currentURL = self.url, isSameDocument(currentURL, entry.url) {
+            // Same-document navigation - only the fragment changed, no reload needed
+            self.url = entry.url
+            if let fragment = entry.url.fragment {
+                scrollToFragment(fragment)
+            } else {
+                scroll = 0
+            }
+            interestTop = max(0, scroll - HEIGHT)
+            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
+        } else {
+            await performLoad(entry.url, payload: entry.payload)
+        }
     }
 
     public func keypress(_ char: String) {

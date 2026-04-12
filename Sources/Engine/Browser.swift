@@ -269,6 +269,13 @@ public class Browser: ObservableObject {
         compositeRasterAndDraw()
     }
 
+    public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat) {
+        activeTabScroll = scroll
+        activeTabInterestTop = interestTop
+        setNeedsComposite()  // forces composite() to re-run
+        compositeRasterAndDraw()
+    }
+
     public func toggleDarkMode() {
         darkMode = !darkMode
         activeTab?.setDarkMode(darkMode)
