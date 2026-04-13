@@ -70,42 +70,34 @@ public class Tab {
     }
 
     private func performLoad(_ url: WebURL, payload: String? = nil) {  // ← remove `async`
+        guard let networkingThread else { return }
         let referrer = effectiveReferrer(for: url)
 
-        networkingThread?.scheduleTask(
-            NetworkTask(name: "load\(url.toString())") {
-                let result = await self.fetchPage(url: url, referrer: referrer, payload: payload)
+        Task {
+            // 1. Fetch the page on the networking thread
+            let result = await networkingThread.schedule(name: "load\(url.toString())") {
+                await self.fetchPage(url: url, referrer: referrer, payload: payload)
+            }
 
-                self.taskRunner.scheduleTask(
-                    BrowserTask(name: "parse-html") {
-                        guard let styleURLs = self.parseHTML(url: url, result: result) else {
-                            return
-                        }
+            // 2. Parse HTML on the main actor (already here - no TaskRunner needed)
+            guard let styleURLs = self.parseHTML(url: url, result: result) else { return }
 
-                        self.networkingThread?.scheduleTask(
-                            NetworkTask(name: "fetch-styles") {
-                                let styleBodies = await self.fetchStyles(urls: styleURLs)
+            // 3. Fetch styles on the networking thread
+            let styleBodies = await networkingThread.schedule(name: "fetch-styles") {
+                await self.fetchStyles(urls: styleURLs)
+            }
 
-                                self.taskRunner.scheduleTask(
-                                    BrowserTask(name: "apply-styles") {
-                                        let scriptURLs = self.applyStyles(
-                                            url: url, bodies: styleBodies)
+            // 4. Apply styles on the main actor
+            let scriptURLs = self.applyStyles(url: url, bodies: styleBodies)
 
-                                        self.networkingThread?.scheduleTask(
-                                            NetworkTask(name: "fetch-scripts") {
-                                                let scriptBodies = await self.fetchScripts(
-                                                    urls: scriptURLs)
+            // 5. Fetch scripts on the networking thread
+            let scriptBodies = await networkingThread.schedule(name: "fetch-scripts") {
+                await self.fetchScripts(urls: scriptURLs)
+            }
 
-                                                self.taskRunner.scheduleTask(
-                                                    BrowserTask(name: "exec-scripts") {
-                                                        self.execScripts(
-                                                            url: url, bodies: scriptBodies)
-                                                    })
-                                            })
-                                    })
-                            })
-                    })
-            })
+            // 6. Execute scripts on the main actor.
+            self.execScripts(url: url, bodies: scriptBodies)
+        }
     }
 
     private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?) async -> Result<

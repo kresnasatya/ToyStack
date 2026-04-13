@@ -8,6 +8,16 @@ class NetworkingThread: @unchecked Sendable {
     )
     private var isRunning = false
 
+    func schedule<T: Sendable>(name: String, _ work: @escaping () async -> T) async -> T {
+        await withCheckedContinuation({ continuation in
+            scheduleTask(
+                NetworkTask(name: name) {
+                    let result = await work()
+                    continuation.resume(returning: result)
+                })
+        })
+    }
+
     // Schedule a task on the networking thread.
     // Thread-safe: all mutations of `tasks` go through `queue`.
     func scheduleTask(_ task: NetworkTask) {
