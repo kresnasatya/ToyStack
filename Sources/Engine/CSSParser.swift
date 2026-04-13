@@ -500,6 +500,7 @@ class CSSParser {
         var rules: [(String?, any CSSSelector, [String: String])] = []
         var media: String? = nil
         while i < chars.count {
+            skipWhitespace()
             do {
                 if i < chars.count && chars[i] == "@" && media == nil {
                     media = try mediaQuery()
@@ -526,8 +527,8 @@ class CSSParser {
                 }
             } catch {
                 let found = ignoreUntil(["{", "}"])
-                if found == "}" {
-                    _ = try? literal("}")  // consume the "{"
+                if found == "{" {
+                    _ = try? literal("{")  // consume the "{"
                     skipBlock()  // skip entire block, counting nested braces
                     skipWhitespace()
                 } else if found == "}" {
