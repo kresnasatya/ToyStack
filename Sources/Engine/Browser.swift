@@ -9,6 +9,10 @@ public class Browser: ObservableObject {
     private var animationTimer: Timer?
     private var nextFrameTime: Date = .distantPast
     private let FRAME_BUDGET: TimeInterval = 1.0 / 60.0
+    private var frameStartTime: Date = .distantPast
+    private var recentFrameTimes: [TimeInterval] = []
+    private let frameHistorySize: Int = 5
+    private var estimatedFrameTime: TimeInterval = 1.0 / 60.0
     public var accessibilityIsOn: Bool = false
     private var hasSpokenDocument: Bool = false
     private var spokenAlerts: [AccessibilityNode] = []
@@ -68,7 +72,7 @@ public class Browser: ObservableObject {
     private func scheduleNextFrame() {
         let now = Date()
         // Advance target by one frame; if we're behind, snap to now
-        nextFrameTime = max(nextFrameTime + FRAME_BUDGET, now)
+        nextFrameTime = max(nextFrameTime + estimatedFrameTime, now)
         let delay = nextFrameTime.timeIntervalSinceNow
         animationTimer = Timer.scheduledTimer(
             withTimeInterval: max(0, delay), repeats: false,
@@ -92,6 +96,7 @@ public class Browser: ObservableObject {
             return
         }
         needsAnimationFrame = false
+        frameStartTime = Date()
         activeTab?.runAnimationFrame()
     }
 
@@ -264,6 +269,18 @@ public class Browser: ObservableObject {
         needsRaster = false
         needsDraw = false
         measure.stop("composite_raster_and_draw")
+
+        // Update frame time estimate (only for frames started in animationTick)
+        if frameStartTime != .distantPast {
+            let elapsed = Date().timeIntervalSince(frameStartTime)
+            recentFrameTimes.append(elapsed)
+            if recentFrameTimes.count > frameHistorySize {
+                recentFrameTimes.removeFirst()
+            }
+            let avg = recentFrameTimes.reduce(0, +) / Double(recentFrameTimes.count)
+            estimatedFrameTime = max(avg, FRAME_BUDGET)
+            frameStartTime = .distantPast
+        }
     }
 
     public func applyScroll(_ scroll: CGFloat) {
