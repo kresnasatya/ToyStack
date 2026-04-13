@@ -32,19 +32,22 @@ public class Browser: ObservableObject {
 
     public var measure = MeasureTime()
 
+    let networkingThread = NetworkingThread()
+
     public init() {
         chrome = Chrome()
         chrome.tabManager = self
     }
 
-    public func newTab(_ url: WebURL) async {
+    public func newTab(_ url: WebURL) {
         let tab = Engine.Tab(
             tabHeight: windowSize.height - chrome.bottom,
             tabWidth: windowSize.width
         )
         tab.browser = self
+        tab.networkingThread = networkingThread
         tab.setDarkMode(darkMode)
-        await tab.load(url)
+        tab.load(url)
         activeTab = tab
         tabs.append(tab)
         startAnimationTimer()

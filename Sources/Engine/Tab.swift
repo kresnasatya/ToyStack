@@ -32,6 +32,7 @@ public class Tab {
 
     // Schedules and executes JS-driven tasks (setTimeout, setInterval, rAF).
     private(set) var taskRunner: TaskRunner = TaskRunner()
+    var networkingThread: NetworkingThread?
     private(set) var accessibilityTree: AccessibilityNode? = nil
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
 
@@ -59,198 +60,223 @@ public class Tab {
         self.tabWidth = tabWidth
     }
 
-    func load(_ url: WebURL, payload: String? = nil) async {
+    func load(_ url: WebURL, payload: String? = nil) {
         // Truncate any forward history beyond the current position
         // then record this new URL as the current entry.
         history = Array(history.prefix(historyIndex + 1))
         history.append(HistoryEntry(url: url, payload: payload))
         historyIndex = history.count - 1
-        await performLoad(url, payload: payload)
+        performLoad(url, payload: payload)
     }
 
-    private func performLoad(_ url: WebURL, payload: String? = nil) async {
-        let headers: [String: String]
-        let body: String
+    private func performLoad(_ url: WebURL, payload: String? = nil) {  // ← remove `async`
+        let referrer = effectiveReferrer(for: url)
+
+        networkingThread?.scheduleTask(
+            NetworkTask(name: "load\(url.toString())") {
+                let result = await self.fetchPage(url: url, referrer: referrer, payload: payload)
+
+                self.taskRunner.scheduleTask(
+                    BrowserTask(name: "parse-html") {
+                        guard let styleURLs = self.parseHTML(url: url, result: result) else {
+                            return
+                        }
+
+                        self.networkingThread?.scheduleTask(
+                            NetworkTask(name: "fetch-styles") {
+                                let styleBodies = await self.fetchStyles(urls: styleURLs)
+
+                                self.taskRunner.scheduleTask(
+                                    BrowserTask(name: "apply-styles") {
+                                        let scriptURLs = self.applyStyles(
+                                            url: url, bodies: styleBodies)
+
+                                        self.networkingThread?.scheduleTask(
+                                            NetworkTask(name: "fetch-scripts") {
+                                                let scriptBodies = await self.fetchScripts(
+                                                    urls: scriptURLs)
+
+                                                self.taskRunner.scheduleTask(
+                                                    BrowserTask(name: "exec-scripts") {
+                                                        self.execScripts(
+                                                            url: url, bodies: scriptBodies)
+                                                    })
+                                            })
+                                    })
+                            })
+                    })
+            })
+    }
+
+    private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?) async -> Result<
+        (headers: [String: String], content: String), Error
+    > {
+        do {
+            return .success(try await url.request(referrer: referrer, payload: payload))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func parseHTML(
+        url: WebURL, result: Result<(headers: [String: String], content: String), Error>
+    ) -> [(index: Int, url: WebURL, ref: WebURL?)]? {
         let certErrorCodes: [URLError.Code] = [
-            .serverCertificateUntrusted,
-            .serverCertificateHasBadDate,
-            .serverCertificateNotYetValid,
-            .serverCertificateHasUnknownRoot,
+            .serverCertificateUntrusted, .serverCertificateHasBadDate,
+            .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot,
         ]
 
-        do {
-            (headers, body) = try await url.request(
-                referrer: effectiveReferrer(for: url), payload: payload)
-        } catch let error as URLError where certErrorCodes.contains(error.code) {
-            let alert = NSAlert()
-            alert.messageText = "Certificate Error"
-            alert.informativeText =
-                "The certificate for \(url.host) is invalid. Your connection may not be private."
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-            return
-        } catch {
-            return
+        switch result {
+        case .failure(let error):
+            if let urlError = error as? URLError, certErrorCodes.contains(urlError.code) {
+                let alert = NSAlert()
+                alert.messageText = "Certificate Error"
+                alert.informativeText =
+                    "The certificate for \(url.host) is invalid. "
+                    + "Your connection may not be private."
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+            return nil
+
+        case .success(let (headers, body)):
+            isSecure = url.scheme == "https"
+            scroll = 0
+            interestTop = 0
+            self.url = url
+            visitedURL.insert(url.toString())
+            nodes = HTMLParser(body: body).parse()
+
+            for node in treeToList(nodes) {
+                if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox"
+                {
+                    el.isChecked = el.attributes["checked"] != nil
+                }
+            }
+
+            js = JSRuntime(tab: self)
+
+            let titleText =
+                treeToList(nodes)
+                .compactMap({ $0 as? Element })
+                .first(where: { $0.tag == "title" })?.children
+                .compactMap({ $0 as? TextNode })
+                .map(\.text).joined()
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            title = titleText.isEmpty ? url.toString() : titleText
+
+            allowedOrigins = nil
+            referrerPolicy = headers["referrer-policy"] ?? ""
+            if let csp = headers["content-security-policy"] {
+                let parts = csp.split(separator: " ").map(String.init)
+                if parts.first == "default-src" {
+                    allowedOrigins = parts.dropFirst().map {
+                        WebURL($0).origin()
+                    }
+                }
+            }
+
+            rules = defaultStyleSheet
+
+            // Collect stylesheet URLs with their referrers – computed on main thread.
+            return treeToList(nodes)
+                .compactMap({ $0 as? Element })
+                .filter({
+                    $0.tag == "link" && $0.attributes["rel"] == "stylesheet"
+                        && $0.attributes["href"] != nil
+                })
+                .enumerated()
+                .compactMap({ (i, link) in
+                    let styleURL = url.resolve(link.attributes["href"]!)
+                    guard self.allowedRequest(styleURL) else {
+                        print(
+                            "Blocked style", link.attributes["href"]!, "due to CSP")
+                        return nil
+                    }
+                    return (i, styleURL, self.effectiveReferrer(for: styleURL))
+                })
         }
-        isSecure = url.scheme == "https"
+    }
 
-        scroll = 0
-        interestTop = 0
-        self.url = url
-        visitedURL.insert(url.toString())
-        nodes = HTMLParser(body: body).parse()
-
-        for node in treeToList(nodes) {
-            if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox" {
-                el.isChecked = el.attributes["checked"] != nil
-            }
-        }
-
-        js = JSRuntime(tab: self)
-
-        // Extract the title
-        let titleText =
-            treeToList(nodes)
-            .compactMap({ $0 as? Element })
-            .first(where: { $0.tag == "title" })?.children
-            .compactMap({ $0 as? TextNode })
-            .map(\.text)
-            .joined()
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        title = titleText.isEmpty ? url.toString() : titleText
-
-        // Parse Content-Security-Policy header
-        allowedOrigins = nil
-        referrerPolicy = headers["referrer-policy"] ?? ""
-        if let csp = headers["content-security-policy"] {
-            let parts = csp.split(separator: " ").map(String.init)
-            if parts.first == "default-src" {
-                allowedOrigins = parts.dropFirst().map { WebURL($0).origin() }
-            }
-        }
-
-        // Collect linked stylesheets and extend the default rules
-        rules = defaultStyleSheet
-        let linkNodes = treeToList(nodes)
-            .compactMap {
-                $0 as? Element
-            }
-            .filter {
-                $0.tag == "link"
-                    && $0.attributes["rel"] == "stylesheet"
-                    && $0.attributes["href"] != nil
-            }
-
-        let measure = MeasureTime()
-
-        // 1. Build ordered list of allowed URLs (preserve source index)
-        let styleURLs: [(index: Int, url: WebURL)] = linkNodes.enumerated().compactMap({
-            (i, link) in
-            let styleURL = url.resolve(link.attributes["href"]!)
-            guard allowedRequest(styleURL) else {
-                print("Blocked style", link.attributes["href"]!, "due to CSP")
-                return nil
-            }
-            return (i, styleURL)
-        })
-
-        // 2. Fetch all in parallel, collect (index, body) pairs
-        var styleBodies: [(index: Int, body: String)] = []
-        measure.start("fetch-styles")
+    private func fetchStyles(
+        urls: [(index: Int, url: WebURL, ref: WebURL?)]
+    ) async -> [(index: Int, body: String)] {
+        var result: [(index: Int, body: String)] = []
         await withTaskGroup(of: (Int, String?).self) { group in
-            for (i, styleURL) in styleURLs {
-                let ref = effectiveReferrer(for: styleURL)
+            for (i, styleURL, ref) in urls {
                 group.addTask {
-                    measure.start("style-\(i)")
-                    let result = try? await styleURL.request(referrer: ref)
-                    measure.stop("style-\(i)")
-                    return (i, result?.1)
+                    return (i, (try? await styleURL.request(referrer: ref))?.content)
                 }
             }
             for await (i, body) in group {
-                if let body { styleBodies.append((i, body)) }
+                if let body { result.append((i, body)) }
             }
         }
-        measure.stop("fetch-styles")
-        measure.close()
+        return result
+    }
 
-        // 3. Sort by source order, then parse
-        styleBodies.sort(by: { $0.index < $1.index })
-        for (_, body) in styleBodies {
+    private func applyStyles(
+        url: WebURL,
+        bodies: [(index: Int, body: String)]
+    ) -> [(index: Int, url: WebURL, ref: WebURL?)] {
+        for (_, body) in bodies.sorted(by: { $0.index < $1.index }) {
             rules.append(contentsOf: CSSParser(body).parse())
         }
 
-        // Collect inline <style> sheets and append their rules
-        let styleNodes = treeToList(nodes)
-            .compactMap({ $0 as? Element })
-            .filter({ $0.tag == "style" })
-
-        for styleNode in styleNodes {
-            let css = styleNode.children
-                .compactMap({ $0 as? TextNode })
-                .map({ $0.text })
-                .joined()
+        for styleNode in treeToList(nodes).compactMap({ $0 as? Element }).filter({
+            $0.tag == "style"
+        }) {
+            let css = styleNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
             rules.append(contentsOf: CSSParser(css).parse())
         }
 
-        // Load and execute linked scripts
-        let scriptNodes = treeToList(nodes)
-            .compactMap { $0 as? Element }
-            .filter { $0.tag == "script" && $0.attributes["src"] != nil }
+        // Collect script URLs with referrers — computed here on the main thread.
+        return treeToList(nodes).compactMap({ $0 as? Element })
+            .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
+            .enumerated()
+            .compactMap({ (i, node) in
+                let scriptURL = url.resolve(node.attributes["src"]!)
+                guard allowedRequest(scriptURL) else {
+                    print("Blocked script", node.attributes["src"]!, "due to CSP")
+                    return nil
+                }
+                return (i, scriptURL, effectiveReferrer(for: scriptURL))
+            })
+    }
 
-        // 1. Build ordered list of allowed script URLs
-        let scriptURLs: [(index: Int, url: WebURL)] = scriptNodes.enumerated().compactMap({
-            (i, node) in
-            let scriptURL = url.resolve(node.attributes["src"]!)
-            guard allowedRequest(scriptURL) else {
-                print("Blocked script", node.attributes["src"]!, "due to CSP")
-                return nil
-            }
-            return (i, scriptURL)
-        })
-
-        // 2. Fetch all in parallel
-        var scriptBodies: [(index: Int, url: WebURL, body: String)] = []
-        measure.start("fetch-scripts")
+    private func fetchScripts(
+        urls: [(index: Int, url: WebURL, ref: WebURL?)]
+    ) async -> [(index: Int, url: WebURL, body: String)] {
+        var result: [(index: Int, url: WebURL, body: String)] = []
         await withTaskGroup(of: (Int, WebURL, String?).self) { group in
-            for (i, scriptURL) in scriptURLs {
-                let ref = effectiveReferrer(for: scriptURL)
+            for (i, scriptURL, ref) in urls {
                 group.addTask {
-                    measure.start("script-\(i)")
-                    let result = try? await scriptURL.request(referrer: ref)
-                    measure.stop("script-\(i)")
-                    return (i, scriptURL, result?.1)
+                    return (i, scriptURL, (try? await scriptURL.request(referrer: ref))?.content)
                 }
             }
             for await (i, scriptURL, body) in group {
-                if let body { scriptBodies.append((i, scriptURL, body)) }
+                if let body { result.append((i, scriptURL, body)) }
             }
         }
-        measure.stop("fetch-scripts")
-        measure.close()
+        return result
+    }
 
-        // 3. Sort by source order, execute in order
-        scriptBodies.sort(by: { $0.index < $1.index })
-        for (_, scriptURL, body) in scriptBodies {
+    private func execScripts(
+        url: WebURL,
+        bodies: [(index: Int, url: WebURL, body: String)]
+    ) {
+        for (_, scriptURL, body) in bodies.sorted(by: { $0.index < $1.index }) {
             js.run(script: scriptURL.toString(), code: body)
             loadedScriptURLs.insert(scriptURL.toString())
         }
 
         js.defineIDs()
 
-        // Run inline <script> blocks
-        let inlineScripts = treeToList(nodes)
-            .compactMap { $0 as? Element }
-            .filter { $0.tag == "script" && $0.attributes["src"] == nil }
-
-        for scriptNode in inlineScripts {
-            let code = scriptNode.children
-                .compactMap { $0 as? TextNode }
-                .map(\.text)
-                .joined()
-            if !code.isEmpty {
-                js.run(script: "inline", code: code)
-            }
+        for scriptNode in treeToList(nodes).compactMap({ $0 as? Element })
+            .filter({ $0.tag == "script" && $0.attributes["src"] == nil })
+        {
+            let code = scriptNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+            if !code.isEmpty { js.run(script: "inline", code: code) }
         }
 
         setNeedsRender()
@@ -382,6 +408,7 @@ public class Tab {
     }
 
     func runAnimationFrame() {
+        guard js != nil else { return }
         js.run(script: "raf", code: "__runRAFHandlers()")
         let needsComposite = needsStyle || needsLayout
         var needsPaint = false
@@ -608,7 +635,7 @@ public class Tab {
             && a.path == b.path
     }
 
-    public func goBack() async {
+    public func goBack() {
         guard canGoBack else { return }
         historyIndex -= 1
         let entry = history[historyIndex]
@@ -620,7 +647,7 @@ public class Tab {
             alert.addButton(withTitle: "Resubmit")
             alert.addButton(withTitle: "Cancel")
             if alert.runModal() == .alertFirstButtonReturn {
-                await performLoad(entry.url, payload: payload)
+                performLoad(entry.url, payload: payload)
             } else {
                 historyIndex += 1  // user said no - undo the index change
             }
@@ -635,11 +662,11 @@ public class Tab {
             interestTop = max(0, scroll - HEIGHT)
             browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
         } else {
-            await performLoad(entry.url)
+            performLoad(entry.url)
         }
     }
 
-    func goForward() async {
+    func goForward() {
         guard canGoForward else { return }
         historyIndex += 1
         let entry = history[historyIndex]
@@ -654,7 +681,7 @@ public class Tab {
             interestTop = max(0, scroll - HEIGHT)
             browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
         } else {
-            await performLoad(entry.url, payload: entry.payload)
+            performLoad(entry.url, payload: entry.payload)
         }
     }
 
@@ -726,7 +753,7 @@ public class Tab {
         return result
     }
 
-    public func click(x: CGFloat, y: CGFloat) async {
+    public func click(x: CGFloat, y: CGFloat) {
         focusElement(nil)
 
         let adjustedY = y + scroll
@@ -769,7 +796,7 @@ public class Tab {
                         interestTop = max(0, scroll - HEIGHT)
                         setNeedsLayout()
                     } else {
-                        await load(url.resolve(href))
+                        load(url.resolve(href))
                     }
                     return
                 } else if let el = node as? Element, el.tag == "input" {
@@ -787,7 +814,7 @@ public class Tab {
                     while let c = cursor {
                         if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil
                         {
-                            await submitForm(fe)
+                            submitForm(fe)
                             return
                         }
                         cursor = c.parent
@@ -799,19 +826,19 @@ public class Tab {
         setNeedsRender()
     }
 
-    public func enterKey() async {
+    public func enterKey() {
         guard let f = focus else { return }
         var cursor: (any DOMNode)? = f
         while let c = cursor {
             if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil {
-                await submitForm(fe)
+                submitForm(fe)
                 return
             }
             cursor = c.parent
         }
     }
 
-    private func submitForm(_ elt: Element) async {
+    private func submitForm(_ elt: Element) {
         if js.dispatchEvent(type: "submit", elt: elt) { return }
         let inputs = treeToList(elt)
             .compactMap {
@@ -842,9 +869,9 @@ public class Tab {
         let method = elt.attributes["method"]?.lowercased() ?? "get"
 
         if method == "post" {
-            await load(action, payload: body)
+            load(action, payload: body)
         } else {
-            await load(WebURL("\(action.toString())?\(body)"))
+            load(WebURL("\(action.toString())?\(body)"))
         }
     }
 

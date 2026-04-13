@@ -82,7 +82,7 @@ public struct BrowserView: View {
                         if event.modifierFlags.contains(.command) && event.keyCode == 45 {  // Cmd+N
                             openWindow(id: "browser", value: UUID())
                         } else if event.modifierFlags.contains(.command) && event.keyCode == 123 {  // Cmd+Left -> go back
-                            await app.activeTab?.goBack()
+                            app.activeTab?.goBack()
                         } else if event.keyCode == 125 {  // Down arrow
                             print(
                                 "[key] down arrow hasScrollElement=\(app.activeTab?.hasScrollElement ?? false)"
@@ -99,8 +99,8 @@ public struct BrowserView: View {
                                 app.activeTab?.scrollUp()
                             }
                         } else if event.keyCode == 36 {  // Return
-                            if !(await app.chrome.enter()) {
-                                await app.activeTab?.enterKey()
+                            if !(app.chrome.enter()) {
+                                app.activeTab?.enterKey()
                             }
                         } else if event.keyCode == 51 {
                             if app.chrome.backspace() {
@@ -133,7 +133,7 @@ public struct BrowserView: View {
                             case 12:
                                 NSApplication.shared.terminate(nil)
                             case 17:
-                                await app.newTab(WebURL("about:blank"))
+                                app.newTab(WebURL("about:blank"))
                             case 24:  // Ctrl+=
                                 app.incrementZoom(true)
                             case 27:  // Ctrl+-
@@ -196,7 +196,7 @@ public struct BrowserView: View {
                         guard y >= app.chrome.bottom else { return }
                         let tabY = y - app.chrome.bottom
                         if let linkURL = app.activeTab?.linkURL(at: x, y: tabY) {
-                            await app.newTab(linkURL)
+                            app.newTab(linkURL)
                         }
                     }
                     return nil
@@ -235,17 +235,17 @@ public struct BrowserView: View {
                         let y = value.location.y
                         if y < app.chrome.bottom {
                             app.activeTab?.blur()
-                            await app.chrome.click(x: x, y: y)
+                            app.chrome.click(x: x, y: y)
                             app.objectWillChange.send()
                         } else {
                             app.chrome.blur()
-                            await app.activeTab?.click(x: x, y: y - app.chrome.bottom)
+                            app.activeTab?.click(x: x, y: y - app.chrome.bottom)
                         }
                     }
                 })
         )
         .task {
-            await app.newTab(WebURL("https://browser.engineering"))
+            app.newTab(WebURL("https://browser.engineering"))
         }
     }
 }

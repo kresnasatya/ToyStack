@@ -8,7 +8,7 @@ public protocol TabManager: AnyObject {
     var tabs: [Tab] { get }
     var activeTab: Tab? { get set }
     var darkMode: Bool { get }
-    func newTab(_ url: WebURL) async
+    func newTab(_ url: WebURL)
 }
 
 @MainActor
@@ -207,14 +207,14 @@ public class Chrome {
         return cmds
     }
 
-    public func click(x: CGFloat, y: CGFloat) async {
+    public func click(x: CGFloat, y: CGFloat) {
         focus = nil
         if newtabRect.containsPoint(x, y) {
-            await tabManager?.newTab(WebURL("about:blank"))
+            tabManager?.newTab(WebURL("about:blank"))
         } else if backRect.containsPoint(x, y) {
-            await tabManager?.activeTab?.goBack()
+            tabManager?.activeTab?.goBack()
         } else if forwardRect.containsPoint(x, y) {
-            await tabManager?.activeTab?.goForward()
+            tabManager?.activeTab?.goForward()
         } else if bookmarkRect.containsPoint(x, y) {
             if let urlStr = tabManager?.activeTab?.url?.toString() {
                 if let idx = bookmarks.firstIndex(of: urlStr) {
@@ -296,7 +296,7 @@ public class Chrome {
     }
 
     @discardableResult
-    public func enter() async -> Bool {
+    public func enter() -> Bool {
         if focus == "address bar" {
             let input = addressBar
             focus = nil
@@ -314,7 +314,7 @@ public class Chrome {
             } else {
                 url = searchURL(for: input)
             }
-            await tabManager?.activeTab?.load(url)
+            tabManager?.activeTab?.load(url)
             focus = nil
             return true
         }
