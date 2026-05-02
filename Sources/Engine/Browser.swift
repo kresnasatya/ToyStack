@@ -37,6 +37,7 @@ public class Browser: ObservableObject {
     public var measure = MeasureTime()
 
     let networkingThread = NetworkingThread()
+    let rasterThread = RasterThread()
 
     public init() {
         chrome = Chrome()
@@ -116,20 +117,89 @@ public class Browser: ObservableObject {
         // Allow next animation frame to begin before raster/draw finishes
         needsAnimationFrame = true
 
-        Task { @MainActor in
-            compositeRasterAndDraw()
-            updateAccessibility()
-        }
+        scheduleRasterAndDraw()
     }
 
-    private func composite() {
-        let interestBottom = activeTabInterestTop + 4 * HEIGHT
-        compositedLayers = []
-        addParentPointers(&activeTabDisplayList)
+    private func resolvePendingHover() {
+        guard let pending = pendingHover else { return }
+        let adjustedY = pending.y + activeTabScroll
+        if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x, y: adjustedY) {
+            if hoveredA11yNode == nil || hit.node !== hoveredA11yNode!.node {
+                needsSpeakHoveredNode = true
+            }
+            hoveredA11yNode = hit
+        }
+        pendingHover = nil
+    }
+
+    private func scheduleRasterAndDraw() {
+        guard needsComposite || needsRaster || needsDraw else { return }
+
+        resolvePendingHover()
+
+        let inputs = RasterInputs(
+            displayList: activeTabDisplayList, scroll: activeTabScroll,
+            interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
+            compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
+            darkMode: darkMode, needsComposite: needsComposite, needsRaster: needsRaster,
+            needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds
+        )
+
+        needsComposite = false
+        needsRaster = false
+        needsDraw = false
+
+        measure.start("composite_raster_and_draw")
+        let frameStart = frameStartTime
+        frameStartTime = .distantPast
+
+        rasterThread.submit(
+            {
+                // OFF-MAIN: pure work.
+                let layers =
+                    inputs.needsComposite
+                    ? Browser.computeComposite(inputs)
+                    : inputs.previousLayes
+                let drawList =
+                    inputs.needsDraw
+                    ? Browser.computePaintDrawList(layers: layers, inputs: inputs)
+                    : nil
+                return RasterOutput(
+                    compositedLayers: inputs.needsComposite ? layers : nil, drawList: drawList
+                )
+            },
+            then: { [weak self] output in
+                // BACK ON MAIN
+                guard let self = self else { return }
+                if let layers = output.compositedLayers { self.compositedLayers = layers }
+                if let drawList = output.drawList { self.drawList = drawList }
+                self.objectWillChange.send()
+                self.updateAccessibility()
+                self.measure.stop("composite_raster_and_draw")
+
+                // Frame-time bookkeeping (only for animationTick-initiated frames).
+                if frameStart != .distantPast {
+                    let elapsed = Date().timeIntervalSince(frameStart)
+                    self.recentFrameTimes.append(elapsed)
+                    if self.recentFrameTimes.count > self.frameHistorySize {
+                        self.recentFrameTimes.removeFirst()
+                    }
+                    let avg =
+                        self.recentFrameTimes.reduce(0, +) / Double(self.recentFrameTimes.count)
+                    self.estimatedFrameTime = max(avg, self.FRAME_BUDGET)
+                }
+            })
+    }
+
+    nonisolated static func computeComposite(_ inputs: RasterInputs) -> [CompositedLayer] {
+        var displayList = inputs.displayList
+        addParentPointers(&displayList)
+
         var allCommands: [Any] = []
-        for item in activeTabDisplayList {
+        for item in displayList {
             treeToList(item, into: &allCommands)
         }
+
         let nonComposited = allCommands.compactMap({ item -> (any PaintCommand)? in
             if let pc = item as? (any PaintCommand) { return pc }
             if let ve = item as? VisualEffect, !ve.needsCompositing {
@@ -137,14 +207,15 @@ public class Browser: ObservableObject {
             }
             return nil
         })
+
+        var compositedLayers: [CompositedLayer] = []
         for cmd in nonComposited {
-            // skip interest region check for commands inside a scroll container
             let inScrollEffect = sequence(
                 first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
             )
             .contains(where: { $0 is ScrollEffect })
             if !inScrollEffect {
-                guard cmd.rect.bottom >= activeTabInterestTop && cmd.rect.top <= interestBottom
+                guard cmd.rect.bottom >= inputs.interestTop && cmd.rect.top <= inputs.interestBottom
                 else {
                     continue
                 }
@@ -165,14 +236,14 @@ public class Browser: ObservableObject {
                 compositedLayers.append(CompositedLayer(displayItem: cmd))
             }
         }
+
+        return compositedLayers
     }
 
-    private func rasterTab() {
-        // Rasterization is deferred to draw time in SwiftUI
-        // CompositedLayer.raster() is called during execute DrawCompositedLayer
-    }
-
-    private func getLatest(_ effect: Engine.VisualEffect) -> Engine.VisualEffect {
+    nonisolated private static func getLatest(
+        _ effect: Engine.VisualEffect,
+        in compositedUpdates: [ObjectIdentifier: Engine.VisualEffect]
+    ) -> Engine.VisualEffect {
         guard let node = effect.node else { return effect }
         let key = ObjectIdentifier(node)
         guard compositedUpdates[key] != nil else { return effect }
@@ -180,15 +251,18 @@ public class Browser: ObservableObject {
         return compositedUpdates[key]!
     }
 
-    private func paintDrawList() {
+    nonisolated static func computePaintDrawList(
+        layers: [CompositedLayer],
+        inputs: RasterInputs
+    ) -> [Any] {
         var newEffects: [ObjectIdentifier: VisualEffect] = [:]
-        drawList = []
-        for layer in compositedLayers {
+        var drawList: [Any] = []
+        for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
             var currentEffect: Any = DrawCompositedLayer(layer: layer)
             var parent: VisualEffect? = layer.displayItems[0].parentEffect
             while let p = parent {
-                let newParent = getLatest(p)
+                let newParent = getLatest(p, in: inputs.compositedUpdates)
                 let newParentKey = ObjectIdentifier(newParent)
                 if let existing = newEffects[newParentKey] {
                     existing.children.append(currentEffect)
@@ -217,21 +291,12 @@ public class Browser: ObservableObject {
             }
         }
 
-        if let pending = pendingHover {
-            let adjustedY = pending.y + activeTabScroll
-            if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x, y: adjustedY) {
-                if hoveredA11yNode == nil || hit.node !== hoveredA11yNode!.node {
-                    needsSpeakHoveredNode = true
-                }
-                hoveredA11yNode = hit
-            }
-            pendingHover = nil
+        if let bounds = inputs.hoveredBounds {
+            let color = inputs.darkMode ? "white" : "black"
+            drawList.append(DrawOutline(rect: bounds, color: color, thickness: 2))
         }
 
-        if let hovered = hoveredA11yNode {
-            let color = darkMode ? "white" : "black"
-            drawList.append(DrawOutline(rect: hovered.bounds, color: color, thickness: 2))
-        }
+        return drawList
     }
 
     func setNeedsComposite() {
@@ -255,45 +320,17 @@ public class Browser: ObservableObject {
         }
     }
 
-    private func compositeRasterAndDraw() {
-        guard needsComposite || needsRaster || needsDraw else { return }
-        measure.start("composite_raster_and_draw")
-        if needsComposite { composite() }
-        if needsRaster { rasterTab() }
-        if needsDraw {
-            paintDrawList()
-            objectWillChange.send()
-        }
-
-        needsComposite = false
-        needsRaster = false
-        needsDraw = false
-        measure.stop("composite_raster_and_draw")
-
-        // Update frame time estimate (only for frames started in animationTick)
-        if frameStartTime != .distantPast {
-            let elapsed = Date().timeIntervalSince(frameStartTime)
-            recentFrameTimes.append(elapsed)
-            if recentFrameTimes.count > frameHistorySize {
-                recentFrameTimes.removeFirst()
-            }
-            let avg = recentFrameTimes.reduce(0, +) / Double(recentFrameTimes.count)
-            estimatedFrameTime = max(avg, FRAME_BUDGET)
-            frameStartTime = .distantPast
-        }
-    }
-
     public func applyScroll(_ scroll: CGFloat) {
         activeTabScroll = scroll
         setNeedsDrawOnly()
-        compositeRasterAndDraw()
+        scheduleRasterAndDraw()
     }
 
     public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat) {
         activeTabScroll = scroll
         activeTabInterestTop = interestTop
         setNeedsComposite()  // forces composite() to re-run
-        compositeRasterAndDraw()
+        scheduleRasterAndDraw()
     }
 
     public func toggleDarkMode() {
@@ -392,7 +429,7 @@ public class Browser: ObservableObject {
         guard accessibilityIsOn, activeTab?.accessibilityTree != nil else { return }
         pendingHover = CGPoint(x: x, y: y)
         setNeedsDrawOnly()
-        compositeRasterAndDraw()
+        scheduleRasterAndDraw()
     }
 }
 
