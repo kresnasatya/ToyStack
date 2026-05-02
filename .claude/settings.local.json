@@ -7,7 +7,9 @@
       "Bash(grep -h \"^class \\\\|^struct \\\\|^enum \" /Users/kresnasatya/Projects/BrowserEngine/ToyStack/Sources/Engine/*.swift)",
       "Bash(rtk ls *)",
       "Bash(rtk grep *)",
-      "Bash(rtk git *)"
+      "Bash(rtk git *)",
+      "Bash(rtk wc *)",
+      "Bash(rtk swift *)"
     ]
   }
 }
