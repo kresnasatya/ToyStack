@@ -4,7 +4,10 @@
       "Bash(ls -1 /Users/kresnasatya/Projects/BrowserEngine/ToyStack/brownie/*.py)",
       "Bash(ls -1 /Users/kresnasatya/Projects/BrowserEngine/ToyStack/Sources/Engine/*.swift /Users/kresnasatya/Projects/BrowserEngine/ToyStack/Sources/Engine/Layouts/*.swift)",
       "Bash(grep -h \"^class Draw\" /Users/kresnasatya/Projects/BrowserEngine/ToyStack/brownie/*.py)",
-      "Bash(grep -h \"^class \\\\|^struct \\\\|^enum \" /Users/kresnasatya/Projects/BrowserEngine/ToyStack/Sources/Engine/*.swift)"
+      "Bash(grep -h \"^class \\\\|^struct \\\\|^enum \" /Users/kresnasatya/Projects/BrowserEngine/ToyStack/Sources/Engine/*.swift)",
+      "Bash(rtk ls *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk git *)"
     ]
   }
 }
