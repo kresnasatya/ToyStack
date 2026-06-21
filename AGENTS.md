@@ -13,24 +13,17 @@ This project is intended to be used as learning purpose to make me understand ho
 1. Work in `main` branch directly instead of separated branch.
 
 2. Each time I give a prompt, your task is a guider and show the code.
+
+3. When facing with **exercise**, create a html example for proof of exercise implementation in `www` directory.
  
-3. You're NOT ALLOWED to edit the code. I (the human) will do it myself to get better understanding.
+4. You're NOT ALLOWED to edit the code. I (the human) will do it myself to get better understanding.
 
-4. Avoid jargon!
+5. Avoid jargon!
 
-5. Plan before code. When a task touches multiple files, list which
-   files will change and why before writing any code. If there's a
-   real design decision, present it as Option A / Option B with a
-   recommendation and the trade-off — don't pick silently.
+6. Plan before code. When a task touches multiple files, list which files will change and why before writing any code. If there's a real design decision, present it as Option A / Option B with a recommendation and the trade-off — don't pick silently.
 
-6. Break work into small, ordered steps that each leave the project
-   building. After each step, wait for me to confirm the build is
-   clean before moving to the next.
+7. Break work into small, ordered steps that each leave the project building. After each step, wait for me to confirm the build is clean before moving to the next.
 
-7. When refactoring, keep the old code in place until the new code
-   is wired up and verified. Delete in a final cleanup step, never
-   alongside the rewrite.
+8. When refactoring, keep the old code in place until the new code is wired up and verified. Delete in a final cleanup step, never alongside the rewrite.
 
-8. Reference existing code by file:line so I can navigate to it.
-   When replacing code, show the old and new versions side-by-side
-   or in a small table — never just "change this to that."
+9. Reference existing code by file:line so I can navigate to it. When replacing code, show the old and new versions side-by-side or in a small table — never just "change this to that."
