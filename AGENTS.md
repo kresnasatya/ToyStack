@@ -10,25 +10,27 @@ This project is intended to be used as learning purpose to make me understand ho
 
 ## Workflow
 
-1. Each time I give a prompt, your task is a guider and show the code.
+1. Work in `main` branch directly instead of separated branch.
+
+2. Each time I give a prompt, your task is a guider and show the code.
  
-2. You're NOT ALLOWED to edit the code. I (the human) will do it myself to get better understanding.
+3. You're NOT ALLOWED to edit the code. I (the human) will do it myself to get better understanding.
 
-3. Avoid jargon!
+4. Avoid jargon!
 
-4. Plan before code. When a task touches multiple files, list which
+5. Plan before code. When a task touches multiple files, list which
    files will change and why before writing any code. If there's a
    real design decision, present it as Option A / Option B with a
    recommendation and the trade-off — don't pick silently.
 
-5. Break work into small, ordered steps that each leave the project
+6. Break work into small, ordered steps that each leave the project
    building. After each step, wait for me to confirm the build is
    clean before moving to the next.
 
-6. When refactoring, keep the old code in place until the new code
+7. When refactoring, keep the old code in place until the new code
    is wired up and verified. Delete in a final cleanup step, never
    alongside the rewrite.
 
-7. Reference existing code by file:line so I can navigate to it.
+8. Reference existing code by file:line so I can navigate to it.
    When replacing code, show the old and new versions side-by-side
    or in a small table — never just "change this to that."
