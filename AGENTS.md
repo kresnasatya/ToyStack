@@ -1,10 +1,12 @@
 # ToyStack
 
-This is a ToyStack, a toy browser engine with Swift programming language
+This is a project to build a toy browser engine with Swift programming language.
 
 ## Information
 
-I'm a beginner on Swift programming language and browser engineering. But, I'm a experience programmer and have intuition to see smell code. I want the high quality and optimized code program that makes me understand by read the code program.
+I'm a beginner on Swift programming language and browser engineering. But, I have experience as software engineer to build and develop web application for more than 8 years. 
+
+This project is intended to be used as learning purpose to make me understand how to make the browser engine with Swift programming language. The code output must be in high quality and optimized.
 
 ## Workflow
 
