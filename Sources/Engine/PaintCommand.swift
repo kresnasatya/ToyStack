@@ -1,5 +1,35 @@
 import SwiftUI
 
+func cssColorToRGB(_ cssName: String) -> RGBColor? {
+    let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
+    if name.hasPrefix("#") {
+        let hex = String(name.dropFirst())
+        let expanded = hex.count == 3 ? hex.map { "\($0)\($0)" }.joined() : hex
+        if expanded.count == 6,
+            let r = UInt8(expanded.prefix(2), radix: 16),
+            let g = UInt8(expanded.dropFirst(2).prefix(2), radix: 16),
+            let b = UInt(expanded.dropFirst(4).prefix(2), radix: 16)
+        {
+            return (Double(r), Double(g), Double(b))
+        }
+    }
+
+    switch name {
+    case "white": return (255, 255, 255)
+    case "black": return (0, 0, 0)
+    case "red": return (255, 0, 0)
+    case "blue": return (0, 0, 255)
+    case "green": return (0, 128, 0)
+    case "gray", "grey": return (128, 128, 128)
+    case "orange": return (255, 165, 0)
+    case "lightblue": return (173, 216, 230)
+    case "lightgray", "lightgrey": return (211, 211, 217)
+    case "yellow": return (255, 255, 0)
+    case "purple": return (128, 0, 128)
+    default: return nil
+    }
+}
+
 // MARK: - Color Parsing
 // CSS color names used in browser.css and inline styles.
 // Extend this as you encounter more colors in the browser stylesheet.

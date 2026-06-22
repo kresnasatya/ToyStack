@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            body {
+                font-family: monospace;
+                font-size: 14px;
+            }
+            #box {
+                width: 300px;
+                height: 150px;
+                background-color: lightblue;
+                transition: background-color 2s;
+                padding: 10px;
+            }
+            #box.hot {
+                background-color: orange;
+            }
+        </style>
+    </head>
+    <body>
+        <h3>Exercise 13-1: animate background-color</h3>
+        <p>Click the box. All three color channels interpolate together.</p>
+        <div id="box">background-color animates over 2s</div>
+        <button id="toggle">Toggle color</button>
+
+        <script>
+            var box = document.getElementById("box");
+            var hot = false;
+            document
+                .getElementById("toggle")
+                .addEventListener("click", function () {
+                    hot = !hot;
+                    box.setAttribute("class", hot ? "hot" : "");
+                });
+        </script>
+    </body>
+</html>

@@ -11,7 +11,7 @@ protocol DOMNode: AnyObject {
     var isFocused: Bool { get set }
     var satisfiedHas: Set<Int> { get set }
     var layoutObject: LayoutObject? { get set }
-    var animations: [String: NumericAnimation] { get set }
+    var animations: [String: Animation] { get set }
 }
 
 // MARK: - Element
@@ -26,7 +26,7 @@ class Element: DOMNode {
     var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
-    var animations: [String: NumericAnimation] = [:]
+    var animations: [String: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
@@ -52,7 +52,7 @@ class TextNode: DOMNode {
     var isFocused: Bool = false
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
-    var animations: [String: NumericAnimation] = [:]
+    var animations: [String: Animation] = [:]
 
     init(text: String, parent: (any DOMNode)?) {
         self.text = text

@@ -101,8 +101,11 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] (handle: Int, attr: String, value: String) in
-                guard let self, let elt = self.handleToNode[handle] as? Element else { return }
-                elt.attributes[attr] = value
+                MainActor.assumeIsolated({
+                    guard let self, let elt = self.handleToNode[handle] as? Element else { return }
+                    elt.attributes[attr] = value
+                    self.tab?.setNeedsRender()
+                })
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "_setAttribute" as NSString)
 

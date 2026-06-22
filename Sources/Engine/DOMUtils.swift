@@ -268,9 +268,9 @@ func parseTransition(_ value: String) -> [String: Int] {
 }
 
 func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String:
-    NumericAnimation]
+    Animation]
 {
-    var animations: [String: NumericAnimation] = [:]
+    var animations: [String: Animation] = [:]
     let transitions = parseTransition(newStyle["transition"] ?? "")
     for (property, numFrames) in transitions {
         guard let oldVal = oldStyle[property],
@@ -280,6 +280,7 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
         if property == "opacity", let old = Double(oldVal), let new = Double(newVal) {
             animations[property] = NumericAnimation(
                 oldValue: old, newValue: new, numFrames: numFrames)
+            node.style[property] = oldVal
         } else if property == "transform", let oldPoint = parseTransform(oldVal),
             let newPoint = parseTransform(newVal)
         {
@@ -287,6 +288,14 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
                 oldValue: Double(oldPoint.x), newValue: Double(newPoint.x), numFrames: numFrames)
             animations["transform-y"] = NumericAnimation(
                 oldValue: Double(oldPoint.y), newValue: Double(newPoint.y), numFrames: numFrames)
+            node.style[property] = oldVal
+        } else if property == "background-color",
+            let old = cssColorToRGB(oldVal),
+            let new = cssColorToRGB(newVal)
+        {
+            animations[property] = ColorAnimation(
+                oldColor: old, newColor: new, numFrames: numFrames)
+            node.style[property] = oldVal
         }
     }
     return animations

@@ -322,7 +322,7 @@ class CSSParser {
     }
 
     private static func isShortHand(_ prop: String) -> Bool {
-        ["font", "border", "outline", "margin", "padding"].contains(prop)
+        ["font", "border", "outline", "margin", "padding", "transition"].contains(prop)
     }
 
     // Parse a rule body, separating normal from !important
@@ -358,7 +358,8 @@ class CSSParser {
                         isImportant ? (important[k] = v) : (normal[k] = v)
                     }
                 } else {
-                    isImportant ? (important[prop] = val) : (normal[prop] = val)
+                    let fullVal = tokens.joined(separator: " ")
+                    isImportant ? (important[prop] = fullVal) : (normal[prop] = fullVal)
                 }
                 skipWhitespace()
                 _ = try? literal(";")

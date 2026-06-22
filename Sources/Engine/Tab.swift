@@ -41,6 +41,7 @@ public class Tab {
     private var needsLayout: Bool = false
     private var needsAccessibility: Bool = false
     private var needsPaint: Bool = false
+    private var needsCompositeForPaint: Bool = false
     private var needsFocusScroll: Bool = false
 
     private(set) var darkMode: Bool = false
@@ -414,12 +415,17 @@ public class Tab {
                         {
                             node.style["transform"] = "translate(\(x)px, \(y)px)"
                         }
-                    } else {
+                    } else if property == "opacity" {
                         node.style[property] = value
+                        compositedUpdates[ObjectIdentifier(node)] =
+                            node.layoutObject as? Engine.VisualEffect
+                        needsPaint = true
+                    } else {
+                        // paint-only property (background-color): re-raster the layer
+                        node.style[property] = value
+                        needsCompositeForPaint = true
+                        needsPaint = true
                     }
-                    compositedUpdates[ObjectIdentifier(node)] =
-                        node.layoutObject as? Engine.VisualEffect
-                    needsPaint = true
                 } else {
                     node.animations.removeValue(forKey: property)
                 }
@@ -444,7 +450,8 @@ public class Tab {
 
         // nil signals Browser to do a full composite
         // dict signals Browser to only update specific layers
-        let updates: [ObjectIdentifier: VisualEffect]? = needsComposite ? nil : compositedUpdates
+        let updates: [ObjectIdentifier: VisualEffect]? =
+            (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data = CommitData(
             url: url!, scroll: scroll, height: docHeight, displayList: displayList,
             compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
