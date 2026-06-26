@@ -170,8 +170,22 @@ class CSSParser {
 
     // Advances past all whitespace characters (spaces, newlines, tabs).
     private func skipWhitespace() {
-        while i < chars.count && chars[i].isWhitespace {
-            i += 1
+        while i < chars.count {
+            if chars[i].isWhitespace {
+                i += 1
+            } else if i + 1 < chars.count && chars[i] == "/" && chars[i + 1] == "*" {
+                // Skip a /* ... */ comment
+                i += 2
+                while i < chars.count {
+                    if i + 1 < chars.count && chars[i] == "*" && chars[i + 1] == "/" {
+                        i += 2
+                        break
+                    }
+                    i += 1
+                }
+            } else {
+                break
+            }
         }
     }
 
@@ -393,7 +407,7 @@ class CSSParser {
             let hashParts = first.split(separator: "#", omittingEmptySubsequences: false).map(
                 String.init)
             if let tag = hashParts.first, !tag.isEmpty {
-                selectors.append(TagSelector(tag: tag))
+                selectors.append(TagSelector(tag: tag.lowercased()))
             }
             if hashParts.count > 1, let id = hashParts.last, !id.isEmpty {
                 selectors.append(IDSelector(id: id))
@@ -412,7 +426,7 @@ class CSSParser {
         var parts: [any CSSSelector] = []
 
         if let w = try? word() {
-            parts.append(parseSimpleSelector(w.lowercased()))
+            parts.append(parseSimpleSelector(w))
         }
 
         while i < chars.count && chars[i] == ":" {
