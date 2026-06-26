@@ -251,18 +251,68 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
 
 let REFRESH_RATE_SEC = 1.0 / 60.0
 
-func parseTransition(_ value: String) -> [String: Int] {
-    var properties: [String: Int] = [:]
+struct TransitionSpec {
+    let numFrames: Int
+    let easing: EasingFunction
+}
+
+func splitTopLevel(_ value: String, separator: Character) -> [String] {
+    var parts: [String] = []
+    var depth = 0
+    var current = ""
+    for ch in value {
+        if ch == "(" {
+            depth += 1
+            current.append(ch)
+        } else if ch == ")" {
+            depth -= 1
+            current.append(ch)
+        } else if ch == separator && depth == 0 {
+            parts.append(current)
+            current = ""
+        } else {
+            current.append(ch)
+        }
+    }
+    if !current.isEmpty { parts.append(current) }
+    return parts
+}
+
+func parseEasing(_ value: String) -> EasingFunction {
+    switch value {
+    case "linear": return .linear
+    case "ease": return .ease
+    case "ease-in": return .easeIn
+    case "ease-out": return .easeOut
+    default:
+        if value.hasPrefix("cubic-bezier(") && value.hasSuffix(")") {
+            let inner = value.dropFirst("cubic-bezier(".count).dropLast()
+            let nums = inner.split(separator: ",")
+                .compactMap({ Double($0.trimmingCharacters(in: .whitespaces)) })
+            if nums.count == 4 {
+                return .cubicBezier(x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3])
+            }
+        }
+        return .ease
+    }
+}
+
+func parseTransition(_ value: String) -> [String: TransitionSpec] {
+    var properties: [String: TransitionSpec] = [:]
     guard !value.isEmpty else { return properties }
-    for item in value.split(separator: ",") {
-        let parts = item.trimmingCharacters(in: .whitespaces)
-            .split(separator: " ", maxSplits: 1)
-        guard parts.count == 2 else { continue }
-        let property = String(parts[0])
-        let durationStr = String(parts[1])
+    for item in splitTopLevel(value, separator: ",") {
+        let trimmed = item.trimmingCharacters(in: .whitespaces)
+        let tokens = splitTopLevel(trimmed, separator: " ").filter({
+            !$0.isEmpty
+        })
+        guard tokens.count >= 2 else { continue }
+        let property = tokens[0]
+        let durationStr = tokens[1]
         guard durationStr.hasSuffix("s"), let seconds = Double(durationStr.dropLast())
         else { continue }
-        properties[property] = Int(seconds / REFRESH_RATE_SEC)
+        let numFrames = Int(seconds / REFRESH_RATE_SEC)
+        let easing = tokens.count >= 3 ? parseEasing(tokens[2]) : .ease
+        properties[property] = TransitionSpec(numFrames: numFrames, easing: easing)
     }
     return properties
 }
@@ -272,29 +322,32 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
 {
     var animations: [String: Animation] = [:]
     let transitions = parseTransition(newStyle["transition"] ?? "")
-    for (property, numFrames) in transitions {
+    for (property, spec) in transitions {
+        let numFrames = spec.numFrames
         guard let oldVal = oldStyle[property],
             let newVal = newStyle[property],
             oldVal != newVal
         else { continue }
         if property == "opacity", let old = Double(oldVal), let new = Double(newVal) {
             animations[property] = NumericAnimation(
-                oldValue: old, newValue: new, numFrames: numFrames)
+                oldValue: old, newValue: new, numFrames: numFrames, easing: spec.easing)
             node.style[property] = oldVal
         } else if property == "transform", let oldPoint = parseTransform(oldVal),
             let newPoint = parseTransform(newVal)
         {
             animations["transform-x"] = NumericAnimation(
-                oldValue: Double(oldPoint.x), newValue: Double(newPoint.x), numFrames: numFrames)
+                oldValue: Double(oldPoint.x), newValue: Double(newPoint.x), numFrames: numFrames,
+                easing: spec.easing)
             animations["transform-y"] = NumericAnimation(
-                oldValue: Double(oldPoint.y), newValue: Double(newPoint.y), numFrames: numFrames)
+                oldValue: Double(oldPoint.y), newValue: Double(newPoint.y), numFrames: numFrames,
+                easing: spec.easing)
             node.style[property] = oldVal
         } else if property == "background-color",
             let old = cssColorToRGB(oldVal),
             let new = cssColorToRGB(newVal)
         {
             animations[property] = ColorAnimation(
-                oldColor: old, newColor: new, numFrames: numFrames)
+                oldColor: old, newColor: new, numFrames: numFrames, easing: spec.easing)
             node.style[property] = oldVal
         }
     }
@@ -302,7 +355,7 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
 }
 
 func parseTransform(_ value: String) -> CGPoint? {
-    let pattern = #"translate\(([0-9.]+)px,\s*([0-9.]+)px\)"#
+    let pattern = #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
     guard let regex = try? NSRegularExpression(pattern: pattern),
         let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
         let xRange = Range(match.range(at: 1), in: value),

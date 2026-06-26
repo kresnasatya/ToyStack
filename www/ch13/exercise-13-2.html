@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            body {
+                font-family: monospace;
+                font-size: 14px;
+            }
+            .track {
+                position: relative;
+                height: 40px;
+                margin: 8px 0;
+                background: #eee;
+            }
+            .label {
+                display: inline-block;
+                width: 180px;
+                padding: 10px 6px;
+                vertical-align: top;
+            }
+            .box {
+                position: absolute;
+                left: 180px;
+                top: 0;
+                width: 40px;
+                height: 40px;
+                background-color: steelblue;
+                /* initial transform; the JS swaps this for translate(400px, 0)
+                   after a short delay so diffStyles sees a real change */
+                transform: translate(0px, 0px);
+            }
+            #linear {
+                transition: transform 2s linear;
+            }
+            #ease {
+                transition: transform 2s ease;
+            }
+            #easeIn {
+                transition: transform 2s ease-in;
+            }
+            #easeOut {
+                transition: transform 2s ease-out;
+            }
+            #custom {
+                transition: transform 2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            }
+        </style>
+    </head>
+    <body>
+        <h3>Exercise 13-2: easing functions</h3>
+        <p>
+            Click "Run". All five boxes travel 400px over 2s, but with different
+            timing functions. Watch the start and end of each motion.
+        </p>
+        <button id="run">Run</button>
+        <button id="reset">Reset</button>
+
+        <div class="track">
+            <span class="label">linear</span>
+            <div id="linear" class="box"></div>
+        </div>
+        <div class="track">
+            <span class="label">ease (default)</span>
+            <div id="ease" class="box"></div>
+        </div>
+        <div class="track">
+            <span class="label">ease-in</span>
+            <div id="easeIn" class="box"></div>
+        </div>
+        <div class="track">
+            <span class="label">ease-out</span>
+            <div id="easeOut" class="box"></div>
+        </div>
+        <div class="track">
+            <span class="label">cubic-bezier(.68,-.55,.27,1.55)</span>
+            <div id="custom" class="box"></div>
+        </div>
+
+        <script>
+            var ids = ["linear", "ease", "easeIn", "easeOut", "custom"];
+
+            // The start style and the transition are already in the CSS.
+            // After one tick we swap transform to translate(400px, 0px); the
+            // 50ms delay gives ToyStack time to record the old transform so
+            // diffStyles has something to interpolate from.
+            function run() {
+                setTimeout(function () {
+                    for (var i = 0; i < ids.length; i++) {
+                        var box = document.getElementById(ids[i]);
+                        box.setAttribute(
+                            "style",
+                            "transform: translate(400px, 0px); ",
+                        );
+                    }
+                }, 50);
+            }
+
+            function reset() {
+                for (var i = 0; i < ids.length; i++) {
+                    var box = document.getElementById(ids[i]);
+                    box.setAttribute(
+                        "style",
+                        "transform: translate(0px, 0px); ",
+                    );
+                }
+            }
+
+            document.getElementById("run").addEventListener("click", run);
+            document.getElementById("reset").addEventListener("click", reset);
+        </script>
+    </body>
+</html>

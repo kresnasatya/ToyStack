@@ -415,6 +415,8 @@ public class Tab {
                         {
                             node.style["transform"] = "translate(\(x)px, \(y)px)"
                         }
+                        needsCompositeForPaint = true
+                        needsPaint = true
                     } else if property == "opacity" {
                         node.style[property] = value
                         compositedUpdates[ObjectIdentifier(node)] =
