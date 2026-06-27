@@ -350,6 +350,12 @@ class CSSParser {
                 if CSSParser.isShortHand(prop) {
                     skipWhitespace()
                     while i < chars.count && chars[i] != ";" && chars[i] != "}" {
+                        if chars[i] == "," {
+                            tokens.append(",")
+                            i += 1
+                            skipWhitespace()
+                            continue
+                        }
                         guard let t = try? word() else { break }
                         tokens.append(t)
                         skipWhitespace()
