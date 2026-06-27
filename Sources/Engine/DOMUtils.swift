@@ -301,8 +301,9 @@ func parseTransition(_ value: String) -> [String: TransitionSpec] {
     var properties: [String: TransitionSpec] = [:]
     guard !value.isEmpty else { return properties }
     for item in splitTopLevel(value, separator: ",") {
-        let trimmed = item.trimmingCharacters(in: .whitespaces)
-        let tokens = splitTopLevel(trimmed, separator: " ").filter({
+        let normalized = item.split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let tokens = splitTopLevel(normalized, separator: " ").filter({
             !$0.isEmpty
         })
         guard tokens.count >= 2 else { continue }

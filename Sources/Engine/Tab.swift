@@ -408,20 +408,22 @@ public class Tab {
         for node in treeToList(nodes) {
             for (property, animation) in node.animations {
                 if let value = animation.animate() {
-                    if property == "transform-x" || property == "transform-y" {
+                    if property == "transform-x" || property == "transform-y"
+                        || property == "opacity"
+                    {
                         node.style[property] = value
-                        if let x = node.style["transform-x"],
-                            let y = node.style["transform-y"]
-                        {
-                            node.style["transform"] = "translate(\(x)px, \(y)px)"
+                        if property == "transform-x" || property == "transform-y" {
+                            if let x = node.style["transform-x"], let y = node.style["transform-y"]
+                            {
+                                node.style["transform"] = "translate(\(x)px, \(y)px)"
+                            }
                         }
-                        needsCompositeForPaint = true
-                        needsPaint = true
-                    } else if property == "opacity" {
-                        node.style[property] = value
-                        compositedUpdates[ObjectIdentifier(node)] =
-                            node.layoutObject as? Engine.VisualEffect
-                        needsPaint = true
+                        if let rect = (node.layoutObject as? BlockLayout)?.selfRect(),
+                            let effect = paintVisualEffects(node: node, cmds: [], rect: rect).first
+                                as? VisualEffect
+                        {
+                            compositedUpdates[ObjectIdentifier(node)] = effect
+                        }
                     } else {
                         // paint-only property (background-color): re-raster the layer
                         node.style[property] = value
@@ -430,6 +432,8 @@ public class Tab {
                     }
                 } else {
                     node.animations.removeValue(forKey: property)
+                    needsCompositeForPaint = true
+                    needsPaint = true
                 }
             }
         }
@@ -460,6 +464,7 @@ public class Tab {
             interestTop: interestTop
         )
         compositedUpdates = [:]
+        needsCompositeForPaint = false
         browser?.commit(tab: self, data: data)
     }
 

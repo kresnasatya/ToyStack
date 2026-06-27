@@ -246,9 +246,22 @@ public class Browser: ObservableObject {
     ) -> Engine.VisualEffect {
         guard let node = effect.node else { return effect }
         let key = ObjectIdentifier(node)
-        guard compositedUpdates[key] != nil else { return effect }
-        guard effect is Blend else { return effect }
-        return compositedUpdates[key]!
+        guard let updated = compositedUpdates[key] else { return effect }
+        if type(of: effect) == type(of: updated) {
+            return updated
+        }
+        var stack: [VisualEffect] = [updated]
+        while let candidate = stack.popLast() {
+            if type(of: candidate) == type(of: effect) {
+                return candidate
+            }
+            for child in candidate.children {
+                if let ve = child as? VisualEffect {
+                    stack.append(ve)
+                }
+            }
+        }
+        return effect
     }
 
     nonisolated static func computePaintDrawList(
