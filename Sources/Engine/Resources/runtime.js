@@ -174,6 +174,9 @@ Object.defineProperty(Node.prototype, "style", {
       },
     );
   },
+  set: function (value) {
+    _setAttribute(this.handle, "style", value.toString());
+  },
 });
 
 Object.defineProperty(Node.prototype, "scrollTop", {
