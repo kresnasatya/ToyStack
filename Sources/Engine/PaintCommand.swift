@@ -23,6 +23,8 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
     case "gray", "grey": return (128, 128, 128)
     case "orange": return (255, 165, 0)
     case "lightblue": return (173, 216, 230)
+    case "lightgreen": return (144, 238, 144)
+    case "steelblue": return (70, 130, 180)
     case "lightgray", "lightgrey": return (211, 211, 217)
     case "yellow": return (255, 255, 0)
     case "purple": return (128, 0, 128)
@@ -62,6 +64,8 @@ extension Color {
         case "gray", "grey": self = .gray
         case "orange": self = .orange
         case "lightblue": self = Color(red: 0.68, green: 0.85, blue: 0.90)
+        case "lightgreen": self = Color(red: 0.56, green: 0.93, blue: 0.56)
+        case "steelblue": self = Color(red: 0.27, green: 0.51, blue: 0.71)
         case "lightgray", "lightgrey": self = Color(red: 0.83, green: 0.83, blue: 0.85)
         case "transparent": self = .clear
         case "yellow": self = .yellow
