@@ -169,6 +169,19 @@ func applyStyle(
     }
 }
 
+// Merges a single property=value pair into an element's inline style attribute.
+// The attribute is the source of truth that applyStyle re-parses each render,
+// so writing here (not to node.style) makes the change survive applyStyle's
+// rebuild and lets diffStyles detect the delta for transitions.
+func setInlineStyleProperty(_ elt: Element, property: String, value: String) {
+    var props = CSSParser(elt.attributes["style"] ?? "").body()
+    props[property.lowercased()] = value
+    elt.attributes["style"] = props.map({
+        "\($0.key): \($0.value)"
+    })
+    .joined(separator: "; ")
+}
+
 // MARK: - Cascade Priority
 // Used as the sort key when ordering CSS rules before applying them.
 func cascadePriority(_ rule: (String?, any CSSSelector, [String: String])) -> Int {

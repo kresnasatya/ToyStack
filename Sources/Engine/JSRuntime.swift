@@ -411,16 +411,17 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (Int, Double) -> Void,
             forKeyedSubscript: "_setScrollTop" as NSString)
 
-        // __styleSet__ - sets a CSS property on a node from JS, triggers re-render
+        // __styleSet__ - sets a CSS property on a node's inline style attribute.
         jsContext.setObject(
             {
                 [weak self] (handle: Int, attr: String, value: String) in
-                guard let self = self, let node = self.handleToNode[handle] else { return }
+                guard let self = self, let elt = self.handleToNode[handle] as? Element else {
+                    return
+                }
                 Task {
                     @MainActor in
-                    node.style[attr] = value
+                    setInlineStyleProperty(elt, property: attr, value: value)
                     self.tab?.setNeedsRender()
-                    self.tab?.render()
                 }
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "__styleSet__" as NSString)
