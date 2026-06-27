@@ -323,7 +323,7 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (String, String, String?) -> String,
             forKeyedSubscript: "_XHRSend" as NSString)
 
-        // requestAnimationFrame - schedules one animation frame on the tab
+        // _requestAnimationFrame - schedules one animation frame on the tab
         jsContext.setObject(
             {
                 [weak self] in
@@ -337,7 +337,7 @@ class JSRuntime: @unchecked Sendable {
                     tab.taskRunner.scheduleTask(task)
                 }
             } as @convention(block) () -> Void,
-            forKeyedSubscript: "requestAnimationFrame" as NSString)
+            forKeyedSubscript: "_requestAnimationFrame" as NSString)
 
         // __setTimeout - schedules a JS callback after a delay (milliseconds)
         jsContext.setObject(

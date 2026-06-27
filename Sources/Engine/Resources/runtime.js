@@ -197,10 +197,13 @@ function __runRAFHandlers() {
 }
 
 window = {};
-window.requestAnimationFrame = function (callback) {
+
+function requestAnimationFrame(callback) {
   __RAFHandlers.push(callback);
-  requestAnimationFrame();
-};
+  _requestAnimationFrame();
+}
+
+window.requestAnimationFrame = requestAnimationFrame;
 
 SET_TIMEOUT_REQUESTS = {};
 
