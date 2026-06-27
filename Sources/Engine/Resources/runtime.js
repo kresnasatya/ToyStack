@@ -10,7 +10,7 @@ document = {
   querySelectorAll: function (s) {
     var handles = _querySelectorAll(s);
     return handles.map(function (h) {
-      return Node(h);
+      return new Node(h);
     });
   },
   getElementById: function (id) {
