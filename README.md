@@ -24,13 +24,13 @@ The ToyStack follows the Browser Engineering chapters. I have made the project c
 
 The process divided into 4 chapters:
 
-[X] ch01-10 - It covers Chapter 1 (Downloading Web Pages) to Chapter 10 (Keeping Data Private)
+- [x] ch01-10 - It covers Chapter 1 (Downloading Web Pages) to Chapter 10 (Keeping Data Private)
 
-[X] ch11-14 - It covers Chapter 11 (Adding Visual Effects) to Chapter 14 (Making Content Accessible)
+- [x] ch11-14 - It covers Chapter 11 (Adding Visual Effects) to Chapter 14 (Making Content Accessible)
 
-[ ] ch15 - It covers Chapter 15 (Supporting Embedded Content)
+- [ ] ch15 - It covers Chapter 15 (Supporting Embedded Content)
 
-[ ] ch16 - It covers Chapter 16 (Reusing Previous Computation)
+- [ ] ch16 - It covers Chapter 16 (Reusing Previous Computation)
 
 ## NOTE
 
