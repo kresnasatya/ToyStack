@@ -75,6 +75,25 @@ class NumericAnimation: Animation {
     }
 }
 
+class PixelAnimation: NumericAnimation {
+    init?(oldValue: String, newValue: String, numFrames: Int, easing: EasingFunction = .ease) {
+        guard let old = PixelAnimation.parsePx(oldValue),
+            let new = PixelAnimation.parsePx(newValue)
+        else { return nil }
+        super.init(oldValue: old, newValue: new, numFrames: numFrames, easing: easing)
+    }
+
+    override func animate() -> String? {
+        guard let value = super.animate() else { return nil }
+        return value + "px"
+    }
+
+    private static func parsePx(_ value: String) -> Double? {
+        guard value.hasSuffix("px") else { return nil }
+        return Double(value.dropLast(2))
+    }
+}
+
 typealias RGBColor = (r: Double, g: Double, b: Double)
 
 class ColorAnimation: Animation {

@@ -236,7 +236,7 @@ class BlockLayout: LayoutObject {
         let prevWord = line.children.last
         let textLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)
         line.children.append(textLayout)
-        // cursorX not increment here; LineLayout handles positioning in layout().
+        cursorX += w + font.measure(" ")
     }
 
     // Starts a new LineLayout row for inline content.

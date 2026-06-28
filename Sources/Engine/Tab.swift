@@ -405,6 +405,7 @@ public class Tab {
         js.run(script: "raf", code: "__runRAFHandlers()")
         let needsComposite = needsStyle || needsLayout
         var needsPaint = false
+        var needsLayoutUpdate = false
         for node in treeToList(nodes) {
             for (property, animation) in node.animations {
                 if let value = animation.animate() {
@@ -424,6 +425,10 @@ public class Tab {
                         {
                             compositedUpdates[ObjectIdentifier(node)] = effect
                         }
+                    } else if property == "width" || property == "height" {
+                        // layout-inducing property: relayout + repaint
+                        node.style[property] = value
+                        needsLayoutUpdate = true
                     } else {
                         // paint-only property (background-color): re-raster the layer
                         node.style[property] = value
@@ -440,6 +445,11 @@ public class Tab {
 
         if needsPaint {
             setNeedsPaint()
+        }
+
+        if needsLayoutUpdate {
+            needsCompositeForPaint = true
+            setNeedsLayout()
         }
 
         if needsRender {

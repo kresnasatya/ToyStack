@@ -363,6 +363,12 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
             animations[property] = ColorAnimation(
                 oldColor: old, newColor: new, numFrames: numFrames, easing: spec.easing)
             node.style[property] = oldVal
+        } else if property == "width" || property == "height",
+            let anim = PixelAnimation(
+                oldValue: oldVal, newValue: newVal, numFrames: numFrames, easing: spec.easing)
+        {
+            animations[property] = anim
+            node.style[property] = oldVal
         }
     }
     return animations
