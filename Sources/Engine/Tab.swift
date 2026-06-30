@@ -23,6 +23,7 @@ public class Tab {
     private(set) var focus: Element?
     private var allowedOrigins: [String]?
     private var rules: [(String?, any CSSSelector, [String: String])] = []
+    private(set) var keyframes: [String: [Keyframe]] = [:]
     var js: JSRuntime!
     private var loadedScriptURLs: Set<String> = []
     private var referrerPolicy: String = ""
@@ -213,14 +214,18 @@ public class Tab {
         bodies: [(index: Int, body: String)]
     ) -> [(index: Int, url: WebURL, ref: WebURL?)] {
         for (_, body) in bodies.sorted(by: { $0.index < $1.index }) {
-            rules.append(contentsOf: CSSParser(body).parse())
+            let parsed = CSSParser(body).parse()
+            rules.append(contentsOf: parsed.rules)
+            keyframes.merge(parsed.keyframes) { _, new in new }
         }
 
         for styleNode in treeToList(nodes).compactMap({ $0 as? Element }).filter({
             $0.tag == "style"
         }) {
             let css = styleNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
-            rules.append(contentsOf: CSSParser(css).parse())
+            let parsed = CSSParser(css).parse()
+            rules.append(contentsOf: parsed.rules)
+            keyframes.merge(parsed.keyframes) { _, new in new }
         }
 
         // Collect script URLs with referrers — computed here on the main thread.
@@ -322,11 +327,15 @@ public class Tab {
                 let styleURL = url.resolve(href)
                 guard allowedRequest(styleURL) else { continue }
                 guard let (_, body) = styleURL.requestSync() else { continue }
-                rules.append(contentsOf: CSSParser(body).parse())
+                let parsed = CSSParser(body).parse()
+                rules.append(contentsOf: parsed.rules)
+                keyframes.merge(parsed.keyframes) { _, new in new }
             }
             if el.tag == "style" {
                 let css = el.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
-                rules.append(contentsOf: CSSParser(css).parse())
+                let parsed = CSSParser(css).parse()
+                rules.append(contentsOf: parsed.rules)
+                keyframes.merge(parsed.keyframes) { _, new in new }
             }
         }
     }
@@ -351,6 +360,21 @@ public class Tab {
                 let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
+                }
+            }
+
+            for node in treeToList(nodes) {
+                guard let animDecl = node.style["animation"],
+                    let spec = parseAnimationShorthand(animDecl),
+                    let frames = keyframes[spec.name]
+                else { continue }
+                let key = "animation/\(spec.name)"
+                guard node.animations[key] == nil else { continue }
+                if let anim = buildKeyframeAnimation(
+                    frames: frames, numFrames: spec.numFrames, infinite: spec.infinite,
+                    alternate: spec.alternate)
+                {
+                    node.animations[key] = anim
                 }
             }
 
@@ -407,7 +431,8 @@ public class Tab {
         var needsPaint = false
         var needsLayoutUpdate = false
         for node in treeToList(nodes) {
-            for (property, animation) in node.animations {
+            for (key, animation) in node.animations {
+                let property = (animation as? KeyframeAnimation)?.animatedProperty ?? key
                 if let value = animation.animate() {
                     if property == "transform-x" || property == "transform-y"
                         || property == "opacity"
@@ -936,7 +961,7 @@ private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = 
     guard let url = Bundle.module.url(forResource: "browser", withExtension: "css"),
         let source = try? String(contentsOf: url, encoding: .utf8)
     else { return [] }
-    return CSSParser(source).parse()
+    return CSSParser(source).parse().rules
 }()
 
 private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFloat) -> Bool {

@@ -149,6 +149,15 @@ enum CSSParseError: Error {
     case parseError
 }
 
+// MARK: - Keyframe
+// One stop in an @keyframes rule: a position on the timeline
+// (0.0 = "from", 1.0 = "to", 0.5 = "50%") plus declarations
+// that apply at that position.
+struct Keyframe {
+    let offset: Double
+    let body: [String: String]
+}
+
 // MARK: - CSSParser
 // Parses CSS text into [(selector, properties)] pairs.
 // Uses a [Character] array for efficient 0(1) character access.
@@ -336,7 +345,7 @@ class CSSParser {
     }
 
     private static func isShortHand(_ prop: String) -> Bool {
-        ["font", "border", "outline", "margin", "padding", "transition"].contains(prop)
+        ["font", "border", "outline", "margin", "padding", "transition", "animation"].contains(prop)
     }
 
     // Parse a rule body, separating normal from !important
@@ -496,6 +505,22 @@ class CSSParser {
         return val  // "dark" or "light"
     }
 
+    // Parses a single keyframe selector: "from" -> 0.0, "to" -> 1.0,
+    // or "NN%" -> NN/100.0.
+    private func parseKeyframeOffset() throws -> Double {
+        skipWhitespace()
+        let w = try word()
+        switch w.lowercased() {
+        case "from": return 0.0
+        case "to": return 1.0
+        default:
+            guard w.hasSuffix("%"), let pct = Double(w.dropLast()) else {
+                throw CSSParseError.parseError
+            }
+            return pct / 100.0
+        }
+    }
+
     // Skips from current position to the end of a { ... } block.
     // Call this AFTER the opening "{" has been consumed.
     // Handles nested braces.
@@ -517,17 +542,51 @@ class CSSParser {
 
     // Parses a full stylesheet. Returns all valid (selector, body) rules.
     // Skips over malformed rules using error recovery.
-    func parse() -> [(String?, any CSSSelector, [String: String])] {
+    func parse() -> (
+        rules: [(String?, any CSSSelector, [String: String])], keyframes: [String: [Keyframe]]
+    ) {
         var rules: [(String?, any CSSSelector, [String: String])] = []
+        var keyframes: [String: [Keyframe]] = [:]
         var media: String? = nil
         while i < chars.count {
             skipWhitespace()
             do {
                 if i < chars.count && chars[i] == "@" && media == nil {
-                    media = try mediaQuery()
+                    // Peek at the keyword after "@" to dispatch at-rule.
+                    let saveI = i
+                    i += 1
                     skipWhitespace()
-                    try literal("{")
-                    skipWhitespace()
+                    let keyword = (try? word()) ?? ""
+                    if keyword == "media" {
+                        i = saveI
+                        media = try mediaQuery()
+                        skipWhitespace()
+                        try literal("{")
+                        skipWhitespace()
+                    } else if keyword == "keyframes" {
+                        skipWhitespace()
+                        let name = try word()
+                        skipWhitespace()
+                        try literal("{")
+                        var frames: [Keyframe] = []
+                        while i < chars.count && chars[i] != "}" {
+                            let offset = try parseKeyframeOffset()
+                            skipWhitespace()
+                            try literal("{")
+                            skipWhitespace()
+                            let parts = bodyParts()
+                            try literal("}")
+                            skipWhitespace()
+                            frames.append(Keyframe(offset: offset, body: parts.normal))
+                        }
+                        try literal("}")
+                        skipWhitespace()
+                        keyframes[name] = frames
+                    } else {
+                        // Unknown @-rule: restore and throw to trigger recovery.
+                        i = saveI
+                        throw CSSParseError.parseError
+                    }
                 } else if i < chars.count && chars[i] == "}" && media != nil {
                     try literal("}")
                     media = nil
@@ -560,6 +619,6 @@ class CSSParser {
                 }
             }
         }
-        return rules
+        return (rules, keyframes)
     }
 }

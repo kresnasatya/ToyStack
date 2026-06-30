@@ -331,6 +331,44 @@ func parseTransition(_ value: String) -> [String: TransitionSpec] {
     return properties
 }
 
+// MARK: - CSS animation shorthand
+
+// Parsed `animation:` shorthand value.
+//   animation: <duration>s [infinite] [alternate] <name>
+// Ony the subset needed by the two demos is supported; tokens may appear in
+// any order except the duration must come before the name.
+struct AnimationSpec {
+    let name: String
+    let numFrames: Int
+    let infinite: Bool
+    let alternate: Bool
+}
+
+func parseAnimationShorthand(_ value: String) -> AnimationSpec? {
+    let tokens = value.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+    guard !tokens.isEmpty else { return nil }
+
+    var name: String?
+    var numFrames: Int?
+    var infinite = false
+    var alternate = false
+
+    for token in tokens {
+        if token.hasSuffix("s"), let seconds = Double(token.dropLast()) {
+            numFrames = Int(seconds / REFRESH_RATE_SEC)
+        } else if token == "infinite" {
+            infinite = true
+        } else if token == "alternate" {
+            alternate = true
+        } else {
+            name = token
+        }
+    }
+
+    guard let n = name, let nf = numFrames else { return nil }
+    return AnimationSpec(name: n, numFrames: nf, infinite: infinite, alternate: alternate)
+}
+
 func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String:
     Animation]
 {
@@ -372,6 +410,55 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
         }
     }
     return animations
+}
+
+// MARK: - CSS keyframe animation construction
+
+// Builds a KeyframeAnimation from a parsed @keyframes block.
+// Strategy (scope of this exercise):
+//   1. Find the `from` (offset 0.0) and `to` (offset 1.0) keyframes.
+//   2. Find the single property whose value differs between them. If more
+//      than one property differs we only animate the first (documented limitation in the plan).
+//   3. Pick the right underlying animation subclass based on the property
+//      name: NumericAnimation for opacity, PixelAnimation for width/height,
+//      ColorAnimation for background-color. Anything else -> nil.
+func buildKeyframeAnimation(
+    frames: [Keyframe],
+    numFrames: Int,
+    infinite: Bool,
+    alternate: Bool
+) -> KeyframeAnimation? {
+    guard let from = frames.first(where: { $0.offset == 0.0 }),
+        let to = frames.first(where: { $0.offset == 1.0 })
+    else { return nil }
+
+    let differing = from.body.filter { to.body[$0.key] != $0.value }
+    guard let (property, oldVal) = differing.first, let newVal = to.body[property]
+    else { return nil }
+
+    let factory: (String, String, Int, EasingFunction) -> Animation?
+    switch property {
+    case "opacity":
+        factory = { old, new, nf, e in
+            guard let o = Double(old), let n = Double(new) else { return nil }
+            return NumericAnimation(oldValue: o, newValue: n, numFrames: nf, easing: e)
+        }
+    case "width", "height":
+        factory = { old, new, nf, e in
+            PixelAnimation(oldValue: old, newValue: new, numFrames: nf, easing: e)
+        }
+    case "background-color":
+        factory = { old, new, nf, e in
+            guard let o = cssColorToRGB(old), let n = cssColorToRGB(new) else { return nil }
+            return ColorAnimation(oldColor: o, newColor: n, numFrames: nf, easing: e)
+        }
+    default:
+        return nil
+    }
+
+    return KeyframeAnimation(
+        animatedProperty: property, oldValue: oldVal, newValue: newVal, numFrames: numFrames,
+        easing: .ease, infinite: infinite, alternate: alternate, factory: factory)
 }
 
 func parseTransform(_ value: String) -> CGPoint? {
