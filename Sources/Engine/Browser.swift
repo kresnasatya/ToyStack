@@ -209,7 +209,12 @@ public class Browser: ObservableObject {
         })
 
         var compositedLayers: [CompositedLayer] = []
+        var assumeOverlap = false
         for cmd in nonComposited {
+            let underAnimated = sequence(
+                first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
+            ).contains(where: { ($0 as? Transform)?.isAnimated == true })
+            if underAnimated { assumeOverlap = true }
             let inScrollEffect = sequence(
                 first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
             )
@@ -226,7 +231,7 @@ public class Browser: ObservableObject {
                     layer.add(cmd)
                     merged = true
                     break
-                } else if layer.absoluteBounds().intersects(cmd.rect) {
+                } else if assumeOverlap {
                     compositedLayers.append(CompositedLayer(displayItem: cmd))
                     merged = true
                     break

@@ -2,6 +2,10 @@ import SwiftUI
 
 public class Transform: VisualEffect {
     let translation: CGPoint?
+    var isAnimated: Bool {
+        guard let node = node else { return false }
+        return node.animations["transform-x"] != nil || node.animations["transform-y"] != nil
+    }
 
     init(translation: CGPoint?, rect: Rect, node: DOMNode?, children: [Any]) {
         self.translation = translation

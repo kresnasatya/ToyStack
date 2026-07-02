@@ -45,7 +45,14 @@ class BlockLayout: LayoutObject {
 
     func layout() {
         zoom = parent!.zoom
-        x = parent!.x
+        let isAbsolute = node.style["position"] == "absolute"
+        if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
+            let l = Double(lStr.dropLast(2))
+        {
+            x = CGFloat(l)
+        } else {
+            x = parent!.x
+        }
         if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
             width = CGFloat(w)
         } else {
@@ -57,8 +64,14 @@ class BlockLayout: LayoutObject {
             width -= BlockLayout.liIndent
         }
 
-        // Stack below the previous sibling, or start at the parent's y.
-        y = previous.map { $0.y + $0.height } ?? parent!.y
+        if isAbsolute, let tStr = node.style["top"], tStr.hasSuffix("px"),
+            let t = Double(tStr.dropLast(2))
+        {
+            y = CGFloat(t)
+        } else {
+            // Stack below the previous sibling, or start at the parent's y.
+            y = previous.map { $0.y + $0.height } ?? parent!.y
+        }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             y += VSTEP
@@ -100,7 +113,7 @@ class BlockLayout: LayoutObject {
                         } else {
                             let next = BlockLayout(node: child, parent: self, previous: prev)
                             children.append(next)
-                            prev = next
+                            if child.style["position"] != "absolute" { prev = next }
                         }
                     }
                 } else {
@@ -127,7 +140,9 @@ class BlockLayout: LayoutObject {
         for child in children { child.layout() }
 
         // Height is the sum of all children's heights.
-        let sumHeight = children.reduce(0) { $0 + $1.height }
+        let sumHeight = children.reduce(0) {
+            $0 + ($1.node.style["position"] == "absolute" ? 0 : $1.height)
+        }
         if let hStr = node.style["height"], hStr.hasSuffix("px"),
             let h = Double(hStr.dropLast(2))
         {

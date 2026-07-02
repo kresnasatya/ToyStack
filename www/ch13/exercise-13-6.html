@@ -1,0 +1,22 @@
+<link rel="stylesheet" href="./exercise-13-6.css" />
+<body>
+    <!--
+        Exercise 13-6: overlap testing with transform animations.
+
+        #target (salmon) is static and sits to the right.
+        #mover (blue) is composited (opacity:0.999) and animates its
+        transform left<->right so it sweeps ON and OFF #target.
+
+        At composite time the two boxes do NOT overlap, so overlap
+        testing never separates them. Once the transform animates the
+        blue box over the salmon box, the frozen merge decision is wrong.
+
+        Watch the overlap region during the sweep:
+          - CORRECT: blue (later in DOM) stays on top of salmon.
+          - BUGGY:   salmon shows through / on top, or the salmon box
+                     flickers / gets dragged with the animation.
+    -->
+    <div id="target">target</div>
+    <div id="mover">mover</div>
+    <script src="./exercise-13-6.js"></script>
+</body>
