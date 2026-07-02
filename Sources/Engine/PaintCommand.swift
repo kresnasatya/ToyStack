@@ -201,6 +201,8 @@ struct DrawCompositedLayer: PaintCommand {
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
         var ctx = context
+        let bounds = layer.compositedBounds()
+        ctx.translateBy(x: bounds.left, y: bounds.top)
         layer.raster(context: &ctx)
     }
 }

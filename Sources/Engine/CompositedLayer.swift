@@ -2,13 +2,19 @@ import SwiftUI
 
 class CompositedLayer {
     var displayItems: [PaintCommand] = []
+    static let maxArea: CGFloat = 2 * WIDTH * HEIGHT
 
     init(displayItem: PaintCommand) {
         self.displayItems = [displayItem]
     }
 
     func canMerge(_ displayItem: PaintCommand) -> Bool {
-        return displayItem.parentEffect === displayItems[0].parentEffect
+        guard displayItem.parentEffect === displayItems[0].parentEffect else {
+            return false
+        }
+        let merged = compositedBounds().union(displayItem.rect)
+        let area = (merged.right - merged.left) * (merged.bottom - merged.top)
+        return area <= Self.maxArea
     }
 
     func add(_ displayItem: PaintCommand) {
@@ -16,11 +22,10 @@ class CompositedLayer {
     }
 
     func compositedBounds() -> Rect {
-        return displayItems.reduce(
-            Rect(left: 0, top: 0, right: 0, bottom: 0),
-            {
-                $0.union($1.rect)
-            })
+        guard let first = displayItems.first else {
+            return Rect(left: 0, top: 0, right: 0, bottom: 0)
+        }
+        return displayItems.dropFirst().reduce(first.rect) { $0.union($1.rect) }
     }
 
     func absoluteBounds() -> Rect {

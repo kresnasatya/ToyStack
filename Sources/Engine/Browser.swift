@@ -242,6 +242,11 @@ public class Browser: ObservableObject {
             }
         }
 
+        for (i, layer) in compositedLayers.enumerated() {
+            let b = layer.compositedBounds()
+            print("layer \(i): \(Int(b.right - b.left)) x \(Int(b.bottom - b.top))")
+        }
+
         return compositedLayers
     }
 

@@ -245,7 +245,7 @@ public struct BrowserView: View {
                 })
         )
         .task {
-            app.newTab(WebURL("https://browser.engineering"))
+            app.newTab(WebURL("http://localhost:3000/exercise-13-7"))
         }
     }
 }
