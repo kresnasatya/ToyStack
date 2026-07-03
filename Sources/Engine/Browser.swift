@@ -171,7 +171,16 @@ public class Browser: ObservableObject {
             then: { [weak self] output in
                 // BACK ON MAIN
                 guard let self = self else { return }
-                if let layers = output.compositedLayers { self.compositedLayers = layers }
+                if let layers = output.compositedLayers {
+                    self.compositedLayers = layers
+                    let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+                    for layer in layers {
+                        layer.rasterIfNeeded(scale: scale)
+                        print(
+                            "[layer] commands=\(layer.displayItems.count) texture=\(layer.needsTexture)"
+                        )
+                    }
+                }
                 if let drawList = output.drawList { self.drawList = drawList }
                 self.objectWillChange.send()
                 self.updateAccessibility()

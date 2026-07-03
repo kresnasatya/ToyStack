@@ -1,0 +1,13 @@
+<link rel="stylesheet" href="./exercise-13-8.css" />
+<div class="solid one"></div>
+<div class="spacer"></div>
+<div class="prose">
+  This block paints a background rectangle plus one text command per word,
+  which is far more than three paint commands in total. The browser should
+  raster this layer once into a cached bitmap and reuse that bitmap on every
+  draw. The two solid color blocks above and below contain a single paint
+  command each, so their raster step is a no-op and draw executes the
+  rectangle command directly, skipping the bitmap entirely.
+</div>
+<div class="spacer"></div>
+<div class="solid two"></div>

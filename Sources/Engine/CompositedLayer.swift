@@ -3,6 +3,11 @@ import SwiftUI
 class CompositedLayer {
     var displayItems: [PaintCommand] = []
     static let maxArea: CGFloat = 2 * WIDTH * HEIGHT
+    static let shortDisplayListLimit = 3
+    var cachedImage: CGImage? = nil
+    var needsTexture: Bool {
+        displayItems.count >= Self.shortDisplayListLimit
+    }
 
     init(displayItem: PaintCommand) {
         self.displayItems = [displayItem]
@@ -19,6 +24,7 @@ class CompositedLayer {
 
     func add(_ displayItem: PaintCommand) {
         displayItems.append(displayItem)
+        cachedImage = nil
     }
 
     func compositedBounds() -> Rect {
@@ -46,5 +52,29 @@ class CompositedLayer {
             item.execute(scroll: 0, context: &context)
         }
         context.translateBy(x: bounds.left, y: bounds.top)
+    }
+
+    @MainActor
+    func rasterIfNeeded(scale: CGFloat) {
+        // Exercise 13-8: short display lists get no texture; draw executes their commands directly instead.
+        guard needsTexture, cachedImage == nil else { return }
+        let bounds = compositedBounds()
+        let width = bounds.right - bounds.left
+        let height = bounds.bottom - bounds.top
+        guard width > 0, height > 0 else { return }
+
+        let items = displayItems
+        let canvas = Canvas { context, _ in
+            var ctx = context
+            ctx.translateBy(x: -bounds.left, y: -bounds.top)
+            for item in items {
+                item.execute(scroll: 0, context: &ctx)
+            }
+        }
+        .frame(width: width, height: height)
+
+        let renderer = ImageRenderer(content: canvas)
+        renderer.scale = scale
+        cachedImage = renderer.cgImage
     }
 }

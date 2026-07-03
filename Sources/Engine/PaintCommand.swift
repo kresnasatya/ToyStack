@@ -200,10 +200,15 @@ struct DrawCompositedLayer: PaintCommand {
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
-        var ctx = context
         let bounds = layer.compositedBounds()
-        ctx.translateBy(x: bounds.left, y: bounds.top)
-        layer.raster(context: &ctx)
+        if let image = layer.cachedImage {
+            context.draw(Image(decorative: image, scale: 1), in: bounds.cgRect)
+        } else {
+            var ctx = context
+            ctx.translateBy(x: bounds.left, y: bounds.top)
+            layer.raster(context: &ctx)
+        }
+
     }
 }
 
