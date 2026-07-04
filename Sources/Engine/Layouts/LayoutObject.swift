@@ -19,6 +19,35 @@ protocol LayoutObject: AnyObject {
 
 }
 
+// MARK: - Hit Testing
+// Walk the layout tree converting the click point into each object's
+// coordinate space, instead of converting every object's bounds to
+// absolute coordinates. Only transforms need mapping: our layout x/y
+// are already document-absolute
+extension LayoutObject {
+    func hitTest(x: CGFloat, y: CGFloat) -> (any LayoutObject)? {
+        var x = x
+        var y = y
+
+        if let t = parseTransform(node.style["transform"] ?? "") {
+            x -= t.x
+            y -= t.y
+        }
+
+        for child in children.reversed() {
+            if let hit = child.hitTest(x: x, y: y) {
+                return hit
+            }
+        }
+
+        if self.x <= x && x < self.x + width && self.y <= y && y < self.y + height {
+            return self
+        }
+
+        return nil
+    }
+}
+
 // MARK: - InlineLayoutItem
 // TextLayout and InputLayout both live inside a LineLayout.
 // This protocol lets LineLayout read font metrics and set y positions.

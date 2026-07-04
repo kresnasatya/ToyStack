@@ -774,42 +774,12 @@ public class Tab {
         }
     }
 
-    private func sourceOf(_ cmd: any PaintCommand) -> (any LayoutObject)? {
-        if let c = cmd as? DrawRect, let s = c.source { return s }
-        if let c = cmd as? DrawRRect, let s = c.source { return s }
-        if let c = cmd as? DrawText, let s = c.source { return s }
-        if let c = cmd as? DrawLine, let s = c.source { return s }
-        return nil
-    }
-
-    private func flattenCommands(_ items: [Any]) -> [any PaintCommand] {
-        var result: [any PaintCommand] = []
-        for item in items {
-            if let pc = item as? any PaintCommand {
-                result.append(pc)
-            } else if let ve = item as? VisualEffect {
-                result.append(contentsOf: flattenCommands(ve.children))
-            }
-        }
-        return result
-    }
-
     public func click(x: CGFloat, y: CGFloat) {
         focusElement(nil)
 
-        let adjustedY = y + scroll
-        let allCmds = flattenCommands(displayList)
-
-        let hits = allCmds.filter({ cmd in
-            return cmd.rect.left <= x && x < cmd.rect.right
-                && cmd.rect.top <= adjustedY && adjustedY < cmd.rect.bottom
-        })
-
-        guard
-            let source = hits.last(where: { sourceOf($0) != nil }).flatMap({
-                sourceOf($0)
-            })
-        else {
+        // Layout coordinates are document-absolute, so scroll is applied
+        // once here: hitTest only has to undo transforms on the way down.
+        guard let source = document?.hitTest(x: x, y: y + scroll) else {
             setNeedsRender()
             return
         }

@@ -1,0 +1,24 @@
+<link rel="stylesheet" href="./exercise-13-9.css" />
+<h1>Exercise 13-9: hit testing</h1>
+<p id="status">Click a box...</p>
+<div id="plain" class="box">1. Plain box - no transform (baseline).</div>
+<div class="spacer"></div>
+<div id="shifted" class="box">
+  2. Shifted by transform: translate(150px, 40px). Click where you SEE it.
+  Clicking its original spot must not report this box.
+</div>
+<div class="spacer"></div>
+<div class="spacer"></div>
+<div class="outer">
+  <div id="inner" class="box">
+    3. Inside a transformed parent, with its own transform - offsets stack.
+  </div>
+</div>
+<div class="spacer"></div>
+<div id="under"></div>
+<div id="over"></div>
+<p>
+  4 is the gray box, 5 the salmon one painted later and slid onto 4's right
+  half. Clicking the overlap must report 5.
+</p>
+<script src="./exercise-13-9.js"></script>

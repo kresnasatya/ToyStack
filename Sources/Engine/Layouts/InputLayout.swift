@@ -77,17 +77,17 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                         rect: selfRect(), parentEffect: nil, radius: borderRadius,
                         color: bgcolor))
             } else {
-                cmds.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
+                cmds.append(DrawRect(rect: selfRect(), color: bgcolor))
             }
         }
 
         // For input checkbox
         if element.attributes["type"] == "checkbox" {
-            cmds.append(DrawRect(rect: selfRect(), color: "white", source: self))
+            cmds.append(DrawRect(rect: selfRect(), color: "white"))
             cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 1))
             if element.isChecked {
                 cmds.append(
-                    DrawText(x1: x, y1: y, text: "X", font: font, color: "black", source: self))
+                    DrawText(x1: x, y1: y, text: "X", font: font, color: "black"))
             }
             return cmds
         }
@@ -110,15 +110,14 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
         }
         let color = element.style["color"] ?? "black"
-        cmds.append(DrawText(x1: x, y1: y, text: text, font: font, color: color, source: self))
+        cmds.append(DrawText(x1: x, y1: y, text: text, font: font, color: color))
 
         // 3. Cursor line when this element has focus (user is typing into it)
         if element.isFocused {
             let cx = x + font.measure(text)
             cmds.append(
                 DrawLine(
-                    x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1,
-                    source: self))
+                    x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1))
         }
 
         return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())

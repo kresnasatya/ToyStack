@@ -376,11 +376,10 @@ class BlockLayout: LayoutObject {
             if borderRadius > 0 {
                 commands.append(
                     DrawRRect(
-                        rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor,
-                        source: self)
+                        rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor)
                 )
             } else {
-                commands.append(DrawRect(rect: selfRect(), color: bgcolor, source: self))
+                commands.append(DrawRect(rect: selfRect(), color: bgcolor))
             }
         }
 
@@ -401,17 +400,16 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            commands.append(DrawRect(rect: bulletRect, color: "black", source: self))
+            commands.append(DrawRect(rect: bulletRect, color: "black"))
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             let headerRect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            commands.append(DrawRect(rect: headerRect, color: "gray", source: self))
+            commands.append(DrawRect(rect: headerRect, color: "gray"))
             let font = getFont(size: 12, weight: "bold", style: "roman")
             commands.append(
                 DrawText(
-                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: "white",
-                    source: self))
+                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: "white"))
         }
 
         return commands

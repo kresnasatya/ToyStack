@@ -1,0 +1,37 @@
+.box {
+    width: 320px;
+    background-color: lightgray;
+}
+
+.spacer {
+    height: 50px;
+}
+
+#shifted {
+    background-color: lightblue;
+    transform: translate(150px, 40px);
+}
+
+.outer {
+    width: 400px;
+    background-color: whitesmoke;
+    transform: translate(60px, 0px);
+}
+
+#inner {
+    background-color: khaki;
+    transform: translate(40px, 0px);
+}
+
+#under {
+    width: 200px;
+    height: 80px;
+    background-color: gray;
+}
+
+#over {
+    width: 200px;
+    height: 80px;
+    background-color: salmon;
+    transform: translate(100px, -40px);
+}

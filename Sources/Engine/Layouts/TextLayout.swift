@@ -57,7 +57,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         let color = node.style["color"] ?? "black"
         return [
             DrawText(
-                x1: x, y1: y, text: displayWord ?? word, font: font, color: color, source: self)
+                x1: x, y1: y, text: displayWord ?? word, font: font, color: color)
         ]
     }
 

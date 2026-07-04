@@ -119,7 +119,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         var cmds: [any PaintCommand] = []
         let bgcolor = element.style["background-color"] ?? "transparent"
         let displayColor = bgcolor == "transparent" ? "white" : bgcolor
-        cmds.append(DrawRect(rect: selfRect(), color: displayColor, source: self))
+        cmds.append(DrawRect(rect: selfRect(), color: displayColor))
         cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 1))
         return cmds
     }

@@ -25,10 +25,12 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
     case "lightblue": return (173, 216, 230)
     case "lightgreen": return (144, 238, 144)
     case "steelblue": return (70, 130, 180)
-    case "lightgray", "lightgrey": return (211, 211, 217)
+    case "lightgray", "lightgrey": return (211, 211, 211)
     case "yellow": return (255, 255, 0)
     case "purple": return (128, 0, 128)
     case "salmon": return (250, 128, 114)
+    case "whitesmoke": return (245, 245, 245)
+    case "khaki": return (240, 230, 140)
     default: return nil
     }
 }
@@ -67,11 +69,13 @@ extension Color {
         case "lightblue": self = Color(red: 0.68, green: 0.85, blue: 0.90)
         case "lightgreen": self = Color(red: 0.56, green: 0.93, blue: 0.56)
         case "steelblue": self = Color(red: 0.27, green: 0.51, blue: 0.71)
-        case "lightgray", "lightgrey": self = Color(red: 0.83, green: 0.83, blue: 0.85)
+        case "lightgray", "lightgrey": self = Color(red: 0.83, green: 0.83, blue: 0.83)
         case "transparent": self = .clear
         case "yellow": self = .yellow
         case "purple": self = .purple
         case "salmon": self = Color(red: 0.98, green: 0.50, blue: 0.45)
+        case "whitesmoke": self = Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
+        case "khaki": self = Color(red: 240 / 255, green: 230 / 255, blue: 140 / 255)
         default: self = .black
         }
     }
@@ -91,13 +95,11 @@ public protocol PaintCommand {
 struct DrawRect: PaintCommand {
     let rect: Rect
     let color: String
-    let source: (any LayoutObject)?
     var parentEffect: VisualEffect? = nil
 
-    init(rect: Rect, color: String, source: (any LayoutObject)? = nil) {
+    init(rect: Rect, color: String) {
         self.rect = rect
         self.color = color
-        self.source = source
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
@@ -118,18 +120,15 @@ struct DrawLine: PaintCommand {
     let rect: Rect  // rect.left/top = start point, right/bottom = end point
     let color: String
     let thickness: CGFloat
-    let source: (any LayoutObject)?
     var parentEffect: VisualEffect? = nil
 
     // DrawLine stores its endpoints in a Rect for uniform culling in Tab.draw()
     init(
-        x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat,
-        source: (any LayoutObject)? = nil
+        x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat
     ) {
         self.rect = Rect(left: x1, top: y1, right: x2, bottom: y2)
         self.color = color
         self.thickness = thickness
-        self.source = source
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
@@ -147,19 +146,16 @@ struct DrawText: PaintCommand {
     let text: String
     let font: BrowserFont
     let color: String
-    let source: (any LayoutObject)?
     var parentEffect: VisualEffect? = nil
 
     init(
-        x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String,
-        source: (any LayoutObject)? = nil
+        x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String
     ) {
         self.rect = Rect(
             left: x1, top: y1, right: x1 + font.measure(text), bottom: y1 + font.linespace)
         self.text = text
         self.font = font
         self.color = color
-        self.source = source
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
@@ -218,7 +214,6 @@ struct DrawRRect: PaintCommand {
     var parentEffect: VisualEffect?
     let radius: CGFloat
     let color: String
-    var source: (any LayoutObject)?
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
         let path = Path(roundedRect: rect.cgRect, cornerRadius: radius)

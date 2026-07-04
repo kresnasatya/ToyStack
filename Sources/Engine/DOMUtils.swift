@@ -473,46 +473,6 @@ func parseTransform(_ value: String) -> CGPoint? {
     return CGPoint(x: x, y: y)
 }
 
-func localToAbsolute(_ obj: LayoutObject, x: CGFloat, y: CGFloat) -> CGPoint {
-    var x = x
-    var y = y
-    var current: LayoutObject? = obj
-    while let o = current {
-        x += o.x
-        y += o.y
-        if let block = o as? BlockLayout,
-            let t = parseTransform(block.node.style["transform"] ?? "")
-        {
-            x += t.x
-            y += t.y
-        }
-        current = o.parent
-    }
-    return CGPoint(x: x, y: y)
-}
-
-func absoluteToLocal(_ obj: LayoutObject, x: CGFloat, y: CGFloat) -> CGPoint {
-    var chain: [LayoutObject] = []
-    var current: LayoutObject? = obj
-    while let o = current {
-        chain.append(o)
-        current = o.parent
-    }
-    var x = x
-    var y = y
-    for o in chain.reversed() {
-        x -= o.x
-        y -= o.y
-        if let block = o as? BlockLayout,
-            let t = parseTransform(block.node.style["transform"] ?? "")
-        {
-            x -= t.x
-            y -= t.y
-        }
-    }
-    return CGPoint(x: x, y: y)
-}
-
 func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
     let opacity = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendModeStr = node.style["mix-blend-mode"]
@@ -548,12 +508,6 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
     let blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: effectCmds)
     let transform = Transform(translation: translation, rect: rect, node: node, children: [blend])
     return [transform]
-}
-
-func absoluteBoundsForObj(_ obj: LayoutObject) -> Rect {
-    let origin = localToAbsolute(obj, x: obj.x, y: obj.y)
-    return Rect(
-        left: origin.x, top: origin.y, right: origin.x + obj.width, bottom: origin.y + obj.height)
 }
 
 func isFocusable(_ node: DOMNode) -> Bool {
