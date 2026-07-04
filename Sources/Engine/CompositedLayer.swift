@@ -5,6 +5,7 @@ class CompositedLayer {
     static let maxArea: CGFloat = 2 * WIDTH * HEIGHT
     static let shortDisplayListLimit = 3
     var cachedImage: CGImage? = nil
+    var ancestorChain: [VisualEffect] = []
     var needsTexture: Bool {
         displayItems.count >= Self.shortDisplayListLimit
     }

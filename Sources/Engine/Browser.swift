@@ -31,6 +31,7 @@ public class Browser: ObservableObject {
     private var needsRaster: Bool = false
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
+    private var compositeInFlight = false
 
     public var darkMode: Bool = false
 
@@ -137,14 +138,17 @@ public class Browser: ObservableObject {
 
         resolvePendingHover()
 
+        let wantsComposite = needsComposite || compositeInFlight
+
         let inputs = RasterInputs(
             displayList: activeTabDisplayList, scroll: activeTabScroll,
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
-            darkMode: darkMode, needsComposite: needsComposite, needsRaster: needsRaster,
+            darkMode: darkMode, needsComposite: wantsComposite, needsRaster: needsRaster,
             needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds
         )
 
+        if wantsComposite { compositeInFlight = true }
         needsComposite = false
         needsRaster = false
         needsDraw = false
@@ -172,6 +176,7 @@ public class Browser: ObservableObject {
                 // BACK ON MAIN
                 guard let self = self else { return }
                 if let layers = output.compositedLayers {
+                    self.compositeInFlight = false
                     self.compositedLayers = layers
                     let scale = NSScreen.main?.backingScaleFactor ?? 2.0
                     for layer in layers {
@@ -248,6 +253,16 @@ public class Browser: ObservableObject {
             }
         }
 
+        for layer in compositedLayers {
+            var chain: [VisualEffect] = []
+            var effect = layer.displayItems.first?.parentEffect
+            while let e = effect {
+                chain.append(e)
+                effect = e.parent
+            }
+            layer.ancestorChain = chain
+        }
+
         return compositedLayers
     }
 
@@ -284,13 +299,13 @@ public class Browser: ObservableObject {
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
             var currentEffect: Any = DrawCompositedLayer(layer: layer)
-            var parent: VisualEffect? = layer.displayItems[0].parentEffect
-            while let p = parent {
+            var mergedIntoExisting = false
+            for p in layer.ancestorChain {
                 let newParent = getLatest(p, in: inputs.compositedUpdates)
                 let newParentKey = ObjectIdentifier(newParent)
                 if let existing = newEffects[newParentKey] {
                     existing.children.append(currentEffect)
-                    currentEffect = existing
+                    mergedIntoExisting = true
                     break
                 } else {
                     let cloned: Engine.VisualEffect
@@ -307,10 +322,9 @@ public class Browser: ObservableObject {
                     }
                     newEffects[newParentKey] = cloned
                     currentEffect = cloned
-                    parent = p.parent
                 }
             }
-            if parent == nil {
+            if !mergedIntoExisting {
                 drawList.append(currentEffect)
             }
         }
