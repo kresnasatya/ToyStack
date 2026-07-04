@@ -9,7 +9,12 @@
       "Bash(rtk grep *)",
       "Bash(rtk git *)",
       "Bash(rtk wc *)",
-      "Bash(rtk swift *)"
+      "Bash(rtk swift *)",
+      "Bash(xargs ls -la)",
+      "Bash(ffprobe -v error -show_entries format=duration,size -show_entries stream=width,height,r_frame_rate,codec_type \"/Users/kresnasatya/Projects/BrowserEngine/ToyStack/Screen Recording 2026-07-04 at 09.24.19.mov\")",
+      "Bash(mkdir -p \"/private/tmp/claude-501/-Users-kresnasatya-Projects-BrowserEngine-ToyStack/4d66725b-c0e8-491f-aced-5a7a511a9e8e/scratchpad/frames\")",
+      "Bash(ffmpeg -v error -i \"/Users/kresnasatya/Projects/BrowserEngine/ToyStack/Screen Recording 2026-07-04 at 09.24.19.mov\" -vf \"fps=1,scale=1440:-1\" \"/private/tmp/claude-501/-Users-kresnasatya-Projects-BrowserEngine-ToyStack/4d66725b-c0e8-491f-aced-5a7a511a9e8e/scratchpad/frames/f%03d.png\")",
+      "Bash(python3 *)"
     ]
   }
 }

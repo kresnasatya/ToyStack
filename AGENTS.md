@@ -20,9 +20,9 @@ This project is intended to be used as learning purpose to make me understand ho
 
 5. Avoid jargon!
 
-6. Plan before code. When a task touches multiple files, list which files will change and why before writing any code. If there's a real design decision, present it as Option A / Option B with a recommendation and the trade-off — don't pick silently.
+6. When a task touches multiple files, list which files will change and why before writing any code. If there's a real design decision, present it as Option A / Option B with a recommendation and the trade-off — don't pick silently.
 
-7. Break work into small, ordered steps that each leave the project building. After each step, wait for me to confirm the build is clean before moving to the next.
+7. Break work into small, ordered steps that each leave the project building.
 
 8. When refactoring, keep the old code in place until the new code is wired up and verified. Delete in a final cleanup step, never alongside the rewrite.
 
