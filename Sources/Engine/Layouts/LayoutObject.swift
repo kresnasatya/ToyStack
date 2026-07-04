@@ -34,7 +34,7 @@ extension LayoutObject {
             y -= t.y
         }
 
-        for child in children.reversed() {
+        for child in inPaintOrder(children).reversed() {
             if let hit = child.hitTest(x: x, y: y) {
                 return hit
             }

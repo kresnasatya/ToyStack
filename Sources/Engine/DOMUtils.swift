@@ -238,10 +238,14 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
         var childCmds: [Any] = []
         let visibleTop = block.y + block.scrollOffset
         let visibleBottom = visibleTop + block.height
+        var visibleChildren: [any LayoutObject] = []
         for child in obj.children {
             // skip children completely outside visible scroll
             if child.y + child.height < visibleTop { continue }
             if child.y > visibleBottom { break }
+            visibleChildren.append(child)
+        }
+        for child in inPaintOrder(visibleChildren) {
             paintTree(child, into: &childCmds)
         }
         let effect = ScrollEffect(
@@ -250,7 +254,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
         cmds.append(effect)
         cmds.append(contentsOf: block.paintScrollbar())
     } else {
-        for child in obj.children {
+        for child in inPaintOrder(obj.children) {
             paintTree(child, into: &cmds)
         }
     }
@@ -260,6 +264,26 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     }
 
     displayList.append(contentsOf: cmds)
+}
+
+// z-index only applies to positioned elements (position != static).
+// Everything else acts as z-index 0.
+func effectiveZIndex(_ node: any DOMNode) -> Int {
+    guard (node.style["position"] ?? "static") != "static" else { return 0 }
+    return Int(node.style["z-index"] ?? "0") ?? 0
+}
+
+// Children in paint order: ascending z-index, ties keep document order.
+// Swift's sorted() does not promise stability, so break ties with the
+// original index instead of trusting it.
+func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
+    return children.enumerated()
+        .sorted { a, b in
+            let za = effectiveZIndex(a.element.node)
+            let zb = effectiveZIndex(b.element.node)
+            return za == zb ? a.offset < b.offset : za < zb
+        }
+        .map { $0.element }
 }
 
 let REFRESH_RATE_SEC = 1.0 / 60.0

@@ -1,0 +1,60 @@
+/* Part 1: sibling z-index.
+   Document order A, B, C — all shifted onto the same spot with transform.
+   Expected stack top-to-bottom: A (z3), C (z1), B (static, gate test). */
+.box {
+    width: 160px;
+    height: 90px;
+}
+
+.a {
+    position: relative;
+    z-index: 3;
+    background-color: tomato;
+}
+
+.b {
+    /* no position: z-index must be IGNORED -> stays on bottom */
+    z-index: 5;
+    background-color: gold;
+    transform: translate(40px, -60px);
+}
+
+.c {
+    position: relative;
+    z-index: 1;
+    background-color: lightblue;
+    transform: translate(80px, -120px);
+}
+
+.spacer {
+    height: 60px;
+}
+
+/* Part 2: nested stacking context.
+   P1 (z1) contains child z999. Sibling P2 (z2) must still cover the child:
+   child cannot escape its parent's stacking context. */
+.ctx {
+    width: 200px;
+    height: 100px;
+}
+
+.p1 {
+    position: relative;
+    z-index: 1;
+    background-color: lightgreen;
+}
+
+.inner {
+    position: relative;
+    z-index: 999;
+    width: 160px;
+    height: 60px;
+    background-color: orchid;
+}
+
+.p2 {
+    position: relative;
+    z-index: 2;
+    background-color: steelblue;
+    transform: translate(60px, -80px);
+}

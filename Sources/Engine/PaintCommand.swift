@@ -31,6 +31,9 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
     case "salmon": return (250, 128, 114)
     case "whitesmoke": return (245, 245, 245)
     case "khaki": return (240, 230, 140)
+    case "tomato": return (255, 99, 71)
+    case "gold": return (255, 215, 0)
+    case "orchid": return (218, 112, 214)
     default: return nil
     }
 }
@@ -76,6 +79,9 @@ extension Color {
         case "salmon": self = Color(red: 0.98, green: 0.50, blue: 0.45)
         case "whitesmoke": self = Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
         case "khaki": self = Color(red: 240 / 255, green: 230 / 255, blue: 140 / 255)
+        case "tomato": self = Color(red: 255 / 255, green: 99 / 255, blue: 71 / 255)
+        case "gold": self = Color(red: 255 / 255, green: 215 / 255, blue: 0 / 255)
+        case "orchid": self = Color(red: 218 / 255, green: 112 / 255, blue: 214 / 255)
         default: self = .black
         }
     }
