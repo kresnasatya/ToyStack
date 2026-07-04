@@ -1,0 +1,23 @@
+.box { font-size: 18px; }
+.anim {
+    background-color: gold;
+    opacity: 0.9;
+    transition: opacity 2s;
+}
+.fast {
+    background-color: lightblue;
+    opacity: 0.5;
+}
+.slow-short {
+    background-color: salmon;
+    opacity: 0.5;
+}
+.nested {
+    background-color: lightgreen;
+    opacity: 0.5;
+}
+.inner {
+    background-color: steelblue;
+    transform: translate(120px, -40px);
+}
+.outro { background-color: whitesmoke; }

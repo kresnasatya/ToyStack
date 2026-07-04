@@ -23,16 +23,38 @@ public class Blend: VisualEffect {
     }
 
     public override func execute(context: inout GraphicsContext) {
+        guard opacity < 1.0 || blendMode != nil else {
+            for child in children {
+                if let ve = child as? VisualEffect {
+                    ve.execute(context: &context)
+                } else if let pc = child as? PaintCommand {
+                    pc.execute(scroll: 0, context: &context)
+                }
+            }
+            return
+        }
+
         var layerContext = context
         layerContext.opacity = opacity
         if let mode = blendMode {
             layerContext.blendMode = mode
         }
-        for child in children {
-            if let ve = child as? VisualEffect {
-                ve.execute(context: &layerContext)
-            } else if let pc = child as? PaintCommand {
-                pc.execute(scroll: 0, context: &layerContext)
+
+        if children.count == 1, let layerCmd = children[0] as? DrawCompositedLayer,
+            layerCmd.layer.cachedImage != nil
+        {
+            layerCmd.execute(scroll: 0, context: &layerContext)
+            return
+        }
+
+        layerContext.drawLayer { inner in
+            var innerContext = inner
+            for child in self.children {
+                if let ve = child as? VisualEffect {
+                    ve.execute(context: &innerContext)
+                } else if let pc = child as? PaintCommand {
+                    pc.execute(scroll: 0, context: &innerContext)
+                }
             }
         }
     }

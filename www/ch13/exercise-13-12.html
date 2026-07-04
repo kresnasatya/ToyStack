@@ -1,0 +1,33 @@
+<link rel="stylesheet" href="./exercise-13-12.css" />
+<body>
+    <div class="box anim">
+        Gold: animated opacity, fast path every frame. All of this text
+        sits directly inside the div, with no h1 or p wrappers, so the
+        text lines and the gold background share this element's Blend
+        and form one composited layer with one cached image. While this
+        box fades you should see a stream of fast path lines in the
+        console, one per frame.
+    </div>
+    <div class="box fast">
+        Lightblue: static opacity 0.5, fast path. Same trick, bare text
+        directly in the div. Background plus several wrapped text lines
+        is three or more display items, so the layer gets a texture and
+        the Blend draws that single image directly with opacity.
+    </div>
+    <div class="box slow-short">Salmon: slow path.</div>
+    <div class="box nested">
+        <p>Green: nested transform, slow path. The steelblue box below is
+        shifted with a transform, so it becomes its own composited layer
+        inside this Blend. The group is drawn into a temporary buffer and
+        faded as one unit, so the overlap should NOT look denser than the
+        rest.</p>
+        <div class="inner">
+            <p>steelblue, translated to overlap the text above</p>
+        </div>
+    </div>
+    <div class="box outro">
+        Done. Delete the two temporary print lines once you have seen
+        both paths fire.
+    </div>
+    <script src="exercise-13-12.js"></script>
+</body>
