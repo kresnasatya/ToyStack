@@ -73,14 +73,14 @@ Node.prototype.dispatchEvent = function (evt) {
   var type = evt.type;
   var handle = this.handle;
   var list = (LISTENERS[handle] && LISTENERS[handle][type]) || [];
-  _log(
-    "dispatchEvent handle=" +
-      handle +
-      " type=" +
-      type +
-      " listeners=" +
-      list.length,
-  );
+  // _log(
+  //   "dispatchEvent handle=" +
+  //     handle +
+  //     " type=" +
+  //     type +
+  //     " listeners=" +
+  //     list.length,
+  // );
   for (var i = 0; i < list.length; i++) {
     list[i].call(this, evt);
   }

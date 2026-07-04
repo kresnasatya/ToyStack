@@ -176,9 +176,6 @@ public class Browser: ObservableObject {
                     let scale = NSScreen.main?.backingScaleFactor ?? 2.0
                     for layer in layers {
                         layer.rasterIfNeeded(scale: scale)
-                        print(
-                            "[layer] commands=\(layer.displayItems.count) texture=\(layer.needsTexture)"
-                        )
                     }
                 }
                 if let drawList = output.drawList { self.drawList = drawList }
