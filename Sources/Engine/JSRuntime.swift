@@ -26,7 +26,7 @@ class JSRuntime: @unchecked Sendable {
     }
 
     func dispatchEvent(type: String, elt: any DOMNode) -> Bool {
-        let handle = nodeToHandle[ObjectIdentifier(elt)]
+        let handle = getHandle(elt)
         jsContext.setObject(handle, forKeyedSubscript: "__handle" as NSString)
         jsContext.setObject(type, forKeyedSubscript: "__type" as NSString)
         let result = jsContext.evaluateScript(Self.eventDispatchJS)
