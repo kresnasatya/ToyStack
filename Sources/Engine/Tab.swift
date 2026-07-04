@@ -52,6 +52,7 @@ public class Tab {
     private(set) var interestTop: CGFloat = 0
 
     private var scrollFocusNode: Element? = nil
+    private var scrollAnimation: ScrollAnimation? = nil
 
     public var hasScrollElement: Bool { scrollFocusNode != nil }
 
@@ -136,6 +137,7 @@ public class Tab {
         case .success(let (headers, body)):
             isSecure = url.scheme == "https"
             scroll = 0
+            scrollAnimation = nil
             interestTop = 0
             self.url = url
             visitedURL.insert(url.toString())
@@ -487,6 +489,16 @@ public class Tab {
             needsFocusScroll = false
         }
 
+        if let anim = scrollAnimation {
+            if let value = anim.animate() {
+                let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
+                scroll = max(0, min(value, maxY))
+                checkInterestRegion()
+            } else {
+                scrollAnimation = nil
+            }
+        }
+
         let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
 
         // nil signals Browser to do a full composite
@@ -504,6 +516,7 @@ public class Tab {
     }
 
     private func scrollTo(_ elt: Element) {
+        scrollAnimation = nil
         guard let doc = document else { return }
         let objs = treeToList(doc).filter({ $0.node === elt })
         guard let obj = objs.first else { return }
@@ -518,7 +531,9 @@ public class Tab {
             ($0.node as? Element)?.attributes["id"] == id
         })
         if let target = target {
-            scroll = target.y
+            let maxY = max(doc.height + 2 * VSTEP - tabHeight, 0)
+            scroll = max(0, min(target.y, maxY))
+            scrollAnimation = nil
         }
     }
 
@@ -578,18 +593,37 @@ public class Tab {
         setNeedsRender()
     }
 
+    private var scrollBehaviorIsSmooth: Bool {
+        let body = treeToList(nodes)
+            .compactMap({ $0 as? Element })
+            .first(where: { $0.tag == "body" })
+        return body?.style["scroll-behavior"] == "smooth"
+    }
+
     public func scrollDown() {
         let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
-        scroll = min(scroll + SCROLL_STEP, maxY)
-        if !checkInterestRegion() {
-            browser?.applyScroll(scroll)
+        let target = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxY)
+        if scrollBehaviorIsSmooth {
+            scrollAnimation = ScrollAnimation(from: scroll, to: target)
+            browser?.setNeedsAnimationFrame(self)
+        } else {
+            scroll = target
+            if !checkInterestRegion() {
+                browser?.applyScroll(scroll)
+            }
         }
     }
 
     public func scrollUp() {
-        scroll = max(scroll - SCROLL_STEP, 0)
-        if !checkInterestRegion() {
-            browser?.applyScroll(scroll)
+        let target = max((scrollAnimation?.target ?? scroll) - SCROLL_STEP, 0)
+        if scrollBehaviorIsSmooth {
+            scrollAnimation = ScrollAnimation(from: scroll, to: target)
+            browser?.setNeedsAnimationFrame(self)
+        } else {
+            scroll = target
+            if !checkInterestRegion() {
+                browser?.applyScroll(scroll)
+            }
         }
     }
 
@@ -864,7 +898,7 @@ public class Tab {
                 input.attributes["name"]!
                 .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             let value: String
-            if input.attributes["type"] == "checkbox " {
+            if input.attributes["type"] == "checkbox" {
                 value =
                     (input.attributes["value"] ?? "on")
                     .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""

@@ -1,0 +1,56 @@
+<link rel="stylesheet" href="./exercise-13-11.css" />
+<body style="scroll-behavior: smooth">
+    <div class="section intro" id="top">
+        <h1>Exercise 13-11 &mdash; scroll-behavior: smooth</h1>
+        <p>In ToyStack: press the down / up arrow keys. The scroll should
+        glide about 100px over a dozen frames instead of jumping.</p>
+        <p>In a real browser: arrow keys are often smooth already, so use
+        the links instead &mdash; with scroll-behavior: smooth, fragment
+        jumps glide. Try:
+        <a href="#middle">jump to the middle</a> or
+        <a href="#end">jump to the end</a>.</p>
+    </div>
+    <div class="section s1">
+        <h1>1 / 8</h1>
+        <p>Press the down arrow once. One smooth glide, no jump.</p>
+    </div>
+    <div class="section s2">
+        <h1>2 / 8</h1>
+        <p>Now mash the down arrow. Each press retargets the in-flight
+        animation, so presses accumulate into one longer glide.</p>
+    </div>
+    <div class="section s3">
+        <h1>3 / 8</h1>
+        <p>Watch the scrollbar thumb while gliding: it should move
+        smoothly, not in 100px steps.</p>
+    </div>
+    <div class="section s4" id="middle">
+        <h1>4 / 8 &mdash; the middle</h1>
+        <p>If you got here via the link: a real browser glided the whole
+        way; ToyStack jumps (animating fragment links is a follow-up).</p>
+        <p><a href="#top">Back to top</a> &mdash; in a real browser this is
+        a long, very visible glide.</p>
+    </div>
+    <div class="section s5">
+        <h1>5 / 8</h1>
+        <p>Press the up arrow: same glide, reversed. Mashing up also
+        accumulates.</p>
+    </div>
+    <div class="section s6">
+        <h1>6 / 8</h1>
+        <p>Mix directions: press down, then immediately up. The animation
+        retargets from where it was heading, not from where it started.</p>
+    </div>
+    <div class="section s7">
+        <h1>7 / 8</h1>
+        <p>Control test: delete scroll-behavior from the body tag and
+        reload. Arrow keys go back to instant 100px jumps, and links snap
+        with no glide.</p>
+    </div>
+    <div class="section s8" id="end">
+        <h1>8 / 8 &mdash; the end</h1>
+        <p>Scrolling past here clamps at the document bottom, even if a
+        glide is still in flight.</p>
+        <p><a href="#top">Back to top</a></p>
+    </div>
+</body>
