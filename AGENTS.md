@@ -4,9 +4,11 @@ This is a project to build a toy browser engine with Swift programming language.
 
 ## Information
 
-I'm a beginner on Swift programming language and browser engineering. But, I have experience as software engineer to build and develop web application for more than 8 years. 
+I'm a beginner on Swift programming language and browser engineering. But, I have experience in programming languages like HTML, CSS, JavaScript, TypeScript, and PHP.
 
-This project is intended to be used as learning purpose to make me understand how to make the browser engine with Swift programming language. The code output must be in high quality and optimized.
+## Expected Result
+
+This project is intended to be used as learning purpose to make me understand how to make the browser engine with Swift programming language. The code output must be in high quality.
 
 ## Workflow
 
@@ -29,3 +31,7 @@ This project is intended to be used as learning purpose to make me understand ho
 9. Reference existing code by file:line so I can navigate to it. When replacing code, show the old and new versions side-by-side or in a small table — never just "change this to that."
 
 10. Save the plan into the markdown file in this project.
+
+## Additional Information
+
+If you're using any colors that are not exist in this browser engine (@Sources/Engine/PaintCommand.swift) then put those colors into the markdown file.
