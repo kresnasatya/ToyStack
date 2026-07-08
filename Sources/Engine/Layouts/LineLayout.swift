@@ -89,16 +89,20 @@ class LineLayout: LayoutObject {
 
     func paint() -> [Any] {
         var cmds: [any PaintCommand] = []
-        var focusedNode: DOMNode? = nil
+        var outlineRect: Rect? = nil
         for child in children {
-            if child.node.isFocused { focusedNode = child.node }
+            let isFocusedChild =
+                (child.node.parent?.isFocused ?? false) && child.node.parent !== node
+            if isFocusedChild {
+                let childRect = Rect(
+                    left: child.x, top: child.y, right: child.x + child.width,
+                    bottom: child.y + child.height)
+                outlineRect = outlineRect?.union(childRect) ?? childRect
+            }
         }
-        if let focused = focusedNode {
-            let color = focused.style["outline-color"] ?? "black"
-            let widthStr = (focused.style["outline-width"] ?? "2px").replacingOccurrences(
-                of: "px", with: "")
-            let thickness = CGFloat(Double(widthStr) ?? 2.0)
-            cmds.append(DrawOutline(rect: selfRect(), color: color, thickness: thickness))
+        if let rect = outlineRect {
+            cmds.append(DrawOutline(rect: rect, color: "white", thickness: 4))
+            cmds.append(DrawOutline(rect: rect, color: "black", thickness: 2))
         }
         return cmds
     }

@@ -330,8 +330,8 @@ public class Browser: ObservableObject {
         }
 
         if let bounds = inputs.hoveredBounds {
-            let color = inputs.darkMode ? "white" : "black"
-            drawList.append(DrawOutline(rect: bounds, color: color, thickness: 2))
+            drawList.append(DrawOutline(rect: bounds, color: "white", thickness: 4))
+            drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
         }
 
         return drawList

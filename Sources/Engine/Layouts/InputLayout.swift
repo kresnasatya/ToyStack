@@ -89,6 +89,10 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 cmds.append(
                     DrawText(x1: x, y1: y, text: "X", font: font, color: "black"))
             }
+            if element.isFocused {
+                cmds.append(DrawOutline(rect: selfRect(), color: "white", thickness: 2))
+                cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 4))
+            }
             return cmds
         }
 
@@ -118,6 +122,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             cmds.append(
                 DrawLine(
                     x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1))
+            cmds.append(DrawOutline(rect: selfRect(), color: "white", thickness: 4))
+            cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 2))
         }
 
         return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())

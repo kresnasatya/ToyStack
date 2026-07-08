@@ -518,9 +518,9 @@ public class Tab {
     private func scrollTo(_ elt: Element) {
         scrollAnimation = nil
         guard let doc = document else { return }
-        let objs = treeToList(doc).filter({ $0.node === elt })
+        let objs = treeToList(doc).filter({ $0.node === elt || $0.node.parent === elt })
         guard let obj = objs.first else { return }
-        if scroll < obj.y && obj.y < scroll + tabHeight { return }
+        if scroll < obj.y && obj.y + obj.height < scroll + tabHeight { return }
         let maxY = max(doc.height + 2 * VSTEP - tabHeight, 0)
         scroll = max(0, min(obj.y - SCROLL_STEP, maxY))
     }
@@ -782,13 +782,14 @@ public class Tab {
         focus?.isFocused = false
         focus = node
         node?.isFocused = true
+        setNeedsRender()
     }
 
     @discardableResult
     public func advanceTab() -> Bool {
-        guard let doc = document else { return false }
-        let focusableElements = treeToList(doc).compactMap({ obj -> Element? in
-            guard let el = obj.node as? Element else { return nil }
+        guard document != nil else { return false }
+        let focusableElements = treeToList(nodes).compactMap({ n -> Element? in
+            guard let el = n as? Element else { return nil }
             let tag = el.tag
             return (tag == "input" || tag == "button" || tag == "a") ? el : nil
         })

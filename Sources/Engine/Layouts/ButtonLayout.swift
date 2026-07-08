@@ -121,6 +121,10 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         let displayColor = bgcolor == "transparent" ? "white" : bgcolor
         cmds.append(DrawRect(rect: selfRect(), color: displayColor))
         cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 1))
+        if element.isFocused {
+            cmds.append(DrawOutline(rect: selfRect(), color: "white", thickness: 4))
+            cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 2))
+        }
         return cmds
     }
 

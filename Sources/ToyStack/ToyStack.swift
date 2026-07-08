@@ -118,10 +118,13 @@ public struct BrowserView: View {
                             if event.modifierFlags.contains(.control) {
                                 app.cycleTabs()
                             } else {
-                                if !(app.activeTab?.advanceTab() ?? false) {
+                                if app.chrome.hasFocus {
+                                    app.chrome.blur()
+                                    app.activeTab?.advanceTab()
+                                } else if !(app.activeTab?.advanceTab() ?? false) {
                                     app.chrome.focusAddressBar()
-                                    app.objectWillChange.send()
                                 }
+                                app.objectWillChange.send()
                             }
                         } else if event.modifierFlags.contains(.control) {
                             switch event.keyCode {
@@ -245,7 +248,7 @@ public struct BrowserView: View {
                 })
         )
         .task {
-            app.newTab(WebURL("http://localhost:3000/exercise-13-12"))
+            app.newTab(WebURL("https://browser.engineering"))
         }
     }
 }

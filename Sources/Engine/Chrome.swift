@@ -40,6 +40,7 @@ public class Chrome {
     private let bookmarkRect: Rect
 
     private var focus: String?  // "address bar" or nil
+    public var hasFocus: Bool { focus != nil }
     private var addressBar: String = ""
     private var cursorIndex: Int = 0
     private var isAllSelected: Bool = false

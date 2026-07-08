@@ -1,0 +1,25 @@
+<body>
+    <h1>Exercise 14-1 &mdash; focus ring with good contrast</h1>
+    <p>Press Tab to move focus. The ring is a thin black line inside a
+    thicker white halo, so it stays visible on any background.</p>
+
+    <div style="background-color:white;padding:16px">
+        <p>Light background &mdash; the black core carries the contrast:</p>
+        <p><a href="#one">a link on white</a></p>
+        <p><input value="input on white"></p>
+        <p><button>button on white</button></p>
+    </div>
+
+    <div style="background-color:black;padding:16px">
+        <p style="color:white">Dark background &mdash; the white halo carries the contrast:</p>
+        <p><a href="#two" style="color:lightblue">a link on black</a></p>
+        <p><input value="input on black"></p>
+        <p><button>button on black</button></p>
+    </div>
+
+    <div style="background-color:gray;padding:16px">
+        <p>Gray background &mdash; both rings together stay visible:</p>
+        <p><a href="#three">a link on gray</a></p>
+        <p><button>button on gray</button></p>
+    </div>
+</body>
