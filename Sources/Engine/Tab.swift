@@ -769,19 +769,21 @@ public class Tab {
     }
 
     public func blur() {
-        focus?.isFocused = false
-        focus = nil
-
-        setNeedsRender()
+        focusElement(nil)
     }
 
     func focusElement(_ node: Element?) {
-        if let node = node, node !== focus {
-            needsFocusScroll = true
+        if node === focus { return }
+        if let previous = focus {
+            previous.isFocused = false
+            _ = js?.dispatchEvent(type: "blur", elt: previous)
         }
-        focus?.isFocused = false
         focus = node
-        node?.isFocused = true
+        if let node = node {
+            node.isFocused = true
+            needsFocusScroll = true
+            _ = js?.dispatchEvent(type: "focus", elt: node)
+        }
         setNeedsRender()
     }
 

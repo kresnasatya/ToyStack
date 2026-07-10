@@ -411,6 +411,18 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (Int, Double) -> Void,
             forKeyedSubscript: "_setScrollTop" as NSString)
 
+        jsContext.setObject({
+            [weak self] (handle: Int) in
+            MainActor.assumeIsolated({
+                guard let self, let tab = self.tab,
+                let elt = self.handleToNode[handle] as? Element,
+                isFocusable(elt)
+                else { return }
+                tab.focusElement(elt)
+            })
+        } as @convention(block) (Int) -> Void,
+        forKeyedSubscript: "_focusElement" as NSString)
+
         // __styleSet__ - sets a CSS property on a node's inline style attribute.
         jsContext.setObject(
             {

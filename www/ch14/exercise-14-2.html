@@ -1,0 +1,47 @@
+<link rel="stylesheet" href="./exercise-14-2.css" />
+<body>
+    <h1>Exercise 14-2: focus() method and focus/blur events</h1>
+
+    <p>Event log (last event wins):</p>
+    <div id="event-log" class="log">no events yet</div>
+
+    <p>Name: <input id="name" /></p>
+
+    <div class="controls">
+        <button id="focus-name">Focus the name input</button>
+        <button id="focus-plain">Focus the plain div</button>
+        <button id="focus-tabindex">Focus the tabindex div</button>
+        <button id="focus-far">Focus the far-away input</button>
+    </div>
+
+    <div id="plain-div" class="box">
+        Plain div: NOT focusable. The button above calls focus() on me
+        and nothing must happen - no ring, no event in the log.
+    </div>
+
+    <div id="tabindex-div" class="box" tabindex="1">
+        Div with tabindex: focusable. focus() on me logs a focus event.
+        (No visible ring is expected: lines only ring text of focused
+        inline elements, and my text sits directly on my own lines.)
+    </div>
+
+    <p>Extra behaviors to try by hand:</p>
+    <p>1. Click into the name input, then press Tab: the log shows the
+       blur event, because keyboard focus moves go through the same
+       code path.</p>
+    <p>2. Click the address bar while the input is focused: also logs
+       a blur event.</p>
+
+    <p>Filler so the last input starts off-screen. Clicking "Focus the
+       far-away input" must scroll down to it - the browser reads its
+       position only after layout is rebuilt.</p>
+    <p>filler 1</p><p>filler 2</p><p>filler 3</p><p>filler 4</p>
+    <p>filler 5</p><p>filler 6</p><p>filler 7</p><p>filler 8</p>
+    <p>filler 9</p><p>filler 10</p><p>filler 11</p><p>filler 12</p>
+    <p>filler 13</p><p>filler 14</p><p>filler 15</p><p>filler 16</p>
+    <p>filler 17</p><p>filler 18</p><p>filler 19</p><p>filler 20</p>
+
+    <p>Far-away input: <input id="far" /></p>
+
+    <script src="exercise-14-2.js"></script>
+</body>

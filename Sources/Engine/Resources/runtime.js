@@ -185,6 +185,10 @@ Object.defineProperty(Node.prototype, "scrollTop", {
   },
 });
 
+Node.prototype.focus = function () {
+  _focusElement(this.handle);
+};
+
 // requestAnimationFrame - schedules a callback before the next paint
 var __RAFHandlers = [];
 
