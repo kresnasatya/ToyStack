@@ -69,8 +69,14 @@ class BlockLayout: LayoutObject {
         {
             y = CGFloat(t)
         } else {
-            // Stack below the previous sibling, or start at the parent's y.
-            y = previous.map { $0.y + $0.height } ?? parent!.y
+            // Stack below the previous sibling (plus its bottom margin and our top margin)
+            // or start at the parent's y plus our top margin.
+            let ownTop = marginPx(node, "margin-top")
+            if let prev = previous, prev is BlockLayout {
+                y = prev.y + prev.height + marginPx(prev.node, "margin-bottom") + ownTop
+            } else {
+                y = (previous.map { $0.y + $0.height } ?? parent!.y) + ownTop
+            }
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
@@ -141,7 +147,12 @@ class BlockLayout: LayoutObject {
 
         // Height is the sum of all children's heights.
         let sumHeight = children.reduce(0) {
-            $0 + ($1.node.style["position"] == "absolute" ? 0 : $1.height)
+            if $1.node.style["position"] == "absolute" { return $0 }
+            var h = $1.height
+            if $1 is BlockLayout {
+                h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
+            }
+            return $0 + h
         }
         if let hStr = node.style["height"], hStr.hasSuffix("px"),
             let h = Double(hStr.dropLast(2))
@@ -175,6 +186,11 @@ class BlockLayout: LayoutObject {
             return (el.children.isEmpty && el.tag != "input") ? "block" : "inline"
         }
         return "inline"
+    }
+
+    private func marginPx(_ n: any DOMNode, _ prop: String) -> CGFloat {
+        guard let s = n.style[prop], s.hasSuffix("px"), let v = Double(s.dropLast(2)) else { return 0 }
+        return dpx(CGFloat(v), zoom: zoom)
     }
 
     // Walks inline DOM content: text nodes produces words, elements produces inputs.
