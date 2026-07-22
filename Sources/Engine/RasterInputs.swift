@@ -12,6 +12,7 @@ struct RasterInputs: @unchecked Sendable {
     let needsRaster: Bool
     let needsDraw: Bool
     let hoveredBounds: Rect?
+    let readBounds: Rect?
 }
 
 struct RasterOutput: @unchecked Sendable {

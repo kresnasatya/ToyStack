@@ -16,10 +16,34 @@ class AccessibilityNode {
     }
 
     private static func computeBounds(for node: DOMNode) -> Rect {
-        if let lo = node.layoutObject {
-            return Rect(left: lo.x, top: lo.y, right: lo.x + lo.width, bottom: lo.y + lo.height)
+        guard let lo = node.layoutObject else {
+            return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
-        return Rect(left: 0, top: 0, right: 0, bottom: 0)
+        // Text is laid out one word at a time, and layoutObject only
+        // remembers the last word. Union every word rect for this node.
+        if lo is TextLayout, let line = lo.parent, let block = line.parent {
+            var result: Rect? = nil
+            for lineLayout in block.children {
+                for item in lineLayout.children where item.node === node {
+                    let r = Rect(
+                        left: item.x, top: item.y,
+                        right: item.x + item.width, bottom: item.y + item.height
+                    )
+                    result = result.map { union($0, r) } ?? r
+                }
+            }
+            if let r = result { return r }
+        }
+        return Rect(left: lo.x, top: lo.y, right: lo.x + lo.width, bottom: lo.y + lo.height)
+    }
+
+    private static func union(_ a: Rect, _ b: Rect) -> Rect {
+        Rect(
+            left: min(a.left, b.left),
+            top: min(a.top, b.top),
+            right: max(a.right, b.right),
+            bottom: max(a.bottom, b.bottom)
+        )
     }
 
     private static func computeRole(for node: DOMNode) -> String {
@@ -43,16 +67,31 @@ class AccessibilityNode {
     }
 
     func build() {
-        var built: [AccessibilityNode] = []
         for childNode in node.children {
-            let child = AccessibilityNode(node: childNode, parent: self)
-            if child.role != "none" {
-                child.build()
-                built.append(child)
+            buildInternal(childNode)
+        }
+        text = computeText()
+        // Inline elements like <a> never get a layout object of their own;
+        // borrow the union of the children's bounds instead.
+        if node.layoutObject == nil, let first = children.first {
+            bounds = children.dropFirst().reduce(first.bounds) {
+                AccessibilityNode.union($0, $1.bounds)
             }
         }
-        children = built
-        text = computeText()
+    }
+
+    private func buildInternal(_ childNode: DOMNode) {
+        let child = AccessibilityNode(node: childNode, parent: self)
+        if child.role != "none" {
+            children.append(child)
+            child.build()
+        } else {
+            // Role-none wrapper (body, p, h1...): skip it, but lift
+            // its descendants up to this node.
+            for grandchild in childNode.children {
+                buildInternal(grandchild)
+            }
+        }
     }
 
     private func computeText() -> String {

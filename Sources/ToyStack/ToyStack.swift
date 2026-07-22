@@ -130,6 +130,8 @@ public struct BrowserView: View {
                             switch event.keyCode {
                             case 0:  // Ctrl+A
                                 app.toggleAccessibility()
+                            case 1:  // Ctrl+S
+                                app.advanceAccessibility()
                             case 2:  // Ctrl+D
                                 app.toggleDarkMode()
                                 app.objectWillChange.send()

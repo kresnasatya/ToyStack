@@ -20,6 +20,7 @@ public class Browser: ObservableObject {
     private var pendingHover: CGPoint? = nil
     private var hoveredA11yNode: AccessibilityNode? = nil
     private var needsSpeakHoveredNode: Bool = false
+    private var accessibilityFocusNode: AccessibilityNode? = nil
     private var compositedLayers: [CompositedLayer] = []
     public private(set) var drawList: [Any] = []
     private var activeTabDisplayList: [Any] = []
@@ -145,7 +146,7 @@ public class Browser: ObservableObject {
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
             darkMode: darkMode, needsComposite: wantsComposite, needsRaster: needsRaster,
-            needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds
+            needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
 
         if wantsComposite { compositeInFlight = true }
@@ -334,6 +335,11 @@ public class Browser: ObservableObject {
             drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
         }
 
+        if let bounds = inputs.readBounds {
+            drawList.append(DrawOutline(rect: bounds, color: "gold", thickness: 4))
+            drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
+        }
+
         return drawList
     }
 
@@ -413,6 +419,29 @@ public class Browser: ObservableObject {
         speakText(text)
     }
 
+    public func advanceAccessibility() {
+        guard accessibilityIsOn, let tree = activeTab?.accessibilityTree else { return }
+        let readable = treeToList(tree).filter({ !$0.text.isEmpty })
+        guard !readable.isEmpty else { return }
+
+        var nextIndex = 0
+        if let current = accessibilityFocusNode, let idx = readable.firstIndex(where: { $0.node === current.node }) {
+            nextIndex = idx + 1
+        }
+
+        if nextIndex < readable.count {
+            let next = readable[nextIndex]
+            accessibilityFocusNode = next
+            speakNode(next, "")
+        } else {
+            accessibilityFocusNode = nil
+            speakText("End of document")
+        }
+
+        setNeedsDrawOnly()
+        scheduleRasterAndDraw()
+    }
+
     private func speakNode(_ node: AccessibilityNode, _ prefix: String) {
         var text = prefix + node.text
         if !text.isEmpty, let first = node.children.first, first.role == "StaticText" {
@@ -430,7 +459,7 @@ public class Browser: ObservableObject {
         }
 
         let allNodes = treeToList(tree)
-        let activeAlerts = allNodes.filter({ $0.role == "alert " })
+        let activeAlerts = allNodes.filter({ $0.role == "alert" })
         for alert in activeAlerts {
             if !spokenAlerts.contains(where: { $0.node === alert.node }) {
                 speakNode(alert, "New alert")
