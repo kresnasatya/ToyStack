@@ -1,0 +1,19 @@
+<html>
+<head>
+    <title>Exercise 14-3: Highlight While Reading</title>
+</head>
+<body>
+    <h1>Reading the document, one step at a time</h1>
+    <p>Turn on accessibility with Ctrl+A, then press Ctrl+S repeatedly.
+    Each press moves the gold outline to the next element and speaks it.</p>
+    <p>This paragraph is the second stop on the tour.</p>
+    <a href="http://browser.engineering/">A link gets read with its role.</a>
+    <p>Buttons and inputs are focusable stops too:</p>
+    <button>Press me maybe</button>
+    <input value="typed text is spoken">
+    <input type="checkbox" checked label="A checked checkbox">
+    <div tabindex="1">A div with tabindex is focusable, so it is a stop.</div>
+    <p>After the last element, the browser says "End of document"
+    and the next Ctrl+S starts over from the top.</p>
+</body>
+</html>
