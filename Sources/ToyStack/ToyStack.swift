@@ -66,7 +66,7 @@ public struct BrowserView: View {
                 cmd.execute(scroll: 0, context: &ctx)
             }
         }
-        .background(app.prefersDark ? Color.black : Color.white)
+        .background(app.commitedPrefersDark ? Color.black : Color.white)
         .background(
             WindowReader { window in
                 browserWindow = window

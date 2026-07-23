@@ -512,7 +512,7 @@ public class Tab {
         let data = CommitData(
             url: url!, scroll: scroll, height: docHeight, displayList: displayList,
             compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
-            interestTop: interestTop
+            interestTop: interestTop, prefersDark: prefersDark
         )
         compositedUpdates = [:]
         needsCompositeForPaint = false

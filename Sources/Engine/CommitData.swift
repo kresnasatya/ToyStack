@@ -9,11 +9,12 @@ class CommitData {
     let accessibilityTree: AccessibilityNode?
     let focus: DOMNode?
     let interestTop: CGFloat
+    let prefersDark: Bool
 
     init(
         url: WebURL, scroll: CGFloat, height: CGFloat, displayList: [Any],
         compositedUpdates: [ObjectIdentifier: VisualEffect]?, accessibilityTree: AccessibilityNode?,
-        focus: DOMNode?, interestTop: CGFloat
+        focus: DOMNode?, interestTop: CGFloat, prefersDark: Bool
     ) {
         self.url = url
         self.scroll = scroll
@@ -23,5 +24,6 @@ class CommitData {
         self.accessibilityTree = accessibilityTree
         self.focus = focus
         self.interestTop = interestTop
+        self.prefersDark = prefersDark
     }
 }

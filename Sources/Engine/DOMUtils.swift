@@ -130,7 +130,7 @@ func applyStyle(
     for (media, selector, body) in rules {
         if let m = media {
             if m == "dark" && !prefersDark { continue }
-            if m == "light" && !prefersDark { continue }
+            if m == "light" && prefersDark { continue }
         }
         guard selector.matches(node) else { continue }
         for (property, value) in body {

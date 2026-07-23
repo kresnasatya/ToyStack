@@ -561,7 +561,12 @@ class CSSParser {
                         i = saveI
                         media = try mediaQuery()
                         skipWhitespace()
-                        try literal("{")
+                        do {
+                            try literal("{")
+                        } catch {
+                            media = nil
+                            throw error
+                        }
                         skipWhitespace()
                     } else if keyword == "keyframes" {
                         skipWhitespace()

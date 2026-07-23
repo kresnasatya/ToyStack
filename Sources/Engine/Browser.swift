@@ -35,6 +35,8 @@ public class Browser: ObservableObject {
     private var compositeInFlight = false
 
     @Published public var prefersDark: Bool = false
+    public private(set) var activeTabPrefersDark: Bool = false
+    @Published public private(set) var commitedPrefersDark: Bool = false
 
     public var measure = MeasureTime()
 
@@ -108,6 +110,7 @@ public class Browser: ObservableObject {
         activeTabDisplayList = data.displayList
         activeTabScroll = data.scroll
         activeTabInterestTop = data.interestTop
+        activeTabPrefersDark = data.prefersDark
         compositedUpdates = data.compositedUpdates ?? [:]
 
         if data.compositedUpdates == nil {
@@ -145,7 +148,7 @@ public class Browser: ObservableObject {
             displayList: activeTabDisplayList, scroll: activeTabScroll,
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
-            prefersDark: prefersDark, needsComposite: wantsComposite, needsRaster: needsRaster,
+            prefersDark: activeTabPrefersDark, needsComposite: wantsComposite, needsRaster: needsRaster,
             needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
 
@@ -185,6 +188,7 @@ public class Browser: ObservableObject {
                     }
                 }
                 if let drawList = output.drawList { self.drawList = drawList }
+                self.commitedPrefersDark = inputs.prefersDark
                 self.objectWillChange.send()
                 self.updateAccessibility()
                 self.measure.stop("composite_raster_and_draw")
