@@ -25,6 +25,17 @@ struct TagSelector: CSSSelector {
     }
 }
 
+// MARK: - UniversalSelector
+// The "*" selector: matches every element.
+struct UniversalSelector: CSSSelector {
+    let priority: Int = 0
+    var hasSelectors: [HasSelector] { [] }
+
+    func matches(_ node: any DOMNode) -> Bool {
+        node is Element
+    }
+}
+
 // MARK: - IDSelector
 struct IDSelector: CSSSelector {
     let id: String
@@ -440,7 +451,10 @@ class CSSParser {
     private func parseCompoundSelector() -> (any CSSSelector)? {
         var parts: [any CSSSelector] = []
 
-        if let w = try? word() {
+        if i < chars.count && chars[i] == "*" {
+            i += 1
+            parts.append(UniversalSelector())
+        } else if let w = try? word() {
             parts.append(parseSimpleSelector(w))
         }
 
@@ -501,8 +515,17 @@ class CSSParser {
         let val = try word()
         skipWhitespace()
         try literal(")")
-        guard prop == "prefers-color-scheme" else { throw CSSParseError.parseError }
-        return val  // "dark" or "light"
+        switch prop {
+            case "prefers-color-scheme":
+                return val
+            case "max-width":
+                guard val.hasSuffix("px"), let px = Double(val.dropLast(2)) else {
+                    throw CSSParseError.parseError
+                }
+                return "max-width:\(px)"
+            default:
+                throw CSSParseError.parseError
+        }
     }
 
     // Parses a single keyframe selector: "from" -> 0.0, "to" -> 1.0,

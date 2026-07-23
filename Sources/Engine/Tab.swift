@@ -358,7 +358,7 @@ public class Tab {
             }
 
             inheritedProperties["color"] = prefersDark ? "white" : "black"
-            applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark)
+            applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark, frameWidth: tabWidth / zoom)
 
             // Detect style changes and create animations
             for node in treeToList(nodes) {
