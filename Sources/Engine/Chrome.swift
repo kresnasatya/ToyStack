@@ -7,7 +7,7 @@ import CoreGraphics
 public protocol TabManager: AnyObject {
     var tabs: [Tab] { get }
     var activeTab: Tab? { get set }
-    var darkMode: Bool { get }
+    var prefersDark: Bool { get }
     func newTab(_ url: WebURL)
 }
 
@@ -93,7 +93,7 @@ public class Chrome {
     public func paint() -> [any PaintCommand] {
         var cmds: [any PaintCommand] = []
 
-        let darkMode = tabManager?.darkMode ?? false
+        let darkMode = tabManager?.prefersDark ?? false
         let color = darkMode ? "white" : "black"
         let bgColor = darkMode ? "black" : "white"
 

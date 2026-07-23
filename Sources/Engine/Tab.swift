@@ -45,7 +45,11 @@ public class Tab {
     private var needsCompositeForPaint: Bool = false
     private var needsFocusScroll: Bool = false
 
-    private(set) var darkMode: Bool = false
+    var prefersDark: Bool = false {
+        didSet {
+            if oldValue != prefersDark { setNeedsRender() }
+        }
+    }
 
     private var zoom: CGFloat = 1.0
 
@@ -353,8 +357,8 @@ public class Tab {
                 oldStyles[ObjectIdentifier(node)] = node.style
             }
 
-            inheritedProperties["color"] = darkMode ? "white" : "black"
-            applyStyle(node: nodes, rules: sortedRules, darkMode: darkMode)
+            inheritedProperties["color"] = prefersDark ? "white" : "black"
+            applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark)
 
             // Detect style changes and create animations
             for node in treeToList(nodes) {
@@ -939,11 +943,6 @@ public class Tab {
         needsPaint = true
         needsRender = true
         browser?.setNeedsAnimationFrame(self)
-    }
-
-    func setDarkMode(_ val: Bool) {
-        darkMode = val
-        setNeedsRender()
     }
 
     func zoomBy(_ increment: Bool) {

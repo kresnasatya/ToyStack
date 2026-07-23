@@ -66,7 +66,7 @@ public struct BrowserView: View {
                 cmd.execute(scroll: 0, context: &ctx)
             }
         }
-        .background(app.darkMode ? Color.black : Color.white)
+        .background(app.prefersDark ? Color.black : Color.white)
         .background(
             WindowReader { window in
                 browserWindow = window
@@ -133,8 +133,7 @@ public struct BrowserView: View {
                             case 1:  // Ctrl+S
                                 app.advanceAccessibility()
                             case 2:  // Ctrl+D
-                                app.toggleDarkMode()
-                                app.objectWillChange.send()
+                                app.togglePrefersDark()
                             case 12:
                                 NSApplication.shared.terminate(nil)
                             case 17:

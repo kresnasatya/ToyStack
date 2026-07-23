@@ -117,7 +117,7 @@ func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String
 //   2. Matching stylesheet rules (sorted by priority before calling)
 //   3. Inline style attribute
 func applyStyle(
-    node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])], darkMode: Bool = false
+    node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])], prefersDark: Bool = false
 ) {
     node.style = [:]
 
@@ -129,8 +129,8 @@ func applyStyle(
     // Step 2: apply all matching CSS rules in cascade order.
     for (media, selector, body) in rules {
         if let m = media {
-            if m == "dark" && !darkMode { continue }
-            if m == "light" && !darkMode { continue }
+            if m == "dark" && !prefersDark { continue }
+            if m == "light" && !prefersDark { continue }
         }
         guard selector.matches(node) else { continue }
         for (property, value) in body {
@@ -165,7 +165,7 @@ func applyStyle(
     }
 
     for child in node.children {
-        applyStyle(node: child, rules: rules, darkMode: darkMode)
+        applyStyle(node: child, rules: rules, prefersDark: prefersDark)
     }
 }
 

@@ -34,7 +34,7 @@ public class Browser: ObservableObject {
     private var needsAnimationFrame: Bool = true
     private var compositeInFlight = false
 
-    public var darkMode: Bool = false
+    @Published public var prefersDark: Bool = false
 
     public var measure = MeasureTime()
 
@@ -53,7 +53,7 @@ public class Browser: ObservableObject {
         )
         tab.browser = self
         tab.networkingThread = networkingThread
-        tab.setDarkMode(darkMode)
+        tab.prefersDark = prefersDark
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
@@ -145,7 +145,7 @@ public class Browser: ObservableObject {
             displayList: activeTabDisplayList, scroll: activeTabScroll,
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
-            darkMode: darkMode, needsComposite: wantsComposite, needsRaster: needsRaster,
+            prefersDark: prefersDark, needsComposite: wantsComposite, needsRaster: needsRaster,
             needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
 
@@ -377,9 +377,9 @@ public class Browser: ObservableObject {
         scheduleRasterAndDraw()
     }
 
-    public func toggleDarkMode() {
-        darkMode = !darkMode
-        activeTab?.setDarkMode(darkMode)
+    public func togglePrefersDark() {
+        prefersDark = !prefersDark
+        activeTab?.prefersDark = prefersDark
     }
 
     public func incrementZoom(_ increment: Bool) {

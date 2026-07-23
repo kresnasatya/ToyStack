@@ -7,7 +7,7 @@ struct RasterInputs: @unchecked Sendable {
     let interestBottom: CGFloat
     let compositedUpdates: [ObjectIdentifier: VisualEffect]
     let previousLayes: [CompositedLayer]
-    let darkMode: Bool
+    let prefersDark: Bool
     let needsComposite: Bool
     let needsRaster: Bool
     let needsDraw: Bool
