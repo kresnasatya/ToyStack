@@ -1,0 +1,21 @@
+<html>
+<head>
+    <title>Exercise 14-5: Mixed Inlines</title>
+</head>
+<body>
+    <h1>Focus rings on mixed inlines</h1>
+    <p>Press Tab to move focus through the stops below.</p>
+
+    <p>Stop 1, nested inline: <a href="http://browser.engineering/">a <b>bold</b> link</a>
+    should get one ring around all three words.</p>
+
+    <p>Stop 2, link that wraps across lines:
+    <a href="http://browser.engineering/">this is a rather long link with some
+    <b>bold words</b> and some <i>italic words</i> inside it so that it surely
+    wraps onto a second line</a> and the ring should be one rectangle per line.</p>
+
+    <div tabindex="2">many<br>lines</div>
+    <p>Stop 3 above: the div with tabindex should get one ring around the
+    whole block, not one ring per line.</p>
+</body>
+</html>

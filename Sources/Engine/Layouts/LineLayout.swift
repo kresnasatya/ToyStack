@@ -91,9 +91,7 @@ class LineLayout: LayoutObject {
         var cmds: [any PaintCommand] = []
         var outlineRect: Rect? = nil
         for child in children {
-            let isFocusedChild =
-                (child.node.parent?.isFocused ?? false) && child.node.parent !== node
-            if isFocusedChild {
+            if hasFocusedInlineAncestor(child.node) {
                 let childRect = Rect(
                     left: child.x, top: child.y, right: child.x + child.width,
                     bottom: child.y + child.height)
@@ -105,6 +103,15 @@ class LineLayout: LayoutObject {
             cmds.append(DrawOutline(rect: rect, color: "black", thickness: 2))
         }
         return cmds
+    }
+
+    private func hasFocusedInlineAncestor(_ start: any DOMNode) -> Bool {
+        var current: (any DOMNode)? = start.parent
+        while let ancestor = current, ancestor !== node {
+            if ancestor.isFocused { return true }
+            current = ancestor.parent
+        }
+        return false
     }
 
     func selfRect() -> Rect {

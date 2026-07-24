@@ -794,11 +794,12 @@ public class Tab {
     @discardableResult
     public func advanceTab() -> Bool {
         guard document != nil else { return false }
-        let focusableElements = treeToList(nodes).compactMap({ n -> Element? in
-            guard let el = n as? Element else { return nil }
-            let tag = el.tag
-            return (tag == "input" || tag == "button" || tag == "a") ? el : nil
-        })
+        let focusableElements = treeToList(nodes)
+            .compactMap({ $0 as? Element })
+            .filter({ isFocusable($0) })
+            .enumerated()
+            .sorted{ (getTabIndex($0.element), $0.offset) < (getTabIndex($1.element), $1.offset) }
+            .map(\.element)
         guard !focusableElements.isEmpty else { return false }
         if let current = focus, let idx = focusableElements.firstIndex(where: { $0 === current }) {
             let next = idx + 1

@@ -409,6 +409,11 @@ class BlockLayout: LayoutObject {
                 DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
         }
 
+        if node.isFocused {
+            commands.append(DrawOutline(rect: selfRect(), color: "white", thickness: 4))
+            commands.append(DrawOutline(rect: selfRect(), color: "black", thickness: 2))
+        }
+
         if let el = node as? Element, el.tag == "li" {
             let bulletX = x - BlockLayout.liIndent
             let bulletY = y + (VSTEP - BlockLayout.bulletSize) / 2
