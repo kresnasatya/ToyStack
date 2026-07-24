@@ -13,6 +13,7 @@ public class Browser: ObservableObject {
     private var recentFrameTimes: [TimeInterval] = []
     private let frameHistorySize: Int = 5
     private var estimatedFrameTime: TimeInterval = 1.0 / 60.0
+    private let accessibilityThread = AccessibilityThread()
     public var accessibilityIsOn: Bool = false
     private var hasSpokenDocument: Bool = false
     private var spokenAlerts: [AccessibilityNode] = []
@@ -411,7 +412,7 @@ public class Browser: ObservableObject {
     }
 
     private func speakText(_ text: String) {
-        print("SPEAK:", text)
+        accessibilityThread.speak(text)
     }
 
     private func speakDocument() {

@@ -1,0 +1,42 @@
+<html>
+<head>
+  <title>Exercise 14-6: Threaded Accessibility</title>
+</head>
+<body>
+  <h1>Threaded accessibility test</h1>
+  <p>
+    Press Ctrl+A to turn on accessibility. This page is intentionally long,
+    so the screen reader talks for a while. While it is talking, scroll the
+    page, hover the links below, and press Ctrl+S to move the accessibility
+    focus. Everything should respond instantly, because speaking now happens
+    on its own accessibility thread instead of the browser thread.
+  </p>
+  <p>
+    A browser does many jobs at once. It parses HTML, computes styles, lays
+    out boxes, paints them, and reacts to every key press and mouse move.
+    All of that work shares one browser thread. If any single job hogs that
+    thread, the whole browser feels frozen.
+  </p>
+  <p>
+    Speech is a slow job. Reading a paragraph out loud takes many seconds,
+    which is an eternity compared to a sixteen millisecond animation frame.
+    Blocking the browser thread for seconds at a time makes scrolling stutter
+    and clicks feel dead.
+  </p>
+  <p>
+    The fix is the same one used for networking and raster work: hand the
+    slow job to a dedicated thread. The browser thread only enqueues the text
+    to speak and moves on. The accessibility thread speaks one utterance at a
+    time, in order, and waits for each to finish without holding anyone up.
+  </p>
+  <p>Try hovering these while the document is still being read:</p>
+  <p><a href="https://browser.engineering/a11y.html">Chapter 14: Accessibility</a></p>
+  <p><a href="https://browser.engineering/scheduling.html">Chapter 12: Scheduling and Threading</a></p>
+  <p><button>A focusable button</button></p>
+  <p><input value="type here"></p>
+  <p>
+    If you can scroll smoothly and hear announcements queue up behind the
+    document text instead of the window freezing, the exercise works.
+  </p>
+</body>
+</html>
