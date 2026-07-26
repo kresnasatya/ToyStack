@@ -51,6 +51,12 @@ public class Tab {
         }
     }
 
+    var forcedColors: Bool = false {
+        didSet {
+            if oldValue != forcedColors { setNeedsRender() }
+        }
+    }
+
     private var zoom: CGFloat = 1.0
 
     private(set) var interestTop: CGFloat = 0
@@ -357,8 +363,8 @@ public class Tab {
                 oldStyles[ObjectIdentifier(node)] = node.style
             }
 
-            inheritedProperties["color"] = prefersDark ? "white" : "black"
-            applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark, frameWidth: tabWidth / zoom)
+            inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
+            applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark, forcedColors: forcedColors, frameWidth: tabWidth / zoom)
 
             // Detect style changes and create animations
             for node in treeToList(nodes) {
@@ -392,7 +398,7 @@ public class Tab {
                     continue
                 }
                 if visitedURL.contains(url.resolve(href).toString()) {
-                    el.style["color"] = "purple"
+                    el.style["color"] = forcedColors ? ForcedColor.visitedText : "purple"
                 }
             }
 
@@ -512,7 +518,7 @@ public class Tab {
         let data = CommitData(
             url: url!, scroll: scroll, height: docHeight, displayList: displayList,
             compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
-            interestTop: interestTop, prefersDark: prefersDark
+            interestTop: interestTop, prefersDark: prefersDark, forcedColors: forcedColors
         )
         compositedUpdates = [:]
         needsCompositeForPaint = false
@@ -587,7 +593,7 @@ public class Tab {
             left: tabWidth - scrollbarWidth, top: barTop, right: tabWidth,
             bottom: barTop + barHeight)
 
-        return [DrawRect(rect: barRect, color: "blue")]
+        return [DrawRect(rect: barRect, color: forcedColors ? ForcedColor.canvasText : "blue")]
     }
 
     public func resize(width: CGFloat, height: CGFloat) {

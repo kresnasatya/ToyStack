@@ -39,6 +39,10 @@ public class Browser: ObservableObject {
     public private(set) var activeTabPrefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
 
+    @Published public var forcedColors: Bool = false
+    public private(set) var activeTabForcedColors: Bool = false
+    @Published public private(set) var commitedForcedColors: Bool = false
+
     public var measure = MeasureTime()
 
     let networkingThread = NetworkingThread()
@@ -57,6 +61,7 @@ public class Browser: ObservableObject {
         tab.browser = self
         tab.networkingThread = networkingThread
         tab.prefersDark = prefersDark
+        tab.forcedColors = forcedColors
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
@@ -112,6 +117,7 @@ public class Browser: ObservableObject {
         activeTabScroll = data.scroll
         activeTabInterestTop = data.interestTop
         activeTabPrefersDark = data.prefersDark
+        activeTabForcedColors = data.forcedColors
         compositedUpdates = data.compositedUpdates ?? [:]
 
         if data.compositedUpdates == nil {
@@ -149,7 +155,7 @@ public class Browser: ObservableObject {
             displayList: activeTabDisplayList, scroll: activeTabScroll,
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
-            prefersDark: activeTabPrefersDark, needsComposite: wantsComposite, needsRaster: needsRaster,
+            prefersDark: activeTabPrefersDark, forcedColors: activeTabForcedColors, needsComposite: wantsComposite, needsRaster: needsRaster,
             needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
 
@@ -190,6 +196,7 @@ public class Browser: ObservableObject {
                 }
                 if let drawList = output.drawList { self.drawList = drawList }
                 self.commitedPrefersDark = inputs.prefersDark
+                self.commitedForcedColors = inputs.forcedColors
                 self.objectWillChange.send()
                 self.updateAccessibility()
                 self.measure.stop("composite_raster_and_draw")
@@ -336,7 +343,7 @@ public class Browser: ObservableObject {
         }
 
         if let bounds = inputs.hoveredBounds {
-            drawList.append(DrawOutline(rect: bounds, color: "white", thickness: 4))
+            drawList.append(DrawOutline(rect: bounds, color: inputs.forcedColors ? ForcedColor.highlight : "white", thickness: 4))
             drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
         }
 
@@ -385,6 +392,11 @@ public class Browser: ObservableObject {
     public func togglePrefersDark() {
         prefersDark = !prefersDark
         activeTab?.prefersDark = prefersDark
+    }
+
+    public func toggleForcedColors() {
+        forcedColors = !forcedColors
+        activeTab?.forcedColors = forcedColors
     }
 
     public func incrementZoom(_ increment: Bool) {

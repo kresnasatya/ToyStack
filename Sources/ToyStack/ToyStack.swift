@@ -66,7 +66,7 @@ public struct BrowserView: View {
                 cmd.execute(scroll: 0, context: &ctx)
             }
         }
-        .background(app.commitedPrefersDark ? Color.black : Color.white)
+        .background(app.commitedForcedColors ? Color(cssName: ForcedColor.canvas) : (app.commitedPrefersDark ? Color.black : Color.white))
         .background(
             WindowReader { window in
                 browserWindow = window
@@ -134,6 +134,8 @@ public struct BrowserView: View {
                                 app.advanceAccessibility()
                             case 2:  // Ctrl+D
                                 app.togglePrefersDark()
+                            case 4:  // Ctrl+H
+                                app.toggleForcedColors()
                             case 12:
                                 NSApplication.shared.terminate(nil)
                             case 17:

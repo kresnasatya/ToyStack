@@ -83,15 +83,15 @@ class InputLayout: LayoutObject, InlineLayoutItem {
 
         // For input checkbox
         if element.attributes["type"] == "checkbox" {
-            cmds.append(DrawRect(rect: selfRect(), color: "white"))
-            cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 1))
+            cmds.append(DrawRect(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonFace : "white"))
+            cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
             if element.isChecked {
                 cmds.append(
-                    DrawText(x1: x, y1: y, text: "X", font: font, color: "black"))
+                    DrawText(x1: x, y1: y, text: "X", font: font, color: isForcedColors(node) ? ForcedColor.buttonText : "black"))
             }
             if element.isFocused {
-                cmds.append(DrawOutline(rect: selfRect(), color: "white", thickness: 2))
-                cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 4))
+                cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 2))
+                cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 4))
             }
             return cmds
         }
@@ -121,9 +121,9 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             let cx = x + font.measure(text)
             cmds.append(
                 DrawLine(
-                    x1: cx, y1: y, x2: cx, y2: y + height, color: "black", thickness: 1))
-            cmds.append(DrawOutline(rect: selfRect(), color: "white", thickness: 4))
-            cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 2))
+                    x1: cx, y1: y, x2: cx, y2: y + height, color: isForcedColors(node) ? ForcedColor.buttonText : "black", thickness: 1))
+            cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
+            cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))
         }
 
         return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())

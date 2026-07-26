@@ -8,6 +8,7 @@ public protocol TabManager: AnyObject {
     var tabs: [Tab] { get }
     var activeTab: Tab? { get set }
     var prefersDark: Bool { get }
+    var forcedColors: Bool { get }
     func newTab(_ url: WebURL)
 }
 
@@ -93,9 +94,10 @@ public class Chrome {
     public func paint() -> [any PaintCommand] {
         var cmds: [any PaintCommand] = []
 
+        let forced = tabManager?.forcedColors ?? false
         let darkMode = tabManager?.prefersDark ?? false
-        let color = darkMode ? "white" : "black"
-        let bgColor = darkMode ? "black" : "white"
+        let color = forced ? ForcedColor.canvasText : (darkMode ? "white" : "black")
+        let bgColor = forced ? ForcedColor.canvas : (darkMode ? "black" : "white")
 
         // White background + bottom border
         cmds.append(

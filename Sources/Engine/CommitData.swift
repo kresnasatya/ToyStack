@@ -10,11 +10,12 @@ class CommitData {
     let focus: DOMNode?
     let interestTop: CGFloat
     let prefersDark: Bool
+    let forcedColors: Bool
 
     init(
         url: WebURL, scroll: CGFloat, height: CGFloat, displayList: [Any],
         compositedUpdates: [ObjectIdentifier: VisualEffect]?, accessibilityTree: AccessibilityNode?,
-        focus: DOMNode?, interestTop: CGFloat, prefersDark: Bool
+        focus: DOMNode?, interestTop: CGFloat, prefersDark: Bool, forcedColors: Bool
     ) {
         self.url = url
         self.scroll = scroll
@@ -25,5 +26,6 @@ class CommitData {
         self.focus = focus
         self.interestTop = interestTop
         self.prefersDark = prefersDark
+        self.forcedColors = forcedColors
     }
 }

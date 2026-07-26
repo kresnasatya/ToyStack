@@ -410,8 +410,9 @@ class BlockLayout: LayoutObject {
         }
 
         if node.isFocused {
-            commands.append(DrawOutline(rect: selfRect(), color: "white", thickness: 4))
-            commands.append(DrawOutline(rect: selfRect(), color: "black", thickness: 2))
+            let ring = ringColors(node)
+            commands.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
+            commands.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
         }
 
         if let el = node as? Element, el.tag == "li" {
@@ -421,16 +422,16 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            commands.append(DrawRect(rect: bulletRect, color: "black"))
+            commands.append(DrawRect(rect: bulletRect, color: isForcedColors(node) ? ForcedColor.canvasText : "black"))
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             let headerRect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            commands.append(DrawRect(rect: headerRect, color: "gray"))
+            commands.append(DrawRect(rect: headerRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray"))
             let font = getFont(size: 12, weight: "bold", style: "roman")
             commands.append(
                 DrawText(
-                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: "white"))
+                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: isForcedColors(node) ? ForcedColor.canvas : "white"))
         }
 
         return commands
@@ -444,7 +445,7 @@ class BlockLayout: LayoutObject {
         let barTop = y + (scrollOffset / contentHeight) * height
         let barRect = Rect(
             left: x + width - barWidth, top: barTop, right: x + width, bottom: barTop + barHeight)
-        return [DrawRect(rect: barRect, color: "gray")]
+        return [DrawRect(rect: barRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray")]
     }
 
     // <input> and <button> are painted by InputLayout, not BlockLayout.

@@ -8,6 +8,7 @@ struct RasterInputs: @unchecked Sendable {
     let compositedUpdates: [ObjectIdentifier: VisualEffect]
     let previousLayes: [CompositedLayer]
     let prefersDark: Bool
+    let forcedColors: Bool
     let needsComposite: Bool
     let needsRaster: Bool
     let needsDraw: Bool

@@ -42,7 +42,7 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
 // CSS color names used in browser.css and inline styles.
 // Extend this as you encounter more colors in the browser stylesheet.
 extension Color {
-    init(cssName: String) {
+    public init(cssName: String) {
         let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
         // Hex color: #rgb or #rrggbb
         if name.hasPrefix("#") {

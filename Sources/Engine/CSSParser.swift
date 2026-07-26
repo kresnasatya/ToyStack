@@ -523,6 +523,11 @@ class CSSParser {
                     throw CSSParseError.parseError
                 }
                 return "max-width:\(px)"
+            case "forced-colors":
+                guard val == "active" || val == "none" else {
+                    throw CSSParseError.parseError
+                }
+                return "forced-colors:\(val)"
             default:
                 throw CSSParseError.parseError
         }

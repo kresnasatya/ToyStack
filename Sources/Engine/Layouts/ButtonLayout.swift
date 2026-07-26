@@ -118,12 +118,12 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         guard let element = node as? Element else { return [] }
         var cmds: [any PaintCommand] = []
         let bgcolor = element.style["background-color"] ?? "transparent"
-        let displayColor = bgcolor == "transparent" ? "white" : bgcolor
+        let displayColor = bgcolor == "transparent" ? (isForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
         cmds.append(DrawRect(rect: selfRect(), color: displayColor))
-        cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 1))
+        cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
         if element.isFocused {
-            cmds.append(DrawOutline(rect: selfRect(), color: "white", thickness: 4))
-            cmds.append(DrawOutline(rect: selfRect(), color: "black", thickness: 2))
+            cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
+            cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))
         }
         return cmds
     }

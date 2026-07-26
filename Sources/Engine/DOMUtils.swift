@@ -118,7 +118,8 @@ func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String
 //   3. Inline style attribute
 func applyStyle(
     node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])],
-    prefersDark: Bool = false, frameWidth: CGFloat = .greatestFiniteMagnitude
+    prefersDark: Bool = false, forcedColors: Bool = false,
+    frameWidth: CGFloat = .greatestFiniteMagnitude
 ) {
     node.style = [:]
 
@@ -136,6 +137,10 @@ func applyStyle(
                 matches = prefersDark
             case "light":
                 matches = !prefersDark
+            case "forced-colors:active":
+                matches = forcedColors
+            case "forced-colors:none":
+                matches = !forcedColors
             default:
                 if m.hasPrefix("max-width:") {
                     let limit = Double(m.dropFirst("max-width:".count)) ?? 0
@@ -161,6 +166,8 @@ func applyStyle(
         }
     }
 
+    if forcedColors { forceColors(node: node) }
+
     // normalize overflow-y/overflow-x into overflow.
     // The engine checks node.style["overflow"] throughout; map the longhand here.
     if node.style["overflow"] == nil {
@@ -179,7 +186,7 @@ func applyStyle(
     }
 
     for child in node.children {
-        applyStyle(node: child, rules: rules, prefersDark: prefersDark, frameWidth: frameWidth)
+        applyStyle(node: child, rules: rules, prefersDark: prefersDark, forcedColors: forcedColors, frameWidth: frameWidth)
     }
 }
 

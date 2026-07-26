@@ -99,8 +99,8 @@ class LineLayout: LayoutObject {
             }
         }
         if let rect = outlineRect {
-            cmds.append(DrawOutline(rect: rect, color: "white", thickness: 4))
-            cmds.append(DrawOutline(rect: rect, color: "black", thickness: 2))
+            cmds.append(DrawOutline(rect: rect, color: ringColors(node).outer, thickness: 4))
+            cmds.append(DrawOutline(rect: rect, color: ringColors(node).inner, thickness: 2))
         }
         return cmds
     }

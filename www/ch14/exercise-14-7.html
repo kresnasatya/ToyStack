@@ -1,0 +1,122 @@
+<html>
+<head>
+  <title>Exercise 14-7: High-Contrast Mode</title>
+  <style>
+    body { background-color: khaki; color: gray; }
+    h1 { color: salmon; background-color: whitesmoke; }
+    .lowcontrast { color: khaki !important; background-color: gold; }
+    .card {
+      background-color: lightblue;
+      border-style: solid;
+      border-width: 4px;
+      border-color: salmon;
+    }
+    .dot { color: tomato; }
+    pre { background-color: orchid; color: whitesmoke; }
+    /* Black on black: invisible until the browser forces the text color. */
+    .forced-note { background-color: black; color: black; }
+    .forced-label { background-color: black; color: black; }
+    .author-note { background-color: whitesmoke; color: black; }
+    @media (forced-colors: active) {
+      .forced-note { color: white; }
+      .forced-label { color: white; }
+      .author-note { color: black; }
+    }
+  </style>
+</head>
+<body>
+  <h1>High-contrast mode</h1>
+
+  <p>
+    Press <b>Ctrl+H</b> to toggle forced colors. Every color on this page is
+    replaced by the browser palette: black background, white text, yellow links,
+    orchid visited links, gold focus rings. Press Ctrl+H again to get the
+    original colors back.
+  </p>
+
+  <p class="lowcontrast">
+    This paragraph is khaki text on gold, set with <code>!important</code>. It is
+    nearly unreadable normally and must become white on black when forced.
+  </p>
+
+  <p style="color: lightgreen; background-color: whitesmoke">
+    This paragraph sets its colors with an inline <code>style</code> attribute,
+    which normally beats every stylesheet. Forced colors still wins, because it
+    runs after inline styles.
+  </p>
+
+  <div class="card">
+    <p>A card with a salmon 4px border and a light blue background.</p>
+    <p>Forced: white border, black background, white text.</p>
+  </div>
+
+  <p class="forced-note">
+    Hidden note: black on black normally, white on black when forced. If you can
+    read this, the <code>@media (forced-colors: active)</code> query matched.
+  </p>
+
+  <p class="author-note">
+    Author note: black on whitesmoke normally. When forced, the background
+    becomes black, and the rule inside the media query would keep the text black
+    &mdash; but forced colors runs last, so the text is white and stays readable.
+    That is the point: the user's palette cannot be defeated, not even by a page
+    that knows about the mode.
+  </p>
+
+  <p><span class="dot">&#9679;</span> Status dot. Its meaning is carried by color
+    alone, so forced colors destroys it.</p>
+
+  <p class="forced-label">
+    ERROR &mdash; this label is added by the page inside
+    <code>@media (forced-colors: active)</code>, to put back the meaning the
+    color used to carry.
+  </p>
+
+  <h2>Links</h2>
+  <ul>
+    <li><a href="https://browser.engineering/a11y.html">Unvisited link (yellow when forced)</a></li>
+    <li><a href="https://browser.engineering/">Click me, come back, then Ctrl+H: visited link is orchid</a></li>
+  </ul>
+  <p>The bullets above are painted by the engine, not by CSS. They must turn
+    white too.</p>
+
+  <h2>Widgets</h2>
+  <p>
+    <button style="background-color: tomato">Colored button</button>
+    <button>Plain button</button>
+    <input value="typed text">
+    <input type="checkbox"> checkbox
+  </p>
+  <p>
+    Press Tab to walk the focus through them. Focus rings are white/black
+    normally and gold in forced mode. Turn on the screen reader with Ctrl+A and
+    hover the widgets: the hover ring is gold as well.
+  </p>
+
+  <h2>Preformatted</h2>
+  <pre>pre { background-color: orchid }
+forced -&gt; black background, white text</pre>
+
+  <h2>Scrolling</h2>
+  <div style="overflow-y: scroll; height: 120px; background-color: lightgreen">
+    <p>This box scrolls, so it paints its own scrollbar.</p>
+    <p>The scrollbar is gray normally and white when forced.</p>
+    <p>Line three.</p>
+    <p>Line four.</p>
+    <p>Line five.</p>
+    <p>Line six.</p>
+  </div>
+
+  <p>
+    Long tail of text so the page itself scrolls and the page scrollbar shows up:
+    it is blue normally and white when forced. Also check the browser chrome at
+    the top &mdash; the tab bar and address bar follow the palette too.
+  </p>
+  <p>Filler paragraph one.</p>
+  <p>Filler paragraph two.</p>
+  <p>Filler paragraph three.</p>
+  <p>Filler paragraph four.</p>
+  <p>Filler paragraph five.</p>
+  <p>Filler paragraph six.</p>
+</body>
+</html>
