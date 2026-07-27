@@ -302,13 +302,13 @@ class JSRuntime: @unchecked Sendable {
                     }
                     // Same-origin: proceed directly
                     if fullURL.origin() == tab.url.origin() {
-                        guard let (_, out) = fullURL.requestSync(payload: body) else { return "" }
+                        guard let (_, _, out) = fullURL.requestSync(payload: body) else { return "" }
                         return out
                     }
                     // Cross-origin: send Origin header, check Access-Control-Allow-Origin
                     let origin = tab.url.origin()
                     guard
-                        let (headers, out) = fullURL.requestSync(
+                        let (_, headers, out) = fullURL.requestSync(
                             payload: body,
                             extraHeaders: ["Origin": origin]
                         )

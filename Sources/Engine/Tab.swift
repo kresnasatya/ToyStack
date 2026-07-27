@@ -114,7 +114,7 @@ public class Tab {
     }
 
     private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?) async -> Result<
-        (headers: [String: String], content: String), Error
+        (status: Int, headers: [String: String], content: String), Error
     > {
         do {
             return .success(try await url.request(referrer: referrer, payload: payload))
@@ -124,7 +124,7 @@ public class Tab {
     }
 
     private func parseHTML(
-        url: WebURL, result: Result<(headers: [String: String], content: String), Error>
+        url: WebURL, result: Result<(status: Int, headers: [String: String], content: String), Error>
     ) -> [(index: Int, url: WebURL, ref: WebURL?)]? {
         let certErrorCodes: [URLError.Code] = [
             .serverCertificateUntrusted, .serverCertificateHasBadDate,
@@ -144,7 +144,7 @@ public class Tab {
             }
             return nil
 
-        case .success(let (headers, body)):
+        case .success(let (_, headers, body)):
             isSecure = url.scheme == "https"
             scroll = 0
             scrollAnimation = nil
@@ -207,15 +207,19 @@ public class Tab {
     private func fetchStyles(
         urls: [(index: Int, url: WebURL, ref: WebURL?)]
     ) async -> [(index: Int, body: String)] {
+        typealias Response = (status: Int, headers: [String: String], content: String)
         var result: [(index: Int, body: String)] = []
-        await withTaskGroup(of: (Int, String?).self) { group in
+        await withTaskGroup(of: (Int, WebURL, Response?).self) { group in
             for (i, styleURL, ref) in urls {
                 group.addTask {
-                    return (i, (try? await styleURL.request(referrer: ref))?.content)
+                    return (i, styleURL, try? await styleURL.request(referrer: ref))
                 }
             }
-            for await (i, body) in group {
-                if let body { result.append((i, body)) }
+            for await (i, styleURL, response) in group {
+                guard let response,
+                    Tab.isUsableStylesheet(status: response.status, headers: response.headers, url: styleURL)
+                else { continue }
+                result.append((i, response.content))
             }
         }
         return result
@@ -257,15 +261,19 @@ public class Tab {
     private func fetchScripts(
         urls: [(index: Int, url: WebURL, ref: WebURL?)]
     ) async -> [(index: Int, url: WebURL, body: String)] {
+        typealias Response = (status: Int, headers: [String: String], content: String)
         var result: [(index: Int, url: WebURL, body: String)] = []
-        await withTaskGroup(of: (Int, WebURL, String?).self) { group in
+        await withTaskGroup(of: (Int, WebURL, Response?).self) { group in
             for (i, scriptURL, ref) in urls {
                 group.addTask {
-                    return (i, scriptURL, (try? await scriptURL.request(referrer: ref))?.content)
+                    return (i, scriptURL, (try? await scriptURL.request(referrer: ref)))
                 }
             }
-            for await (i, scriptURL, body) in group {
-                if let body { result.append((i, scriptURL, body)) }
+            for await (i, scriptURL, response) in group {
+                guard let response,
+                    Tab.isExecutableScript(status: response.status, headers: response.headers, url: scriptURL)
+                else { continue }
+                result.append((i, scriptURL, response.content))
             }
         }
         return result
@@ -311,6 +319,42 @@ public class Tab {
         allowedOrigins == nil || (allowedOrigins?.contains(url.origin()) ?? false)
     }
 
+    nonisolated static func isExecutableScript(
+    status: Int, headers: [String: String], url: WebURL
+    ) -> Bool {
+        guard status == 200 else {
+            print("Refused execute script from", url.toString(), "- server replied", status)
+            return false
+        }
+        guard let contentType = headers["content-type"] else { return true }
+        guard MIMEType.isJavaScript(contentType) else {
+            print(
+                "Refused to execute script from", url.toString(),
+                "because it's MIME type (\(MIMEType.essence(contentType))) is not executable"
+            )
+            return false
+        }
+        return true
+    }
+
+    nonisolated static func isUsableStylesheet(
+    status: Int, headers: [String: String], url: WebURL
+    ) -> Bool {
+        guard status == 200 else {
+            print("Refused to apply stylesheet from", url.toString(), "- server replied", status)
+            return false
+        }
+        guard let contentType = headers["content-type"] else { return true }
+        guard MIMEType.isCSS(contentType) else {
+            print(
+                "Refused to apply stylesheet from", url.toString(),
+                "because it's MIME type (\(MIMEType.essence(contentType))) is not text/css"
+            )
+            return false
+        }
+        return true
+    }
+
     func runNewScripts(in root: any DOMNode) {
         for node in treeToList(root) {
             guard let el = node as? Element, el.tag == "script",
@@ -323,7 +367,8 @@ public class Tab {
             }
             let urlStr = scriptURL.toString()
             guard !loadedScriptURLs.contains(urlStr) else { continue }
-            guard let (_, body) = scriptURL.requestSync() else { continue }
+            guard let (status, headers, body) = scriptURL.requestSync() else { continue }
+            guard Tab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
             loadedScriptURLs.insert(urlStr)
             js.run(script: urlStr, code: body)
         }
@@ -338,7 +383,8 @@ public class Tab {
             {
                 let styleURL = url.resolve(href)
                 guard allowedRequest(styleURL) else { continue }
-                guard let (_, body) = styleURL.requestSync() else { continue }
+                guard let (status, headers, body) = styleURL.requestSync() else { continue }
+                guard Tab.isUsableStylesheet(status: status, headers: headers, url: styleURL) else { continue }
                 let parsed = CSSParser(body).parse()
                 rules.append(contentsOf: parsed.rules)
                 keyframes.merge(parsed.keyframes) { _, new in new }

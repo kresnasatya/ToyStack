@@ -60,6 +60,7 @@ actor CookieJar {
 // MARK: - CacheEntry
 
 struct CacheEntry {
+    let status: Int
     let headers: [String: String]
     let content: String
     let timestamp: Date  // when it was cached
@@ -73,7 +74,7 @@ actor ResponseCache {
 
     private var storage: [String: CacheEntry] = [:]
 
-    func get(_ url: String) -> (headers: [String: String], content: String)? {
+    func get(_ url: String) -> (status: Int, headers: [String: String], content: String)? {
         guard let entry = storage[url] else { return nil }
         if entry.maxAge >= 0 {
             let age = Date().timeIntervalSince(entry.timestamp)
@@ -83,11 +84,12 @@ actor ResponseCache {
             }
         }
 
-        return (entry.headers, entry.content)
+        return (entry.status, entry.headers, entry.content)
     }
 
-    func set(_ url: String, headers: [String: String], content: String, maxAge: Int) {
+    func set(_ url: String, status: Int, headers: [String: String], content: String, maxAge: Int) {
         storage[url] = CacheEntry(
+            status: status,
             headers: headers, content: content, timestamp: Date(), maxAge: maxAge)
     }
 }
@@ -203,7 +205,7 @@ public class WebURL: @unchecked Sendable {
     func request(
         referrer: WebURL? = nil, payload: String? = nil, extraHeaders: [String: String] = [:]
     ) async throws -> (
-        headers: [String: String], content: String
+        status: Int, headers: [String: String], content: String
     ) {
         if scheme == "about" {
             if path == "bookmarks" {
@@ -216,25 +218,25 @@ public class WebURL: @unchecked Sendable {
                     <ul>\n\(items)\n</ul>
                     </body></html
                     """
-                return (headers: [:], content: html)
+                return (status: 200, headers: [:], content: html)
             }
-            return (headers: [:], content: "")
+            return (status: 200, headers: [:], content: "")
         }
 
         if scheme == "file" {
             // Read the file at `path` and return its contents
             let content = try String(contentsOfFile: path, encoding: .utf8)
-            return (headers: [:], content: content)
+            return (status: 200, headers: [:], content: content)
         }
 
         if scheme == "data" {
-            return (headers: [:], content: path)
+            return (status: 200, headers: [:], content: path)
         }
 
         if scheme == "view-source" {
             let innerURL = WebURL(path)
-            let (_, content) = try await innerURL.request()
-            return (headers: [:], content: HTMLSyntaxHighlighter(body: content).highlight())
+            let (_, _, content) = try await innerURL.request()
+            return (status: 200, headers: [:], content: HTMLSyntaxHighlighter(body: content).highlight())
         }
 
         // If a payload (body) is provided, use POST. Otherwise GET.
@@ -373,25 +375,25 @@ public class WebURL: @unchecked Sendable {
                 )
             {
                 await ResponseCache.shared.set(
-                    cacheKey, headers: headers, content: content, maxAge: maxAge)
+                    cacheKey, status: httpResponse.statusCode, headers: headers, content: content, maxAge: maxAge)
             } else if cacheControl.isEmpty {
                 // no Cache-Control header - cache with no expiry
                 await ResponseCache.shared.set(
-                    cacheKey, headers: headers, content: content, maxAge: -1)
+                    cacheKey, status: httpResponse.statusCode, headers: headers, content: content, maxAge: -1)
             }
         }
 
-        return (headers, content)
+        return (httpResponse.statusCode, headers, content)
     }
 
     // Synchronous wrapper around request() for use in JavaScriptCore @convention(block) callbacks
     // JS callbacks must return immediately, so we block the current thread with a DispatchSemaphore
     // until the async request completes.
     func requestSync(payload: String? = nil, extraHeaders: [String: String] = [:]) -> (
-        headers: [String: String], content: String
+        status: Int, headers: [String: String], content: String
     )? {
         final class ResultBox: @unchecked Sendable {
-            var value: (headers: [String: String], content: String)?
+            var value: (status: Int, headers: [String: String], content: String)?
         }
         let box = ResultBox()
         let semaphore = DispatchSemaphore(value: 0)
