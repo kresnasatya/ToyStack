@@ -89,7 +89,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 cmds.append(
                     DrawText(x1: x, y1: y, text: "X", font: font, color: isForcedColors(node) ? ForcedColor.buttonText : "black"))
             }
-            if element.isFocused {
+            if element.isFocusVisible {
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 2))
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 4))
             }
@@ -122,6 +122,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             cmds.append(
                 DrawLine(
                     x1: cx, y1: y, x2: cx, y2: y + height, color: isForcedColors(node) ? ForcedColor.buttonText : "black", thickness: 1))
+        }
+        if element.isFocusVisible {
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))
         }

@@ -150,6 +150,7 @@ struct PseudoclassSelector: CSSSelector {
         guard base.matches(node) else { return false }
         switch pseudoclass {
         case "focus": return node.isFocused
+        case "focus-visible": return node.isFocusVisible
         default: return false
         }
     }

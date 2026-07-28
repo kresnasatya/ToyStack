@@ -1,0 +1,15 @@
+/*a:focus {
+	outline: 4px solid red;
+}*/
+
+a:focus-visible {
+    color: red;
+}
+
+button:focus {
+    background-color: lightgray;
+}
+
+div:focus-visible {
+    background-color: yellow;
+}

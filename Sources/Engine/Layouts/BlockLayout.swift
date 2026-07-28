@@ -409,7 +409,7 @@ class BlockLayout: LayoutObject {
                 DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
         }
 
-        if node.isFocused {
+        if node.isFocusVisible {
             let ring = ringColors(node)
             commands.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
             commands.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))

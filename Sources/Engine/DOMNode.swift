@@ -9,6 +9,7 @@ protocol DOMNode: AnyObject {
     var parent: (any DOMNode)? { get set }
     var style: [String: String] { get set }
     var isFocused: Bool { get set }
+    var isFocusVisible: Bool { get set }
     var satisfiedHas: Set<Int> { get set }
     var layoutObject: LayoutObject? { get set }
     var animations: [String: Animation] { get set }
@@ -23,6 +24,7 @@ class Element: DOMNode {
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
     var isFocused: Bool = false
+    var isFocusVisible: Bool = false
     var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
@@ -50,6 +52,7 @@ class TextNode: DOMNode {
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
     var isFocused: Bool = false
+    var isFocusVisible: Bool = false
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
     var animations: [String: Animation] = [:]

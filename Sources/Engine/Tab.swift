@@ -828,15 +828,17 @@ public class Tab {
         focusElement(nil)
     }
 
-    func focusElement(_ node: Element?) {
+    func focusElement(_ node: Element?, showRing: Bool = true) {
         if node === focus { return }
         if let previous = focus {
             previous.isFocused = false
+            previous.isFocusVisible = false
             _ = js?.dispatchEvent(type: "blur", elt: previous)
         }
         focus = node
         if let node = node {
             node.isFocused = true
+            node.isFocusVisible = showRing
             needsFocusScroll = true
             _ = js?.dispatchEvent(type: "focus", elt: node)
         }
@@ -911,10 +913,11 @@ public class Tab {
                         return
                     }
                     el.attributes["value"] = ""
-                    focusElement(el)
+                    focusElement(el, showRing: true)
                     setNeedsRender()
                     return
                 } else if let el = node as? Element, el.tag == "button" {
+                    focusElement(el, showRing: false)
                     var cursor: (any DOMNode)? = el
                     while let c = cursor {
                         if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil
