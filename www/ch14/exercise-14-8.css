@@ -1,15 +1,20 @@
-/*a:focus {
-	outline: 4px solid red;
-}*/
-
 a:focus-visible {
-    color: red;
+	outline: 4px solid red;
+	color: red;
 }
 
 button:focus {
-    background-color: lightgray;
+	background-color: lightgray;
+}
+
+div[role=textbox] {
+	outline: 2px solid steelblue;
+}
+
+div[role=textbox]:focus-visible {
+	outline: 4px solid green;
 }
 
 div:focus-visible {
-    background-color: yellow;
+	background-color: yellow;
 }

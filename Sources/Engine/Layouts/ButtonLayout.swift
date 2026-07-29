@@ -121,10 +121,13 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         let displayColor = bgcolor == "transparent" ? (isForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
         cmds.append(DrawRect(rect: selfRect(), color: displayColor))
         cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
-        if element.isFocusVisible {
+
+        let outline = cssOutline(node, rect: selfRect())
+        if element.isFocusVisible && outline == nil {
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))
         }
+        if let outline = outline { cmds.append(outline) }
         return cmds
     }
 

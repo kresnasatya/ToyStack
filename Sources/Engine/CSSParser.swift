@@ -63,6 +63,24 @@ struct ClassSelector: CSSSelector {
     }
 }
 
+// MARK: - AttributeSelector
+// Matches an element by attribute. [role] tests that the attribute [role=textbox] tests its exact value.
+// Example: AttributeSelector("role", "textbox") matches <div role="textbox">
+struct AttributeSelector: CSSSelector {
+    let attribute: String
+    let value: String?
+    let priority: Int = 10
+    var hasSelectors: [HasSelector] { [] }
+
+    func matches(_ node: any DOMNode) -> Bool {
+        guard let element = node as? Element,
+            let actual = element.attributes[attribute]
+        else { return false }
+        guard let value = value else { return true }
+        return actual == value
+    }
+}
+
 // MARK: - SelectorSequence
 // Matches when ALL selectors in the sequence match the same node.
 // Example: SelectorSequence([TagSelector("span"), ClassSelector("announce")])
@@ -447,6 +465,40 @@ class CSSParser {
         return selectors.count == 1 ? selectors[0] : SelectorSequence(selectors: selectors)
     }
 
+    // Reads one "[attr]" or "[attr=value]" suffix. Caller has check chars[i] == "[".
+    // Returns nil on anything malformed; the caller turns that into a match-nothing selector.
+    private func attributeSelector() -> (any CSSSelector)? {
+        i += 1 // consume "["
+        skipWhitespace()
+        guard let name = try? word() else { return nil }
+        skipWhitespace()
+
+        var value: String? = nil
+        if i < chars.count && chars[i] == "=" {
+            i += 1 // consume "="
+            skipWhitespace()
+            guard let v = quotedOrWord() else { return nil }
+            value = v
+            skipWhitespace()
+        }
+
+        guard (try? literal("]")) != nil else { return nil }
+        return AttributeSelector(attribute: name.lowercased(), value: value)
+    }
+
+    private func quotedOrWord() -> String? {
+        guard i < chars.count else { return nil }
+        let quote = chars[i]
+        guard quote == "\"" || quote == "'" else { return try? word() }
+        i += 1 // consume opening quote
+        let start = i
+        while i < chars.count && chars[i] != quote { i += 1 }
+        guard i < chars.count else { return nil }
+        let text = String(chars[start..<i])
+        i += 1
+        return text
+    }
+
     // Reads one compound selector: optinal tag/class token, then zero or more :has(...) suffixes
     // Returns nil if nothing can be parsed (used as a break signal in selector()).
     private func parseCompoundSelector() -> (any CSSSelector)? {
@@ -457,6 +509,13 @@ class CSSParser {
             parts.append(UniversalSelector())
         } else if let w = try? word() {
             parts.append(parseSimpleSelector(w))
+        }
+
+        while i < chars.count && chars[i] == "[" {
+            guard let attr = attributeSelector() else {
+                return TagSelector(tag: "")
+            }
+            parts.append(attr)
         }
 
         while i < chars.count && chars[i] == ":" {

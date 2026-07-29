@@ -409,11 +409,13 @@ class BlockLayout: LayoutObject {
                 DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
         }
 
-        if node.isFocusVisible {
+        let outline = cssOutline(node, rect: selfRect())
+        if node.isFocusVisible && outline == nil {
             let ring = ringColors(node)
             commands.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
             commands.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
         }
+        if let outline = outline { commands.append(outline) }
 
         if let el = node as? Element, el.tag == "li" {
             let bulletX = x - BlockLayout.liIndent

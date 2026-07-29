@@ -90,28 +90,34 @@ class LineLayout: LayoutObject {
     func paint() -> [Any] {
         var cmds: [any PaintCommand] = []
         var outlineRect: Rect? = nil
+        var focused: (any DOMNode)? = nil
         for child in children {
-            if hasFocusedVisibleInlineAncestor(child.node) {
-                let childRect = Rect(
-                    left: child.x, top: child.y, right: child.x + child.width,
-                    bottom: child.y + child.height)
+            guard let ancestor = focusVisibleInlineAncestor(child.node) else { continue }
+            focused = ancestor
+            let childRect = Rect(
+                left: child.x, top: child.y, right: child.x + child.width,
+                bottom: child.y + child.height)
                 outlineRect = outlineRect?.union(childRect) ?? childRect
-            }
         }
-        if let rect = outlineRect {
-            cmds.append(DrawOutline(rect: rect, color: ringColors(node).outer, thickness: 4))
-            cmds.append(DrawOutline(rect: rect, color: ringColors(node).inner, thickness: 2))
+        if let rect = outlineRect, let focused = focused {
+            if let outline = cssOutline(focused, rect: rect) {
+                cmds.append(outline)
+            } else {
+                cmds.append(DrawOutline(rect: rect, color: ringColors(node).outer, thickness: 4))
+                cmds.append(DrawOutline(rect: rect, color: ringColors(node).inner, thickness: 2))
+            }
+
         }
         return cmds
     }
 
-    private func hasFocusedVisibleInlineAncestor(_ start: any DOMNode) -> Bool {
+    private func focusVisibleInlineAncestor(_ start: any DOMNode) -> (any DOMNode)? {
         var current: (any DOMNode)? = start.parent
         while let ancestor = current, ancestor !== node {
-            if ancestor.isFocusVisible { return true }
+            if ancestor.isFocusVisible { return ancestor }
             current = ancestor.parent
         }
-        return false
+        return nil
     }
 
     func selfRect() -> Rect {

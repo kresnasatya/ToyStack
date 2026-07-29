@@ -41,6 +41,10 @@ func forceColors(node: any DOMNode) {
         element.style["border-color"] = ForcedColor.buttonBorder
     }
 
+    if element.style["outline-color"] != nil {
+        element.style["outline-color"] = ForcedColor.highlight
+    }
+
     switch element.tag {
         case "a":
             element.style["color"] = ForcedColor.linkText

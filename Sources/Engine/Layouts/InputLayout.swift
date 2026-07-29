@@ -89,10 +89,12 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 cmds.append(
                     DrawText(x1: x, y1: y, text: "X", font: font, color: isForcedColors(node) ? ForcedColor.buttonText : "black"))
             }
-            if element.isFocusVisible {
+            let outline = cssOutline(node, rect: selfRect())
+            if element.isFocusVisible && outline == nil {
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 2))
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 4))
             }
+            if let outline = outline { cmds.append(outline) }
             return cmds
         }
 
@@ -123,10 +125,12 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 DrawLine(
                     x1: cx, y1: y, x2: cx, y2: y + height, color: isForcedColors(node) ? ForcedColor.buttonText : "black", thickness: 1))
         }
-        if element.isFocusVisible {
+        let outline = cssOutline(node, rect: selfRect())
+        if element.isFocusVisible && outline == nil {
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))
         }
+        if let outline = outline { cmds.append(outline) }
 
         return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())
     }
