@@ -593,12 +593,6 @@ func getTabIndex(_ node: DOMNode) -> Int {
     return idx
 }
 
-func speakText(_ text: String) {
-    let synthesizer = AVSpeechSynthesizer()
-    let utterance = AVSpeechUtterance(string: text)
-    synthesizer.speak(utterance)
-}
-
 func dpx(_ cssPx: CGFloat, zoom: CGFloat) -> CGFloat {
     return cssPx * zoom
 }

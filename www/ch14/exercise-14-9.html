@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Exercise 14-9: OS Screen Reader Integration</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 18px; }
+  a { color: blue; }
+  label { display: block; margin-top: 8px; }
+  input, button { margin-top: 4px; }
+  .alert { background: #ffeb3b; padding: 8px; margin: 8px 0; border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+
+<h1>OS Screen Reader Integration</h1>
+
+<p>This page tests VoiceOver integration on macOS. Turn on VoiceOver first (Cmd+F5), then press <strong>Ctrl+A</strong> in ToyStack to enable accessibility.</p>
+
+<h2>Headings</h2>
+<p>Below is a heading level 2 with a paragraph.</p>
+
+<h2>Links</h2>
+<p>Here is a <a href="https://example.com">link to example.com</a> and another <a href="https://browser.engineering">link to browser.engineering</a>.</p>
+
+<h2>Form Inputs</h2>
+<label>
+  Text input:
+  <input type="text" value="hello world">
+</label>
+<label>
+  Checkbox:
+  <input type="checkbox" checked label="Accept terms">
+</label>
+<h2>Button</h2>
+<button>Click Me</button>
+
+<h2>Alert</h2>
+<div class="alert" role="alert">This is an alert message! It should be announced automatically.</div>
+
+<p>Use <strong>Ctrl+S</strong> to step through elements one by one. Hover the mouse over any element to hear it announced.</p>
+
+</body>
+</html>

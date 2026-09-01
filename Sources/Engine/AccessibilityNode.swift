@@ -81,13 +81,14 @@ class AccessibilityNode {
     }
 
     private func buildInternal(_ childNode: DOMNode) {
+        if let el = childNode as? Element, el.tag == "style" || el.tag == "script" {
+            return
+        }
         let child = AccessibilityNode(node: childNode, parent: self)
         if child.role != "none" {
             children.append(child)
             child.build()
         } else {
-            // Role-none wrapper (body, p, h1...): skip it, but lift
-            // its descendants up to this node.
             for grandchild in childNode.children {
                 buildInternal(grandchild)
             }
