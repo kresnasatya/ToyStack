@@ -29,7 +29,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        zoom = parent!.zoom
+        zoom = computeZoom(node, parentZoom: parent!.zoom)
         guard let element = node as? Element else { return }
 
         let weight = element.style["font-weight"] ?? "normal"

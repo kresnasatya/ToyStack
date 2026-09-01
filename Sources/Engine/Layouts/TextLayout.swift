@@ -29,7 +29,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        zoom = parent!.zoom
+        zoom = computeZoom(node, parentZoom: parent!.zoom)
         let weight = node.style["font-weight"] ?? "normal"
         var styleStr = node.style["font-style"] ?? "normal"
         // CSS uses "italic"; tkinter/CoreText uses "italic" too, but "roman" = normal.

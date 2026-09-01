@@ -44,7 +44,7 @@ class BlockLayout: LayoutObject {
     }
 
     func layout() {
-        zoom = parent!.zoom
+        zoom = computeZoom(node, parentZoom: parent!.zoom)
         let isAbsolute = node.style["position"] == "absolute"
         if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
             let l = Double(lStr.dropLast(2))
