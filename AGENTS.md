@@ -26,9 +26,9 @@ This project is intended to be used as learning purpose to make me understand ho
 
 7. Break work into small, ordered steps that each leave the project building.
 
-8. When refactoring, keep the old code in place until the new code is wired up and verified. Delete in a final cleanup step, never alongside the rewrite.
+8. When refactoring, present the old code and new code with diffs (+/-) so I can understand the changes.
 
-9. Reference existing code by file:line so I can navigate to it. When replacing code, show the old and new versions side-by-side or in a small table — never just "change this to that."
+9. Reference existing code by file:line so I can navigate to it.
 
 10. Save the plan into the markdown file in this project.
 
