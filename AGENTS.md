@@ -14,7 +14,7 @@ This project is intended to be used as learning purpose to make me understand ho
 
 1. Work in `main` branch directly instead of separated branch.
 
-2. Each time I give a prompt, your task is a guider and show the code.
+2. Each time I give a prompt, act as a guide and show me the code changes I need to make. **When modifying existing code, always show the changes as a unified diff (+/-) rather than separate Old/New code blocks.**
 
 3. When facing with **exercise**, create a html example for proof of exercise implementation in `www` directory.
  
@@ -26,11 +26,20 @@ This project is intended to be used as learning purpose to make me understand ho
 
 7. Break work into small, ordered steps that each leave the project building.
 
-8. When refactoring, present the old code and new code with diffs (+/-) so I can understand the changes.
+8. When showing code changes, always unified diff format with `-` for removed lines and `+` for added lines. **DO NOT present separate `Old` and `New` code sections.** DO NOT duplicate the unchanged code outside the diff. Include only the relevant surrounding context needed to understand the change.
+
+Example:
+
+```diff
+- let role = oldRole
++ let role = newRole
+```
+
+For multi-file changes, group the diffs by file and include the file path before each diff. The output must remain directly applicable to the existing codebase.
 
 9. Reference existing code by file:line so I can navigate to it.
 
-10. Save the plan into the markdown file in this project.
+10. Save it in markdown file in the `plan` directory.
 
 ## Additional Information
 
