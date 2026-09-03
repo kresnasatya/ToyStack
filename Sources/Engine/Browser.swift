@@ -419,6 +419,7 @@ public class Browser: ObservableObject {
         hasSpokenDocument = false
         spokenAlerts = []
         lastFocus = nil
+        setNeedsComposite()
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()
     }
