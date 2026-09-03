@@ -54,6 +54,12 @@ class JSRuntime: @unchecked Sendable {
         return "<\(elt.tag)\(attrs)>\(inner)</\(elt.tag)>"
     }
 
+    private func textContent(of node: any DOMNode) -> String {
+        if let text = node as? TextNode { return text.text }
+        guard let elt = node as? Element else { return "" }
+        return elt.children.map { self.textContent(of: $0) }.joined()
+    }
+
     private func registerCallbacks() {
         jsContext.setObject(
             {
@@ -199,6 +205,23 @@ class JSRuntime: @unchecked Sendable {
                 return self.serialize(node)
             } as @convention(block) (Int) -> String,
             forKeyedSubscript: "_serializeOuter" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int) -> String in
+            guard let self, let node = self.handleToNode[handle] else { return "" }
+            return self.textContent(of: node)
+        } as @convention(block) (Int) -> String,
+        forKeyedSubscript: "_getTextContent" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int, value: String) in
+            MainActor.assumeIsolated({
+                guard let self, let elt = self.handleToNode[handle] as? Element else { return }
+                elt.children = [TextNode(text: value, parent: elt)]
+                self.tab?.setNeedsRender()
+            })
+        } as @convention(block) (Int, String) -> Void,
+        forKeyedSubscript: "_setTextContent" as NSString)
 
         jsContext.setObject(
             {

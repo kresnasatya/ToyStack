@@ -5,6 +5,7 @@ class AccessibilityNode {
     weak var parent: AccessibilityNode?
     var children: [AccessibilityNode] = []
     var role: String = "none"
+    var live: String = "off"
     var text: String = ""
     var bounds: Rect
 
@@ -13,6 +14,7 @@ class AccessibilityNode {
         self.parent = parent
         self.bounds = AccessibilityNode.computeBounds(for: node)
         self.role = AccessibilityNode.computeRole(for: node)
+        self.live = AccessibilityNode.computeLive(for: node)
     }
 
     private static func computeBounds(for node: DOMNode) -> Rect {
@@ -61,9 +63,16 @@ class AccessibilityNode {
         case "html": return "document"
         default:
             if el.attributes["tabindex"] != nil { return "focusable" }
-            if el.tag == "div" && el.attributes["role"] == "alert" { return "alert" }
+            if el.attributes["role"] == "alert" { return "alert" }
             return "none"
         }
+    }
+
+    private static func computeLive(for node: DOMNode) -> String {
+        guard let el = node as? Element else { return "off" }
+        let live = el.attributes["aria-live"] ?? "off"
+        if live == "assertive" || live == "polite" { return live }
+        return "off"
     }
 
     func build() {
@@ -85,7 +94,7 @@ class AccessibilityNode {
             return
         }
         let child = AccessibilityNode(node: childNode, parent: self)
-        if child.role != "none" {
+        if child.role != "none" || child.live != "off" {
             children.append(child)
             child.build()
         } else {

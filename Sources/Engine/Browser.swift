@@ -22,6 +22,7 @@ public class Browser: ObservableObject {
     private var hoveredA11yNode: AccessibilityNode? = nil
     private var needsSpeakHoveredNode: Bool = false
     private var accessibilityFocusNode: AccessibilityNode? = nil
+    private var liveRegionTexts: [ObjectIdentifier: String] = [:]
     private var compositedLayers: [CompositedLayer] = []
     public private(set) var drawList: [Any] = []
     private var activeTabDisplayList: [Any] = []
@@ -418,6 +419,7 @@ public class Browser: ObservableObject {
         hoveredA11yNode = nil
         hasSpokenDocument = false
         spokenAlerts = []
+        liveRegionTexts = [:]
         lastFocus = nil
         setNeedsComposite()
         needsAnimationFrame = true
@@ -434,6 +436,7 @@ public class Browser: ObservableObject {
         for node in treeToList(tree) {
             if !node.text.isEmpty { text += "\n" + node.text }
         }
+        accessibilityThread.stopSpeaking()
         speakText(text)
     }
 
@@ -461,10 +464,7 @@ public class Browser: ObservableObject {
     }
 
     private func speakNode(_ node: AccessibilityNode, _ prefix: String) {
-        var text = prefix + node.text
-        if !text.isEmpty, let first = node.children.first, first.role == "StaticText" {
-            text += " " + first.text
-        }
+        let text = prefix + node.text
         if !text.isEmpty { speakText(text) }
     }
 
@@ -477,6 +477,29 @@ public class Browser: ObservableObject {
         }
 
         let allNodes = treeToList(tree)
+
+        // --- Live Regions (aria-live) ---
+        let liveNodes = allNodes.filter({ $0.live != "off" })
+        for node in liveNodes {
+            let key = ObjectIdentifier(node.node)
+            let newText = node.text
+            guard let oldText = liveRegionTexts[key] else {
+                liveRegionTexts[key] = newText
+                continue
+            }
+            if newText != oldText {
+                liveRegionTexts[key] = newText
+                if !newText.isEmpty {
+                    if node.live == "assertive" {
+                        accessibilityThread.speakUrgent(newText)
+                    } else {
+                        accessibilityThread.speakPolite(newText)
+                    }
+                }
+            }
+        }
+
+        // --- Legacy "role=alert" (backward compat) ---
         let activeAlerts = allNodes.filter({ $0.role == "alert" })
         for alert in activeAlerts {
             if !spokenAlerts.contains(where: { $0.node === alert.node }) {
@@ -499,6 +522,7 @@ public class Browser: ObservableObject {
         }
 
         if needsSpeakHoveredNode, let hovered = hoveredA11yNode {
+            accessibilityThread.stopSpeaking()
             speakNode(hovered, "Hit test ")
         }
 
@@ -508,6 +532,9 @@ public class Browser: ObservableObject {
     public func toggleAccessibility() {
         accessibilityIsOn = !accessibilityIsOn
         if accessibilityIsOn { hasSpokenDocument = false }
+        hoveredA11yNode = nil
+        accessibilityFocusNode = nil
+        needsSpeakHoveredNode = false
     }
 
     public func handleHover(x: CGFloat, y: CGFloat) {

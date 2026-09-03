@@ -84,6 +84,12 @@ Node.prototype.dispatchEvent = function (evt) {
   for (var i = 0; i < list.length; i++) {
     list[i].call(this, evt);
   }
+  // Inline event handler attribute, e.g. onclick="doSomething()"
+  var attr = this.getAttribute("on" + type);
+  if (attr) {
+    var handler = new Function("event", attr);
+    handler.call(this, evt);
+  }
   if (!evt.stop_propagation) {
     var parentHandle = _getParent(this.handle);
     if (parentHandle !== -1) {
@@ -116,6 +122,15 @@ Object.defineProperty(Node.prototype, "outerHTML", {
   get: function () {
     return _serializeOuter(this.handle);
   },
+});
+
+Object.defineProperty(Node.prototype, "textContent", {
+  get: function () {
+    return _getTextContent(this.handle);
+  },
+  set: function (s) {
+    _setTextContent(this.handle, s.toString());
+  }
 });
 
 Object.defineProperty(Node.prototype, "children", {
