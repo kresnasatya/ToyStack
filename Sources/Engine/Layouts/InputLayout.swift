@@ -1,5 +1,4 @@
 import CoreGraphics
-import SwiftUI
 
 // MARK: - InputLayout
 // Lays out <input> and <button> elements at a fixed width 200px.
