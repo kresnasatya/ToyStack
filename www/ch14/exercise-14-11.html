@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Exercise 14-11: Speaking Out Loud & aria-live</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 18px; }
+  button { padding: 8px 16px; margin: 4px; cursor: pointer; }
+  .live-region { border: 2px solid #ccc; padding: 12px; margin: 12px 0; border-radius: 4px; }
+  .assertive { border-color: #e74c3c; background: #fdf2f2; }
+  .polite { border-color: #3498db; background: #f0f7fd; }
+  label { font-weight: bold; display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<h1>aria-live Test</h1>
+
+<p>Enable accessibility with <strong>Ctrl+A</strong>. The document will be read aloud. Then click the buttons below to inject text into live regions.</p>
+
+<h2>Assertive Region (interrupts current speech)</h2>
+<div class="live-region assertive">
+  <label>Assertive (aria-live="assertive"):</label>
+  <div id="assertive-region" aria-live="assertive">Waiting for updates...</div>
+</div>
+<button onclick="updateAssertive()">Send Assertive Alert</button>
+
+<h2>Polite Region (waits until current speech finishes)</h2>
+<div class="live-region polite">
+  <label>Polite (aria-live="polite"):</label>
+  <div id="polite-region" aria-live="polite">Waiting for updates...</div>
+</div>
+<button onclick="updatePolite()">Send Polite Update</button>
+
+<h2>Long Text (to test polite queue)</h2>
+<button onclick="speakLongText()">Read Long Text</button>
+<button onclick="updateBoth()">Send Both Updates</button>
+<p id="long-text" style="display:none">
+  This is a very long paragraph that will take several seconds to read aloud.
+  It contains multiple sentences. The purpose of this text is to give you enough time
+  to click the assertive or polite buttons while speech is still in progress.
+  If you click the assertive button, the current speech should be interrupted immediately.
+  If you click the polite button, the update should wait until this sentence finishes.
+</p>
+
+<script>
+  var assertiveCount = 0;
+  var politeCount = 0;
+
+  function updateAssertive() {
+    assertiveCount++;
+    var el = document.getElementById('assertive-region');
+    el.textContent = 'Assertive alert #' + assertiveCount + ' — this should interrupt any current speech!';
+  }
+
+  function updatePolite() {
+    politeCount++;
+    var el = document.getElementById('polite-region');
+    el.textContent = 'Polite update #' + politeCount + ' — this should wait until current speech finishes.';
+  }
+
+  function updateBoth() {
+    updateAssertive();
+    updatePolite();
+  }
+
+  function speakLongText() {
+    var el = document.getElementById('long-text');
+    el.style.display = 'block';
+    // Force the browser to re-read this content
+    // In a real browser, focus would trigger reading
+    // For this exercise, we make it a live region temporarily
+    el.setAttribute('aria-live', 'polite');
+    el.textContent = el.textContent + ' ';
+    setTimeout(function() {
+      el.setAttribute('aria-live', 'off');
+    }, 100);
+  }
+</script>
+
+</body>
+</html>
