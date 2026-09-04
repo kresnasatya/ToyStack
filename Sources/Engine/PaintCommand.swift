@@ -39,12 +39,10 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
 }
 
 // MARK: - Color Parsing
-// CSS color names used in browser.css and inline styles.
-// Extend this as you encounter more colors in the browser stylesheet.
+
 extension Color {
     public init(cssName: String) {
         let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
-        // Hex color: #rgb or #rrggbb
         if name.hasPrefix("#") {
             let hex = String(name.dropFirst())
             let expanded =
@@ -87,9 +85,7 @@ extension Color {
     }
 }
 
-// MARK: - PaintCommand Protocol
-// Every draw command stores a bounding rect (for visibility culling)
-// and can execute itself into SwiftUI GraphicsContext.
+// MARK: - PaintCommand
 public protocol PaintCommand {
     var rect: Rect { get }
     var parentEffect: VisualEffect? { get set }
@@ -97,7 +93,6 @@ public protocol PaintCommand {
 }
 
 // MARK: - DrawRect
-// Draws a filled rectangle with no border. Used for element backgrounds.
 struct DrawRect: PaintCommand {
     let rect: Rect
     let color: String
@@ -109,7 +104,6 @@ struct DrawRect: PaintCommand {
     }
 
     func execute(scroll: CGFloat, context: inout GraphicsContext) {
-        // Shift the rectangle up by the scroll offfset to simulate scrolling.
         let r = CGRect(
             x: rect.left,
             y: rect.top - scroll,
@@ -121,14 +115,12 @@ struct DrawRect: PaintCommand {
 }
 
 // MARK: - DrawLine
-// Draws a straight line. Used for the blinking cursor inside <input>.
 struct DrawLine: PaintCommand {
-    let rect: Rect  // rect.left/top = start point, right/bottom = end point
+    let rect: Rect
     let color: String
     let thickness: CGFloat
     var parentEffect: VisualEffect? = nil
 
-    // DrawLine stores its endpoints in a Rect for uniform culling in Tab.draw()
     init(
         x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat
     ) {
@@ -146,9 +138,8 @@ struct DrawLine: PaintCommand {
 }
 
 // MARK: - DrawText
-// Draws a single string at position (x1, y1) using top-left as the anchor.
 struct DrawText: PaintCommand {
-    let rect: Rect  // bounding box of the rendered text
+    let rect: Rect
     let text: String
     let font: BrowserFont
     let color: String
@@ -168,14 +159,12 @@ struct DrawText: PaintCommand {
         let swiftText = Text(text)
             .font(Font(font.ctFont))
             .foregroundColor(Color(cssName: color))
-        // Draw with the top-left corner at (x, y - scroll), matching Python's anchor="nw".
         context.draw(
             swiftText, at: CGPoint(x: rect.left, y: rect.top - scroll), anchor: .topLeading)
     }
 }
 
 // MARK: - DrawOutline
-// Draws a rectangle border (no fill). Used for buttons and input boxes.
 struct DrawOutline: PaintCommand {
     let rect: Rect
     let color: String

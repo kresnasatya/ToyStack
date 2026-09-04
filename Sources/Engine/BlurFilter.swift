@@ -16,7 +16,7 @@ public class BlurFilter: Engine.VisualEffect {
         }
 
         super.init(rect: combinedRect, children: children, node: node)
-        // A blurred layer must be composited in isolation - same rule as opacity < 1
+
         self.needsCompositing = radius > 0 || self.needsCompositing
     }
 

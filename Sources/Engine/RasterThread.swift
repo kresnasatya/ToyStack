@@ -17,7 +17,7 @@ class RasterThread: @unchecked Sendable {
         }
 
         lock.lock()
-        pending = job  // newest wins; any older pending is dropped
+        pending = job
         let kick = !draining
         if kick { draining = true }
         lock.unlock()

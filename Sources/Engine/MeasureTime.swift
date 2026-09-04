@@ -45,7 +45,7 @@ public class MeasureTime {
 
     private func seekBeforeClose() {
         let end = file?.seekToEndOfFile() ?? 2
-        file?.seek(toFileOffset: end - 2)  // overwrite the trailing ]}
+        file?.seek(toFileOffset: end - 2)
     }
 
     private func writeTrace(_ s: String) {

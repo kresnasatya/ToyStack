@@ -133,23 +133,6 @@ func rgbToHex(_ r: Double, _ g: Double, _ b: Double) -> String {
     return String(format: "#%02x%02x%02x", clamp(r), clamp(g), clamp(b))
 }
 
-// MARK: - KeyframeAnimation
-
-// Wraps a single-pass animation (NumericAnimation / PixelAnimation / ColorAnimation) and adds the two CSS-animation loop behaviours that the
-// underlying transitions don't need:
-//     - `infinite`: instead of turning `nil` when `inner` finishes, restart.
-//     - `alternate`: each iteration reverses direction, so the value bounces
-//        from -> to -> from -> to ...
-//
-// Because the underlying animation types don't support restart, KeyframeAnimation
-// holds the raw (oldValue, newValue) strings and a `factory` closure that
-// constructs the right subclass, and rebuilds `inner` at every iteration.
-//
-// `animatedProperty` is read by `Tab.runAnimationFrame` to know which CSS
-// property the wrapped animation drives (e.g. "opacity" or "width"). For plain
-// transitions the dict key alread IS the property name; for CSS animations the
-// dict key is "animation/<name>" so this property is required to route the
-// dirty flag and write to the right slot in `node.style`.
 class KeyframeAnimation: Animation {
     let animatedProperty: String
     private let infinite: Bool
@@ -184,11 +167,9 @@ class KeyframeAnimation: Animation {
     }
 
     func animate() -> String? {
-        // Delegate the current pass; if it still has frames, use them.
         if let value = inner.animate() {
             return value
         }
-        // inner finished one pass.
         guard infinite else { return nil }
 
         if alternate {

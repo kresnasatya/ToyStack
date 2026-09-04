@@ -33,7 +33,6 @@ import Testing
     }
 
     @Test func parseMalformedRuleRecovery() {
-        // Bad selector rule should be skipped; valid rule should still be parsed.
         let css = "!invalid { } p { color: red; }"
         let rules = CSSParser(css).parse()
         #expect(rules.count == 1)
@@ -51,7 +50,6 @@ import Testing
     // MARK: - CSSParser.body()
 
     @Test func bodyMalformedDeclarationRecovery() {
-        // "!!!" is invalid but parser should skip it and still parse color.
         let css = "p { !!!; color: red; }"
         let rules = CSSParser(css).parse()
         #expect(rules[0].1["color"] == "red")
@@ -86,7 +84,6 @@ import Testing
     }
 
     @Test func descendantSelectorMatches() {
-        // <div><p></p></div> - p inside div should match DescendantSelector(div, p)
         let div = Element(tag: "div", attributes: [:], parent: nil)
         let p = Element(tag: "p", attributes: [:], parent: div)
         div.children = [p]
@@ -100,7 +97,6 @@ import Testing
     }
 
     @Test func descendantSelectorDoesNotMatchWrongAncestor() {
-        // <span><p></p></span> - p inside span should NOT match DescendantSelector (div, p)
         let span = Element(tag: "span", attributes: [:], parent: nil)
         let p = Element(tag: "p", attributes: [:], parent: span)
 

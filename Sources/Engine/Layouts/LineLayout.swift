@@ -1,8 +1,6 @@
 import CoreGraphics
 
 // MARK: - LineLayout
-// Holds one horizontal row of inline items (words, inputs).
-// Its main job is baseline-aligning children with mixed font sizes.
 class LineLayout: LayoutObject {
     let node: any DOMNode
     let parent: (any LayoutObject)?
@@ -28,10 +26,8 @@ class LineLayout: LayoutObject {
         x = parent!.x
         y = previous.map { $0.y + $0.height } ?? parent!.y
 
-        // First pass: let each child calculate its own width, x, and height.
         for child in children { child.layout() }
 
-        // Trim trailing space from last word - no word follows it on this line.
         if let lastText = children.last as? TextLayout {
             lastText.width = lastText.font.measure(lastText.word)
         }
@@ -41,8 +37,6 @@ class LineLayout: LayoutObject {
             return
         }
 
-        // Second pass: align all children to shared baseline.
-        // Each child must expose its font for ascent/descent queries.
         let inlineChildren = children.compactMap { $0 as? InlineLayoutItem }
         guard !inlineChildren.isEmpty else {
             height = 0
@@ -56,13 +50,11 @@ class LineLayout: LayoutObject {
             if let el = child.node as? Element, el.tag == "sup" {
                 child.y = baseline - maxAscent
             } else {
-                // Place each item so its top aligns with (baseline - its own ascent).
                 child.y = baseline - child.font.ascent
             }
         }
 
         if isRTL {
-            // Find where the last child ends
             let lastChild = children.last!
             let usedWidth = lastChild.x + lastChild.width - x
             let offset = width - usedWidth
@@ -83,7 +75,6 @@ class LineLayout: LayoutObject {
         }
 
         let maxDescent = inlineChildren.map(\.font.descent).max() ?? 0
-        // Line height adds 25% extra space above and below (the 1.25 factor).
         height = 1.25 * (maxAscent + maxDescent)
     }
 

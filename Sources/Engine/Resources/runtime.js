@@ -73,18 +73,10 @@ Node.prototype.dispatchEvent = function (evt) {
   var type = evt.type;
   var handle = this.handle;
   var list = (LISTENERS[handle] && LISTENERS[handle][type]) || [];
-  // _log(
-  //   "dispatchEvent handle=" +
-  //     handle +
-  //     " type=" +
-  //     type +
-  //     " listeners=" +
-  //     list.length,
-  // );
   for (var i = 0; i < list.length; i++) {
     list[i].call(this, evt);
   }
-  // Inline event handler attribute, e.g. onclick="doSomething()"
+
   var attr = this.getAttribute("on" + type);
   if (attr) {
     var handler = new Function("event", attr);
@@ -114,7 +106,7 @@ Object.defineProperty(Node.prototype, "innerHTML", {
   },
   set: function (s) {
     _innerHTML(this.handle, s.toString());
-    __defineIDs(); // re-scan after DOM changes
+    __defineIDs();
   },
 });
 
@@ -175,7 +167,6 @@ function __defineIDs() {
   }
 }
 
-// CSS style property setter - bridges node.style.prop = value to Swift
 Object.defineProperty(Node.prototype, "style", {
   get: function () {
     var handle = this.handle;
@@ -204,7 +195,6 @@ Node.prototype.focus = function () {
   _focusElement(this.handle);
 };
 
-// requestAnimationFrame - schedules a callback before the next paint
 var __RAFHandlers = [];
 
 function __runRAFHandlers() {

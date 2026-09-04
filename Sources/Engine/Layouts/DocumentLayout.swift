@@ -1,11 +1,9 @@
 import CoreGraphics
 
 // MARK: DocumentLayout
-// The root of the layout tree. Wraps the whole DOM tree in one BlockLayout child.
-// Sets document-level x/y/width and delegates height computation to its child.
 class DocumentLayout: LayoutObject {
     let node: any DOMNode
-    let parent: (any LayoutObject)? = nil  // no parent - this is the root
+    let parent: (any LayoutObject)? = nil
     var children: [any LayoutObject] = []
     var x: CGFloat = 0
     var y: CGFloat = 0
@@ -26,17 +24,14 @@ class DocumentLayout: LayoutObject {
         let child = BlockLayout(node: node, parent: self, previous: nil)
         children.append(child)
 
-        // Content area starts one step from each edge to add a small margin.
         width = availableWidth - 2 * dpx(HSTEP, zoom: zoom)
         x = dpx(HSTEP, zoom: zoom)
         y = dpx(VSTEP, zoom: zoom)
 
         child.layout()
-        // Document height equals the single child's height.
         height = child.height
     }
 
-    // DocumentLayout draws nothing itself - only its BlockLayout child does.
     func paint() -> [Any] { [] }
     func shouldPaint() -> Bool {
         true

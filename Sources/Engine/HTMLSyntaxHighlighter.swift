@@ -2,7 +2,6 @@ class HTMLSyntaxHighlighter: HTMLParser {
     private(set) var result = ""
 
     override func addText(_ text: String) {
-        // Text content -> bold
         let escaped =
             text
             .replacingOccurrences(of: "&", with: "&amp;")
@@ -12,7 +11,6 @@ class HTMLSyntaxHighlighter: HTMLParser {
     }
 
     override func addTag(_ tag: String) {
-        // Tags -> escaped plain text (shows the raw tag markup)
         let escaped =
             tag
             .replacingOccurrences(of: "&", with: "&amp;")
@@ -22,7 +20,7 @@ class HTMLSyntaxHighlighter: HTMLParser {
     }
 
     func highlight() -> String {
-        _ = parse()  // run the lexer - but we intercept addText/addTag
+        _ = parse()
         return "<pre>\(result)</pre>"
     }
 

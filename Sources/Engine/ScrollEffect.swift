@@ -1,9 +1,5 @@
 import SwiftUI
 
-// Clip and vertically offsets its children to implement overflow:scroll
-// Rendered by BrowserView exactly like Blend/Transform: ve.execute(context:).
-// The incoming context already has the page-level translateBy applied,
-// so document coordinates map directly to screen coordinates here.
 public class ScrollEffect: Engine.VisualEffect {
     let clipRect: Rect
     var scrollOffset: CGFloat
@@ -12,14 +8,11 @@ public class ScrollEffect: Engine.VisualEffect {
         self.clipRect = rect
         self.scrollOffset = scrollOffset
         super.init(rect: rect, children: children, node: node)
-        // false: let PaintCommand children be composited normally.
-        // paintDrawList() reconstructs this wrapper via clone().
         self.needsCompositing = false
     }
 
-    // Clips to element bounds then shifts content up by scrollOffset.
     public override func execute(context: inout GraphicsContext) {
-        var ctx = context  // value copy: own clip state, shared canvas
+        var ctx = context
         let cgRect = CGRect(
             x: clipRect.left, y: clipRect.top,
             width: clipRect.right - clipRect.left,
@@ -36,7 +29,6 @@ public class ScrollEffect: Engine.VisualEffect {
         }
     }
 
-    // Called by Browser.paintDrawList() to wrap each CompositedLayer.
     func clone(child: Any) -> ScrollEffect {
         ScrollEffect(rect: clipRect, scrollOffset: scrollOffset, node: node, children: [child])
     }

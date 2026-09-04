@@ -1,21 +1,18 @@
 import CoreGraphics
 
 // MARK: - TextLayout
-// Lays out one word within a line. Computes font, width, and x-position.
-// y is set later by LineLayout during baseline alignment.
 class TextLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let word: String
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []  // always empty - words have no children
+    var children: [any LayoutObject] = []
     var x: CGFloat = 0
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
 
-    // font is set during layout(); LineLayout reads it for baseline aligment.
     var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
@@ -32,11 +29,10 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         zoom = computeZoom(node, parentZoom: parent!.zoom)
         let weight = node.style["font-weight"] ?? "normal"
         var styleStr = node.style["font-style"] ?? "normal"
-        // CSS uses "italic"; tkinter/CoreText uses "italic" too, but "roman" = normal.
         if styleStr == "normal" { styleStr = "roman" }
 
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))  // CSS px -> typhographic points
+        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
         font =
             fontOverride
             ?? getFont(
@@ -50,7 +46,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             x = parent!.x
         }
 
-        height = font.linespace  // used by LineLayout to compute line height
+        height = font.linespace
     }
 
     func paint() -> [Any] {

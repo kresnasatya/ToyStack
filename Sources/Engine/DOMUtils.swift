@@ -1,5 +1,5 @@
 import AVFoundation
-import AppKit  // NSAttributedString for text measurement on macOS
+import AppKit
 import CoreText
 import Foundation
 import SwiftUI
@@ -13,25 +13,23 @@ let VSTEP: CGFloat = 18
 let SCROLL_STEP: CGFloat = 100
 
 // MARK: - BrowserFont
-// Wraps a CTFont to provide the text metrics the layout engine needs.
-// Python used tkinter.font.Font; Swift uses CoreText for the same metrics
 struct BrowserFont {
     let ctFont: CTFont
 
-    // Vertical metrics: how far glyphs rise above and descend below the baseline
     var ascent: CGFloat {
         CTFontGetAscent(ctFont)
     }
+
     var descent: CGFloat {
         CTFontGetDescent(ctFont)
     }
+
     var leading: CGFloat {
         CTFontGetLeading(ctFont)
     }
-    // linespace = total height of one line of text.
+
     var linespace: CGFloat { ascent + descent + leading }
 
-    // Returns the pixel width of `text` rendered in this font.
     func measure(_ text: String) -> CGFloat {
         let attrs: [NSAttributedString.Key: Any] = [.font: ctFont]
         return (text as NSString).size(withAttributes: attrs).width
@@ -39,7 +37,6 @@ struct BrowserFont {
 }
 
 // MARK: - Font Cache
-// Building a CTFont is expensive; cache by (size, weight, style).
 nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
 
 nonisolated(unsafe) var visitedURL: Set<String> = []
@@ -50,7 +47,6 @@ func getFont(size: Int, weight: String, style: String, family: String = "serif")
     let key = "\(size)-\(weight)-\(style)-\(family)"
     if let cached = fontCache[key] { return cached }
 
-    // Map Python-style strings ("bold", "italic"/"roman") to CoreText traits.
     var traits: CTFontSymbolicTraits = []
     if weight == "bold" { traits.insert(.traitBold) }
     if style == "italic" { traits.insert(.traitItalic) }
@@ -74,8 +70,6 @@ func getFont(size: Int, weight: String, style: String, family: String = "serif")
 }
 
 // MARK: - Inherited CSS Properties
-// These defaults are used when a node has no parent (root element)
-// and when a property was not set by any CSS rule.
 nonisolated(unsafe) var inheritedProperties: [String: String] = [
     "font-family": "serif",
     "font-size": "16px",
@@ -84,20 +78,14 @@ nonisolated(unsafe) var inheritedProperties: [String: String] = [
     "color": "black",
 ]
 
-// Precomputes :has() selector-results in single O(n) pass.
-// Must be called before applyStyle() before each render cycle.
 func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])]) {
     let allNodes = treeToList(node)
 
-    // Reset from previous render
     for n in allNodes { n.satisfiedHas = [] }
 
     let allHasSelectors = rules.flatMap({ $0.1.hasSelectors })
     guard !allHasSelectors.isEmpty else { return }
 
-    // Process in reverse pre-order so children are always handled before parents
-    // Reversed pre-order guarantees: when we process node N, all N's children
-    // are already processed.
     for n in allNodes.reversed() {
         for hs in allHasSelectors {
             for child in n.children {
@@ -111,11 +99,6 @@ func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String
 }
 
 // MARK: - CSS Cascade (style function)
-// Walks the entire DOM tree and sets node.style on every node.
-// Order of precedence (lowest -> highest):
-//   1. Inherited value from parent (or default if at root)
-//   2. Matching stylesheet rules (sorted by priority before calling)
-//   3. Inline style attribute
 func applyStyle(
     node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])],
     prefersDark: Bool = false, forcedColors: Bool = false,
@@ -123,12 +106,10 @@ func applyStyle(
 ) {
     node.style = [:]
 
-    // Step 1: start with inherited or default values
     for (property, defaultValue) in inheritedProperties {
         node.style[property] = node.parent?.style[property] ?? defaultValue
     }
 
-    // Step 2: apply all matching CSS rules in cascade order.
     for (media, selector, body) in rules {
         if let m = media {
             let matches: Bool
@@ -157,7 +138,6 @@ func applyStyle(
         }
     }
 
-    // Step 3: inline style attribute overrides everything.
     if let element = node as? Element,
         let inlineStyle = element.attributes["style"]
     {
@@ -168,16 +148,12 @@ func applyStyle(
 
     if forcedColors { forceColors(node: node) }
 
-    // normalize overflow-y/overflow-x into overflow.
-    // The engine checks node.style["overflow"] throughout; map the longhand here.
     if node.style["overflow"] == nil {
         if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {
             node.style["overflow"] = "scroll"
         }
     }
 
-    // Step 4: resolve percentage font-size relative to parent's px value.
-    // e.g. "90%" on a node whose parent has "16px" -> "14.4px"
     if let fontSize = node.style["font-size"], fontSize.hasSuffix("%") {
         let parentFontSize = node.parent?.style["font-size"] ?? inheritedProperties["font-size"]!
         let percentage = Double(fontSize.dropLast()) ?? 100.0
@@ -190,10 +166,6 @@ func applyStyle(
     }
 }
 
-// Merges a single property=value pair into an element's inline style attribute.
-// The attribute is the source of truth that applyStyle re-parses each render,
-// so writing here (not to node.style) makes the change survive applyStyle's
-// rebuild and lets diffStyles detect the delta for transitions.
 func setInlineStyleProperty(_ elt: Element, property: String, value: String) {
     var props = CSSParser(elt.attributes["style"] ?? "").body()
     props[property.lowercased()] = value
@@ -204,14 +176,11 @@ func setInlineStyleProperty(_ elt: Element, property: String, value: String) {
 }
 
 // MARK: - Cascade Priority
-// Used as the sort key when ordering CSS rules before applying them.
 func cascadePriority(_ rule: (String?, any CSSSelector, [String: String])) -> Int {
     rule.1.priority
 }
 
 // MARK: - Tree Utilities
-
-// Flattens a DOMNode tree into a pre-order (parent before children) list.
 func treeToList(_ node: any DOMNode) -> [any DOMNode] {
     var result: [any DOMNode] = [node]
     for child in node.children {
@@ -220,7 +189,6 @@ func treeToList(_ node: any DOMNode) -> [any DOMNode] {
     return result
 }
 
-// Flattens a LayoutObject tree into a pre-order list.
 func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
     var result: [any LayoutObject] = [obj]
     for child in obj.children {
@@ -229,7 +197,6 @@ func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
     return result
 }
 
-// Flattens the display list tree.
 func treeToList(_ item: Any, into list: inout [Any]) {
     list.append(item)
     if let ve = item as? VisualEffect {
@@ -247,7 +214,6 @@ func treeToList(_ node: AccessibilityNode) -> [AccessibilityNode] {
     return result
 }
 
-// Walks the layout tree and collects all paint commands into display_list.
 func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     var cmds: [Any] = []
 
@@ -261,7 +227,6 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
         let visibleBottom = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []
         for child in obj.children {
-            // skip children completely outside visible scroll
             if child.y + child.height < visibleTop { continue }
             if child.y > visibleBottom { break }
             visibleChildren.append(child)
@@ -287,16 +252,11 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
     displayList.append(contentsOf: cmds)
 }
 
-// z-index only applies to positioned elements (position != static).
-// Everything else acts as z-index 0.
 func effectiveZIndex(_ node: any DOMNode) -> Int {
     guard (node.style["position"] ?? "static") != "static" else { return 0 }
     return Int(node.style["z-index"] ?? "0") ?? 0
 }
 
-// Children in paint order: ascending z-index, ties keep document order.
-// Swift's sorted() does not promise stability, so break ties with the
-// original index instead of trusting it.
 func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
     return children.enumerated()
         .sorted { a, b in
@@ -377,11 +337,6 @@ func parseTransition(_ value: String) -> [String: TransitionSpec] {
 }
 
 // MARK: - CSS animation shorthand
-
-// Parsed `animation:` shorthand value.
-//   animation: <duration>s [infinite] [alternate] <name>
-// Ony the subset needed by the two demos is supported; tokens may appear in
-// any order except the duration must come before the name.
 struct AnimationSpec {
     let name: String
     let numFrames: Int
@@ -459,14 +414,6 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
 
 // MARK: - CSS keyframe animation construction
 
-// Builds a KeyframeAnimation from a parsed @keyframes block.
-// Strategy (scope of this exercise):
-//   1. Find the `from` (offset 0.0) and `to` (offset 1.0) keyframes.
-//   2. Find the single property whose value differs between them. If more
-//      than one property differs we only animate the first (documented limitation in the plan).
-//   3. Pick the right underlying animation subclass based on the property
-//      name: NumericAnimation for opacity, PixelAnimation for width/height,
-//      ColorAnimation for background-color. Anything else -> nil.
 func buildKeyframeAnimation(
     frames: [Keyframe],
     numFrames: Int,
@@ -536,7 +483,6 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
         effectCmds = [clip] + effectCmds
     }
 
-    // wrap content in blur layer before opacity is applied
     if blurRadius > 0 {
         effectCmds = [BlurFilter(radius: blurRadius, node: node, children: effectCmds)]
     }
@@ -556,9 +502,6 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
 }
 
 // MARK: - CSS outline
-// Builds a draw command from outline-width / outline-style / outline-color.
-// Returns nil when the element asked for no outline, which is the signal every
-// caller uses to fallback to the built-in focus ring.
 func cssOutline(_ node: any DOMNode, rect: Rect) -> DrawOutline? {
     let style = node.style["outline-style"] ?? "none"
     guard style != "none", style != "hidden" else { return nil }
@@ -623,11 +566,10 @@ func addParentPointers(_ items: inout [Any], parent: VisualEffect? = nil) {
                 guard !visited.contains(id) else { continue }
                 visited.insert(id)
                 ve.parent = currentParent
-                // Set parentEffect on any struct PaintCommands directly inside ve.children
                 for i in 0..<ve.children.count {
                     if var pc = ve.children[i] as? (any PaintCommand) {
-                        pc.parentEffect = ve  // ve is the direct parent of this command
-                        ve.children[i] = pc  // write struct back into the array
+                        pc.parentEffect = ve
+                        ve.children[i] = pc
                     }
                 }
                 stack.append((ve.children, ve))
@@ -638,7 +580,7 @@ func addParentPointers(_ items: inout [Any], parent: VisualEffect? = nil) {
 
 func parseBlur(_ value: String) -> CGFloat {
     guard value.hasPrefix("blur("), value.hasSuffix(")") else { return 0 }
-    let inner = value.dropFirst(5).dropLast()  // e.g. "2px" or "2"
+    let inner = value.dropFirst(5).dropLast()
     let digits = inner.hasSuffix("px") ? inner.dropLast(2) : inner
     return CGFloat(Double(digits) ?? 0)
 }

@@ -3,7 +3,7 @@ import Foundation
 
 private struct HistoryEntry {
     let url: WebURL
-    let payload: String?  // nil = GET, non-nil = POST
+    let payload: String?
 }
 
 @MainActor
@@ -31,7 +31,6 @@ public class Tab {
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex < history.count - 1 }
 
-    // Schedules and executes JS-driven tasks (setTimeout, setInterval, rAF).
     private(set) var taskRunner: TaskRunner = TaskRunner()
     var networkingThread: NetworkingThread?
     private(set) var accessibilityTree: AccessibilityNode? = nil
@@ -74,41 +73,33 @@ public class Tab {
     }
 
     func load(_ url: WebURL, payload: String? = nil) {
-        // Truncate any forward history beyond the current position
-        // then record this new URL as the current entry.
         history = Array(history.prefix(historyIndex + 1))
         history.append(HistoryEntry(url: url, payload: payload))
         historyIndex = history.count - 1
         performLoad(url, payload: payload)
     }
 
-    private func performLoad(_ url: WebURL, payload: String? = nil) {  // ← remove `async`
+    private func performLoad(_ url: WebURL, payload: String? = nil) {
         guard let networkingThread else { return }
         let referrer = effectiveReferrer(for: url)
 
         Task {
-            // 1. Fetch the page on the networking thread
             let result = await networkingThread.schedule(name: "load\(url.toString())") {
                 await self.fetchPage(url: url, referrer: referrer, payload: payload)
             }
 
-            // 2. Parse HTML on the main actor (already here - no TaskRunner needed)
             guard let styleURLs = self.parseHTML(url: url, result: result) else { return }
 
-            // 3. Fetch styles on the networking thread
             let styleBodies = await networkingThread.schedule(name: "fetch-styles") {
                 await self.fetchStyles(urls: styleURLs)
             }
 
-            // 4. Apply styles on the main actor
             let scriptURLs = self.applyStyles(url: url, bodies: styleBodies)
 
-            // 5. Fetch scripts on the networking thread
             let scriptBodies = await networkingThread.schedule(name: "fetch-scripts") {
                 await self.fetchScripts(urls: scriptURLs)
             }
 
-            // 6. Execute scripts on the main actor.
             self.execScripts(url: url, bodies: scriptBodies)
         }
     }
@@ -184,7 +175,6 @@ public class Tab {
 
             rules = defaultStyleSheet
 
-            // Collect stylesheet URLs with their referrers – computed on main thread.
             return treeToList(nodes)
                 .compactMap({ $0 as? Element })
                 .filter({
@@ -244,7 +234,6 @@ public class Tab {
             keyframes.merge(parsed.keyframes) { _, new in new }
         }
 
-        // Collect script URLs with referrers — computed here on the main thread.
         return treeToList(nodes).compactMap({ $0 as? Element })
             .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
             .enumerated()
@@ -311,7 +300,7 @@ public class Tab {
         case "same-origin":
             return url?.origin() == targetURL.origin() ? url : nil
         default:
-            return url  // no policy: always send referrer
+            return url
         }
     }
 
@@ -403,7 +392,6 @@ public class Tab {
             let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             precomputeHas(node: nodes, rules: sortedRules)
 
-            // Save old styles before applying new ones, for animation detection
             var oldStyles: [ObjectIdentifier: [String: String]] = [:]
             for node in treeToList(nodes) {
                 oldStyles[ObjectIdentifier(node)] = node.style
@@ -412,7 +400,6 @@ public class Tab {
             inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
             applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark, forcedColors: forcedColors, frameWidth: tabWidth / zoom)
 
-            // Detect style changes and create animations
             for node in treeToList(nodes) {
                 let old = oldStyles[ObjectIdentifier(node)] ?? [:]
                 let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
@@ -436,7 +423,6 @@ public class Tab {
                 }
             }
 
-            // Override color for visited links
             for node in treeToList(nodes) {
                 guard let el = node as? Element, el.tag == "a",
                     let href = el.attributes["href"]
@@ -463,7 +449,6 @@ public class Tab {
         }
 
         if needsAccessibility {
-            // Build accessibility tree
             let a11yTree = AccessibilityNode(node: nodes)
             a11yTree.build()
             accessibilityTree = a11yTree
@@ -509,11 +494,9 @@ public class Tab {
                             compositedUpdates[ObjectIdentifier(node)] = effect
                         }
                     } else if property == "width" || property == "height" {
-                        // layout-inducing property: relayout + repaint
                         node.style[property] = value
                         needsLayoutUpdate = true
                     } else {
-                        // paint-only property (background-color): re-raster the layer
                         node.style[property] = value
                         needsCompositeForPaint = true
                         needsPaint = true
@@ -557,8 +540,6 @@ public class Tab {
 
         let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
 
-        // nil signals Browser to do a full composite
-        // dict signals Browser to only update specific layers
         let updates: [ObjectIdentifier: VisualEffect]? =
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data = CommitData(
@@ -754,7 +735,7 @@ public class Tab {
         if scroll < interestTop || scroll + tabHeight > interestBottom {
             interestTop = max(0, scroll - HEIGHT)
             setNeedsLayout()
-            return true  // re-raster triggered
+            return true
         }
         return false
     }
@@ -780,15 +761,14 @@ public class Tab {
             if alert.runModal() == .alertFirstButtonReturn {
                 performLoad(entry.url, payload: payload)
             } else {
-                historyIndex += 1  // user said no - undo the index change
+                historyIndex += 1
             }
         } else if let currentURL = self.url, isSameDocument(currentURL, entry.url) {
-            // Same-document navigation - only the fragment changed, no reload needed
             self.url = entry.url
             if let fragment = entry.url.fragment {
                 scrollToFragment(fragment)
             } else {
-                scroll = 0  // no fragment -> scroll back to top
+                scroll = 0
             }
             interestTop = max(0, scroll - HEIGHT)
             browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
@@ -802,7 +782,6 @@ public class Tab {
         historyIndex += 1
         let entry = history[historyIndex]
         if let currentURL = self.url, isSameDocument(currentURL, entry.url) {
-            // Same-document navigation - only the fragment changed, no reload needed
             self.url = entry.url
             if let fragment = entry.url.fragment {
                 scrollToFragment(fragment)
@@ -862,7 +841,7 @@ public class Tab {
                 return true
             } else {
                 focusElement(nil)
-                return false  // signal: wrap to address bar
+                return false
             }
         } else {
             focusElement(focusableElements[0])
@@ -873,8 +852,6 @@ public class Tab {
     public func click(x: CGFloat, y: CGFloat) {
         focusElement(nil)
 
-        // Layout coordinates are document-absolute, so scroll is applied
-        // once here: hitTest only has to undo transforms on the way down.
         guard let source = document?.hitTest(x: x, y: y + scroll) else {
             setNeedsRender()
             return
@@ -882,19 +859,17 @@ public class Tab {
 
         scrollFocusNode = scrollableAncestor(of: source)
 
-        // Dispatch once on the innermost element - JS bubbles it up the tree
         let prevented = js.dispatchEvent(type: "click", elt: source.node)
 
         if !prevented {
             var elt: (any DOMNode)? = source.node
             while let node = elt {
                 if node is TextNode {
-                    // fall through to parent
+
                 } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"]
                 {
                     if href.hasPrefix("#") {
                         let resolved = url.resolve(href)
-                        // Push to history without reolading the page
                         history = Array(history.prefix(historyIndex + 1))
                         history.append(HistoryEntry(url: resolved, payload: nil))
                         historyIndex = history.count - 1
@@ -1030,28 +1005,24 @@ private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFl
     guard rect.containsPoint(x, y) else { return false }
     let r = radius
 
-    // top-left corner
     if x < rect.left + r && y < rect.top + r {
         let dx = x - (rect.left + r)
         let dy = y - (rect.top + r)
         return dx * dx + dy * dy <= r * r
     }
 
-    // top-right corner
     if x >= rect.right - r && y < rect.top + r {
         let dx = x - (rect.right - r)
         let dy = y - (rect.top + r)
         return dx * dx + dy * dy <= r * r
     }
 
-    // bottom-left corner
     if x < rect.left + r && y >= rect.bottom - r {
         let dx = x - (rect.left + r)
         let dy = y - (rect.bottom - r)
         return dx * dx + dy * dy <= r * r
     }
 
-    // bottom-right corner
     if x >= rect.right - r && y >= rect.bottom - r {
         let dx = x - (rect.right - r)
         let dy = y - (rect.bottom - r)

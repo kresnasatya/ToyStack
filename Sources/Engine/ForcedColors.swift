@@ -1,8 +1,6 @@
 import CoreGraphics
 
 // MARK: - Forced Colors Palette
-// The user's palette for high-contrast mode. Every name is already
-// understood by Color(cssName:) in PaintCommand.swift.
 public enum ForcedColor {
     public static let canvas = "black"
     public static let canvasText = "white"

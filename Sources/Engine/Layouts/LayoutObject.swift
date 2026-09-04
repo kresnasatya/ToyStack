@@ -1,8 +1,6 @@
 import CoreGraphics
 
-// MARK: - LayoutObject Protocol
-// Every node in the layout tree implements these. The protocol lets
-// paintTree(), treeToList(), and Tab.draw() work generically accross all types.
+// MARK: - LayoutObject
 protocol LayoutObject: AnyObject {
     var node: any DOMNode { get }
     var parent: (any LayoutObject)? { get }
@@ -19,11 +17,6 @@ protocol LayoutObject: AnyObject {
 
 }
 
-// MARK: - Hit Testing
-// Walk the layout tree converting the click point into each object's
-// coordinate space, instead of converting every object's bounds to
-// absolute coordinates. Only transforms need mapping: our layout x/y
-// are already document-absolute
 extension LayoutObject {
     func hitTest(x: CGFloat, y: CGFloat) -> (any LayoutObject)? {
         var x = x
@@ -48,9 +41,6 @@ extension LayoutObject {
     }
 }
 
-// MARK: - InlineLayoutItem
-// TextLayout and InputLayout both live inside a LineLayout.
-// This protocol lets LineLayout read font metrics and set y positions.
 protocol InlineLayoutItem: LayoutObject {
     var font: BrowserFont { get }
 }

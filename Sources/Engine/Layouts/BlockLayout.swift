@@ -1,9 +1,7 @@
 import CoreGraphics
 
 // MARK: - BlockLayout
-// Lays out one DOM node, either stacking block children or flowing inline content.
 class BlockLayout: LayoutObject {
-    // Tags that must not appear in layout tree.
     static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
 
     static let inputWidthPx: CGFloat = 200
@@ -15,14 +13,13 @@ class BlockLayout: LayoutObject {
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
-    let extraNodes: [any DOMNode]  // non-empty = anonymous block box
+    let extraNodes: [any DOMNode]
     var x: CGFloat = 0
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
 
-    // cursorX tracks the horizontal position within the current inline line.
     private var cursorX: CGFloat = 0
 
     var scrollOffset: CGFloat = 0
@@ -69,8 +66,6 @@ class BlockLayout: LayoutObject {
         {
             y = CGFloat(t)
         } else {
-            // Stack below the previous sibling (plus its bottom margin and our top margin)
-            // or start at the parent's y plus our top margin.
             let ownTop = marginPx(node, "margin-top")
             if let prev = previous, prev is BlockLayout {
                 y = prev.y + prev.height + marginPx(prev.node, "margin-bottom") + ownTop
@@ -145,7 +140,6 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout() }
 
-        // Height is the sum of all children's heights.
         let sumHeight = children.reduce(0) {
             if $1.node.style["position"] == "absolute" { return $0 }
             var h = $1.height
@@ -174,7 +168,6 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    // Returns "block" if any child has display:block in its computed style; else "inline"
     private func layoutMode() -> String {
         if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
@@ -193,7 +186,6 @@ class BlockLayout: LayoutObject {
         return dpx(CGFloat(v), zoom: zoom)
     }
 
-    // Walks inline DOM content: text nodes produces words, elements produces inputs.
     private func recurse(_ n: any DOMNode) {
         if let textNode = n as? TextNode {
             if isInsidePre(textNode) {
@@ -220,7 +212,6 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    // Adds a word to the current line, starting a new line if needed.
     private func addWord(node: any DOMNode, word: String) {
         let weight = node.style["font-weight"] ?? "normal"
         var style = node.style["font-style"] ?? "normal"
@@ -270,7 +261,6 @@ class BlockLayout: LayoutObject {
         cursorX += w + font.measure(" ")
     }
 
-    // Starts a new LineLayout row for inline content.
     private func newLine() {
         cursorX = 0
         let lastLine = children.last
@@ -281,9 +271,7 @@ class BlockLayout: LayoutObject {
         children.append(line)
     }
 
-    // Adds a fixed-width InputLayout to the current line.
     private func addInput(_ node: Element) {
-        // For input type hidden
         if node.attributes["type"] == "hidden" { return }
 
         let w = BlockLayout.inputWidthPx
@@ -337,7 +325,6 @@ class BlockLayout: LayoutObject {
     }
 
     private func addAbbrWord(node: any DOMNode, word: String) {
-        // Split into runs: (text, isLowerCase)
         var runs: [(String, Bool)] = []
         for ch in word {
             let isLower = ch.isLowercase
@@ -353,7 +340,7 @@ class BlockLayout: LayoutObject {
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt = Int(sizePx * 0.75)
-        let smallSize = Int(Double(sizeInt) * 0.75)  // 75% of normal
+        let smallSize = Int(Double(sizeInt) * 0.75)
 
         for (text, isLower) in runs {
             let displayText = isLower ? text.uppercased() : text
@@ -376,12 +363,10 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    // The bounding rectangle for this block.
     func selfRect() -> Rect {
         Rect(left: x, top: y, right: x + width, bottom: y + height)
     }
 
-    // Emits a DrawRect if this element has a non-transparent background color
     func paint() -> [Any] {
         var commands: [Any] = []
         let bgcolor = node.style["background-color"] ?? "transparent"
@@ -450,7 +435,6 @@ class BlockLayout: LayoutObject {
         return [DrawRect(rect: barRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray")]
     }
 
-    // <input> and <button> are painted by InputLayout, not BlockLayout.
     func shouldPaint() -> Bool {
         if node is TextNode { return true }
         guard let el = node as? Element else { return true }

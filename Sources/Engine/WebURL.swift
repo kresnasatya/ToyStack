@@ -1,36 +1,12 @@
 import Foundation
 
 // MARK: - CookieJar
-//
-// An "actor" is a special Swift type (introduced in Swift 5.5 / macOS 12+)
-// designed for safe access in concurrent (async) environments.
-//
-// The problem with a plain global variable like:
-//    var COOKIE_JAR: [String: ...] = [:]
-// ...is that when multiple async tasks run at the same time, they could
-// read and write to it simultaneously, corrupting the data. This is called
-// a "data race".
-//
-// An actor solves this by ensuring only ONE task can access it's internal
-// data at a time. Swift enforces this at compile time - you MUST use
-// "await" when calling actor methods, which signals that your code may
-// pause and wait for the actor to become available.
-//
-// "static let shared" is the Singleton pattern - it means where there is only
-// ever ONE instance of CookieJar throughout the entire app, shared globally.
-// This replaces the old global variable COOKIE_JAR.
+
 actor CookieJar {
-    // "static" means this belongs to the type itself, not to any instance.
-    // "let" means it can never be reassigned after creation.
-    // So CookieJar.shared is created once and reused everywhere.
     static let shared = CookieJar()
 
-    // "private" means only code inside this actor can touch this variable directly.
-    // Outside code must go through get() and set() method below.
     private var storage: [String: (cookie: String, params: [String: String], expires: Date?)] = [:]
 
-    // Returns the cookie and it's params for a given host, or nil if not found.
-    // Since this is an actor method, callers must use "await" to call it.
     func get(_ host: String) -> (String, [String: String])? {
         guard let entry = storage[host] else { return nil }
         if let expires = entry.expires, Date() > expires {
@@ -40,9 +16,6 @@ actor CookieJar {
         return (entry.cookie, entry.params)
     }
 
-    // Stores a cookie and it's params for a given host.
-    // Again, callers must use "await" - the actor serializes all writes,
-    // so no two tasks can write at the same time.
     func set(_ host: String, cookie: String, params: [String: String]) {
         var expires: Date? = nil
         if let maxAge = params["max-age"], let seconds = Double(maxAge) {
@@ -63,8 +36,8 @@ struct CacheEntry {
     let status: Int
     let headers: [String: String]
     let content: String
-    let timestamp: Date  // when it was cached
-    let maxAge: Int  // how many seconds it's valid (-1 = no limit set)
+    let timestamp: Date
+    let maxAge: Int
 }
 
 // MARK: - ResponseCache
@@ -79,7 +52,7 @@ actor ResponseCache {
         if entry.maxAge >= 0 {
             let age = Date().timeIntervalSince(entry.timestamp)
             if age > Double(entry.maxAge) {
-                storage.removeValue(forKey: url)  // expired, remove it
+                storage.removeValue(forKey: url)
                 return nil
             }
         }
@@ -98,24 +71,18 @@ actor ResponseCache {
 
 public class WebURL: @unchecked Sendable {
 
-    // The URL scheme (http or https)
     let scheme: String
 
-    // The host name (e.g., "example.com")
     var host: String
 
-    // The port number (80 for http, 443 for https by default)
     let port: Int
 
-    // The path component (e.g., "/path/to/resource")
     let path: String
 
     let mimeType: String
 
     var fragment: String? = nil
 
-    // Parses a raw URL string like "https://example.com/path"
-    // into it's individual components: scheme, host, port, and path.
     public init(_ rawURL: String) {
         if rawURL.hasPrefix("data:") {
             scheme = "data"
@@ -172,7 +139,6 @@ public class WebURL: @unchecked Sendable {
 
         var rest = String(rawURL[schemeRange.upperBound...])
         if !rest.contains("/") {
-            // If there's no path, add a trailing slash to represent root "/"
             rest += "/"
         }
 
@@ -188,7 +154,6 @@ public class WebURL: @unchecked Sendable {
 
         var defaultPort = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
         if hostPart.contains(":") {
-            // A custom part was provided, e.g. "example.com:8080"
             let parts = hostPart.split(separator: ":", maxSplits: 1)
             hostPart = String(parts[0])
             defaultPort = Int(parts[1])!
@@ -198,10 +163,6 @@ public class WebURL: @unchecked Sendable {
         mimeType = ""
     }
 
-    // "async" means this function can be suspended while waiting for the
-    // network response, allowing other tasks to run in the meantime.
-    // "throws" means this function can fail and propagate errors to the caller,
-    // who must handle them with "try".
     func request(
         referrer: WebURL? = nil, payload: String? = nil, extraHeaders: [String: String] = [:]
     ) async throws -> (
@@ -239,10 +200,8 @@ public class WebURL: @unchecked Sendable {
             return (status: 200, headers: [:], content: HTMLSyntaxHighlighter(body: content).highlight())
         }
 
-        // If a payload (body) is provided, use POST. Otherwise GET.
         let method = payload != nil ? "POST" : "GET"
 
-        // Check the cache first (only for GET request)
         let cacheKey = toString()
         if method == "GET" {
             if let cached = await ResponseCache.shared.get(cacheKey) {
@@ -250,8 +209,6 @@ public class WebURL: @unchecked Sendable {
             }
         }
 
-        // URLComponents is a Foundation type that safely builds a URL
-        // from its individual parts (scheme, host, port, path)
         var components = Foundation.URLComponents()
         components.scheme = scheme
         components.host = host
@@ -283,13 +240,8 @@ public class WebURL: @unchecked Sendable {
             urlRequest.setValue(ref.toString(), forHTTPHeaderField: "Referer")
         }
 
-        // Check if we have a stored cookie for this host.
-        // "await" is required here because CookieJar is an actor -
-        // we must wait for it to be available before reading from it.
         if let (cookie, params) = await CookieJar.shared.get(host) {
             var allowCookie = true
-            // SameSite=Lax means: don't sent the cookie on cross-site
-            // non-GET requests (e.g. a POST form from another domain)
             if let ref = referrer, params["samesite"] == "lax" {
                 if method != "GET" {
                     allowCookie = host == ref.host
@@ -301,31 +253,16 @@ public class WebURL: @unchecked Sendable {
         }
 
         if let body = payload {
-            // Encode the body as UTF-8 bytes and attach it to the request.
             urlRequest.httpBody = body.data(using: .utf8)
-            // Content-Length tells the server how many bytes to expect.
             urlRequest.setValue("\(body.utf8.count)", forHTTPHeaderField: "Content-Length")
         }
 
-        // "try await" means: this can both fail (throws) and suspend (async).
-        // Swift pauses here until the full response is received, then resumes.
-        // No semaphore or callback needed - the compiler handles the suspension
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
-        // "as?" is a conditional cast - it tries to cast "response" to
-        // HTTPURLResponse. If it fails, the guard triggers fatalError.
         guard let httpResponse = response as? HTTPURLResponse else {
             fatalError("Invalid response type")
         }
 
-        // print("version: HTTP/1.1")
-        // print("status: ", httpResponse.statusCode)
-        // print(
-        //     "explaination: ",
-        //     HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))
-
-        // allHeaderFields is a dictionary of response headers from the server.
-        // We lowercase all keys for consistent, case-insensitive lookups later.
         var headers: [String: String] = [:]
         for (key, value) in httpResponse.allHeaderFields {
             if let k = key as? String, let v = value as? String {
@@ -333,13 +270,10 @@ public class WebURL: @unchecked Sendable {
             }
         }
 
-        // If the server sent a Set-Cookie header, parse, and store it
         if let setCookie = headers["set-cookie"] {
             var cookieStr = setCookie
             var cookieParams: [String: String] = [:]
             if cookieStr.contains(";") {
-                // Cookie format: "name=value; SameSite=Lax; HttpOnly"
-                // Split off the actual cookie value from its attributes.
                 let parts = cookieStr.split(separator: ";", maxSplits: 1)
                 cookieStr = String(parts[0])
                 if parts.count > 1 {
@@ -350,15 +284,12 @@ public class WebURL: @unchecked Sendable {
                             let kv = trimmed.split(separator: "=", maxSplits: 1)
                             cookieParams[String(kv[0]).lowercased()] = String(kv[1]).lowercased()
                         } else {
-                            // Attributes like "HttpOnly" have no value, so we store "true"
                             cookieParams[trimmed.lowercased()] = "true"
                         }
                     }
                 }
             }
 
-            // "await" is required because CookieJar is an actor
-            // The actor ensures this write won't conflict the concurrent reads/writes.
             await CookieJar.shared.set(self.host, cookie: cookieStr, params: cookieParams)
         }
 
@@ -367,7 +298,7 @@ public class WebURL: @unchecked Sendable {
         if method == "GET" && httpResponse.statusCode == 200 {
             let cacheControl = headers["cache-control"] ?? ""
             if cacheControl.contains("no-store") {
-                // don't cache
+
             } else if cacheControl.contains("max-age="),
                 let range = cacheControl.range(of: "max-age="),
                 let maxAge = Int(
@@ -377,7 +308,6 @@ public class WebURL: @unchecked Sendable {
                 await ResponseCache.shared.set(
                     cacheKey, status: httpResponse.statusCode, headers: headers, content: content, maxAge: maxAge)
             } else if cacheControl.isEmpty {
-                // no Cache-Control header - cache with no expiry
                 await ResponseCache.shared.set(
                     cacheKey, status: httpResponse.statusCode, headers: headers, content: content, maxAge: -1)
             }
@@ -386,9 +316,6 @@ public class WebURL: @unchecked Sendable {
         return (httpResponse.statusCode, headers, content)
     }
 
-    // Synchronous wrapper around request() for use in JavaScriptCore @convention(block) callbacks
-    // JS callbacks must return immediately, so we block the current thread with a DispatchSemaphore
-    // until the async request completes.
     func requestSync(payload: String? = nil, extraHeaders: [String: String] = [:]) -> (
         status: Int, headers: [String: String], content: String
     )? {
@@ -405,7 +332,6 @@ public class WebURL: @unchecked Sendable {
         return box.value
     }
 
-    // Returns the URL as a string, omitting the port if it's the default.
     func toString() -> String {
         var portPart = ":\(port)"
         if scheme == "https" && port == 443 { portPart = "" }
@@ -426,30 +352,23 @@ public class WebURL: @unchecked Sendable {
         return result
     }
 
-    // Resolve a (possibly relative) URL againt this URL's base
-    // e.g. if self is "https://example.com/a/b" and rawURL is "../c",
-    // the result is "https://example.com/c"
     func resolve(_ rawURL: String) -> WebURL {
-        // Check from fragment URL
         if rawURL.hasPrefix("#") {
             return WebURL("\(scheme)://\(host):\(port)\(path)\(rawURL)")
         }
 
-        // Absolute URL - use it directly
         if rawURL.contains("://") {
             return WebURL(rawURL)
         }
 
-        // Protocol-relative URL like "//example.com/path" - inherit the scheme
         if rawURL.hasPrefix("//") {
             return WebURL("\(scheme):\(rawURL)")
         }
-        // Absolute path - inherit scheme, host, and port
+
         if rawURL.hasPrefix("/") {
             return WebURL("\(scheme)://\(host):\(port)\(rawURL)")
         }
 
-        // Relative path - resolve against the current path's directory
         var dir: String
         if let lastSlash = path.lastIndex(of: "/") {
             dir = String(path[path.startIndex..<lastSlash])
@@ -458,7 +377,6 @@ public class WebURL: @unchecked Sendable {
         }
 
         var relURL = rawURL
-        // Each "../" moves one directory level up
         while relURL.hasPrefix("../") {
             relURL = String(relURL.dropFirst(3))
             if let lastSlash = dir.lastIndex(of: "/") {
@@ -469,8 +387,6 @@ public class WebURL: @unchecked Sendable {
         return WebURL("\(scheme)://\(host):\(port)\(dir)/\(relURL)")
     }
 
-    // Returns just the origin (scheme + host + port), used for
-    // security checks like Same-Origin Policy.
     func origin() -> String {
         return "\(scheme)://\(host):\(port)"
     }

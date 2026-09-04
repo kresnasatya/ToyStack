@@ -1,8 +1,6 @@
 import CoreGraphics
 
 // MARK: - InputLayout
-// Lays out <input> and <button> elements at a fixed width 200px.
-// Paints background, text content, and a focus cursor.
 class InputLayout: LayoutObject, InlineLayoutItem {
 
     static let inputWidthPx: CGFloat = 200
@@ -10,14 +8,13 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []  // always empty
+    var children: [any LayoutObject] = []
     var x: CGFloat = 0
     var y: CGFloat = 0
     var width: CGFloat = 0
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
 
-    // font is set during layout(); LineLayout reads it for baseline alignment.
     var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
@@ -64,7 +61,6 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
         var cmds: [any PaintCommand] = []
 
-        // 1. Background color and radius.
         let bgcolor = element.style["background-color"] ?? "transparent"
         let radiusStr = (element.style["border-radius"] ?? "0px").replacingOccurrences(
             of: "px", with: "")
@@ -80,7 +76,6 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
         }
 
-        // For input checkbox
         if element.attributes["type"] == "checkbox" {
             cmds.append(DrawRect(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonFace : "white"))
             cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
@@ -97,11 +92,9 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             return cmds
         }
 
-        // 2. Text: the value attribute for <input>, the label for <button>.
         var text = ""
         if element.tag == "input" {
             let value = element.attributes["value"] ?? ""
-            // For input type password, mask their content
             if element.attributes["type"] == "password" {
                 text = String(repeating: "*", count: value.count)
             } else {
@@ -117,7 +110,6 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         let color = element.style["color"] ?? "black"
         cmds.append(DrawText(x1: x, y1: y, text: text, font: font, color: color))
 
-        // 3. Cursor line when this element has focus (user is typing into it)
         if element.isFocused {
             let cx = x + font.measure(text)
             cmds.append(
@@ -134,7 +126,6 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())
     }
 
-    // The bounding rectangle for background and hit-testing.
     func selfRect() -> Rect {
         Rect(left: x, top: y, right: x + width, bottom: y + height)
     }

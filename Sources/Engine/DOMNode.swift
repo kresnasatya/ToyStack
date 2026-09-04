@@ -1,9 +1,6 @@
 import Foundation
 
 // MARK: - DOMNode
-// A class-bound protocol that unifies Element and TextNode.
-// "AnyObject" means only reference types (classes) can adopt it -
-// required so we can store weak/unowned references and compare by identity
 protocol DOMNode: AnyObject {
     var children: [any DOMNode] { get set }
     var parent: (any DOMNode)? { get set }
@@ -16,9 +13,8 @@ protocol DOMNode: AnyObject {
 }
 
 // MARK: - Element
-// Represents an HTML tag node, e.g. <div class="box">.
 class Element: DOMNode {
-    let tag: String  // tag name, always lowercased
+    let tag: String
     var attributes: [String: String]
     var children: [any DOMNode] = []
     var parent: (any DOMNode)?
@@ -38,16 +34,13 @@ class Element: DOMNode {
     }
 }
 
-// CustomStringConvertible lets you print an Element as "<div>" for debugging.
 extension Element: CustomStringConvertible {
     var description: String { "<\(tag)>" }
 }
 
 // MARK: - TextNode
-// Represents a text node, e.g. the "Hello" inside <p>Hello</p>.
-// Named TextNode (not Text) to avoid collision with SwiftUI's Text view.
 class TextNode: DOMNode {
-    let text: String  // the raw text content
+    let text: String
     var children: [any DOMNode] = []
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
@@ -64,6 +57,5 @@ class TextNode: DOMNode {
 }
 
 extension TextNode: CustomStringConvertible {
-    // Wraps text in quotes to mimic Python's repr(self.text).
     var description: String { "\"\(text)\"" }
 }

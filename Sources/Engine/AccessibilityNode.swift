@@ -21,8 +21,7 @@ class AccessibilityNode {
         guard let lo = node.layoutObject else {
             return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
-        // Text is laid out one word at a time, and layoutObject only
-        // remembers the last word. Union every word rect for this node.
+
         if lo is TextLayout, let line = lo.parent, let block = line.parent {
             var result: Rect? = nil
             for lineLayout in block.children {
@@ -79,9 +78,7 @@ class AccessibilityNode {
         for childNode in node.children {
             buildInternal(childNode)
         }
-        text = computeText()
-        // Inline elements like <a> never get a layout object of their own;
-        // borrow the union of the children's bounds instead.
+
         if node.layoutObject == nil, let first = children.first {
             bounds = children.dropFirst().reduce(first.bounds) {
                 AccessibilityNode.union($0, $1.bounds)

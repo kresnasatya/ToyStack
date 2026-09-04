@@ -16,8 +16,6 @@ class JSRuntime: @unchecked Sendable {
         loadRuntime()
     }
 
-    // MARK: - Public
-
     func run(script: String, code: String) {
         jsContext.exceptionHandler = { _, exception in
             print("Script", script, "crashed:", exception?.toString() ?? "unknown error")
@@ -32,8 +30,6 @@ class JSRuntime: @unchecked Sendable {
         let result = jsContext.evaluateScript(Self.eventDispatchJS)
         return !(result?.toBool() ?? true)
     }
-
-    // MARK: - Private
 
     private func getHandle(_ elt: any DOMNode) -> Int {
         let id = ObjectIdentifier(elt)
@@ -144,7 +140,6 @@ class JSRuntime: @unchecked Sendable {
                 guard !host.isEmpty else { return }
                 let semaphore = DispatchSemaphore(value: 0)
                 Task {
-                    // Block if existing cookie has HttpOnly
                     if let (_, params) = await CookieJar.shared.get(host) {
                         if params["httponly"] == "true" {
                             semaphore.signal()
@@ -152,7 +147,6 @@ class JSRuntime: @unchecked Sendable {
                         }
                     }
 
-                    // Parse the new cookie string (same logic as Set-Cookie header in WebURL.swift)
                     var newCookieStr = cookieStr
                     var cookieParams: [String: String] = [:]
                     if cookieStr.contains(";") {
@@ -166,7 +160,6 @@ class JSRuntime: @unchecked Sendable {
                                     cookieParams[String(kv[0]).lowercased()] = String(kv[1])
                                         .lowercased()
                                 } else {
-                                    // Js cannot set HttpOnly - silently ignore it
                                     let key = trimmed.lowercased()
                                     if key != "httponly" {
                                         cookieParams[key] = "true"
@@ -319,16 +312,17 @@ class JSRuntime: @unchecked Sendable {
                 return MainActor.assumeIsolated({
                     guard let self, let tab = self.tab else { return "" }
                     let fullURL = tab.url.resolve(url)
+
                     guard tab.allowedRequest(fullURL) else {
                         print("Cross-origin XHR blocked by CSP")
                         return ""
                     }
-                    // Same-origin: proceed directly
+
                     if fullURL.origin() == tab.url.origin() {
                         guard let (_, _, out) = fullURL.requestSync(payload: body) else { return "" }
                         return out
                     }
-                    // Cross-origin: send Origin header, check Access-Control-Allow-Origin
+
                     let origin = tab.url.origin()
                     guard
                         let (_, headers, out) = fullURL.requestSync(
@@ -346,7 +340,6 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (String, String, String?) -> String,
             forKeyedSubscript: "_XHRSend" as NSString)
 
-        // _requestAnimationFrame - schedules one animation frame on the tab
         jsContext.setObject(
             {
                 [weak self] in
@@ -362,7 +355,6 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) () -> Void,
             forKeyedSubscript: "_requestAnimationFrame" as NSString)
 
-        // __setTimeout - schedules a JS callback after a delay (milliseconds)
         jsContext.setObject(
             {
                 [weak self] (handle: Int, time: Double) in
@@ -381,7 +373,6 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (Int, Double) -> Void,
             forKeyedSubscript: "__setTimeout" as NSString)
 
-        //  __setInterval - fires repeatly every `time` ms until clearInterval
         jsContext.setObject(
             {
                 [weak self] (handle: Int, time: Double) in
@@ -405,7 +396,6 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (Int, Double) -> Void,
             forKeyedSubscript: "__setInterval" as NSString)
 
-        // __clearInterval - cancels a previously scheduled interval
         jsContext.setObject(
             {
                 [weak self] (handle: Int) in
@@ -425,10 +415,6 @@ class JSRuntime: @unchecked Sendable {
                         let tab = self.tab
                     else { return }
                     elt.scrollOffsetY = CGFloat(value)
-                    // print(
-                    //     "[scrollTop] elt=\(elt.tag)#\(elt.attributes["id"] ?? "?") value=\(value) stored=\(elt.scrollOffsetY)"
-                    // )
-                    // For `_setScrollTop` — only scroll offset changed, no structure/style change, need paint only.
                     tab.setNeedsPaint()
                 })
             } as @convention(block) (Int, Double) -> Void,
@@ -446,7 +432,6 @@ class JSRuntime: @unchecked Sendable {
         } as @convention(block) (Int) -> Void,
         forKeyedSubscript: "_focusElement" as NSString)
 
-        // __styleSet__ - sets a CSS property on a node's inline style attribute.
         jsContext.setObject(
             {
                 [weak self] (handle: Int, attr: String, value: String) in

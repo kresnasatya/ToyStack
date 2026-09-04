@@ -6,16 +6,13 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
     var x: CGFloat = 0
-    // Outer LineLayout sets y after layout() runs, leaving inner children positioned
-    // at y=0. When y changes, shift all inner LineLayouts and their children (TextLayouts,
-    // InputLayouts) by the same delta to keep them correctly placed inside the button.
     var y: CGFloat = 0 {
         didSet {
             guard y != oldValue else { return }
             let delta = y - oldValue
-            for child in children {  // inner Lineyouts
+            for child in children {
                 child.y += delta
-                for grandchild in child.children {  // TextLayouts
+                for grandchild in child.children {
                     grandchild.y += delta
                 }
             }

@@ -164,7 +164,7 @@ public struct BrowserView: View {
                             }
                         }
                     }
-                    return nil  // consume the event
+                    return nil
                 }
             )
             NSEvent.addLocalMonitorForEvents(
@@ -198,7 +198,7 @@ public struct BrowserView: View {
                     Task { @MainActor in
                         let loc = event.locationInWindow
                         let x = loc.x
-                        let y = app.windowSize.height - loc.y  // flip: AppKit y=0 is at bottom
+                        let y = app.windowSize.height - loc.y
                         guard y >= app.chrome.bottom else { return }
                         let tabY = y - app.chrome.bottom
                         if let linkURL = app.activeTab?.linkURL(at: x, y: tabY) {

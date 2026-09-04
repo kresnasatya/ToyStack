@@ -57,7 +57,6 @@ class CompositedLayer {
 
     @MainActor
     func rasterIfNeeded(scale: CGFloat) {
-        // Exercise 13-8: short display lists get no texture; draw executes their commands directly instead.
         guard needsTexture, cachedImage == nil else { return }
         let bounds = compositedBounds()
         let width = bounds.right - bounds.left

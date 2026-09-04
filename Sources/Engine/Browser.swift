@@ -83,7 +83,7 @@ public class Browser: ObservableObject {
 
     private func scheduleNextFrame() {
         let now = Date()
-        // Advance target by one frame; if we're behind, snap to now
+
         nextFrameTime = max(nextFrameTime + estimatedFrameTime, now)
         let delay = nextFrameTime.timeIntervalSinceNow
         animationTimer = Timer.scheduledTimer(
@@ -122,12 +122,11 @@ public class Browser: ObservableObject {
         compositedUpdates = data.compositedUpdates ?? [:]
 
         if data.compositedUpdates == nil {
-            setNeedsComposite()  // nil -> full composite + raster + draw
+            setNeedsComposite()
         } else {
             setNeedsDrawOnly()
         }
 
-        // Allow next animation frame to begin before raster/draw finishes
         needsAnimationFrame = true
 
         scheduleRasterAndDraw()
@@ -171,7 +170,6 @@ public class Browser: ObservableObject {
 
         rasterThread.submit(
             {
-                // OFF-MAIN: pure work.
                 let layers =
                     inputs.needsComposite
                     ? Browser.computeComposite(inputs)
@@ -185,7 +183,6 @@ public class Browser: ObservableObject {
                 )
             },
             then: { [weak self] output in
-                // BACK ON MAIN
                 guard let self = self else { return }
                 if let layers = output.compositedLayers {
                     self.compositeInFlight = false
@@ -202,7 +199,6 @@ public class Browser: ObservableObject {
                 self.updateAccessibility()
                 self.measure.stop("composite_raster_and_draw")
 
-                // Frame-time bookkeeping (only for animationTick-initiated frames).
                 if frameStart != .distantPast {
                     let elapsed = Date().timeIntervalSince(frameStart)
                     self.recentFrameTimes.append(elapsed)
@@ -386,7 +382,7 @@ public class Browser: ObservableObject {
     public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat) {
         activeTabScroll = scroll
         activeTabInterestTop = interestTop
-        setNeedsComposite()  // forces composite() to re-run
+        setNeedsComposite()
         scheduleRasterAndDraw()
     }
 
@@ -545,6 +541,4 @@ public class Browser: ObservableObject {
     }
 }
 
-// Explicitly declares Browser as a TabManager implementor.
-// All required members (tabs, activeTab, newTab) are already defined in the class.
 extension Browser: TabManager {}

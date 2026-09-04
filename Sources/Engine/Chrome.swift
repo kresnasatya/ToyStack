@@ -1,8 +1,5 @@
 import CoreGraphics
 
-// Defines the tab management interface that Chrome depends on.
-// Marked @MainActor to match Browser's isolation and prevent Swift 6 data races.
-// Chrome only needs to manage tabs - it doesn't need to know about Browser internals.
 @MainActor
 public protocol TabManager: AnyObject {
     var tabs: [Tab] { get }
@@ -20,7 +17,7 @@ public class Chrome {
     private let fontHeight: CGFloat
     private let padding: CGFloat = 5
 
-    public let bottom: CGFloat  // total chrome height - tab reads this
+    public let bottom: CGFloat
 
     private let tabbarTop: CGFloat
     private let tabbarBottom: CGFloat
@@ -40,7 +37,7 @@ public class Chrome {
     }
     private let bookmarkRect: Rect
 
-    private var focus: String?  // "address bar" or nil
+    private var focus: String?
     public var hasFocus: Bool { focus != nil }
     private var addressBar: String = ""
     private var cursorIndex: Int = 0
@@ -99,21 +96,18 @@ public class Chrome {
         let color = forced ? ForcedColor.canvasText : (darkMode ? "white" : "black")
         let bgColor = forced ? ForcedColor.canvas : (darkMode ? "black" : "white")
 
-        // White background + bottom border
         cmds.append(
             DrawRect(
                 rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: bgColor))
         cmds.append(
             DrawLine(x1: 0, y1: bottom, x2: currentWidth, y2: bottom, color: color, thickness: 1))
 
-        // New tab button
         cmds.append(DrawOutline(rect: newtabRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
                 x1: newtabRect.left + padding, y1: newtabRect.top, text: "+", font: font,
                 color: color))
 
-        // Tab buttons
         let tabs: [Engine.Tab] = tabManager?.tabs ?? []
         for (i, tab) in tabs.enumerated() {
             let bounds = tabRect(i)
@@ -141,7 +135,6 @@ public class Chrome {
             }
         }
 
-        // Back button - gray when nothing to go back to
         let backColor = tabManager?.activeTab?.canGoBack == true ? color : "gray"
         cmds.append(DrawOutline(rect: backRect, color: backColor, thickness: 1))
         cmds.append(
@@ -150,7 +143,6 @@ public class Chrome {
                 color: backColor
             ))
 
-        // Forward button - gray when nothing to go forward to
         let fwdColor = tabManager?.activeTab?.canGoForward == true ? color : "gray"
         cmds.append(DrawOutline(rect: forwardRect, color: fwdColor, thickness: 1))
         cmds.append(
@@ -158,7 +150,6 @@ public class Chrome {
                 x1: forwardRect.left + padding, y1: forwardRect.top, text: ">", font: font,
                 color: fwdColor))
 
-        // Bookmark button - yellow fill when current page is bookmarked
         let currentURLStr = tabManager?.activeTab?.url?.toString() ?? ""
         let isBookmarked = bookmarks.contains(currentURLStr)
         if isBookmarked {
@@ -170,11 +161,9 @@ public class Chrome {
                 x1: bookmarkRect.left + padding, y1: bookmarkRect.top, text: "*", font: font,
                 color: color))
 
-        // Address bar
         cmds.append(DrawOutline(rect: addressRect, color: color, thickness: 1))
         if focus == "address bar" {
             if isAllSelected {
-                // Blue selection highlight behind the text
                 let textWidth = font.measure(addressBar)
                 let selRect = Rect(
                     left: addressRect.left + padding, top: addressRect.top,
@@ -221,7 +210,7 @@ public class Chrome {
         } else if bookmarkRect.containsPoint(x, y) {
             if let urlStr = tabManager?.activeTab?.url?.toString() {
                 if let idx = bookmarks.firstIndex(of: urlStr) {
-                    bookmarks.remove(at: idx)  // un-bookmark
+                    bookmarks.remove(at: idx)
                 } else {
                     bookmarks.append(urlStr)
                 }
@@ -312,7 +301,7 @@ public class Chrome {
                 {
                     url = WebURL(raw)
                 } else {
-                    url = WebURL("https://\(raw)")  // bare domain like example.com
+                    url = WebURL("https://\(raw)")
                 }
             } else {
                 url = searchURL(for: input)
