@@ -18,6 +18,13 @@ let package = Package(
                 .swiftLanguageMode(.v5)
             ]
         ),
+        .executableTarget(
+            name: "ToyStackHeadless",
+            dependencies: ["Engine"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
+        ),
         .target(
             name: "Engine",
             resources: [
