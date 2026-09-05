@@ -1,8 +1,6 @@
-import AVFoundation
-import AppKit
+import CoreGraphics
 import CoreText
 import Foundation
-import SwiftUI
 
 // MARK: - Layout Constants
 public let WIDTH: CGFloat = 800
@@ -31,8 +29,9 @@ struct BrowserFont {
     var linespace: CGFloat { ascent + descent + leading }
 
     func measure(_ text: String) -> CGFloat {
-        let attrs: [NSAttributedString.Key: Any] = [.font: ctFont]
-        return (text as NSString).size(withAttributes: attrs).width
+        let attr = NSAttributedString(string: text, attributes: [.font: ctFont])
+        let line = CTLineCreateWithAttributedString(attr)
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
     }
 }
 
@@ -487,7 +486,7 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
         effectCmds = [BlurFilter(radius: blurRadius, node: node, children: effectCmds)]
     }
 
-    let blendMode: GraphicsContext.BlendMode? = {
+    let blendMode: EngineBlendMode? = {
         switch blendModeStr {
         case "multiply": return .multiply
         case "difference": return .difference

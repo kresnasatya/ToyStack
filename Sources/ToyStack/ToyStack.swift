@@ -5,6 +5,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        Tab.showAlert = { title, message in
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+        Tab.showConfirm = { title, message in
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = title
+            alert.addButton(withTitle: "Resubmit")
+            alert.addButton(withTitle: "Cancel")
+            return alert.runModal() == .alertFirstButtonReturn
+        }
     }
 }
 
@@ -44,29 +59,30 @@ public struct BrowserView: View {
             if let tab = app.activeTab {
                 let offset = app.chrome.bottom
                 for item in app.drawList {
-                    var c = ctx
-                    c.translateBy(x: 0, y: offset - app.activeTabScroll)
+                    let r = SwiftUIRenderer(context: ctx)
+                    r.translateBy(x: 0, y: offset - app.activeTabScroll)
                     if let cmd = item as? any PaintCommand {
-                        cmd.execute(scroll: 0, context: &c)
+                        cmd.execute(scroll: 0, renderer: r)
                     } else if let ve = item as? Engine.VisualEffect {
-                        ve.execute(context: &c)
+                        ve.execute(renderer: r)
                     }
                 }
                 for item in tab.scrollbarCommands() {
-                    var c = ctx
-                    c.translateBy(x: 0, y: offset)
+                    let r = SwiftUIRenderer(context: ctx)
+                    r.translateBy(x: 0, y: offset)
                     if let cmd = item as? any PaintCommand {
-                        cmd.execute(scroll: 0, context: &c)
+                        cmd.execute(scroll: 0, renderer: r)
                     } else if let ve = item as? Engine.VisualEffect {
-                        ve.execute(context: &c)
+                        ve.execute(renderer: r)
                     }
                 }
             }
+            let chromeRenderer = SwiftUIRenderer(context: ctx)
             for cmd in app.chrome.paint() {
-                cmd.execute(scroll: 0, context: &ctx)
+                cmd.execute(scroll: 0, renderer: chromeRenderer)
             }
         }
-        .background(app.commitedForcedColors ? Color(cssName: ForcedColor.canvas) : (app.commitedPrefersDark ? Color.black : Color.white))
+        .background(app.commitedForcedColors ? Color(engine: EngineColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
         .background(
             WindowReader { window in
                 browserWindow = window
@@ -251,6 +267,7 @@ public struct BrowserView: View {
                 })
         )
         .task {
+            app.displayScale = NSScreen.main?.backingScaleFactor ?? 2.0
             app.newTab(WebURL("https://browser.engineering"))
         }
     }

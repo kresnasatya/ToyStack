@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 func cssColorToRGB(_ cssName: String) -> RGBColor? {
     let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
@@ -38,58 +38,11 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
     }
 }
 
-// MARK: - Color Parsing
-
-extension Color {
-    public init(cssName: String) {
-        let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
-        if name.hasPrefix("#") {
-            let hex = String(name.dropFirst())
-            let expanded =
-                hex.count == 3
-                ? hex.map({
-                    "\($0)\($0)"
-                }).joined() : hex
-            if expanded.count == 6,
-                let r = UInt8(expanded.prefix(2), radix: 16),
-                let g = UInt8(expanded.dropFirst(2).prefix(2), radix: 16),
-                let b = UInt8(expanded.dropFirst(4).prefix(2), radix: 16)
-            {
-                self = Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
-                return
-            }
-        }
-        switch cssName.lowercased() {
-        case "white": self = .white
-        case "black": self = .black
-        case "red": self = .red
-        case "blue": self = .blue
-        case "green": self = .green
-        case "gray", "grey": self = .gray
-        case "orange": self = .orange
-        case "lightblue": self = Color(red: 0.68, green: 0.85, blue: 0.90)
-        case "lightgreen": self = Color(red: 0.56, green: 0.93, blue: 0.56)
-        case "steelblue": self = Color(red: 0.27, green: 0.51, blue: 0.71)
-        case "lightgray", "lightgrey": self = Color(red: 0.83, green: 0.83, blue: 0.83)
-        case "transparent": self = .clear
-        case "yellow": self = .yellow
-        case "purple": self = .purple
-        case "salmon": self = Color(red: 0.98, green: 0.50, blue: 0.45)
-        case "whitesmoke": self = Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
-        case "khaki": self = Color(red: 240 / 255, green: 230 / 255, blue: 140 / 255)
-        case "tomato": self = Color(red: 255 / 255, green: 99 / 255, blue: 71 / 255)
-        case "gold": self = Color(red: 255 / 255, green: 215 / 255, blue: 0 / 255)
-        case "orchid": self = Color(red: 218 / 255, green: 112 / 255, blue: 214 / 255)
-        default: self = .black
-        }
-    }
-}
-
 // MARK: - PaintCommand
 public protocol PaintCommand {
     var rect: Rect { get }
     var parentEffect: VisualEffect? { get set }
-    func execute(scroll: CGFloat, context: inout GraphicsContext)
+    func execute(scroll: CGFloat, renderer: any Renderer)
 }
 
 // MARK: - DrawRect
@@ -103,14 +56,14 @@ struct DrawRect: PaintCommand {
         self.color = color
     }
 
-    func execute(scroll: CGFloat, context: inout GraphicsContext) {
+    func execute(scroll: CGFloat, renderer: any Renderer) {
         let r = CGRect(
             x: rect.left,
             y: rect.top - scroll,
             width: rect.right - rect.left,
             height: rect.bottom - rect.top
         )
-        context.fill(Path(r), with: .color(Color(cssName: color)))
+        renderer.fillRect(r, color: EngineColor(cssName: color))
     }
 }
 
@@ -129,11 +82,13 @@ struct DrawLine: PaintCommand {
         self.thickness = thickness
     }
 
-    func execute(scroll: CGFloat, context: inout GraphicsContext) {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.left, y: rect.top - scroll))
-        path.addLine(to: CGPoint(x: rect.right, y: rect.bottom - scroll))
-        context.stroke(path, with: .color(Color(cssName: color)), lineWidth: thickness)
+    func execute(scroll: CGFloat, renderer: any Renderer) {
+        renderer.strokeSegment(
+            from: CGPoint(x: rect.left, y: rect.top - scroll),
+            to: CGPoint(x: rect.right, y: rect.bottom - scroll),
+            color: EngineColor(cssName: color),
+            lineWidth: thickness
+        )
     }
 }
 
@@ -155,12 +110,8 @@ struct DrawText: PaintCommand {
         self.color = color
     }
 
-    func execute(scroll: CGFloat, context: inout GraphicsContext) {
-        let swiftText = Text(text)
-            .font(Font(font.ctFont))
-            .foregroundColor(Color(cssName: color))
-        context.draw(
-            swiftText, at: CGPoint(x: rect.left, y: rect.top - scroll), anchor: .topLeading)
+    func execute(scroll: CGFloat, renderer: any Renderer) {
+        renderer.drawText(text, font: font.ctFont, color: EngineColor(cssName: color), at: CGPoint(x: rect.left, y: rect.top - scroll))
     }
 }
 
@@ -171,11 +122,11 @@ struct DrawOutline: PaintCommand {
     let thickness: CGFloat
     var parentEffect: VisualEffect? = nil
 
-    func execute(scroll: CGFloat, context: inout GraphicsContext) {
+    func execute(scroll: CGFloat, renderer: any Renderer) {
         let r = CGRect(
             x: rect.left, y: rect.top - scroll, width: rect.right - rect.left,
             height: rect.bottom - rect.top)
-        context.stroke(Path(r), with: .color(Color(cssName: color)), lineWidth: thickness)
+        renderer.strokeRect(r, color: EngineColor(cssName: color), lineWidth: thickness)
     }
 }
 
@@ -190,14 +141,15 @@ struct DrawCompositedLayer: PaintCommand {
         self.rect = layer.absoluteBounds()
     }
 
-    func execute(scroll: CGFloat, context: inout GraphicsContext) {
+    func execute(scroll: CGFloat, renderer: any Renderer) {
         let bounds = layer.compositedBounds()
         if let image = layer.cachedImage {
-            context.draw(Image(decorative: image, scale: 1), in: bounds.cgRect)
+            renderer.drawImage(image, in: bounds.cgRect)
         } else {
-            var ctx = context
-            ctx.translateBy(x: bounds.left, y: bounds.top)
-            layer.raster(context: &ctx)
+            renderer.saveState()
+            renderer.translateBy(x: bounds.left, y: bounds.top)
+            layer.raster(renderer: renderer)
+            renderer.restoreState()
         }
 
     }
@@ -210,8 +162,7 @@ struct DrawRRect: PaintCommand {
     let radius: CGFloat
     let color: String
 
-    func execute(scroll: CGFloat, context: inout GraphicsContext) {
-        let path = Path(roundedRect: rect.cgRect, cornerRadius: radius)
-        context.fill(path, with: .color(Color(cssName: color)))
+    func execute(scroll: CGFloat, renderer: any Renderer) {
+        renderer.fillRRect(rect.cgRect, radius: radius, color: EngineColor(cssName: color))
     }
 }

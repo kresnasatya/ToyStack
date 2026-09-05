@@ -1,10 +1,10 @@
-import SwiftUI
+import CoreGraphics
 
 public class Blend: VisualEffect {
     let opacity: Double
-    let blendMode: GraphicsContext.BlendMode?
+    let blendMode: EngineBlendMode?
 
-    init(opacity: Double, blendMode: GraphicsContext.BlendMode?, node: DOMNode?, children: [Any]) {
+    init(opacity: Double, blendMode: EngineBlendMode?, node: DOMNode?, children: [Any]) {
         self.opacity = opacity
         self.blendMode = blendMode
 
@@ -22,38 +22,24 @@ public class Blend: VisualEffect {
         self.needsCompositing = opacity < 1.0 || blendMode != nil || self.needsCompositing
     }
 
-    public override func execute(context: inout GraphicsContext) {
+    public override func execute(renderer: any Renderer) {
         guard opacity < 1.0 || blendMode != nil else {
             for child in children {
                 if let ve = child as? VisualEffect {
-                    ve.execute(context: &context)
+                    ve.execute(renderer: renderer)
                 } else if let pc = child as? PaintCommand {
-                    pc.execute(scroll: 0, context: &context)
+                    pc.execute(scroll: 0, renderer: renderer)
                 }
             }
             return
         }
 
-        var layerContext = context
-        layerContext.opacity = opacity
-        if let mode = blendMode {
-            layerContext.blendMode = mode
-        }
-
-        if children.count == 1, let layerCmd = children[0] as? DrawCompositedLayer,
-            layerCmd.layer.cachedImage != nil
-        {
-            layerCmd.execute(scroll: 0, context: &layerContext)
-            return
-        }
-
-        layerContext.drawLayer { inner in
-            var innerContext = inner
+        renderer.drawLayer(LayerOptions(opacity: opacity, blendMode: blendMode)) { r in
             for child in self.children {
                 if let ve = child as? VisualEffect {
-                    ve.execute(context: &innerContext)
+                    ve.execute(renderer: r)
                 } else if let pc = child as? PaintCommand {
-                    pc.execute(scroll: 0, context: &innerContext)
+                    pc.execute(scroll: 0, renderer: r)
                 }
             }
         }

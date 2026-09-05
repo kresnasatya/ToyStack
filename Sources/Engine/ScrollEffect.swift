@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 public class ScrollEffect: Engine.VisualEffect {
     let clipRect: Rect
@@ -11,22 +11,23 @@ public class ScrollEffect: Engine.VisualEffect {
         self.needsCompositing = false
     }
 
-    public override func execute(context: inout GraphicsContext) {
-        var ctx = context
+    public override func execute(renderer: any Renderer) {
+        renderer.saveState()
         let cgRect = CGRect(
             x: clipRect.left, y: clipRect.top,
             width: clipRect.right - clipRect.left,
             height: clipRect.bottom - clipRect.top
         )
-        ctx.clip(to: Path(cgRect))
-        ctx.translateBy(x: 0, y: -scrollOffset)
+        renderer.clip(to: cgRect)
+        renderer.translateBy(x: 0, y: -scrollOffset)
         for child in children {
             if let ve = child as? Engine.VisualEffect {
-                ve.execute(context: &ctx)
+                ve.execute(renderer: renderer)
             } else if let pc = child as? PaintCommand {
-                pc.execute(scroll: 0, context: &ctx)
+                pc.execute(scroll: 0, renderer: renderer)
             }
         }
+        renderer.restoreState()
     }
 
     func clone(child: Any) -> ScrollEffect {

@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 public class VisualEffect {
     var rect: Rect
@@ -19,7 +19,7 @@ public class VisualEffect {
         })
     }
 
-    public func execute(context: inout GraphicsContext) {}
+    public func execute(renderer: any Renderer) {}
 
     func map(rect: Rect) -> Rect { return rect }
 

@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 class CompositedLayer {
     var displayItems: [PaintCommand] = []
@@ -45,17 +45,17 @@ class CompositedLayer {
         return rect
     }
 
-    func raster(context: inout GraphicsContext) {
+    func raster(renderer: any Renderer) {
         let bounds = compositedBounds()
         guard bounds.right > bounds.left && bounds.bottom > bounds.top else { return }
-        context.translateBy(x: -bounds.left, y: -bounds.top)
+        renderer.saveState()
+        renderer.translateBy(x: -bounds.left, y: -bounds.top)
         for item in displayItems {
-            item.execute(scroll: 0, context: &context)
+            item.execute(scroll: 0, renderer: renderer)
         }
-        context.translateBy(x: bounds.left, y: bounds.top)
+        renderer.restoreState()
     }
 
-    @MainActor
     func rasterIfNeeded(scale: CGFloat) {
         guard needsTexture, cachedImage == nil else { return }
         let bounds = compositedBounds()
@@ -64,17 +64,12 @@ class CompositedLayer {
         guard width > 0, height > 0 else { return }
 
         let items = displayItems
-        let canvas = Canvas { context, _ in
-            var ctx = context
-            ctx.translateBy(x: -bounds.left, y: -bounds.top)
+
+        cachedImage = CGRenderer.renderBitmap(width: width, height: height, scale: scale) { r in
+            r.translateBy(x: -bounds.left, y: -bounds.top)
             for item in items {
-                item.execute(scroll: 0, context: &ctx)
+                item.execute(scroll: 0, renderer: r)
             }
         }
-        .frame(width: width, height: height)
-
-        let renderer = ImageRenderer(content: canvas)
-        renderer.scale = scale
-        cachedImage = renderer.cgImage
     }
 }

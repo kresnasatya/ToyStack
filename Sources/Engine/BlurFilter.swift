@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 public class BlurFilter: Engine.VisualEffect {
     let radius: CGFloat
@@ -24,17 +24,15 @@ public class BlurFilter: Engine.VisualEffect {
         return BlurFilter(radius: radius, node: node, children: [child])
     }
 
-    public override func execute(context: inout GraphicsContext) {
-        context.drawLayer(content: { inner in
-            var innerCtx = inner
-            innerCtx.addFilter(.blur(radius: radius))
+    public override func execute(renderer: any Renderer) {
+        renderer.drawLayer(LayerOptions(blur: radius)) { r in
             for child in self.children {
                 if let ve = child as? Engine.VisualEffect {
-                    ve.execute(context: &innerCtx)
+                    ve.execute(renderer: r)
                 } else if let pc = child as? PaintCommand {
-                    pc.execute(scroll: 0, context: &innerCtx)
+                    pc.execute(scroll: 0, renderer: r)
                 }
             }
-        })
+        }
     }
 }

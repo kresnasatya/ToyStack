@@ -1,4 +1,6 @@
-import SwiftUI
+import Combine
+import CoreGraphics
+import Foundation
 
 @MainActor
 public class Browser: ObservableObject {
@@ -6,6 +8,7 @@ public class Browser: ObservableObject {
     @Published public var activeTab: Engine.Tab?
     public let chrome: Chrome
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
+    public var displayScale: CGFloat = 2.0
     private var animationTimer: Timer?
     private var nextFrameTime: Date = .distantPast
     private let FRAME_BUDGET: TimeInterval = 1.0 / 60.0
@@ -187,7 +190,7 @@ public class Browser: ObservableObject {
                 if let layers = output.compositedLayers {
                     self.compositeInFlight = false
                     self.compositedLayers = layers
-                    let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+                    let scale = displayScale
                     for layer in layers {
                         layer.rasterIfNeeded(scale: scale)
                     }

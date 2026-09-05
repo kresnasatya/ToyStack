@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 private struct HistoryEntry {
@@ -8,6 +7,13 @@ private struct HistoryEntry {
 
 @MainActor
 public class Tab {
+    public nonisolated(unsafe) static var showAlert: (String, String) -> Void = { title, message in
+        print("[alert] \(title): \(message)")
+    }
+    public nonisolated(unsafe) static var showConfirm: (String, String) -> Bool = { title, message in
+        print("[confirm] \(title): \(message)")
+        return true
+    }
     private(set) var url: WebURL!
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
@@ -125,13 +131,7 @@ public class Tab {
         switch result {
         case .failure(let error):
             if let urlError = error as? URLError, certErrorCodes.contains(urlError.code) {
-                let alert = NSAlert()
-                alert.messageText = "Certificate Error"
-                alert.informativeText =
-                    "The certificate for \(url.host) is invalid. "
-                    + "Your connection may not be private."
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
+                Tab.showAlert("Certificate Error", "The certificate for \(url.host) is invalid. " + "Your connection may not be private.")
             }
             return nil
 
@@ -752,13 +752,7 @@ public class Tab {
         historyIndex -= 1
         let entry = history[historyIndex]
         if let payload = entry.payload {
-            let alert = NSAlert()
-            alert.messageText = "Resubmit form?"
-            alert.informativeText =
-                "This page was loaded by submitting a form. Do you want to resubmit it?"
-            alert.addButton(withTitle: "Resubmit")
-            alert.addButton(withTitle: "Cancel")
-            if alert.runModal() == .alertFirstButtonReturn {
+            if Tab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
                 performLoad(entry.url, payload: payload)
             } else {
                 historyIndex += 1

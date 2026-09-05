@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 public class Transform: VisualEffect {
     let translation: CGPoint?
@@ -12,21 +12,20 @@ public class Transform: VisualEffect {
         super.init(rect: rect, children: children, node: node)
     }
 
-    public override func execute(context: inout GraphicsContext) {
+    public override func execute(renderer: any Renderer) {
         if let t = translation {
-            context.translateBy(x: t.x, y: t.y)
+            renderer.saveState()
+            renderer.translateBy(x: t.x, y: t.y)
         }
 
         for child in children {
             if let ve = child as? VisualEffect {
-                ve.execute(context: &context)
+                ve.execute(renderer: renderer)
             } else if let pc = child as? PaintCommand {
-                pc.execute(scroll: 0, context: &context)
+                pc.execute(scroll: 0, renderer: renderer)
             }
         }
-        if let t = translation {
-            context.translateBy(x: -t.x, y: -t.y)
-        }
+        renderer.restoreState()
     }
 
     func clone(child: Any) -> Transform {
