@@ -29,7 +29,9 @@ struct BrowserFont {
     var linespace: CGFloat { ascent + descent + leading }
 
     func measure(_ text: String) -> CGFloat {
-        let attr = NSAttributedString(string: text, attributes: [.font: ctFont])
+        let attr = NSAttributedString(string: text, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): ctFont
+        ])
         let line = CTLineCreateWithAttributedString(attr)
         return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
     }
