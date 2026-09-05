@@ -257,6 +257,7 @@ class CSSParser {
     private static func expand(shorthand: String, tokens: [String]) -> [String: String]? {
         switch shorthand {
         case "font": return expandFont(tokens)
+        case "background": return expandBackground(tokens)
         case "border": return expandBorder(tokens, prefix: "border")
         case "outline": return expandBorder(tokens, prefix: "outline")
         case "margin": return expandBox(tokens, prefix: "margin")
@@ -279,6 +280,16 @@ class CSSParser {
         }
         if !t.isEmpty {
             props["font-family"] = t.joined(separator: " ")
+        }
+        return props
+    }
+
+    private static func expandBackground(_ tokens: [String]) -> [String: String] {
+        var props: [String: String] = [:]
+        for token in tokens where token != "," {
+            if cssColorToRGB(token) != nil {
+                props["background-color"] = token
+            }
         }
         return props
     }
@@ -326,7 +337,7 @@ class CSSParser {
     }
 
     private static func isShortHand(_ prop: String) -> Bool {
-        ["font", "border", "outline", "margin", "padding", "transition", "animation"].contains(prop)
+        ["font", "border", "outline", "margin", "padding", "background", "transition", "animation"].contains(prop)
     }
 
     private func bodyParts() -> (normal: [String: String], important: [String: String]) {
