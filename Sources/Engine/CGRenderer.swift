@@ -2,7 +2,7 @@ import CoreGraphics
 import CoreText
 import CoreImage
 
-final class CGRenderer: Renderer {
+public final class CGRenderer: Renderer {
     private let cg: CGContext
     private let canvasSize: CGSize
     private let scale: CGFloat
@@ -14,7 +14,7 @@ final class CGRenderer: Renderer {
         self.scale = scale
     }
 
-    static func renderBitmap(width: CGFloat, height: CGFloat, scale: CGFloat, backgroundColor: EngineColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
+    public static func renderBitmap(width: CGFloat, height: CGFloat, scale: CGFloat, backgroundColor: EngineColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
         let pxW = Int(width * scale), pxH = Int(height * scale)
         guard pxW > 0, pxH > 0,
             let ctx = CGContext(data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -32,24 +32,24 @@ final class CGRenderer: Renderer {
         return ctx.makeImage()
     }
 
-    func saveState() { cg.saveGState() }
-    func restoreState() { cg.restoreGState() }
-    func translateBy(x: CGFloat, y: CGFloat) { cg.translateBy(x: x, y: y) }
-    func clip(to rect: CGRect) { cg.clip(to: rect) }
+    public func saveState() { cg.saveGState() }
+    public func restoreState() { cg.restoreGState() }
+    public func translateBy(x: CGFloat, y: CGFloat) { cg.translateBy(x: x, y: y) }
+    public func clip(to rect: CGRect) { cg.clip(to: rect) }
 
-    func fillRect(_ rect: CGRect, color: EngineColor) {
+    public func fillRect(_ rect: CGRect, color: EngineColor) {
         cg.setFillColor(color.cgColor)
         cg.fill(rect)
     }
 
-    func fillRRect(_ rect: CGRect, radius: CGFloat, color: EngineColor) {
+    public func fillRRect(_ rect: CGRect, radius: CGFloat, color: EngineColor) {
         let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         cg.setFillColor(color.cgColor)
         cg.addPath(path)
         cg.fillPath()
     }
 
-    func strokeSegment(from: CGPoint, to: CGPoint, color: EngineColor, lineWidth: CGFloat) {
+    public func strokeSegment(from: CGPoint, to: CGPoint, color: EngineColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
         cg.move(to: from)
@@ -57,13 +57,13 @@ final class CGRenderer: Renderer {
         cg.strokePath()
     }
 
-    func strokeRect(_ rect: CGRect, color: EngineColor, lineWidth: CGFloat) {
+    public func strokeRect(_ rect: CGRect, color: EngineColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
         cg.stroke(rect)
     }
 
-    func drawText(_ text: String, font: CTFont, color: EngineColor, at point: CGPoint) {
+    public func drawText(_ text: String, font: CTFont, color: EngineColor, at point: CGPoint) {
         let attrs = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
@@ -79,7 +79,7 @@ final class CGRenderer: Renderer {
         cg.restoreGState()
     }
 
-    func drawImage(_ image: CGImage, in rect: CGRect) {
+    public func drawImage(_ image: CGImage, in rect: CGRect) {
         cg.saveGState()
         cg.translateBy(x: rect.minX, y: rect.maxY)
         cg.scaleBy(x: 1, y: -1)
@@ -87,7 +87,7 @@ final class CGRenderer: Renderer {
         cg.restoreGState()
     }
 
-    func drawLayer(_ options: LayerOptions, content: (any Renderer) -> Void) {
+    public func drawLayer(_ options: LayerOptions, content: (any Renderer) -> Void) {
         if let blur = options.blur, blur > 0 {
             guard let layerImage = Self.renderBitmap(width: canvasSize.width, height: canvasSize.height, scale: scale, backgroundColor: nil, content)
                 else { return }
