@@ -39,7 +39,7 @@ For multi-file changes, group the diffs by file and include the file path before
 
 9. Reference existing code by file:line so I can navigate to it.
 
-10. Save it in markdown file in the `plan` directory.
+10. Save it in markdown file in the `plans` directory.
 
 ## Additional Information
 
