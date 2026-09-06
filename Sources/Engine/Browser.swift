@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 public class Browser: ObservableObject {
     @Published public var tabs: [Engine.Tab] = []
-    @Published public var activeTab: Engine.Tab?
+    @Published public private(set) var activeTab: Engine.Tab?
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
@@ -410,7 +410,12 @@ public class Browser: ObservableObject {
             return
         }
         let nextIdx = (idx + 1) % tabs.count
-        activeTab = tabs[nextIdx]
+        selectTab(tabs[nextIdx])
+    }
+
+    public func selectTab(_ tab: Tab) {
+        guard tab !== activeTab else { return }
+        activeTab = tab
         hoveredA11yNode = nil
         hasSpokenDocument = false
         spokenAlerts = []

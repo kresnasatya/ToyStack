@@ -4,10 +4,11 @@ import CoreGraphics
 @MainActor
 public protocol TabManager: AnyObject {
     var tabs: [Tab] { get }
-    var activeTab: Tab? { get set }
+    var activeTab: Tab? { get }
+    func newTab(_ url: WebURL)
+    func selectTab(_ tab: Tab)
     var prefersDark: Bool { get }
     var forcedColors: Bool { get }
-    func newTab(_ url: WebURL)
 }
 
 @MainActor
@@ -218,7 +219,7 @@ public class Chrome {
             let tabs: [Engine.Tab] = tabManager?.tabs ?? []
             for (i, tab) in tabs.enumerated() {
                 if tabRect(i).containsPoint(x, y) {
-                    tabManager?.activeTab = tab
+                    tabManager?.selectTab(tab)
                     break
                 }
             }
