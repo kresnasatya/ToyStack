@@ -168,19 +168,10 @@ public class WebURL: @unchecked Sendable {
     ) async throws -> (
         status: Int, headers: [String: String], content: String
     ) {
+        if let source = Tab.pageSource, let page = await source(scheme, path) {
+            return page
+        }
         if scheme == "about" {
-            if path == "bookmarks" {
-                let items = bookmarks.map { url in
-                    " <li><a href=\"\(url)\">\(url)</a></li>"
-                }.joined(separator: "\n")
-                let html = """
-                    <html><body>
-                    <h1>Bookmarks</h1>
-                    <ul>\n\(items)\n</ul>
-                    </body></html
-                    """
-                return (status: 200, headers: [:], content: html)
-            }
             return (status: 200, headers: [:], content: "")
         }
 
@@ -332,7 +323,7 @@ public class WebURL: @unchecked Sendable {
         return box.value
     }
 
-    func toString() -> String {
+    public func toString() -> String {
         var portPart = ":\(port)"
         if scheme == "https" && port == 443 { portPart = "" }
         if scheme == "http" && port == 80 { portPart = "" }

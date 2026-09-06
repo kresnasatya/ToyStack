@@ -85,7 +85,7 @@ MainActor.assumeIsolated {
     ) { r in
         if let tab = browser.activeTab {
             r.saveState()
-            r.translateBy(x: 0, y: browser.chrome.bottom - browser.activeTabScroll)
+            r.translateBy(x: 0, y: -browser.activeTabScroll)
             for item in browser.drawList {
                 if let cmd = item as? any PaintCommand {
                     cmd.execute(scroll: 0, renderer: r)
@@ -96,7 +96,7 @@ MainActor.assumeIsolated {
             r.restoreState()
 
             r.saveState()
-            r.translateBy(x: 0, y: browser.chrome.bottom)
+            r.translateBy(x: 0, y: 0)
             for item in tab.scrollbarCommands() {
                 if let cmd = item as? any PaintCommand {
                     cmd.execute(scroll: 0, renderer: r)
@@ -105,9 +105,6 @@ MainActor.assumeIsolated {
                 }
             }
             r.restoreState()
-        }
-        for cmd in browser.chrome.paint() {
-            cmd.execute(scroll: 0, renderer: r)
         }
     }
 

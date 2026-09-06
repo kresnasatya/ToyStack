@@ -1,3 +1,4 @@
+import Engine
 import CoreGraphics
 
 @MainActor
@@ -12,7 +13,7 @@ public protocol TabManager: AnyObject {
 @MainActor
 public class Chrome {
     weak var tabManager: (any TabManager)?
-
+    var bookmarks: Bookmarks?
     private let font: BrowserFont
     private let fontHeight: CGFloat
     private let padding: CGFloat = 5
@@ -151,7 +152,7 @@ public class Chrome {
                 color: fwdColor))
 
         let currentURLStr = tabManager?.activeTab?.url?.toString() ?? ""
-        let isBookmarked = bookmarks.contains(currentURLStr)
+        let isBookmarked = bookmarks?.contains(currentURLStr) ?? false
         if isBookmarked {
             cmds.append(DrawRect(rect: bookmarkRect, color: "yellow"))
         }
@@ -209,11 +210,7 @@ public class Chrome {
             tabManager?.activeTab?.goForward()
         } else if bookmarkRect.containsPoint(x, y) {
             if let urlStr = tabManager?.activeTab?.url?.toString() {
-                if let idx = bookmarks.firstIndex(of: urlStr) {
-                    bookmarks.remove(at: idx)
-                } else {
-                    bookmarks.append(urlStr)
-                }
+                bookmarks?.toggle(urlStr)
             }
         } else if addressRect.containsPoint(x, y) {
             focusAddressBar()

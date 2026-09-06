@@ -14,15 +14,18 @@ public class Tab {
         print("[confirm] \(title): \(message)")
         return true
     }
-    private(set) var url: WebURL!
+    public nonisolated(unsafe) static var pageSource: ((_ scheme: String, _ path: String) async -> (
+        status: Int, headers: [String: String], content: String
+    )?)? = nil
+    public private(set) var url: WebURL!
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [Any] = []
     public private(set) var title: String = "New Tab"
-    private(set) var isSecure: Bool = false
+    public private(set) var isSecure: Bool = false
 
     private var scroll: CGFloat = 0
-    private var tabHeight: CGFloat
+    public private(set) var tabHeight: CGFloat
     private var tabWidth: CGFloat
     private var history: [HistoryEntry] = []
     private var historyIndex: Int = -1
@@ -34,8 +37,8 @@ public class Tab {
     private var loadedScriptURLs: Set<String> = []
     private var referrerPolicy: String = ""
 
-    var canGoBack: Bool { historyIndex > 0 }
-    var canGoForward: Bool { historyIndex < history.count - 1 }
+    public var canGoBack: Bool { historyIndex > 0 }
+    public var canGoForward: Bool { historyIndex < history.count - 1 }
 
     private(set) var taskRunner: TaskRunner = TaskRunner()
     var networkingThread: NetworkingThread?
@@ -78,7 +81,7 @@ public class Tab {
         self.tabWidth = tabWidth
     }
 
-    func load(_ url: WebURL, payload: String? = nil) {
+    public func load(_ url: WebURL, payload: String? = nil) {
         history = Array(history.prefix(historyIndex + 1))
         history.append(HistoryEntry(url: url, payload: payload))
         historyIndex = history.count - 1
@@ -731,9 +734,9 @@ public class Tab {
 
     @discardableResult
     private func checkInterestRegion() -> Bool {
-        let interestBottom = interestTop + 4 * HEIGHT
+        let interestBottom = interestTop + 4 * tabHeight
         if scroll < interestTop || scroll + tabHeight > interestBottom {
-            interestTop = max(0, scroll - HEIGHT)
+            interestTop = max(0, scroll - tabHeight)
             setNeedsLayout()
             return true
         }
@@ -764,14 +767,14 @@ public class Tab {
             } else {
                 scroll = 0
             }
-            interestTop = max(0, scroll - HEIGHT)
+            interestTop = max(0, scroll - tabHeight)
             browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
         } else {
             performLoad(entry.url)
         }
     }
 
-    func goForward() {
+    public func goForward() {
         guard canGoForward else { return }
         historyIndex += 1
         let entry = history[historyIndex]
@@ -782,7 +785,7 @@ public class Tab {
             } else {
                 scroll = 0
             }
-            interestTop = max(0, scroll - HEIGHT)
+            interestTop = max(0, scroll - tabHeight)
             browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
         } else {
             performLoad(entry.url, payload: entry.payload)
@@ -869,7 +872,7 @@ public class Tab {
                         historyIndex = history.count - 1
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
-                        interestTop = max(0, scroll - HEIGHT)
+                        interestTop = max(0, scroll - tabHeight)
                         setNeedsLayout()
                     } else {
                         load(url.resolve(href))

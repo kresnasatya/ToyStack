@@ -2,19 +2,19 @@ import CoreGraphics
 
 // MARK: - Rect
 public struct Rect {
-    var left: CGFloat
-    var top: CGFloat
-    var right: CGFloat
-    var bottom: CGFloat
+    public var left: CGFloat
+    public var top: CGFloat
+    public var right: CGFloat
+    public var bottom: CGFloat
 
-    init(left: CGFloat, top: CGFloat, right: CGFloat, bottom: CGFloat) {
+    public init(left: CGFloat, top: CGFloat, right: CGFloat, bottom: CGFloat) {
         self.left = left
         self.top = top
         self.right = right
         self.bottom = bottom
     }
 
-    func containsPoint(_ x: CGFloat, _ y: CGFloat) -> Bool {
+    public func containsPoint(_ x: CGFloat, _ y: CGFloat) -> Bool {
         return x >= left && x < right && y >= top && y < bottom
     }
 

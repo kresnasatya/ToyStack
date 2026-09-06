@@ -6,8 +6,8 @@ import Foundation
 public class Browser: ObservableObject {
     @Published public var tabs: [Engine.Tab] = []
     @Published public var activeTab: Engine.Tab?
-    public let chrome: Chrome
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
+    public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
     private var animationTimer: Timer?
     private var nextFrameTime: Date = .distantPast
@@ -52,14 +52,11 @@ public class Browser: ObservableObject {
     let networkingThread = NetworkingThread()
     let rasterThread = RasterThread()
 
-    public init() {
-        chrome = Chrome()
-        chrome.tabManager = self
-    }
+    public init() {}
 
     public func newTab(_ url: WebURL) {
         let tab = Engine.Tab(
-            tabHeight: windowSize.height - chrome.bottom,
+            tabHeight: windowSize.height - topInset,
             tabWidth: windowSize.width
         )
         tab.browser = self
@@ -74,8 +71,7 @@ public class Browser: ObservableObject {
 
     public func resize(to size: CGSize) {
         windowSize = size
-        chrome.resize(width: size.width)
-        activeTab?.resize(width: size.width, height: size.height - chrome.bottom)
+        activeTab?.resize(width: size.width, height: size.height - topInset)
     }
 
     public func startAnimationTimer() {
@@ -156,7 +152,7 @@ public class Browser: ObservableObject {
 
         let inputs = RasterInputs(
             displayList: activeTabDisplayList, scroll: activeTabScroll,
-            interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * HEIGHT,
+            interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * (activeTab?.tabHeight ?? HEIGHT),
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
             prefersDark: activeTabPrefersDark, forcedColors: activeTabForcedColors, needsComposite: wantsComposite, needsRaster: needsRaster,
             needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
@@ -543,5 +539,3 @@ public class Browser: ObservableObject {
         scheduleRasterAndDraw()
     }
 }
-
-extension Browser: TabManager {}

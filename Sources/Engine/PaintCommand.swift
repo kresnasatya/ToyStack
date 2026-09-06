@@ -46,17 +46,17 @@ public protocol PaintCommand {
 }
 
 // MARK: - DrawRect
-struct DrawRect: PaintCommand {
-    let rect: Rect
-    let color: String
-    var parentEffect: VisualEffect? = nil
+public struct DrawRect: PaintCommand {
+    public let rect: Rect
+    public let color: String
+    public var parentEffect: VisualEffect? = nil
 
-    init(rect: Rect, color: String) {
+    public init(rect: Rect, color: String) {
         self.rect = rect
         self.color = color
     }
 
-    func execute(scroll: CGFloat, renderer: any Renderer) {
+    public func execute(scroll: CGFloat, renderer: any Renderer) {
         let r = CGRect(
             x: rect.left,
             y: rect.top - scroll,
@@ -68,13 +68,13 @@ struct DrawRect: PaintCommand {
 }
 
 // MARK: - DrawLine
-struct DrawLine: PaintCommand {
-    let rect: Rect
-    let color: String
-    let thickness: CGFloat
-    var parentEffect: VisualEffect? = nil
+public struct DrawLine: PaintCommand {
+    public let rect: Rect
+    public let color: String
+    public let thickness: CGFloat
+    public var parentEffect: VisualEffect? = nil
 
-    init(
+    public init(
         x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat
     ) {
         self.rect = Rect(left: x1, top: y1, right: x2, bottom: y2)
@@ -82,7 +82,7 @@ struct DrawLine: PaintCommand {
         self.thickness = thickness
     }
 
-    func execute(scroll: CGFloat, renderer: any Renderer) {
+    public func execute(scroll: CGFloat, renderer: any Renderer) {
         renderer.strokeSegment(
             from: CGPoint(x: rect.left, y: rect.top - scroll),
             to: CGPoint(x: rect.right, y: rect.bottom - scroll),
@@ -93,14 +93,14 @@ struct DrawLine: PaintCommand {
 }
 
 // MARK: - DrawText
-struct DrawText: PaintCommand {
-    let rect: Rect
-    let text: String
-    let font: BrowserFont
-    let color: String
-    var parentEffect: VisualEffect? = nil
+public struct DrawText: PaintCommand {
+    public let rect: Rect
+    public let text: String
+    public let font: BrowserFont
+    public let color: String
+    public var parentEffect: VisualEffect? = nil
 
-    init(
+    public init(
         x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String
     ) {
         self.rect = Rect(
@@ -110,19 +110,25 @@ struct DrawText: PaintCommand {
         self.color = color
     }
 
-    func execute(scroll: CGFloat, renderer: any Renderer) {
+    public func execute(scroll: CGFloat, renderer: any Renderer) {
         renderer.drawText(text, font: font.ctFont, color: EngineColor(cssName: color), at: CGPoint(x: rect.left, y: rect.top - scroll))
     }
 }
 
 // MARK: - DrawOutline
-struct DrawOutline: PaintCommand {
-    let rect: Rect
-    let color: String
-    let thickness: CGFloat
-    var parentEffect: VisualEffect? = nil
+public struct DrawOutline: PaintCommand {
+    public let rect: Rect
+    public let color: String
+    public let thickness: CGFloat
+    public var parentEffect: VisualEffect? = nil
 
-    func execute(scroll: CGFloat, renderer: any Renderer) {
+    public init(rect: Rect, color: String, thickness: CGFloat) {
+        self.rect = rect
+        self.color = color
+        self.thickness = thickness
+    }
+
+    public func execute(scroll: CGFloat, renderer: any Renderer) {
         let r = CGRect(
             x: rect.left, y: rect.top - scroll, width: rect.right - rect.left,
             height: rect.bottom - rect.top)

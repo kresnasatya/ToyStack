@@ -11,8 +11,8 @@ let VSTEP: CGFloat = 18
 let SCROLL_STEP: CGFloat = 100
 
 // MARK: - BrowserFont
-struct BrowserFont {
-    let ctFont: CTFont
+public struct BrowserFont {
+    public let ctFont: CTFont
 
     var ascent: CGFloat {
         CTFontGetAscent(ctFont)
@@ -26,9 +26,9 @@ struct BrowserFont {
         CTFontGetLeading(ctFont)
     }
 
-    var linespace: CGFloat { ascent + descent + leading }
+    public var linespace: CGFloat { ascent + descent + leading }
 
-    func measure(_ text: String) -> CGFloat {
+    public func measure(_ text: String) -> CGFloat {
         let attr = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): ctFont
         ])
@@ -42,9 +42,7 @@ nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
 
 nonisolated(unsafe) var visitedURL: Set<String> = []
 
-nonisolated(unsafe) var bookmarks: [String] = []
-
-func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
+public func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
     let key = "\(size)-\(weight)-\(style)-\(family)"
     if let cached = fontCache[key] { return cached }
 
