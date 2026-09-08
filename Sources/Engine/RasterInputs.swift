@@ -22,3 +22,15 @@ struct RasterOutput: @unchecked Sendable {
     let compositedLayers: [CompositedLayer]?
     let drawList: [Any]?
 }
+
+struct FrameSignature: Equatable {
+    let scroll: CGFloat
+    let viewport: CGSize
+    let paintEpoch: Int
+    let effectUpdates: Int
+    let displayScale: CGFloat
+    let prefersDark: Bool
+    let forcedColors: Bool
+    let hoveredBounds: Rect?
+    let readBounds: Rect?
+}

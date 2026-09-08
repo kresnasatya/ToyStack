@@ -1,7 +1,7 @@
 import CoreGraphics
 
 // MARK: - Rect
-public struct Rect {
+public struct Rect: Equatable {
     public var left: CGFloat
     public var top: CGFloat
     public var right: CGFloat

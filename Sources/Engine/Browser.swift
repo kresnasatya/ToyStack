@@ -32,12 +32,15 @@ public class Browser: ObservableObject {
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
     public private(set) var activeTabScroll: CGFloat = 0
     public private(set) var activeTabInterestTop: CGFloat = 0
+    private var activeTabPaintEpoch = 0
 
     private var needsComposite: Bool = false
     private var needsRaster: Bool = false
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
     private var compositeInFlight = false
+    private var lastCommittedSignature: FrameSignature?
+    private var effectUpdateEpoch = 0
 
     @Published public var prefersDark: Bool = false
     public private(set) var activeTabPrefersDark: Bool = false
@@ -67,6 +70,9 @@ public class Browser: ObservableObject {
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
+        lastCommittedSignature = nil
+        drawList = []
+        compositedLayers = []
         startAnimationTimer()
     }
 
@@ -119,15 +125,18 @@ public class Browser: ObservableObject {
         activeTabInterestTop = data.interestTop
         activeTabPrefersDark = data.prefersDark
         activeTabForcedColors = data.forcedColors
+        activeTabPaintEpoch = data.paintEpoch
         compositedUpdates = data.compositedUpdates ?? [:]
+
+        if let updates = data.compositedUpdates, !updates.isEmpty {
+            effectUpdateEpoch += 1
+        }
 
         if data.compositedUpdates == nil {
             setNeedsComposite()
         } else {
             setNeedsDrawOnly()
         }
-
-        needsAnimationFrame = true
 
         scheduleRasterAndDraw()
     }
@@ -150,7 +159,7 @@ public class Browser: ObservableObject {
         resolvePendingHover()
 
         let wantsComposite = needsComposite && !compositeInFlight
-        if compositeInFlight && !wantsComposite && !needsDraw {
+        if compositeInFlight && !wantsComposite {
             return
         }
 
@@ -163,6 +172,23 @@ public class Browser: ObservableObject {
             needsComposite: wantsComposite, needsRaster: needsRaster, needsDraw: needsDraw,
             hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
+
+        let signature = FrameSignature(
+            scroll: activeTabScroll,
+            viewport: windowSize,
+            paintEpoch: activeTabPaintEpoch,
+            effectUpdates: effectUpdateEpoch,
+            displayScale: displayScale,
+            prefersDark: activeTabPrefersDark,
+            forcedColors: activeTabForcedColors,
+            hoveredBounds: hoveredA11yNode?.bounds,
+            readBounds: accessibilityFocusNode?.bounds
+        )
+        if signature == lastCommittedSignature {
+            needsDraw = false
+            frameStartTime = .distantPast
+            return
+        }
 
         if wantsComposite {
             compositeInFlight = true
@@ -215,9 +241,18 @@ public class Browser: ObservableObject {
                     self.compositedLayers = layers
                 }
                 if let drawList = output.drawList { self.drawList = drawList }
-                self.commitedPrefersDark = inputs.prefersDark
-                self.commitedForcedColors = inputs.forcedColors
-                self.objectWillChange.send()
+
+                if self.commitedPrefersDark != inputs.prefersDark {
+                    self.commitedPrefersDark = inputs.prefersDark
+                }
+                if self.commitedForcedColors != inputs.forcedColors {
+                    self.commitedForcedColors = inputs.forcedColors
+                }
+                if signature != self.lastCommittedSignature {
+                    self.lastCommittedSignature = signature
+                    self.objectWillChange.send()
+                }
+
                 self.updateAccessibility()
                 self.measure.stop("composite_raster_and_draw")
                 if inputs.needsComposite {
@@ -443,6 +478,9 @@ public class Browser: ObservableObject {
         spokenAlerts = []
         liveRegionTexts = [:]
         lastFocus = nil
+        lastCommittedSignature = nil
+        drawList = []
+        compositedLayers = []
         setNeedsComposite()
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()

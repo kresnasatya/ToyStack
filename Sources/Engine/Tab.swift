@@ -21,6 +21,7 @@ public class Tab {
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [Any] = []
+    private var paintEpoch = 0
     public private(set) var title: String = "New Tab"
     public private(set) var isSecure: Bool = false
 
@@ -464,6 +465,7 @@ public class Tab {
             var list: [Any] = []
             paintTree(doc, into: &list)
             displayList = list
+            paintEpoch += 1
             needsPaint = false
         }
 
@@ -473,6 +475,7 @@ public class Tab {
     func runAnimationFrame() {
         guard js != nil else { return }
         js.run(script: "raf", code: "__runRAFHandlers()")
+        var needsAnotherFrame = false
         let needsComposite = needsStyle || needsLayout
         var needsPaint = false
         var needsLayoutUpdate = false
@@ -480,6 +483,7 @@ public class Tab {
             for (key, animation) in node.animations {
                 let property = (animation as? KeyframeAnimation)?.animatedProperty ?? key
                 if let value = animation.animate() {
+                    needsAnotherFrame = true
                     if property == "transform-x" || property == "transform-y"
                         || property == "opacity"
                     {
@@ -535,10 +539,15 @@ public class Tab {
             if let value = anim.animate() {
                 let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
                 scroll = max(0, min(value, maxY))
+                needsAnotherFrame = true
                 checkInterestRegion()
             } else {
                 scrollAnimation = nil
             }
+        }
+
+        if needsAnotherFrame {
+            browser?.setNeedsAnimationFrame(self)
         }
 
         let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
@@ -548,7 +557,7 @@ public class Tab {
         let data = CommitData(
             url: url!, scroll: scroll, height: docHeight, displayList: displayList,
             compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
-            interestTop: interestTop, prefersDark: prefersDark, forcedColors: forcedColors
+            interestTop: interestTop, paintEpoch: paintEpoch, prefersDark: prefersDark, forcedColors: forcedColors
         )
         compositedUpdates = [:]
         needsCompositeForPaint = false
