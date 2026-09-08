@@ -563,6 +563,7 @@ public class Tab {
         if scroll < obj.y && obj.y + obj.height < scroll + tabHeight { return }
         let maxY = max(doc.height + 2 * VSTEP - tabHeight, 0)
         scroll = max(0, min(obj.y - SCROLL_STEP, maxY))
+        interestTop = max(0, scroll - tabHeight)
     }
 
     private func scrollToFragment(_ id: String) {
@@ -737,7 +738,7 @@ public class Tab {
         let interestBottom = interestTop + 4 * tabHeight
         if scroll < interestTop || scroll + tabHeight > interestBottom {
             interestTop = max(0, scroll - tabHeight)
-            setNeedsLayout()
+            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
             return true
         }
         return false
@@ -873,7 +874,7 @@ public class Tab {
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
                         interestTop = max(0, scroll - tabHeight)
-                        setNeedsLayout()
+                        browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
                     } else {
                         load(url.resolve(href))
                     }

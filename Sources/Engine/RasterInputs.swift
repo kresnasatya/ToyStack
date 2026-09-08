@@ -7,6 +7,8 @@ struct RasterInputs: @unchecked Sendable {
     let interestBottom: CGFloat
     let compositedUpdates: [ObjectIdentifier: VisualEffect]
     let previousLayes: [CompositedLayer]
+    let tileStore: TileStore
+    let displayScale: CGFloat
     let prefersDark: Bool
     let forcedColors: Bool
     let needsComposite: Bool

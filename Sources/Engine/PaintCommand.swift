@@ -141,16 +141,26 @@ struct DrawCompositedLayer: PaintCommand {
     var rect: Rect
     var parentEffect: VisualEffect?
     let layer: CompositedLayer
+    var visibleTop: CGFloat = -.infinity
+    var visibleBottom: CGFloat = .infinity
 
-    init(layer: CompositedLayer) {
+    init(layer: CompositedLayer, visibleTop: CGFloat, visibleBottom: CGFloat) {
         self.layer = layer
+        self.visibleTop = visibleTop
+        self.visibleBottom = visibleBottom
         self.rect = layer.absoluteBounds()
     }
 
     func execute(scroll: CGFloat, renderer: any Renderer) {
         let bounds = layer.compositedBounds()
-        if let image = layer.cachedImage {
-            renderer.drawImage(image, in: bounds.cgRect)
+        if !layer.tiles.isEmpty {
+            let t = CompositedLayer.tileSize
+            for (index, image) in layer.tiles {
+                let tileLeft = CGFloat(index.col) * t
+                let tileTop = CGFloat(index.row) * t
+                if tileTop + t <= visibleTop || tileTop >= visibleBottom { continue }
+                renderer.drawImage(image, in: CGRect(x: tileLeft, y: tileTop, width: t, height: t))
+            }
         } else {
             renderer.saveState()
             renderer.translateBy(x: bounds.left, y: bounds.top)

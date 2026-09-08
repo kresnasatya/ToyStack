@@ -1,10 +1,21 @@
 import CoreGraphics
 
+struct TileIndex: Hashable {
+    let row: Int
+    let col: Int
+}
+
+final class RasterBudget {
+    var remaining: Int
+    init(_ n: Int) { remaining = n }
+}
+
 class CompositedLayer {
     var displayItems: [PaintCommand] = []
-    static let maxArea: CGFloat = 2 * WIDTH * HEIGHT
     static let shortDisplayListLimit = 3
-    var cachedImage: CGImage? = nil
+    var tiles: [TileIndex: CGImage] = [:]
+    static let tileSize: CGFloat = 128
+    static let rasterCapPerComposite = 300
     var ancestorChain: [VisualEffect] = []
     var needsTexture: Bool {
         displayItems.count >= Self.shortDisplayListLimit
@@ -18,14 +29,12 @@ class CompositedLayer {
         guard displayItem.parentEffect === displayItems[0].parentEffect else {
             return false
         }
-        let merged = compositedBounds().union(displayItem.rect)
-        let area = (merged.right - merged.left) * (merged.bottom - merged.top)
-        return area <= Self.maxArea
+        return true
     }
 
     func add(_ displayItem: PaintCommand) {
         displayItems.append(displayItem)
-        cachedImage = nil
+        tiles = [:]
     }
 
     func compositedBounds() -> Rect {
@@ -56,20 +65,79 @@ class CompositedLayer {
         renderer.restoreState()
     }
 
-    func rasterIfNeeded(scale: CGFloat) {
-        guard needsTexture, cachedImage == nil else { return }
+    func rasterIfNeeded(scale: CGFloat, store: TileStore, hintTop: CGFloat, hintBottom: CGFloat, visibleTop: CGFloat, visibleBottom: CGFloat, budget: RasterBudget) {
+        guard needsTexture else { return }
         let bounds = compositedBounds()
         let width = bounds.right - bounds.left
-        let height = bounds.bottom - bounds.top
-        guard width > 0, height > 0 else { return }
+        guard width > 0, bounds.bottom > bounds.top else { return }
 
         let items = displayItems
+        let left = bounds.left
+        let t = Self.tileSize
+        let firstCol = max(0, Int(left / t))
+        let lastCol = Int((bounds.right - 1) / t)
+        let firstRow = max(0, Int(bounds.top / t), Int(hintTop / t))
+        let lastRow = min(Int((bounds.bottom - 1) / t) , Int(hintBottom / t))
+        guard firstCol <= lastCol, firstRow <= lastRow else { return }
 
-        cachedImage = CGRenderer.renderBitmap(width: width, height: height, scale: scale) { r in
-            r.translateBy(x: -bounds.left, y: -bounds.top)
-            for item in items {
-                item.execute(scroll: 0, renderer: r)
+        var rowItems: [Int: [PaintCommand]] = [:]
+        for item in items {
+            let first = max(firstRow, Int(item.rect.top / t))
+            let last = min(lastRow, Int((item.rect.bottom - 1) / t))
+            guard first <= last else { continue }
+            for row in first...last {
+                rowItems[row, default: []].append(item)
             }
         }
+
+        func rowDistance(_ row: Int) -> CGFloat {
+            let top = CGFloat(row) * t
+            let bottom = top + t
+            if bottom <= visibleTop { return visibleTop - bottom }
+            if top >= visibleBottom { return top - visibleBottom }
+            return 0
+        }
+
+        let sortedRows = (firstRow...lastRow).sorted { rowDistance($0) < rowDistance($1) }
+
+        for row in sortedRows {
+            let rowTop = CGFloat(row) * t
+            let strip = rowItems[row] ?? []
+            for col in firstCol...lastCol {
+                let colLeft = CGFloat(col) * t
+                let colRight = colLeft + t
+                let inside = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
+                let index = TileIndex(row: row, col: col)
+                let key = TileKey(
+                    x: Int(left), width: Int(width),
+                    col: col, row: row,
+                    contentHash: tileHash(inside), scale: Int(scale)
+                )
+                if let reused = store.image(for: key) {
+                    tiles[index] = reused
+                    continue
+                }
+                guard budget.remaining > 0 else { continue }
+                budget.remaining -= 1
+                let image = CGRenderer.renderBitmap(width: t, height: t, scale: scale, { r in
+                    r.translateBy(x: -colLeft, y: -rowTop)
+                    for item in inside {
+                        item.execute(scroll: 0, renderer: r)
+                    }
+                })
+                if let image {
+                    tiles[index] = image
+                    store.insert(image, key: key)
+                }
+            }
+        }
+    }
+
+    private func tileHash(_ inside: [PaintCommand]) -> Int {
+        var hasher = Hasher()
+        for item in inside {
+            hasher.combine(item.contentHash)
+        }
+        return hasher.finalize()
     }
 }

@@ -51,6 +51,7 @@ public class Browser: ObservableObject {
 
     let networkingThread = NetworkingThread()
     let rasterThread = RasterThread()
+    private let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
 
     public init() {}
 
@@ -148,19 +149,26 @@ public class Browser: ObservableObject {
 
         resolvePendingHover()
 
-        let wantsComposite = needsComposite || compositeInFlight
+        let wantsComposite = needsComposite && !compositeInFlight
+        if compositeInFlight && !wantsComposite && !needsDraw {
+            return
+        }
 
         let inputs = RasterInputs(
             displayList: activeTabDisplayList, scroll: activeTabScroll,
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * (activeTab?.tabHeight ?? HEIGHT),
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
-            prefersDark: activeTabPrefersDark, forcedColors: activeTabForcedColors, needsComposite: wantsComposite, needsRaster: needsRaster,
-            needsDraw: needsDraw, hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
+            tileStore: tileStore, displayScale: displayScale,
+            prefersDark: activeTabPrefersDark, forcedColors: activeTabForcedColors,
+            needsComposite: wantsComposite, needsRaster: needsRaster, needsDraw: needsDraw,
+            hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
 
-        if wantsComposite { compositeInFlight = true }
-        needsComposite = false
-        needsRaster = false
+        if wantsComposite {
+            compositeInFlight = true
+            needsComposite = false
+            needsRaster = false
+        }
         needsDraw = false
 
         measure.start("composite_raster_and_draw")
@@ -173,6 +181,25 @@ public class Browser: ObservableObject {
                     inputs.needsComposite
                     ? Browser.computeComposite(inputs)
                     : inputs.previousLayes
+                if inputs.needsComposite {
+                    inputs.tileStore.beginComposite(
+                        viewportTop: inputs.scroll,
+                        viewportBottom: inputs.scroll + (inputs.interestBottom - inputs.interestTop) / 4
+                    )
+                    let tabHeight = (inputs.interestBottom - inputs.interestTop) / 4
+                    let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
+                    for layer in layers {
+                        layer.rasterIfNeeded(
+                            scale: inputs.displayScale,
+                            store: inputs.tileStore,
+                            hintTop: inputs.interestTop,
+                            hintBottom: inputs.interestBottom,
+                            visibleTop: inputs.scroll,
+                            visibleBottom: inputs.scroll + tabHeight,
+                            budget: budget
+                        )
+                    }
+                }
                 let drawList =
                     inputs.needsDraw
                     ? Browser.computePaintDrawList(layers: layers, inputs: inputs)
@@ -186,10 +213,6 @@ public class Browser: ObservableObject {
                 if let layers = output.compositedLayers {
                     self.compositeInFlight = false
                     self.compositedLayers = layers
-                    let scale = displayScale
-                    for layer in layers {
-                        layer.rasterIfNeeded(scale: scale)
-                    }
                 }
                 if let drawList = output.drawList { self.drawList = drawList }
                 self.commitedPrefersDark = inputs.prefersDark
@@ -197,7 +220,9 @@ public class Browser: ObservableObject {
                 self.objectWillChange.send()
                 self.updateAccessibility()
                 self.measure.stop("composite_raster_and_draw")
-
+                if inputs.needsComposite {
+                    print("[tiles] hits=\(tileStore.hits) misses=\(tileStore.misses) "  + "top=\(Int(inputs.interestTop)) scroll=\(Int(inputs.scroll)) " + tileStore.populationDebug)
+                }
                 if frameStart != .distantPast {
                     let elapsed = Date().timeIntervalSince(frameStart)
                     self.recentFrameTimes.append(elapsed)
@@ -207,6 +232,9 @@ public class Browser: ObservableObject {
                     let avg =
                         self.recentFrameTimes.reduce(0, +) / Double(self.recentFrameTimes.count)
                     self.estimatedFrameTime = max(avg, self.FRAME_BUDGET)
+                }
+                if self.needsComposite || self.needsRaster || self.needsDraw {
+                    self.scheduleRasterAndDraw()
                 }
             })
     }
@@ -235,16 +263,6 @@ public class Browser: ObservableObject {
                 first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
             ).contains(where: { ($0 as? Transform)?.isAnimated == true })
             if underAnimated { assumeOverlap = true }
-            let inScrollEffect = sequence(
-                first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
-            )
-            .contains(where: { $0 is ScrollEffect })
-            if !inScrollEffect {
-                guard cmd.rect.bottom >= inputs.interestTop && cmd.rect.top <= inputs.interestBottom
-                else {
-                    continue
-                }
-            }
             var merged = false
             for layer in compositedLayers.reversed() {
                 if layer.canMerge(cmd) {
@@ -307,7 +325,11 @@ public class Browser: ObservableObject {
         var drawList: [Any] = []
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
-            var currentEffect: Any = DrawCompositedLayer(layer: layer)
+            var currentEffect: Any = DrawCompositedLayer(
+                layer: layer,
+                visibleTop: inputs.scroll - 2 * CompositedLayer.tileSize,
+                visibleBottom: inputs.scroll + (inputs.interestBottom - inputs.interestTop) / 4 + (2 * CompositedLayer.tileSize)
+            )
             var mergedIntoExisting = false
             for p in layer.ancestorChain {
                 let newParent = getLatest(p, in: inputs.compositedUpdates)
