@@ -1,10 +1,13 @@
-import Foundation
+import CoreGraphics
 
 struct RasterInputs: @unchecked Sendable {
     let displayList: [Any]
     let scroll: CGFloat
     let interestTop: CGFloat
     let interestBottom: CGFloat
+    let windowSize: CGSize
+    let topInset: CGFloat
+    let docHeight: CGFloat
     let compositedUpdates: [ObjectIdentifier: VisualEffect]
     let previousLayes: [CompositedLayer]
     let tileStore: TileStore
@@ -21,6 +24,7 @@ struct RasterInputs: @unchecked Sendable {
 struct RasterOutput: @unchecked Sendable {
     let compositedLayers: [CompositedLayer]?
     let drawList: [Any]?
+    let contentImage: CGImage?
 }
 
 struct FrameSignature: Equatable {

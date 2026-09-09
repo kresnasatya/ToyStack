@@ -33,6 +33,8 @@ public class Browser: ObservableObject {
     public private(set) var activeTabScroll: CGFloat = 0
     public private(set) var activeTabInterestTop: CGFloat = 0
     private var activeTabPaintEpoch = 0
+    private var activeTabLayoutHeight: CGFloat = 0
+    public private(set) var contentImage: CGImage?
 
     private var needsComposite: Bool = false
     private var needsRaster: Bool = false
@@ -120,12 +122,14 @@ public class Browser: ObservableObject {
 
     func commit(tab: Engine.Tab, data: CommitData) {
         guard tab === activeTab else { return }
+        print("[commit] scroll=\(data.scroll) layoutH=\(data.layoutHeight) height=\(data.height) updates=\(data.compositedUpdates?.count ?? -1) epoch=\(data.paintEpoch)")
         activeTabDisplayList = data.displayList
         activeTabScroll = data.scroll
         activeTabInterestTop = data.interestTop
         activeTabPrefersDark = data.prefersDark
         activeTabForcedColors = data.forcedColors
         activeTabPaintEpoch = data.paintEpoch
+        activeTabLayoutHeight = data.layoutHeight
         compositedUpdates = data.compositedUpdates ?? [:]
 
         if let updates = data.compositedUpdates, !updates.isEmpty {
@@ -166,6 +170,7 @@ public class Browser: ObservableObject {
         let inputs = RasterInputs(
             displayList: activeTabDisplayList, scroll: activeTabScroll,
             interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * (activeTab?.tabHeight ?? HEIGHT),
+            windowSize: windowSize, topInset: topInset, docHeight: activeTabLayoutHeight,
             compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
             tileStore: tileStore, displayScale: displayScale,
             prefersDark: activeTabPrefersDark, forcedColors: activeTabForcedColors,
@@ -230,9 +235,45 @@ public class Browser: ObservableObject {
                     inputs.needsDraw
                     ? Browser.computePaintDrawList(layers: layers, inputs: inputs)
                     : nil
-                return RasterOutput(
-                    compositedLayers: inputs.needsComposite ? layers : nil, drawList: drawList
-                )
+
+                let tileInfo = layers.map { layer in
+                    let rows = layer.tiles.keys.map(\.row)
+                    return "cmds=\(layer.displayItems.count) tiles=\(layer.tiles.count) rows=\(rows.min() ?? -1)...\(rows.max() ?? -1)"
+                }.joined(separator: " | ")
+                print("[bitmap] scroll=\(inputs.scroll) topInset=\(inputs.topInset) docH=\(inputs.docHeight) winH=\(inputs.windowSize.height) translateY=\(inputs.topInset - inputs.scroll) layers=\(layers.count) \(tileInfo)")
+
+                let contentImage: CGImage? =
+                    inputs.needsDraw
+                    ? CGRenderer.renderBitmap(
+                        width: inputs.windowSize.width,
+                        height: inputs.windowSize.height,
+                        scale: inputs.displayScale,
+                        backgroundColor: inputs.forcedColors
+                            ? EngineColor(cssName: ForcedColor.canvas)
+                            : (inputs.prefersDark ? EngineColor(cssName: "black") : EngineColor(cssName: "white"))
+                    ) { r in
+                        r.saveState()
+                        r.translateBy(x: 0, y: inputs.topInset - inputs.scroll)
+                        for item in drawList ?? [] {
+                            if let cmd = item as? any PaintCommand {
+                                cmd.execute(scroll: 0, renderer: r)
+                            } else if let ve = item as? Engine.VisualEffect {
+                                ve.execute(renderer: r)
+                            }
+                        }
+                        r.restoreState()
+                        if let bar = scrollbarBarRect(
+                            docHeight: inputs.docHeight,
+                            contentHeight: inputs.windowSize.height - inputs.topInset,
+                            contentWidth: inputs.windowSize.width,
+                            scroll: inputs.scroll,
+                            forcedColors: inputs.forcedColors
+                        ) {
+                            bar.execute(scroll: 0, renderer: r)
+                        }
+                    }
+                    : nil
+                return RasterOutput(compositedLayers: inputs.needsComposite ? layers : nil, drawList: drawList, contentImage: contentImage)
             },
             then: { [weak self] output in
                 guard let self = self else { return }
@@ -241,7 +282,8 @@ public class Browser: ObservableObject {
                     self.compositedLayers = layers
                 }
                 if let drawList = output.drawList { self.drawList = drawList }
-
+                if inputs.needsDraw { self.contentImage = output.contentImage }
+                print("[done] stored=\(self.contentImage.map { "\($0.width)x\($0.height)" } ?? "nil") forScroll=\(inputs.scroll) needsDraw=\(inputs.needsDraw)")
                 if self.commitedPrefersDark != inputs.prefersDark {
                     self.commitedPrefersDark = inputs.prefersDark
                 }
@@ -430,12 +472,14 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
+        print("[scroll] applyScroll=\(scroll) (was \(activeTabScroll)) layoutH=\(activeTabLayoutHeight)")
         activeTabScroll = scroll
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
 
     public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat) {
+        print("[scroll] recomposite scroll=\(scroll) interestTop=\(interestTop) (was \(activeTabScroll))")
         activeTabScroll = scroll
         activeTabInterestTop = interestTop
         setNeedsComposite()

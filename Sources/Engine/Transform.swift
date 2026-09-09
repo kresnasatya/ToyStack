@@ -13,8 +13,8 @@ public class Transform: VisualEffect {
     }
 
     public override func execute(renderer: any Renderer) {
+        renderer.saveState()
         if let t = translation {
-            renderer.saveState()
             renderer.translateBy(x: t.x, y: t.y)
         }
 

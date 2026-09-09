@@ -62,31 +62,13 @@ public struct BrowserView: View {
     }
 
     public var body: some View {
-        Canvas { ctx, size in
-            if let tab = app.activeTab {
-                let offset = chrome.bottom
-                for item in app.drawList {
-                    let r = SwiftUIRenderer(context: ctx)
-                    r.translateBy(x: 0, y: offset - app.activeTabScroll)
-                    if let cmd = item as? any PaintCommand {
-                        cmd.execute(scroll: 0, renderer: r)
-                    } else if let ve = item as? Engine.VisualEffect {
-                        ve.execute(renderer: r)
-                    }
+        ZStack {
+            BrowserContentView(browser: app)
+            Canvas { ctx, size in
+                let chromeRenderer = SwiftUIRenderer(context: ctx)
+                for cmd in chrome.paint() {
+                    cmd.execute(scroll: 0, renderer: chromeRenderer)
                 }
-                for item in tab.scrollbarCommands() {
-                    let r = SwiftUIRenderer(context: ctx)
-                    r.translateBy(x: 0, y: offset)
-                    if let cmd = item as? any PaintCommand {
-                        cmd.execute(scroll: 0, renderer: r)
-                    } else if let ve = item as? Engine.VisualEffect {
-                        ve.execute(renderer: r)
-                    }
-                }
-            }
-            let chromeRenderer = SwiftUIRenderer(context: ctx)
-            for cmd in chrome.paint() {
-                cmd.execute(scroll: 0, renderer: chromeRenderer)
             }
         }
         .background(app.commitedForcedColors ? Color(engine: EngineColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
@@ -169,6 +151,17 @@ public struct BrowserView: View {
                                 app.incrementZoom(false)
                             case 29:  // Ctrl+0
                                 app.resetZoom()
+                            case 35: // Ctrl+P
+                                if let img = app.contentImage {
+                                    let rep = NSBitmapImageRep(cgImage: img)
+                                    if let data = rep.representation(using: .png, properties: [:]) {
+                                        let path = "/tmp/content-dump-\(Int(app.activeTabScroll)).png"
+                                        try? data.write(to: URL(fileURLWithPath: path))
+                                        print("[dump] \(path) scroll=\(app.activeTabScroll)")
+                                    }
+                                } else {
+                                    print("[dump] contentImage nil")
+                                }
                             case 37:  // Ctrl+L
                                 app.activeTab?.blur()
                                 chrome.focusAddressBar()
