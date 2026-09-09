@@ -26,30 +26,42 @@ public class Browser: ObservableObject {
     private var needsSpeakHoveredNode: Bool = false
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [ObjectIdentifier: String] = [:]
-    private var compositedLayers: [CompositedLayer] = []
-    public private(set) var drawList: [Any] = []
-    private var activeTabDisplayList: [Any] = []
-    private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
-    public private(set) var activeTabScroll: CGFloat = 0
-    public private(set) var activeTabInterestTop: CGFloat = 0
-    private var activeTabPaintEpoch = 0
-    private var activeTabLayoutHeight: CGFloat = 0
-    public private(set) var contentImage: CGImage?
+
+    private struct TabFrame {
+        var displayList: [Any] = []
+        var scroll: CGFloat = 0
+        var interestTop: CGFloat = 0
+        var paintEpoch = 0
+        var layoutHeight: CGFloat = 0
+        var compositedUpdates: [ObjectIdentifier: Engine.VisualEffect] = [:]
+        var prefersDark = false
+        var forcedColors = false
+        var effectUpdateEpoch = 0
+        var layers: [CompositedLayer] = []
+        var drawList: [Any] = []
+        var image: CGImage?
+        var signature: FrameSignature?
+    }
+
+    private var frames: [ObjectIdentifier: TabFrame] = [:]
+    private var activeFrameID: ObjectIdentifier?
+    private var activeFrame = TabFrame()
+
+    public var drawList: [Any] { activeFrame.drawList }
+    public var activeTabScroll: CGFloat { activeFrame.scroll }
+    public var activeTabInterestTop: CGFloat { activeFrame.interestTop }
+    public var contentImage: CGImage? { activeFrame.image }
 
     private var needsComposite: Bool = false
     private var needsRaster: Bool = false
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
     private var compositeInFlight = false
-    private var lastCommittedSignature: FrameSignature?
-    private var effectUpdateEpoch = 0
 
     @Published public var prefersDark: Bool = false
-    public private(set) var activeTabPrefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
 
     @Published public var forcedColors: Bool = false
-    public private(set) var activeTabForcedColors: Bool = false
     @Published public private(set) var commitedForcedColors: Bool = false
 
     public var measure = MeasureTime()
@@ -72,9 +84,10 @@ public class Browser: ObservableObject {
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
-        lastCommittedSignature = nil
-        drawList = []
-        compositedLayers = []
+        let id = ObjectIdentifier(tab)
+        activeFrameID = id
+        activeFrame = TabFrame()
+        frames[id] = activeFrame
         startAnimationTimer()
     }
 
@@ -123,17 +136,17 @@ public class Browser: ObservableObject {
     func commit(tab: Engine.Tab, data: CommitData) {
         guard tab === activeTab else { return }
         print("[commit] scroll=\(data.scroll) layoutH=\(data.layoutHeight) height=\(data.height) updates=\(data.compositedUpdates?.count ?? -1) epoch=\(data.paintEpoch)")
-        activeTabDisplayList = data.displayList
-        activeTabScroll = data.scroll
-        activeTabInterestTop = data.interestTop
-        activeTabPrefersDark = data.prefersDark
-        activeTabForcedColors = data.forcedColors
-        activeTabPaintEpoch = data.paintEpoch
-        activeTabLayoutHeight = data.layoutHeight
-        compositedUpdates = data.compositedUpdates ?? [:]
+        activeFrame.displayList = data.displayList
+        activeFrame.scroll = data.scroll
+        activeFrame.interestTop = data.interestTop
+        activeFrame.prefersDark = data.prefersDark
+        activeFrame.forcedColors = data.forcedColors
+        activeFrame.paintEpoch = data.paintEpoch
+        activeFrame.layoutHeight = data.layoutHeight
+        activeFrame.compositedUpdates = data.compositedUpdates ?? [:]
 
         if let updates = data.compositedUpdates, !updates.isEmpty {
-            effectUpdateEpoch += 1
+            activeFrame.effectUpdateEpoch += 1
         }
 
         if data.compositedUpdates == nil {
@@ -142,6 +155,7 @@ public class Browser: ObservableObject {
             setNeedsDrawOnly()
         }
 
+        frames[ObjectIdentifier(tab)] = activeFrame
         scheduleRasterAndDraw()
     }
 
@@ -168,28 +182,28 @@ public class Browser: ObservableObject {
         }
 
         let inputs = RasterInputs(
-            displayList: activeTabDisplayList, scroll: activeTabScroll,
-            interestTop: activeTabInterestTop, interestBottom: activeTabInterestTop + 4 * (activeTab?.tabHeight ?? HEIGHT),
-            windowSize: windowSize, topInset: topInset, docHeight: activeTabLayoutHeight,
-            compositedUpdates: compositedUpdates, previousLayes: compositedLayers,
+            displayList: activeFrame.displayList, scroll: activeFrame.scroll,
+            interestTop: activeFrame.interestTop, interestBottom: activeFrame.interestTop + 4 * (activeTab?.tabHeight ?? HEIGHT),
+            windowSize: windowSize, topInset: topInset, docHeight: activeFrame.layoutHeight,
+            compositedUpdates: activeFrame.compositedUpdates, previousLayes: activeFrame.layers,
             tileStore: tileStore, displayScale: displayScale,
-            prefersDark: activeTabPrefersDark, forcedColors: activeTabForcedColors,
+            prefersDark: activeFrame.prefersDark, forcedColors: activeFrame.forcedColors,
             needsComposite: wantsComposite, needsRaster: needsRaster, needsDraw: needsDraw,
             hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds
         )
 
         let signature = FrameSignature(
-            scroll: activeTabScroll,
+            scroll: activeFrame.scroll,
             viewport: windowSize,
-            paintEpoch: activeTabPaintEpoch,
-            effectUpdates: effectUpdateEpoch,
+            paintEpoch: activeFrame.paintEpoch,
+            effectUpdates: activeFrame.effectUpdateEpoch,
             displayScale: displayScale,
-            prefersDark: activeTabPrefersDark,
-            forcedColors: activeTabForcedColors,
+            prefersDark: activeFrame.prefersDark,
+            forcedColors: activeFrame.forcedColors,
             hoveredBounds: hoveredA11yNode?.bounds,
             readBounds: accessibilityFocusNode?.bounds
         )
-        if signature == lastCommittedSignature {
+        if signature == activeFrame.signature {
             needsDraw = false
             frameStartTime = .distantPast
             return
@@ -205,6 +219,7 @@ public class Browser: ObservableObject {
         measure.start("composite_raster_and_draw")
         let frameStart = frameStartTime
         frameStartTime = .distantPast
+        let ownerID = activeFrameID
 
         rasterThread.submit(
             {
@@ -277,22 +292,29 @@ public class Browser: ObservableObject {
             },
             then: { [weak self] output in
                 guard let self = self else { return }
-                if let layers = output.compositedLayers {
-                    self.compositeInFlight = false
-                    self.compositedLayers = layers
-                }
-                if let drawList = output.drawList { self.drawList = drawList }
-                if inputs.needsDraw { self.contentImage = output.contentImage }
-                print("[done] stored=\(self.contentImage.map { "\($0.width)x\($0.height)" } ?? "nil") forScroll=\(inputs.scroll) needsDraw=\(inputs.needsDraw)")
-                if self.commitedPrefersDark != inputs.prefersDark {
-                    self.commitedPrefersDark = inputs.prefersDark
-                }
-                if self.commitedForcedColors != inputs.forcedColors {
-                    self.commitedForcedColors = inputs.forcedColors
-                }
-                if signature != self.lastCommittedSignature {
-                    self.lastCommittedSignature = signature
-                    self.objectWillChange.send()
+                self.compositeInFlight = false
+                if let ownerID {
+                    if ownerID == self.activeFrameID {
+                        let published = signature != self.activeFrame.signature
+                        self.activeFrame.layers = output.compositedLayers ?? self.activeFrame.layers
+                        if let drawList = output.drawList { self.activeFrame.drawList = drawList }
+                        if inputs.needsDraw { self.activeFrame.image = output.contentImage }
+                        self.activeFrame.signature = signature
+                        self.frames[ownerID] = self.activeFrame
+                        if self.commitedPrefersDark != inputs.prefersDark {
+                            self.commitedPrefersDark = inputs.prefersDark
+                        }
+                        if self.commitedForcedColors != inputs.forcedColors {
+                            self.commitedForcedColors = inputs.forcedColors
+                        }
+                        if published { self.objectWillChange.send() }
+                    } else if var stale = self.frames[ownerID] {
+                        stale.layers = output.compositedLayers ?? stale.layers
+                        if let drawList = output.drawList { stale.drawList = drawList }
+                        if inputs.needsDraw { stale.image = output.contentImage }
+                        stale.signature = signature
+                        self.frames[ownerID] = stale
+                    }
                 }
 
                 self.updateAccessibility()
@@ -472,16 +494,23 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
-        print("[scroll] applyScroll=\(scroll) (was \(activeTabScroll)) layoutH=\(activeTabLayoutHeight)")
-        activeTabScroll = scroll
+        print("[scroll] applyScroll=\(scroll) (was \(activeFrame.scroll)) layoutH=\(activeFrame.layoutHeight)")
+        activeFrame.scroll = scroll
+        if let id = activeFrameID {
+            frames[id]?.scroll = scroll
+        }
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
 
     public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat) {
-        print("[scroll] recomposite scroll=\(scroll) interestTop=\(interestTop) (was \(activeTabScroll))")
-        activeTabScroll = scroll
-        activeTabInterestTop = interestTop
+        print("[scroll] recomposite scroll=\(scroll) interestTop=\(interestTop) (was \(activeFrame.scroll))")
+        activeFrame.scroll = scroll
+        activeFrame.interestTop = interestTop
+        if let id = activeFrameID {
+            frames[id]?.scroll = scroll
+            frames[id]?.interestTop = interestTop
+        }
         setNeedsComposite()
         scheduleRasterAndDraw()
     }
@@ -516,16 +545,27 @@ public class Browser: ObservableObject {
 
     public func selectTab(_ tab: Tab) {
         guard tab !== activeTab else { return }
+        if let oldID = activeFrameID {
+            frames[oldID] = activeFrame
+        }
+        let id = ObjectIdentifier(tab)
+        activeFrameID = id
+        activeFrame = frames[id] ?? TabFrame()
         activeTab = tab
         hoveredA11yNode = nil
         hasSpokenDocument = false
         spokenAlerts = []
         liveRegionTexts = [:]
         lastFocus = nil
-        lastCommittedSignature = nil
-        drawList = []
-        compositedLayers = []
-        setNeedsComposite()
+        needsComposite = false
+        needsRaster = false
+        needsDraw = false
+        if activeFrame.image == nil {
+            setNeedsComposite()
+        } else if let sig = activeFrame.signature,
+            sig.viewport != windowSize || sig.displayScale != displayScale {
+            setNeedsComposite()
+        }
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()
     }
