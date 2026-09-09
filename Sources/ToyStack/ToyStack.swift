@@ -151,17 +151,6 @@ public struct BrowserView: View {
                                 app.incrementZoom(false)
                             case 29:  // Ctrl+0
                                 app.resetZoom()
-                            case 35: // Ctrl+P
-                                if let img = app.contentImage {
-                                    let rep = NSBitmapImageRep(cgImage: img)
-                                    if let data = rep.representation(using: .png, properties: [:]) {
-                                        let path = "/tmp/content-dump-\(Int(app.activeTabScroll)).png"
-                                        try? data.write(to: URL(fileURLWithPath: path))
-                                        print("[dump] \(path) scroll=\(app.activeTabScroll)")
-                                    }
-                                } else {
-                                    print("[dump] contentImage nil")
-                                }
                             case 37:  // Ctrl+L
                                 app.activeTab?.blur()
                                 chrome.focusAddressBar()

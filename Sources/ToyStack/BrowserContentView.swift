@@ -7,7 +7,6 @@ final class ContentLayerView: NSView {
         wantsLayer = true
         layer?.contents = browser.contentImage
         layer?.contentsScale = browser.displayScale
-        print("[view] contents=\(browser.contentImage.map { "\($0.width)x\($0.height)" } ?? "nil") scale=\(browser.displayScale) bounds=\(layer?.bounds ?? .zero)")
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }

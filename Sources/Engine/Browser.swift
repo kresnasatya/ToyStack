@@ -136,7 +136,6 @@ public class Browser: ObservableObject {
 
     func commit(tab: Engine.Tab, data: CommitData) {
         guard tab === activeTab else { return }
-        print("[commit] scroll=\(data.scroll) layoutH=\(data.layoutHeight) height=\(data.height) updates=\(data.compositedUpdates?.count ?? -1) epoch=\(data.paintEpoch)")
         activeFrame.displayList = data.displayList
         activeFrame.scroll = data.scroll
         activeFrame.interestTop = data.interestTop
@@ -270,7 +269,6 @@ public class Browser: ObservableObject {
                     let rows = layer.tiles.keys.map(\.row)
                     return "cmds=\(layer.displayItems.count) tiles=\(layer.tiles.count) rows=\(rows.min() ?? -1)...\(rows.max() ?? -1)"
                 }.joined(separator: " | ")
-                print("[bitmap] scroll=\(inputs.scroll) topInset=\(inputs.topInset) docH=\(inputs.docHeight) winH=\(inputs.windowSize.height) translateY=\(inputs.topInset - inputs.scroll) layers=\(layers.count) \(tileInfo)")
 
                 let contentImage: CGImage? =
                     inputs.needsDraw
@@ -335,9 +333,6 @@ public class Browser: ObservableObject {
 
                 self.updateAccessibility()
                 self.measure.stop("composite_raster_and_draw")
-                if inputs.needsComposite {
-                    print("[tiles] hits=\(tileStore.hits) misses=\(tileStore.misses) "  + "top=\(Int(inputs.interestTop)) scroll=\(Int(inputs.scroll)) " + tileStore.populationDebug)
-                }
                 if frameStart != .distantPast {
                     let elapsed = Date().timeIntervalSince(frameStart)
                     self.recentFrameTimes.append(elapsed)
@@ -510,7 +505,6 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
-        print("[scroll] applyScroll=\(scroll) (was \(activeFrame.scroll)) layoutH=\(activeFrame.layoutHeight)")
         activeFrame.scroll = scroll
         if let id = activeFrameID {
             frames[id]?.scroll = scroll
@@ -520,7 +514,6 @@ public class Browser: ObservableObject {
     }
 
     public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat) {
-        print("[scroll] recomposite scroll=\(scroll) interestTop=\(interestTop) (was \(activeFrame.scroll))")
         activeFrame.scroll = scroll
         activeFrame.interestTop = interestTop
         if let id = activeFrameID {

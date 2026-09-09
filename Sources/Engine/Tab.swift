@@ -452,7 +452,6 @@ public class Tab {
             let doc = DocumentLayout(node: nodes)
             doc.layout(availableWidth: tabWidth, zoom: zoom)
             document = doc
-            print("[layout] docH=\(doc.height) prev=\(document === doc ? -1 : (document?.height ?? -1)) tabH=\(tabHeight) tabW=\(tabWidth) zoom=\(zoom)")
 
             needsLayout = false
             needsAccessibility = true
@@ -648,14 +647,12 @@ public class Tab {
 
     public func scrollDown() {
         let target = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxScroll)
-        print("[wheel] down scroll=\(scroll) -> \(target) docH=\(document?.height ?? -1)")
         scrollAnimation = ScrollAnimation(from: scroll, to: target)
         browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollUp() {
         let target = max((scrollAnimation?.target ?? scroll) - SCROLL_STEP, 0)
-        print("[wheel] up scroll=\(scroll) -> \(target) docH=\(document?.height ?? -1)")
         scrollAnimation = ScrollAnimation(from: scroll, to: target)
         browser?.setNeedsAnimationFrame(self)
     }
