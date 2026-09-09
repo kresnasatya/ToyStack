@@ -8,6 +8,7 @@ struct RasterInputs: @unchecked Sendable {
     let windowSize: CGSize
     let topInset: CGFloat
     let docHeight: CGFloat
+    let maxScroll: CGFloat
     let compositedUpdates: [ObjectIdentifier: VisualEffect]
     let previousLayes: [CompositedLayer]
     let tileStore: TileStore

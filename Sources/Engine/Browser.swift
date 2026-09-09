@@ -31,6 +31,7 @@ public class Browser: ObservableObject {
         var displayList: [Any] = []
         var scroll: CGFloat = 0
         var interestTop: CGFloat = 0
+        var maxScroll: CGFloat = 0
         var paintEpoch = 0
         var layoutHeight: CGFloat = 0
         var compositedUpdates: [ObjectIdentifier: Engine.VisualEffect] = [:]
@@ -105,7 +106,7 @@ public class Browser: ObservableObject {
     private func scheduleNextFrame() {
         let now = Date()
 
-        nextFrameTime = max(nextFrameTime + estimatedFrameTime, now)
+        nextFrameTime = max(nextFrameTime + FRAME_BUDGET, now)
         let delay = nextFrameTime.timeIntervalSinceNow
         animationTimer = Timer.scheduledTimer(
             withTimeInterval: max(0, delay), repeats: false,
@@ -139,6 +140,7 @@ public class Browser: ObservableObject {
         activeFrame.displayList = data.displayList
         activeFrame.scroll = data.scroll
         activeFrame.interestTop = data.interestTop
+        activeFrame.maxScroll = data.maxScroll
         activeFrame.prefersDark = data.prefersDark
         activeFrame.forcedColors = data.forcedColors
         activeFrame.paintEpoch = data.paintEpoch
@@ -177,14 +179,14 @@ public class Browser: ObservableObject {
         resolvePendingHover()
 
         let wantsComposite = needsComposite && !compositeInFlight
-        if compositeInFlight && !wantsComposite {
+        if compositeInFlight {
             return
         }
 
         let inputs = RasterInputs(
             displayList: activeFrame.displayList, scroll: activeFrame.scroll,
             interestTop: activeFrame.interestTop, interestBottom: activeFrame.interestTop + 4 * (activeTab?.tabHeight ?? HEIGHT),
-            windowSize: windowSize, topInset: topInset, docHeight: activeFrame.layoutHeight,
+            windowSize: windowSize, topInset: topInset, docHeight: activeFrame.layoutHeight, maxScroll: activeFrame.maxScroll,
             compositedUpdates: activeFrame.compositedUpdates, previousLayes: activeFrame.layers,
             tileStore: tileStore, displayScale: displayScale,
             prefersDark: activeFrame.prefersDark, forcedColors: activeFrame.forcedColors,
@@ -242,6 +244,19 @@ public class Browser: ObservableObject {
                             hintBottom: inputs.interestBottom,
                             visibleTop: inputs.scroll,
                             visibleBottom: inputs.scroll + tabHeight,
+                            budget: budget,
+                            visibleOnly: true
+                        )
+                    }
+
+                    for layer in layers {
+                        layer.rasterIfNeeded(
+                            scale: inputs.displayScale,
+                            store: inputs.tileStore,
+                            hintTop: inputs.interestTop,
+                            hintBottom: inputs.interestBottom,
+                            visibleTop: inputs.scroll,
+                            visibleBottom: inputs.scroll + tabHeight,
                             budget: budget
                         )
                     }
@@ -278,11 +293,12 @@ public class Browser: ObservableObject {
                         }
                         r.restoreState()
                         if let bar = scrollbarBarRect(
-                            docHeight: inputs.docHeight,
+                            docHeight: inputs.maxScroll + inputs.windowSize.height - inputs.topInset,
                             contentHeight: inputs.windowSize.height - inputs.topInset,
                             contentWidth: inputs.windowSize.width,
                             scroll: inputs.scroll,
-                            forcedColors: inputs.forcedColors
+                            forcedColors: inputs.forcedColors,
+                            topInset: inputs.topInset
                         ) {
                             bar.execute(scroll: 0, renderer: r)
                         }

@@ -5,6 +5,7 @@ class CommitData {
     let scroll: CGFloat
     let height: CGFloat
     let layoutHeight: CGFloat
+    let maxScroll: CGFloat
     let displayList: [Any]
     let compositedUpdates: [ObjectIdentifier: VisualEffect]?
     let accessibilityTree: AccessibilityNode?
@@ -15,7 +16,7 @@ class CommitData {
     let forcedColors: Bool
 
     init(
-        url: WebURL, scroll: CGFloat, height: CGFloat, layoutHeight: CGFloat, displayList: [Any],
+        url: WebURL, scroll: CGFloat, height: CGFloat, layoutHeight: CGFloat, maxScroll: CGFloat, displayList: [Any],
         compositedUpdates: [ObjectIdentifier: VisualEffect]?, accessibilityTree: AccessibilityNode?,
         focus: DOMNode?, interestTop: CGFloat, paintEpoch: Int, prefersDark: Bool, forcedColors: Bool,
     ) {
@@ -23,6 +24,7 @@ class CommitData {
         self.scroll = scroll
         self.height = height
         self.layoutHeight = layoutHeight
+        self.maxScroll = maxScroll
         self.displayList = displayList
         self.compositedUpdates = compositedUpdates
         self.accessibilityTree = accessibilityTree

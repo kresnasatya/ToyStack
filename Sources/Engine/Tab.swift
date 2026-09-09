@@ -72,6 +72,12 @@ public class Tab {
 
     private var scrollFocusNode: Element? = nil
     private var scrollAnimation: ScrollAnimation? = nil
+    private var paintedBottom: CGFloat = 0
+
+    var maxScroll: CGFloat {
+        let padded = (document?.height ?? 0) + 2 * VSTEP
+        return max(max(padded, paintedBottom + VSTEP) - tabHeight, 0)
+    }
 
     public var hasScrollElement: Bool { scrollFocusNode != nil }
 
@@ -466,6 +472,7 @@ public class Tab {
             var list: [Any] = []
             paintTree(doc, into: &list)
             displayList = list
+            paintedBottom = maxRectBottom(list)
             paintEpoch += 1
             needsPaint = false
         }
@@ -477,7 +484,7 @@ public class Tab {
         guard js != nil else { return }
         js.run(script: "raf", code: "__runRAFHandlers()")
         var needsAnotherFrame = false
-        let needsComposite = needsStyle || needsLayout
+        let needsComposite = needsStyle || needsLayout || needsPaint
         var needsPaint = false
         var needsLayoutUpdate = false
         for node in treeToList(nodes) {
@@ -538,8 +545,7 @@ public class Tab {
 
         if let anim = scrollAnimation {
             if let value = anim.animate() {
-                let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
-                scroll = max(0, min(value, maxY))
+                scroll = max(0, min(value, maxScroll))
                 needsAnotherFrame = true
                 checkInterestRegion()
             } else {
@@ -556,7 +562,8 @@ public class Tab {
         let updates: [ObjectIdentifier: VisualEffect]? =
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data = CommitData(
-            url: url!, scroll: scroll, height: docHeight, layoutHeight: document?.height ?? 0, displayList: displayList,
+            url: url!, scroll: scroll, height: docHeight, layoutHeight: document?.height ?? 0,
+            maxScroll: maxScroll, displayList: displayList,
             compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
             interestTop: interestTop, paintEpoch: paintEpoch, prefersDark: prefersDark, forcedColors: forcedColors,
         )
@@ -571,8 +578,7 @@ public class Tab {
         let objs = treeToList(doc).filter({ $0.node === elt || $0.node.parent === elt })
         guard let obj = objs.first else { return }
         if scroll < obj.y && obj.y + obj.height < scroll + tabHeight { return }
-        let maxY = max(doc.height + 2 * VSTEP - tabHeight, 0)
-        scroll = max(0, min(obj.y - SCROLL_STEP, maxY))
+        scroll = max(0, min(obj.y - SCROLL_STEP, maxScroll))
         interestTop = max(0, scroll - tabHeight)
     }
 
@@ -582,8 +588,7 @@ public class Tab {
             ($0.node as? Element)?.attributes["id"] == id
         })
         if let target = target {
-            let maxY = max(doc.height + 2 * VSTEP - tabHeight, 0)
-            scroll = max(0, min(target.y, maxY))
+            scroll = max(0, min(target.y, maxScroll))
             scrollAnimation = nil
         }
     }
@@ -623,7 +628,7 @@ public class Tab {
 
     public func scrollbarCommands() -> [Any] {
         guard let doc = document else { return [] }
-        guard let bar = scrollbarBarRect(docHeight: doc.height, contentHeight: tabHeight, contentWidth: tabWidth, scroll: scroll, forcedColors: forcedColors) else { return [] }
+        guard let bar = scrollbarBarRect(docHeight: doc.height + 2 * VSTEP, contentHeight: tabHeight, contentWidth: tabWidth, scroll: scroll, forcedColors: forcedColors) else { return [] }
         return [bar]
     }
 
@@ -642,32 +647,17 @@ public class Tab {
     }
 
     public func scrollDown() {
-        let maxY = max((document?.height ?? 0) + 2 * VSTEP - tabHeight, 0)
-        let target = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxY)
+        let target = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxScroll)
         print("[wheel] down scroll=\(scroll) -> \(target) docH=\(document?.height ?? -1)")
-        if scrollBehaviorIsSmooth {
-            scrollAnimation = ScrollAnimation(from: scroll, to: target)
-            browser?.setNeedsAnimationFrame(self)
-        } else {
-            scroll = target
-            if !checkInterestRegion() {
-                browser?.applyScroll(scroll)
-            }
-        }
+        scrollAnimation = ScrollAnimation(from: scroll, to: target)
+        browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollUp() {
         let target = max((scrollAnimation?.target ?? scroll) - SCROLL_STEP, 0)
         print("[wheel] up scroll=\(scroll) -> \(target) docH=\(document?.height ?? -1)")
-        if scrollBehaviorIsSmooth {
-            scrollAnimation = ScrollAnimation(from: scroll, to: target)
-            browser?.setNeedsAnimationFrame(self)
-        } else {
-            scroll = target
-            if !checkInterestRegion() {
-                browser?.applyScroll(scroll)
-            }
-        }
+        scrollAnimation = ScrollAnimation(from: scroll, to: target)
+        browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
@@ -1034,10 +1024,27 @@ private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFl
 
 func scrollbarBarRect(
     docHeight: CGFloat, contentHeight: CGFloat, contentWidth: CGFloat,
-    scroll: CGFloat, forcedColors: Bool
+    scroll: CGFloat, forcedColors: Bool, topInset: CGFloat = 0
 ) -> DrawRect? {
-    guard docHeight > contentHeight else { return nil }
-    let barHeight = (contentHeight / docHeight) * contentHeight
-    let barTop = (scroll / docHeight) * contentHeight
-    return DrawRect(rect: Rect(left: contentWidth - 8, top: barTop, right: contentWidth, bottom: barTop + barHeight), color: forcedColors ? ForcedColor.canvasText : "blue")
+    let maxScroll = max(docHeight - contentHeight, 0)
+    guard maxScroll > 0 else { return nil }
+    let barHeight = max((contentHeight / docHeight) * contentHeight, 30)
+    let barTop = (scroll / maxScroll) * (contentHeight - barHeight)
+    return DrawRect(
+        rect: Rect(left: contentWidth - 8, top: topInset + barTop, right: contentWidth, bottom: topInset + barTop + barHeight),
+        color: forcedColors ? ForcedColor.canvasText : "blue"
+    )
+}
+
+private func maxRectBottom(_ items: [Any]) -> CGFloat {
+    var result: CGFloat = 0
+    for item in items {
+        if let cmd = item as? any PaintCommand {
+            result = max(result, cmd.rect.bottom)
+        } else if let ve = item as? Engine.VisualEffect {
+            result = max(result, ve.rect.bottom)
+            result = max(result, maxRectBottom(ve.children))
+        }
+    }
+    return result
 }

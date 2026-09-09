@@ -65,7 +65,7 @@ class CompositedLayer {
         renderer.restoreState()
     }
 
-    func rasterIfNeeded(scale: CGFloat, store: TileStore, hintTop: CGFloat, hintBottom: CGFloat, visibleTop: CGFloat, visibleBottom: CGFloat, budget: RasterBudget) {
+    func rasterIfNeeded(scale: CGFloat, store: TileStore, hintTop: CGFloat, hintBottom: CGFloat, visibleTop: CGFloat, visibleBottom: CGFloat, budget: RasterBudget, visibleOnly: Bool = false) {
         guard needsTexture else { return }
         let bounds = compositedBounds()
         let width = bounds.right - bounds.left
@@ -76,8 +76,12 @@ class CompositedLayer {
         let t = Self.tileSize
         let firstCol = max(0, Int(left / t))
         let lastCol = Int((bounds.right - 1) / t)
-        let firstRow = max(0, Int(bounds.top / t), Int(hintTop / t))
-        let lastRow = min(Int((bounds.bottom - 1) / t) , Int(hintBottom / t))
+        var firstRow = max(0, Int(bounds.top / t), Int(hintTop / t))
+        var lastRow = min(Int((bounds.bottom - 1) / t) , Int(hintBottom / t))
+        if visibleOnly {
+            firstRow = max(firstRow, Int(visibleTop / t))
+            lastRow = min(lastRow, Int((visibleBottom - 1) / t))
+        }
         guard firstCol <= lastCol, firstRow <= lastRow else { return }
 
         var rowItems: [Int: [PaintCommand]] = [:]
