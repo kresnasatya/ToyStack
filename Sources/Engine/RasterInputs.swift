@@ -7,7 +7,7 @@ struct RasterScene {
     let tileStore: TileStore
 }
 
-struct RasterContext {
+struct RasterSettings {
     let viewport: ViewportInfo
     let theme: ThemeState
     let flags: RasterFlags
@@ -16,30 +16,12 @@ struct RasterContext {
 
 struct RasterInputs: @unchecked Sendable {
     let scene: RasterScene
+    let settings: RasterSettings
     let scrollState: ScrollState
-    let context: RasterContext
 }
 
 struct RasterOutput: @unchecked Sendable {
     let compositedLayers: [CompositedLayer]?
     let drawList: [Any]?
     let contentImage: CGImage?
-}
-
-struct FrameGeometry: Equatable {
-    let scroll: CGFloat
-    let viewport: CGSize
-    let displayScale: CGFloat
-}
-
-struct FrameEpoch: Equatable {
-    let paintEpoch: Int
-    let effectUpdates: Int
-}
-
-struct FrameSignature: Equatable {
-    let geometry: FrameGeometry
-    let epochs: FrameEpoch
-    let theme: ThemeState
-    let accessibility: AccessibilityBounds
 }
