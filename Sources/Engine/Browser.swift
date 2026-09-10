@@ -265,11 +265,6 @@ public class Browser: ObservableObject {
                     ? Browser.computePaintDrawList(layers: layers, inputs: inputs)
                     : nil
 
-                let tileInfo = layers.map { layer in
-                    let rows = layer.tiles.keys.map(\.row)
-                    return "cmds=\(layer.displayItems.count) tiles=\(layer.tiles.count) rows=\(rows.min() ?? -1)...\(rows.max() ?? -1)"
-                }.joined(separator: " | ")
-
                 let contentImage: CGImage? =
                     inputs.needsDraw
                     ? CGRenderer.renderBitmap(
