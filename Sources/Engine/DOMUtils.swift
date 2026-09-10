@@ -100,7 +100,7 @@ func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String
 // MARK: - CSS Cascade (style function)
 func applyStyle(
     node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])],
-    prefersDark: Bool = false, forcedColors: Bool = false,
+    theme: ThemeState,
     frameWidth: CGFloat = .greatestFiniteMagnitude
 ) {
     node.style = [:]
@@ -114,13 +114,13 @@ func applyStyle(
             let matches: Bool
             switch m {
             case "dark":
-                matches = prefersDark
+                matches = theme.prefersDark
             case "light":
-                matches = !prefersDark
+                matches = !theme.prefersDark
             case "forced-colors:active":
-                matches = forcedColors
+                matches = theme.forcedColors
             case "forced-colors:none":
-                matches = !forcedColors
+                matches = !theme.forcedColors
             default:
                 if m.hasPrefix("max-width:") {
                     let limit = Double(m.dropFirst("max-width:".count)) ?? 0
@@ -145,7 +145,7 @@ func applyStyle(
         }
     }
 
-    if forcedColors { forceColors(node: node) }
+    if theme.forcedColors { forceColors(node: node) }
 
     if node.style["overflow"] == nil {
         if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {
@@ -161,7 +161,7 @@ func applyStyle(
     }
 
     for child in node.children {
-        applyStyle(node: child, rules: rules, prefersDark: prefersDark, forcedColors: forcedColors, frameWidth: frameWidth)
+        applyStyle(node: child, rules: rules, theme: theme, frameWidth: frameWidth)
     }
 }
 
@@ -267,11 +267,6 @@ func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
 }
 
 let REFRESH_RATE_SEC = 1.0 / 60.0
-
-struct TransitionSpec {
-    let numFrames: Int
-    let easing: EasingFunction
-}
 
 func splitTopLevel(_ value: String, separator: Character) -> [String] {
     var parts: [String] = []
@@ -448,8 +443,15 @@ func buildKeyframeAnimation(
     }
 
     return KeyframeAnimation(
-        animatedProperty: property, oldValue: oldVal, newValue: newVal, numFrames: numFrames,
-        easing: .ease, infinite: infinite, alternate: alternate, factory: factory)
+        animatedProperty: property,
+        range: KeyframeRange(from: oldVal, to: newVal),
+        timing: KeyframeTiming(
+            spec: TransitionSpec(numFrames: numFrames, easing: .ease),
+            infinite: infinite,
+            alternate: alternate
+        ),
+        factory: factory
+    )
 }
 
 func parseTransform(_ value: String) -> CGPoint? {

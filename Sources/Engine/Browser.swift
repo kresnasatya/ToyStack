@@ -27,31 +27,35 @@ public class Browser: ObservableObject {
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [ObjectIdentifier: String] = [:]
 
-    private struct TabFrame {
+    struct FramePaint {
         var displayList: [Any] = []
-        var scroll: CGFloat = 0
-        var interestTop: CGFloat = 0
-        var interestBottom: CGFloat = 0
-        var maxScroll: CGFloat = 0
-        var paintEpoch = 0
         var compositedUpdates: [ObjectIdentifier: Engine.VisualEffect] = [:]
-        var prefersDark = false
-        var forcedColors = false
+        var paintEpoch = 0
         var effectUpdateEpoch = 0
+    }
+
+    struct FrameRender {
         var layers: [CompositedLayer] = []
         var drawList: [Any] = []
         var image: CGImage?
         var signature: FrameSignature?
     }
 
+    private struct TabFrame {
+        var paint = FramePaint()
+        var scroll = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
+        var render = FrameRender()
+        var theme = ThemeState(prefersDark: false, forcedColors: false)
+    }
+
     private var frames: [ObjectIdentifier: TabFrame] = [:]
     private var activeFrameID: ObjectIdentifier?
     private var activeFrame = TabFrame()
 
-    public var drawList: [Any] { activeFrame.drawList }
-    public var activeTabScroll: CGFloat { activeFrame.scroll }
-    public var activeTabInterestTop: CGFloat { activeFrame.interestTop }
-    public var contentImage: CGImage? { activeFrame.image }
+    public var drawList: [Any] { activeFrame.render.drawList }
+    public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
+    public var activeTabInterestTop: CGFloat { activeFrame.scroll.interestTop }
+    public var contentImage: CGImage? { activeFrame.render.image }
 
     private var needsComposite: Bool = false
     private var needsRaster: Bool = false
@@ -136,18 +140,18 @@ public class Browser: ObservableObject {
 
     func commit(tab: Engine.Tab, data: CommitData) {
         guard tab === activeTab else { return }
-        activeFrame.displayList = data.paint.displayList
-        activeFrame.scroll = data.scrollState.scroll
-        activeFrame.interestTop = data.scrollState.interestTop
-        activeFrame.interestBottom = data.scrollState.interestBottom
-        activeFrame.maxScroll = data.scrollState.maxScroll
-        activeFrame.prefersDark = data.theme.prefersDark
-        activeFrame.forcedColors = data.theme.forcedColors
-        activeFrame.paintEpoch = data.paint.paintEpoch
-        activeFrame.compositedUpdates = data.paint.compositedUpdates ?? [:]
+        activeFrame.paint.displayList = data.paint.displayList
+        activeFrame.scroll.scroll = data.scrollState.scroll
+        activeFrame.scroll.interestTop = data.scrollState.interestTop
+        activeFrame.scroll.interestBottom = data.scrollState.interestBottom
+        activeFrame.scroll.maxScroll = data.scrollState.maxScroll
+        activeFrame.theme.prefersDark = data.theme.prefersDark
+        activeFrame.theme.forcedColors = data.theme.forcedColors
+        activeFrame.paint.paintEpoch = data.paint.paintEpoch
+        activeFrame.paint.compositedUpdates = data.paint.compositedUpdates ?? [:]
 
         if let updates = data.paint.compositedUpdates, !updates.isEmpty {
-            activeFrame.effectUpdateEpoch += 1
+            activeFrame.paint.effectUpdateEpoch += 1
         }
 
         if data.paint.compositedUpdates == nil {
@@ -183,34 +187,42 @@ public class Browser: ObservableObject {
         }
 
         let scrollState = ScrollState(
-            scroll: activeFrame.scroll,
-            interestTop: activeFrame.interestTop,
-            interestBottom: activeFrame.interestBottom,
-            maxScroll: activeFrame.maxScroll
+            scroll: activeFrame.scroll.scroll,
+            interestTop: activeFrame.scroll.interestTop,
+            interestBottom: activeFrame.scroll.interestBottom,
+            maxScroll: activeFrame.scroll.maxScroll
         )
 
         let inputs = RasterInputs(
-            displayList: activeFrame.displayList,
+            scene: RasterScene(
+                displayList: activeFrame.paint.displayList,
+                compositedUpdates: activeFrame.paint.compositedUpdates,
+                previousLayers: activeFrame.render.layers,
+                tileStore: tileStore
+            ),
             scrollState: scrollState,
-            viewport: ViewportInfo(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
-            compositedUpdates: activeFrame.compositedUpdates,
-            previousLayes: activeFrame.layers,
-            tileStore: tileStore,
-            theme: ThemeState(prefersDark: activeFrame.prefersDark, forcedColors: activeFrame.forcedColors),
-            flags: RasterFlags(needsComposite: wantsComposite, needsDraw: needsDraw),
-            accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds),
+            context: RasterContext(
+                viewport: ViewportInfo(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
+                theme: ThemeState(prefersDark: activeFrame.theme.prefersDark, forcedColors: activeFrame.theme.forcedColors),
+                flags: RasterFlags(needsComposite: wantsComposite, needsDraw: needsDraw),
+                accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
+            )
         )
 
         let signature = FrameSignature(
-            scroll: activeFrame.scroll,
-            viewport: windowSize,
-            paintEpoch: activeFrame.paintEpoch,
-            effectUpdates: activeFrame.effectUpdateEpoch,
-            displayScale: displayScale,
-            theme: ThemeState(prefersDark: activeFrame.prefersDark, forcedColors: activeFrame.forcedColors),
+            geometry: FrameGeometry(
+                scroll: activeFrame.scroll.scroll,
+                viewport: windowSize,
+                displayScale: displayScale
+            ),
+            epochs: FrameEpoch(
+                paintEpoch: activeFrame.paint.paintEpoch,
+                effectUpdates: activeFrame.paint.effectUpdateEpoch
+            ),
+            theme: ThemeState(prefersDark: activeFrame.theme.prefersDark, forcedColors: activeFrame.theme.forcedColors),
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
         )
-        if signature == activeFrame.signature {
+        if signature == activeFrame.render.signature {
             needsDraw = false
             frameStartTime = .distantPast
             return
@@ -231,11 +243,11 @@ public class Browser: ObservableObject {
         rasterThread.submit(
             { () -> RasterOutput in
                 let layers =
-                    inputs.flags.needsComposite
+                    inputs.context.flags.needsComposite
                     ? Browser.computeComposite(inputs)
-                    : inputs.previousLayes
-                if inputs.flags.needsComposite {
-                    inputs.tileStore.beginComposite(
+                    : inputs.scene.previousLayers
+                if inputs.context.flags.needsComposite {
+                    inputs.scene.tileStore.beginComposite(
                         viewportTop: inputs.scrollState.scroll,
                         viewportBottom: inputs.scrollState.scroll + (inputs.scrollState.interestBottom - inputs.scrollState.interestTop) / 4
                     )
@@ -243,12 +255,14 @@ public class Browser: ObservableObject {
                     let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
                     for layer in layers {
                         layer.rasterIfNeeded(
-                            scale: inputs.viewport.displayScale,
-                            store: inputs.tileStore,
-                            hintTop: inputs.scrollState.interestTop,
-                            hintBottom: inputs.scrollState.interestBottom,
-                            visibleTop: inputs.scrollState.scroll,
-                            visibleBottom: inputs.scrollState.scroll + tabHeight,
+                            scale: inputs.context.viewport.displayScale,
+                            store: inputs.scene.tileStore,
+                            window: RasterWindow(
+                                hintTop: inputs.scrollState.interestTop,
+                                hintBottom: inputs.scrollState.interestBottom,
+                                visibleTop: inputs.scrollState.scroll,
+                                visibleBottom: inputs.scrollState.scroll + tabHeight
+                            ),
                             budget: budget,
                             visibleOnly: true
                         )
@@ -256,33 +270,35 @@ public class Browser: ObservableObject {
 
                     for layer in layers {
                         layer.rasterIfNeeded(
-                            scale: inputs.viewport.displayScale,
-                            store: inputs.tileStore,
-                            hintTop: inputs.scrollState.interestTop,
-                            hintBottom: inputs.scrollState.interestBottom,
-                            visibleTop: inputs.scrollState.scroll,
-                            visibleBottom: inputs.scrollState.scroll + tabHeight,
-                            budget: budget
+                            scale: inputs.context.viewport.displayScale,
+                            store: inputs.scene.tileStore,
+                            window: RasterWindow(
+                                hintTop: inputs.scrollState.interestTop,
+                                hintBottom: inputs.scrollState.interestBottom,
+                                visibleTop: inputs.scrollState.scroll,
+                                visibleBottom: inputs.scrollState.scroll + tabHeight
+                            ),
+                            budget: budget,
+                            visibleOnly: false
                         )
                     }
                 }
                 let drawList =
-                    inputs.flags.needsDraw
+                    inputs.context.flags.needsDraw
                     ? Browser.computePaintDrawList(layers: layers, inputs: inputs)
                     : nil
 
                 let contentImage: CGImage? =
-                    inputs.flags.needsDraw
+                    inputs.context.flags.needsDraw
                     ? CGRenderer.renderBitmap(
-                        width: inputs.viewport.windowSize.width,
-                        height: inputs.viewport.windowSize.height,
-                        scale: inputs.viewport.displayScale,
-                        backgroundColor: inputs.theme.forcedColors
+                        size: inputs.context.viewport.windowSize,
+                        scale: inputs.context.viewport.displayScale,
+                        backgroundColor: inputs.context.theme.forcedColors
                             ? EngineColor(cssName: ForcedColor.canvas)
-                            : (inputs.theme.prefersDark ? EngineColor(cssName: "black") : EngineColor(cssName: "white"))
+                            : (inputs.context.theme.prefersDark ? EngineColor(cssName: "black") : EngineColor(cssName: "white"))
                     ) { r in
                         r.saveState()
-                        r.translateBy(x: 0, y: inputs.viewport.topInset - inputs.scrollState.scroll)
+                        r.translateBy(x: 0, y: inputs.context.viewport.topInset - inputs.scrollState.scroll)
                         for item in drawList ?? [] {
                             if let cmd = item as? any PaintCommand {
                                 cmd.execute(scroll: 0, renderer: r)
@@ -292,42 +308,44 @@ public class Browser: ObservableObject {
                         }
                         r.restoreState()
                         if let bar = scrollbarBarRect(
-                            docHeight: inputs.scrollState.maxScroll + inputs.viewport.windowSize.height - inputs.viewport.topInset,
-                            contentHeight: inputs.viewport.windowSize.height - inputs.viewport.topInset,
-                            contentWidth: inputs.viewport.windowSize.width,
-                            scroll: inputs.scrollState.scroll,
-                            forcedColors: inputs.theme.forcedColors,
-                            topInset: inputs.viewport.topInset
+                            ScrollbarGeometry(
+                                docHeight: inputs.scrollState.maxScroll + inputs.context.viewport.windowSize.height - inputs.context.viewport.topInset,
+                                contentHeight: inputs.context.viewport.windowSize.height - inputs.context.viewport.topInset,
+                                contentWidth: inputs.context.viewport.windowSize.width,
+                                scroll: inputs.scrollState.scroll
+                            ),
+                            forcedColors: inputs.context.theme.forcedColors,
+                            topInset: inputs.context.viewport.topInset
                         ) {
                             bar.execute(scroll: 0, renderer: r)
                         }
                     }
                     : nil
-                return RasterOutput(compositedLayers: inputs.flags.needsComposite ? layers : nil, drawList: drawList, contentImage: contentImage)
+                return RasterOutput(compositedLayers: inputs.context.flags.needsComposite ? layers : nil, drawList: drawList, contentImage: contentImage)
             },
             then: { [weak self] (output: RasterOutput) in
                 guard let self = self else { return }
                 self.compositeInFlight = false
                 if let ownerID {
                     if ownerID == self.activeFrameID {
-                        let published = signature != self.activeFrame.signature
-                        self.activeFrame.layers = output.compositedLayers ?? self.activeFrame.layers
-                        if let drawList = output.drawList { self.activeFrame.drawList = drawList }
-                        if inputs.flags.needsDraw { self.activeFrame.image = output.contentImage }
-                        self.activeFrame.signature = signature
+                        let published = signature != self.activeFrame.render.signature
+                        self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
+                        if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
+                        if inputs.context.flags.needsDraw { self.activeFrame.render.image = output.contentImage }
+                        self.activeFrame.render.signature = signature
                         self.frames[ownerID] = self.activeFrame
-                        if self.commitedPrefersDark != inputs.theme.prefersDark {
-                            self.commitedPrefersDark = inputs.theme.prefersDark
+                        if self.commitedPrefersDark != inputs.context.theme.prefersDark {
+                            self.commitedPrefersDark = inputs.context.theme.prefersDark
                         }
-                        if self.commitedForcedColors != inputs.theme.forcedColors {
-                            self.commitedForcedColors = inputs.theme.forcedColors
+                        if self.commitedForcedColors != inputs.context.theme.forcedColors {
+                            self.commitedForcedColors = inputs.context.theme.forcedColors
                         }
                         if published { self.objectWillChange.send() }
                     } else if var stale = self.frames[ownerID] {
-                        stale.layers = output.compositedLayers ?? stale.layers
-                        if let drawList = output.drawList { stale.drawList = drawList }
-                        if inputs.flags.needsDraw { stale.image = output.contentImage }
-                        stale.signature = signature
+                        stale.render.layers = output.compositedLayers ?? stale.render.layers
+                        if let drawList = output.drawList { stale.render.drawList = drawList }
+                        if inputs.context.flags.needsDraw { stale.render.image = output.contentImage }
+                        stale.render.signature = signature
                         self.frames[ownerID] = stale
                     }
                 }
@@ -351,7 +369,7 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func computeComposite(_ inputs: RasterInputs) -> [CompositedLayer] {
-        var displayList = inputs.displayList
+        var displayList = inputs.scene.displayList
         addParentPointers(&displayList)
 
         var allCommands: [Any] = []
@@ -443,7 +461,7 @@ public class Browser: ObservableObject {
             )
             var mergedIntoExisting = false
             for p in layer.ancestorChain {
-                let newParent = getLatest(p, in: inputs.compositedUpdates)
+                let newParent = getLatest(p, in: inputs.scene.compositedUpdates)
                 let newParentKey = ObjectIdentifier(newParent)
                 if let existing = newEffects[newParentKey] {
                     existing.children.append(currentEffect)
@@ -471,12 +489,12 @@ public class Browser: ObservableObject {
             }
         }
 
-        if let bounds = inputs.accessibility.hoveredBounds {
-            drawList.append(DrawOutline(rect: bounds, color: inputs.theme.forcedColors ? ForcedColor.highlight : "white", thickness: 4))
+        if let bounds = inputs.context.accessibility.hoveredBounds {
+            drawList.append(DrawOutline(rect: bounds, color: inputs.context.theme.forcedColors ? ForcedColor.highlight : "white", thickness: 4))
             drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
         }
 
-        if let bounds = inputs.accessibility.readBounds {
+        if let bounds = inputs.context.accessibility.readBounds {
             drawList.append(DrawOutline(rect: bounds, color: "gold", thickness: 4))
             drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
         }
@@ -506,22 +524,22 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
-        activeFrame.scroll = scroll
+        activeFrame.scroll.scroll = scroll
         if let id = activeFrameID {
-            frames[id]?.scroll = scroll
+            frames[id]?.scroll.scroll = scroll
         }
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
 
     public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat, interestBottom: CGFloat) {
-        activeFrame.scroll = scroll
-        activeFrame.interestTop = interestTop
-        activeFrame.interestBottom = interestBottom
+        activeFrame.scroll.scroll = scroll
+        activeFrame.scroll.interestTop = interestTop
+        activeFrame.scroll.interestBottom = interestBottom
         if let id = activeFrameID {
-            frames[id]?.scroll = scroll
-            frames[id]?.interestTop = interestTop
-            frames[id]?.interestBottom = interestBottom
+            frames[id]?.scroll.scroll = scroll
+            frames[id]?.scroll.interestTop = interestTop
+            frames[id]?.scroll.interestBottom = interestBottom
         }
         setNeedsComposite()
         scheduleRasterAndDraw()
@@ -572,10 +590,10 @@ public class Browser: ObservableObject {
         needsComposite = false
         needsRaster = false
         needsDraw = false
-        if activeFrame.image == nil {
+        if activeFrame.render.image == nil {
             setNeedsComposite()
-        } else if let sig = activeFrame.signature,
-            sig.viewport != windowSize || sig.displayScale != displayScale {
+        } else if let sig = activeFrame.render.signature,
+            sig.geometry.viewport != windowSize || sig.geometry.displayScale != displayScale {
             setNeedsComposite()
         }
         needsAnimationFrame = true

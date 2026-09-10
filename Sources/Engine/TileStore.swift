@@ -1,11 +1,19 @@
 import CoreGraphics
 import CoreText
 
+struct TileLayerOrigin: Hashable {
+    let left: Int
+    let width: Int
+}
+
+struct TileIndex: Hashable {
+    let row: Int
+    let col: Int
+}
+
 struct TileKey: Hashable {
-    let x: Int // layer bounds.left (truncated)
-    let width: Int // layer bounds width
-    let col: Int // document-aligned tile column
-    let row: Int // document-aligned tile row
+    let origin: TileLayerOrigin
+    let index: TileIndex
     let contentHash: Int
     let scale: Int
 }
@@ -78,7 +86,7 @@ final class TileStore: @unchecked Sendable {
     }
 
     private func distanceFromViewport(_ key: TileKey) -> CGFloat {
-        let top = CGFloat(key.row) * tileSize
+        let top = CGFloat(key.index.row) * tileSize
         let bottom = top + tileSize
         if bottom <= viewportTop { return viewportTop - bottom }
         if top >= viewportBottom { return top - viewportBottom }

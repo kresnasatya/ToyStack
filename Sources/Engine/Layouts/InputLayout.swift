@@ -81,7 +81,13 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
             if element.isChecked {
                 cmds.append(
-                    DrawText(x1: x, y1: y, text: "X", font: font, color: isForcedColors(node) ? ForcedColor.buttonText : "black"))
+                    DrawText(
+                        at: CGPoint(x: x, y: y),
+                        text: "X",
+                        font: font,
+                        color: isForcedColors(node) ? ForcedColor.buttonText : "black"
+                    )
+                )
             }
             let outline = cssOutline(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
@@ -108,13 +114,20 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
         }
         let color = element.style["color"] ?? "black"
-        cmds.append(DrawText(x1: x, y1: y, text: text, font: font, color: color))
+        cmds.append(DrawText(at: CGPoint(x: x, y: y), text: text, font: font, color: color))
 
         if element.isFocused {
+            // NOTE: cx = caret X
+            // The caret X is the x-position of the blinking text cursor when the input has focus.
             let cx = x + font.measure(text)
             cmds.append(
                 DrawLine(
-                    x1: cx, y1: y, x2: cx, y2: y + height, color: isForcedColors(node) ? ForcedColor.buttonText : "black", thickness: 1))
+                    from: CGPoint(x: cx, y: y),
+                    to: CGPoint(x: cx, y: y + height),
+                    color: isForcedColors(node) ? ForcedColor.buttonText : "black",
+                    thickness: 1
+                )
+            )
         }
         let outline = cssOutline(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {

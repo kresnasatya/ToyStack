@@ -30,6 +30,12 @@ actor CookieJar {
     }
 }
 
+struct HttpResponse {
+    let status: Int
+    let headers: [String: String]
+    let content: String
+}
+
 // MARK: - CacheEntry
 
 struct CacheEntry {
@@ -38,6 +44,14 @@ struct CacheEntry {
     let content: String
     let timestamp: Date
     let maxAge: Int
+
+    init(_ response: HttpResponse, maxAge: Int, now: Date = Date()) {
+        self.status = response.status
+        self.headers = response.headers
+        self.content = response.content
+        self.timestamp = now
+        self.maxAge = maxAge
+    }
 }
 
 // MARK: - ResponseCache
@@ -62,8 +76,9 @@ actor ResponseCache {
 
     func set(_ url: String, status: Int, headers: [String: String], content: String, maxAge: Int) {
         storage[url] = CacheEntry(
-            status: status,
-            headers: headers, content: content, timestamp: Date(), maxAge: maxAge)
+            HttpResponse(status: status, headers: headers, content: content),
+            maxAge: maxAge
+        )
     }
 }
 

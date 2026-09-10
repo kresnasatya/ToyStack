@@ -53,7 +53,11 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         let color = node.style["color"] ?? "black"
         return [
             DrawText(
-                x1: x, y1: y, text: displayWord ?? word, font: font, color: color)
+                at: CGPoint(x: x, y: y),
+                text: displayWord ?? word,
+                font: font,
+                color: color
+            )
         ]
     }
 

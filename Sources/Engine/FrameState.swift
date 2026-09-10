@@ -1,15 +1,15 @@
 import CoreGraphics
 
 struct ThemeState: Equatable {
-    let prefersDark: Bool
-    let forcedColors: Bool
+    var prefersDark: Bool
+    var forcedColors: Bool
 }
 
 struct ScrollState {
-    let scroll: CGFloat
-    let interestTop: CGFloat
-    let interestBottom: CGFloat
-    let maxScroll: CGFloat
+    var scroll: CGFloat
+    var interestTop: CGFloat
+    var interestBottom: CGFloat
+    var maxScroll: CGFloat
 }
 
 struct ViewportInfo {

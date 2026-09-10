@@ -102,38 +102,66 @@ public class Chrome {
             DrawRect(
                 rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: bgColor))
         cmds.append(
-            DrawLine(x1: 0, y1: bottom, x2: currentWidth, y2: bottom, color: color, thickness: 1))
+            DrawLine(
+                from: CGPoint(x: 0, y: bottom),
+                to: CGPoint(x: currentWidth, y: bottom),
+                color: color,
+                thickness: 1
+            )
+        )
 
         cmds.append(DrawOutline(rect: newtabRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
-                x1: newtabRect.left + padding, y1: newtabRect.top, text: "+", font: font,
-                color: color))
+                at: CGPoint(x: newtabRect.left + padding, y: newtabRect.top),
+                text: "+", font: font,
+                color: color
+            )
+        )
 
         let tabs: [Engine.Tab] = tabManager?.tabs ?? []
         for (i, tab) in tabs.enumerated() {
             let bounds = tabRect(i)
             cmds.append(
                 DrawLine(
-                    x1: bounds.left, y1: 0, x2: bounds.left, y2: bounds.bottom, color: color,
-                    thickness: 1))
+                    from: CGPoint(x: bounds.left, y: 0),
+                    to: CGPoint(x: bounds.left, y: bounds.bottom),
+                    color: color,
+                    thickness: 1
+                )
+            )
             cmds.append(
                 DrawLine(
-                    x1: bounds.right, y1: 0, x2: bounds.right, y2: bounds.bottom, color: color,
-                    thickness: 1))
+                    from: CGPoint(x: bounds.right, y: 0),
+                    to: CGPoint(x: bounds.right, y: bounds.bottom),
+                    color: color,
+                    thickness: 1
+                )
+            )
             cmds.append(
                 DrawText(
-                    x1: bounds.left + padding, y1: bounds.top + padding, text: "Tab \(i)",
-                    font: font, color: color))
+                    at: CGPoint(x: bounds.left + padding, y: bounds.top + padding),
+                    text: "Tab \(i)",
+                    font: font, color: color
+                )
+            )
             if tab === tabManager?.activeTab {
                 cmds.append(
                     DrawLine(
-                        x1: 0, y1: bounds.bottom, x2: bounds.left, y2: bounds.bottom,
-                        color: color, thickness: 1))
+                        from: CGPoint(x: 0, y: bounds.bottom),
+                        to: CGPoint(x: bounds.left, y: bounds.bottom),
+                        color: color,
+                        thickness: 1
+                    )
+                )
                 cmds.append(
                     DrawLine(
-                        x1: bounds.right, y1: bounds.bottom, x2: currentWidth, y2: bounds.bottom,
-                        color: color, thickness: 1))
+                        from: CGPoint(x: bounds.right, y: bounds.bottom),
+                        to: CGPoint(x: currentWidth, y: bounds.bottom),
+                        color: color,
+                        thickness: 1
+                    )
+                )
             }
         }
 
@@ -141,16 +169,23 @@ public class Chrome {
         cmds.append(DrawOutline(rect: backRect, color: backColor, thickness: 1))
         cmds.append(
             DrawText(
-                x1: backRect.left + padding, y1: backRect.top, text: "<", font: font,
+                at: CGPoint(x: backRect.left + padding, y: backRect.top),
+                text: "<",
+                font: font,
                 color: backColor
-            ))
+            )
+        )
 
         let fwdColor = tabManager?.activeTab?.canGoForward == true ? color : "gray"
         cmds.append(DrawOutline(rect: forwardRect, color: fwdColor, thickness: 1))
         cmds.append(
             DrawText(
-                x1: forwardRect.left + padding, y1: forwardRect.top, text: ">", font: font,
-                color: fwdColor))
+                at: CGPoint(x: forwardRect.left + padding, y: forwardRect.top),
+                text: ">",
+                font: font,
+                color: fwdColor
+            )
+        )
 
         let currentURLStr = tabManager?.activeTab?.url?.toString() ?? ""
         let isBookmarked = bookmarks?.contains(currentURLStr) ?? false
@@ -160,8 +195,12 @@ public class Chrome {
         cmds.append(DrawOutline(rect: bookmarkRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
-                x1: bookmarkRect.left + padding, y1: bookmarkRect.top, text: "*", font: font,
-                color: color))
+                at: CGPoint(x: bookmarkRect.left + padding, y: bookmarkRect.top),
+                text: "*",
+                font: font,
+                color: color
+            )
+        )
 
         cmds.append(DrawOutline(rect: addressRect, color: color, thickness: 1))
         if focus == "address bar" {
@@ -173,20 +212,31 @@ public class Chrome {
                 cmds.append(DrawRect(rect: selRect, color: "lightblue"))
                 cmds.append(
                     DrawText(
-                        x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
-                        font: font, color: color))
+                        at: CGPoint(x: addressRect.left + padding, y: addressRect.top),
+                        text: addressBar,
+                        font: font,
+                        color: color
+                    )
+                )
             } else {
                 cmds.append(
                     DrawText(
-                        x1: addressRect.left + padding, y1: addressRect.top, text: addressBar,
-                        font: font, color: color))
+                        at: CGPoint(x: addressRect.left + padding, y: addressRect.top),
+                        text: addressBar,
+                        font: font,
+                        color: color
+                    )
+                )
                 let textBeforeCursor = String(addressBar.prefix(cursorIndex))
                 let w = font.measure(textBeforeCursor)
                 cmds.append(
                     DrawLine(
-                        x1: addressRect.left + padding + w, y1: addressRect.top,
-                        x2: addressRect.left + padding + w, y2: addressRect.bottom, color: "red",
-                        thickness: 1))
+                        from: CGPoint(x: addressRect.left + padding + w, y: addressRect.top),
+                        to: CGPoint(x: addressRect.left + padding + w, y: addressRect.bottom),
+                        color: "red",
+                        thickness: 1
+                    )
+                )
             }
 
         } else if let url = tabManager?.activeTab?.url {
@@ -194,8 +244,12 @@ public class Chrome {
             let displayText = isSecure ? "\u{1F512} \(url.toString())" : url.toString()
             cmds.append(
                 DrawText(
-                    x1: addressRect.left + padding, y1: addressRect.top, text: displayText,
-                    font: font, color: color))
+                    at: CGPoint(x: addressRect.left + padding, y: addressRect.top),
+                    text: displayText,
+                    font: font,
+                    color: color
+                )
+            )
         }
 
         return cmds

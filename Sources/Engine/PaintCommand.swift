@@ -75,9 +75,12 @@ public struct DrawLine: PaintCommand {
     public var parentEffect: VisualEffect? = nil
 
     public init(
-        x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, color: String, thickness: CGFloat
+        from: CGPoint,
+        to: CGPoint,
+        color: String,
+        thickness: CGFloat
     ) {
-        self.rect = Rect(left: x1, top: y1, right: x2, bottom: y2)
+        self.rect = Rect(left: from.x, top: from.y, right: to.x, bottom: to.y)
         self.color = color
         self.thickness = thickness
     }
@@ -101,10 +104,14 @@ public struct DrawText: PaintCommand {
     public var parentEffect: VisualEffect? = nil
 
     public init(
-        x1: CGFloat, y1: CGFloat, text: String, font: BrowserFont, color: String
+        at point: CGPoint, text: String, font: BrowserFont, color: String
     ) {
         self.rect = Rect(
-            left: x1, top: y1, right: x1 + font.measure(text), bottom: y1 + font.linespace)
+            left: point.x,
+            top: point.y,
+            right: point.x + font.measure(text),
+            bottom: point.y + font.linespace
+        )
         self.text = text
         self.font = font
         self.color = color

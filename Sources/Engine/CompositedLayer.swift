@@ -1,8 +1,10 @@
 import CoreGraphics
 
-struct TileIndex: Hashable {
-    let row: Int
-    let col: Int
+struct RasterWindow {
+    let hintTop: CGFloat
+    let hintBottom: CGFloat
+    let visibleTop: CGFloat
+    let visibleBottom: CGFloat
 }
 
 final class RasterBudget {
@@ -65,7 +67,7 @@ class CompositedLayer {
         renderer.restoreState()
     }
 
-    func rasterIfNeeded(scale: CGFloat, store: TileStore, hintTop: CGFloat, hintBottom: CGFloat, visibleTop: CGFloat, visibleBottom: CGFloat, budget: RasterBudget, visibleOnly: Bool = false) {
+    func rasterIfNeeded(scale: CGFloat, store: TileStore, window: RasterWindow, budget: RasterBudget, visibleOnly: Bool = false) {
         guard needsTexture else { return }
         let bounds = compositedBounds()
         let width = bounds.right - bounds.left
@@ -76,11 +78,11 @@ class CompositedLayer {
         let t = Self.tileSize
         let firstCol = max(0, Int(left / t))
         let lastCol = Int((bounds.right - 1) / t)
-        var firstRow = max(0, Int(bounds.top / t), Int(hintTop / t))
-        var lastRow = min(Int((bounds.bottom - 1) / t) , Int(hintBottom / t))
+        var firstRow = max(0, Int(bounds.top / t), Int(window.hintTop / t))
+        var lastRow = min(Int((bounds.bottom - 1) / t) , Int(window.hintBottom / t))
         if visibleOnly {
-            firstRow = max(firstRow, Int(visibleTop / t))
-            lastRow = min(lastRow, Int((visibleBottom - 1) / t))
+            firstRow = max(firstRow, Int(window.visibleTop / t))
+            lastRow = min(lastRow, Int((window.visibleBottom - 1) / t))
         }
         guard firstCol <= lastCol, firstRow <= lastRow else { return }
 
@@ -97,8 +99,8 @@ class CompositedLayer {
         func rowDistance(_ row: Int) -> CGFloat {
             let top = CGFloat(row) * t
             let bottom = top + t
-            if bottom <= visibleTop { return visibleTop - bottom }
-            if top >= visibleBottom { return top - visibleBottom }
+            if bottom <= window.visibleTop { return window.visibleTop - bottom }
+            if top >= window.visibleBottom { return top - window.visibleBottom }
             return 0
         }
 
@@ -113,9 +115,10 @@ class CompositedLayer {
                 let inside = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
                 let index = TileIndex(row: row, col: col)
                 let key = TileKey(
-                    x: Int(left), width: Int(width),
-                    col: col, row: row,
-                    contentHash: tileHash(inside), scale: Int(scale)
+                    origin: TileLayerOrigin(left: Int(left), width: Int(width)),
+                    index: index,
+                    contentHash: tileHash(inside),
+                    scale: Int(scale)
                 )
                 if let reused = store.image(for: key) {
                     tiles[index] = reused
@@ -123,7 +126,9 @@ class CompositedLayer {
                 }
                 guard budget.remaining > 0 else { continue }
                 budget.remaining -= 1
-                let image = CGRenderer.renderBitmap(width: t, height: t, scale: scale, { r in
+                let image = CGRenderer.renderBitmap(
+                    size: CGSize(width: t, height: t),
+                    scale: scale, { r in
                     r.translateBy(x: -colLeft, y: -rowTop)
                     for item in inside {
                         item.execute(scroll: 0, renderer: r)

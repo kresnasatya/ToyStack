@@ -409,7 +409,12 @@ public class Tab {
             }
 
             inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
-            applyStyle(node: nodes, rules: sortedRules, prefersDark: prefersDark, forcedColors: forcedColors, frameWidth: tabWidth / zoom)
+            applyStyle(
+                node: nodes,
+                rules: sortedRules,
+                theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
+                frameWidth: tabWidth / zoom
+            )
 
             for node in treeToList(nodes) {
                 let old = oldStyles[ObjectIdentifier(node)] ?? [:]
@@ -625,7 +630,15 @@ public class Tab {
 
     public func scrollbarCommands() -> [Any] {
         guard let doc = document else { return [] }
-        guard let bar = scrollbarBarRect(docHeight: doc.height + 2 * VSTEP, contentHeight: tabHeight, contentWidth: tabWidth, scroll: scroll, forcedColors: forcedColors) else { return [] }
+        guard let bar = scrollbarBarRect(
+            ScrollbarGeometry(
+                docHeight: doc.height + 2 * VSTEP,
+                contentHeight: tabHeight,
+                contentWidth: tabWidth,
+                scroll: scroll
+            ),
+            forcedColors: forcedColors
+        ) else { return [] }
         return [bar]
     }
 
@@ -1017,16 +1030,29 @@ private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFl
     return true
 }
 
+struct ScrollbarGeometry {
+    let docHeight: CGFloat
+    let contentHeight: CGFloat
+    let contentWidth: CGFloat
+    let scroll: CGFloat
+}
+
 func scrollbarBarRect(
-    docHeight: CGFloat, contentHeight: CGFloat, contentWidth: CGFloat,
-    scroll: CGFloat, forcedColors: Bool, topInset: CGFloat = 0
+    _ geometry: ScrollbarGeometry,
+    forcedColors: Bool,
+    topInset: CGFloat = 0
 ) -> DrawRect? {
-    let maxScroll = max(docHeight - contentHeight, 0)
+    let maxScroll = max(geometry.docHeight - geometry.contentHeight, 0)
     guard maxScroll > 0 else { return nil }
-    let barHeight = max((contentHeight / docHeight) * contentHeight, 30)
-    let barTop = (scroll / maxScroll) * (contentHeight - barHeight)
+    let barHeight = max((geometry.contentHeight / geometry.docHeight) * geometry.contentHeight, 30)
+    let barTop = (geometry.scroll / maxScroll) * (geometry.contentHeight - barHeight)
     return DrawRect(
-        rect: Rect(left: contentWidth - 8, top: topInset + barTop, right: contentWidth, bottom: topInset + barTop + barHeight),
+        rect: Rect(
+            left: geometry.contentWidth - 8,
+            top: topInset + barTop,
+            right: geometry.contentWidth,
+            bottom: topInset + barTop + barHeight
+        ),
         color: forcedColors ? ForcedColor.canvasText : "blue"
     )
 }

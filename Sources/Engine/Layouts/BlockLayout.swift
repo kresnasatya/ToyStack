@@ -418,7 +418,12 @@ class BlockLayout: LayoutObject {
             let font = getFont(size: 12, weight: "bold", style: "roman")
             commands.append(
                 DrawText(
-                    x1: x, y1: y - VSTEP, text: "Table of Contents", font: font, color: isForcedColors(node) ? ForcedColor.canvas : "white"))
+                    at: CGPoint(x: x, y: y),
+                    text: "Table of Contents",
+                    font: font,
+                    color: isForcedColors(node) ? ForcedColor.canvas : "white"
+                )
+            )
         }
 
         return commands

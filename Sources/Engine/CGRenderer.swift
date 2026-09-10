@@ -14,19 +14,19 @@ public final class CGRenderer: Renderer {
         self.scale = scale
     }
 
-    public static func renderBitmap(width: CGFloat, height: CGFloat, scale: CGFloat, backgroundColor: EngineColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
-        let pxW = Int(width * scale), pxH = Int(height * scale)
+    public static func renderBitmap(size: CGSize, scale: CGFloat, backgroundColor: EngineColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
+        let pxW = Int(size.width * scale), pxH = Int(size.height * scale)
         guard pxW > 0, pxH > 0,
             let ctx = CGContext(data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             else { return nil }
 
         ctx.scaleBy(x: scale, y: scale)
-        ctx.translateBy(x: 0, y: height)
+        ctx.translateBy(x: 0, y: size.height)
         ctx.scaleBy(x: 1, y: -1)
 
-        let r = CGRenderer(cg: ctx, canvasSize: CGSize(width: width, height: height), scale: scale)
+        let r = CGRenderer(cg: ctx, canvasSize: CGSize(width: size.width, height: size.height), scale: scale)
         if let bg = backgroundColor {
-            r.fillRect(CGRect(x: 0, y: 0, width: width, height: height), color: bg)
+            r.fillRect(CGRect(x: 0, y: 0, width: size.width, height: size.height), color: bg)
         }
         context(r)
         return ctx.makeImage()
@@ -89,7 +89,11 @@ public final class CGRenderer: Renderer {
 
     public func drawLayer(_ options: LayerOptions, content: (any Renderer) -> Void) {
         if let blur = options.blur, blur > 0 {
-            guard let layerImage = Self.renderBitmap(width: canvasSize.width, height: canvasSize.height, scale: scale, backgroundColor: nil, content)
+            guard let layerImage = Self.renderBitmap(
+                size: canvasSize,
+                scale: scale,
+                backgroundColor: nil, content
+            )
                 else { return }
             var ci = CIImage(cgImage: layerImage)
             let extent = ci.extent

@@ -133,6 +133,22 @@ func rgbToHex(_ r: Double, _ g: Double, _ b: Double) -> String {
     return String(format: "#%02x%02x%02x", clamp(r), clamp(g), clamp(b))
 }
 
+struct TransitionSpec {
+    let numFrames: Int
+    let easing: EasingFunction
+}
+
+struct KeyframeTiming {
+    let spec: TransitionSpec
+    let infinite: Bool
+    let alternate: Bool
+}
+
+struct KeyframeRange {
+    let from: String
+    let to: String
+}
+
 class KeyframeAnimation: Animation {
     let animatedProperty: String
     private let infinite: Bool
@@ -147,23 +163,19 @@ class KeyframeAnimation: Animation {
 
     init(
         animatedProperty: String,
-        oldValue: String,
-        newValue: String,
-        numFrames: Int,
-        easing: EasingFunction = .ease,
-        infinite: Bool,
-        alternate: Bool,
+        range: KeyframeRange,
+        timing: KeyframeTiming,
         factory: @escaping (String, String, Int, EasingFunction) -> Animation?
     ) {
         self.animatedProperty = animatedProperty
-        self.oldValue = oldValue
-        self.newValue = newValue
-        self.numFrames = numFrames
-        self.easing = easing
-        self.infinite = infinite
-        self.alternate = alternate
+        self.oldValue = range.from
+        self.newValue = range.to
+        self.numFrames = timing.spec.numFrames
+        self.easing = timing.spec.easing
+        self.infinite = timing.infinite
+        self.alternate = timing.alternate
         self.factory = factory
-        self.inner = factory(oldValue, newValue, numFrames, easing)!
+        self.inner = factory(range.from, range.to, timing.spec.numFrames, timing.spec.easing)!
     }
 
     func animate() -> String? {

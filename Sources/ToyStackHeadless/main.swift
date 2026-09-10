@@ -78,8 +78,7 @@ MainActor.assumeIsolated {
     }
 
     let image = CGRenderer.renderBitmap(
-        width: browser.windowSize.width,
-        height: browser.windowSize.height,
+        size: browser.windowSize,
         scale: browser.displayScale,
         backgroundColor: EngineColor(cssName: "white")
     ) { r in
