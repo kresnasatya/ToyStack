@@ -69,6 +69,7 @@ public class Tab {
     private var zoom: CGFloat = 1.0
 
     private(set) var interestTop: CGFloat = 0
+    private var interestBottom: CGFloat { interestTop + 4 * tabHeight }
 
     private var scrollFocusNode: Element? = nil
     private var scrollAnimation: ScrollAnimation? = nil
@@ -556,15 +557,12 @@ public class Tab {
             browser?.setNeedsAnimationFrame(self)
         }
 
-        let docHeight = document.map({ $0.height + 2 * VSTEP }) ?? 0
-
         let updates: [ObjectIdentifier: VisualEffect]? =
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data = CommitData(
-            url: url!, scroll: scroll, height: docHeight, layoutHeight: document?.height ?? 0,
-            maxScroll: maxScroll, displayList: displayList,
-            compositedUpdates: updates, accessibilityTree: accessibilityTree, focus: focus,
-            interestTop: interestTop, paintEpoch: paintEpoch, prefersDark: prefersDark, forcedColors: forcedColors,
+            scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
+            paint: PaintResult(displayList: displayList, compositedUpdates: updates, paintEpoch: paintEpoch),
+            theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors)
         )
         compositedUpdates = [:]
         needsCompositeForPaint = false
@@ -727,7 +725,7 @@ public class Tab {
         let interestBottom = interestTop + 4 * tabHeight
         if scroll < interestTop || scroll + tabHeight > interestBottom {
             interestTop = max(0, scroll - tabHeight)
-            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
+            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
             return true
         }
         return false
@@ -758,7 +756,7 @@ public class Tab {
                 scroll = 0
             }
             interestTop = max(0, scroll - tabHeight)
-            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
+            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
         } else {
             performLoad(entry.url)
         }
@@ -776,7 +774,7 @@ public class Tab {
                 scroll = 0
             }
             interestTop = max(0, scroll - tabHeight)
-            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
+            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
         } else {
             performLoad(entry.url, payload: entry.payload)
         }
@@ -863,7 +861,7 @@ public class Tab {
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
                         interestTop = max(0, scroll - tabHeight)
-                        browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop)
+                        browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
                     } else {
                         load(url.resolve(href))
                     }
