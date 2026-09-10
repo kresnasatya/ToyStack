@@ -56,6 +56,7 @@ public class Browser: ObservableObject {
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
     public var activeTabInterestTop: CGFloat { activeFrame.scroll.interestTop }
     public var contentImage: CGImage? { activeFrame.render.image }
+    public var onContentImage: ((CGImage?) -> Void)?
 
     private var needsComposite: Bool = false
     private var needsRaster: Bool = false
@@ -140,6 +141,7 @@ public class Browser: ObservableObject {
 
     func commit(tab: Engine.Tab, data: CommitData) {
         guard tab === activeTab else { return }
+        let paintChanged = data.paint.paintEpoch != activeFrame.paint.paintEpoch
         activeFrame.paint.displayList = data.paint.displayList
         activeFrame.scroll.scroll = data.scrollState.scroll
         activeFrame.scroll.interestTop = data.scrollState.interestTop
@@ -152,6 +154,10 @@ public class Browser: ObservableObject {
 
         if let updates = data.paint.compositedUpdates, !updates.isEmpty {
             activeFrame.paint.effectUpdateEpoch += 1
+        }
+
+        if paintChanged {
+            objectWillChange.send()
         }
 
         if data.paint.compositedUpdates == nil {
@@ -315,10 +321,12 @@ public class Browser: ObservableObject {
                 self.compositeInFlight = false
                 if let ownerID {
                     if ownerID == self.activeFrameID {
-                        let published = signature != self.activeFrame.render.signature
                         self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
                         if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
-                        if inputs.settings.flags.needsDraw { self.activeFrame.render.image = output.contentImage }
+                        if inputs.settings.flags.needsDraw {
+                            self.activeFrame.render.image = output.contentImage
+                            self.onContentImage?(output.contentImage)
+                        }
                         self.activeFrame.render.signature = signature
                         self.frames[ownerID] = self.activeFrame
                         if self.commitedPrefersDark != inputs.settings.theme.prefersDark {
@@ -327,7 +335,6 @@ public class Browser: ObservableObject {
                         if self.commitedForcedColors != inputs.settings.theme.forcedColors {
                             self.commitedForcedColors = inputs.settings.theme.forcedColors
                         }
-                        if published { self.objectWillChange.send() }
                     } else if var stale = self.frames[ownerID] {
                         stale.render.layers = output.compositedLayers ?? stale.render.layers
                         if let drawList = output.drawList { stale.render.drawList = drawList }

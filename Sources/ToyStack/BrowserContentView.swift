@@ -33,6 +33,9 @@ struct BrowserContentView: NSViewRepresentable {
         private var cancellable: AnyCancellable?
 
         func observe(browser: Browser, view: ContentLayerView) {
+            browser.onContentImage = { [weak view] image in
+                view?.layer?.contents = image
+            }
             cancellable = browser.objectWillChange.sink { [weak browser, weak view] _ in
                 guard let browser, let view else { return }
                 view.apply(browser)

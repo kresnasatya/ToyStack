@@ -681,15 +681,20 @@ public class Tab {
         if let block = scrollBlock, let el = block.node as? Element {
             let maxScroll = max(0, block.contentHeight - block.height)
             let current = min(el.scrollOffsetY, maxScroll)
-            if deltaY > 0 {
-                el.scrollOffsetY = max(current - SCROLL_STEP, 0)
-            } else {
-                el.scrollOffsetY = min(current + SCROLL_STEP, maxScroll)
-            }
+            el.scrollOffsetY = max(0, min(current - deltaY, maxScroll))
+            block.scrollOffset = el.scrollOffsetY
             scrollFocusNode = el
-            setNeedsRender()
+            setNeedsPaint()
         } else {
-            if deltaY > 0 { scrollUp() } else { scrollDown() }
+            scrollBy(deltaY: deltaY)
+        }
+    }
+
+    public func scrollBy(deltaY: CGFloat) {
+        scrollAnimation = nil
+        scroll = max(0, min(scroll - deltaY, maxScroll))
+        if !checkInterestRegion() {
+            browser?.applyScroll(scroll)
         }
     }
 
@@ -722,7 +727,8 @@ public class Tab {
         let maxScroll = max(0, block.contentHeight - block.height)
         let current = min(node.scrollOffsetY, maxScroll)
         node.scrollOffsetY = min(current + SCROLL_STEP, maxScroll)
-        setNeedsRender()
+        block.scrollOffset = node.scrollOffsetY
+        setNeedsPaint()
     }
 
     public func scrollElementUp() {
@@ -730,7 +736,8 @@ public class Tab {
         let maxScroll = max(0, block.contentHeight - block.height)
         let current = min(node.scrollOffsetY, maxScroll)
         node.scrollOffsetY = max(current - SCROLL_STEP, 0)
-        setNeedsRender()
+        block.scrollOffset = node.scrollOffsetY
+        setNeedsPaint()
     }
 
     @discardableResult

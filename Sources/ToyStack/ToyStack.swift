@@ -179,17 +179,21 @@ public struct BrowserView: View {
                     guard let app else { return event }
                     Task { @MainActor in
                         guard event.scrollingDeltaY != 0 else { return }
+                        let deltaY = event.hasPreciseScrollingDeltas
+                            ? event.scrollingDeltaY
+                            : event.scrollingDeltaY * 18
                         let loc = event.locationInWindow
                         let x = loc.x
                         let screenY = app.windowSize.height - loc.y
                         let contentY = screenY - chrome.bottom
                         if contentY > 0 {
                             app.activeTab?.scrollAt(
-                                x: x, y: contentY, deltaY: event.scrollingDeltaY)
-                        } else if event.scrollingDeltaY > 0 {
-                            app.activeTab?.scrollUp()
+                                x: x,
+                                y: contentY,
+                                deltaY: deltaY
+                            )
                         } else {
-                            app.activeTab?.scrollDown()
+                            app.activeTab?.scrollBy(deltaY: deltaY)
                         }
                     }
                     return nil
