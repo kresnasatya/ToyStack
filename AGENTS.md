@@ -4,11 +4,11 @@ This is a project to build a toy browser engine with Swift programming language.
 
 ## Information
 
-I'm a beginner on Swift programming language and browser engineering. But, I have experience in programming languages like HTML, CSS, JavaScript, TypeScript, and PHP.
+I'm a beginner on Swift programming language and browser engineering.
 
 ## Expected Result
 
-This project is intended to be used as learning purpose to make me understand how to make the browser engine with Swift programming language. The code output must be in high quality.
+This project is intended to be used as learning purpose to understand how to make the actual browser engine with Swift programming language. The thinking process must be experienced web browser engineer and the output of code must be high quality.
 
 ## Workflow
 
