@@ -14,13 +14,33 @@ final class RasterBudget {
 
 class CompositedLayer {
     var displayItems: [PaintCommand] = []
-    static let shortDisplayListLimit = 3
     var tiles: [TileIndex: CGImage] = [:]
     static let tileSize: CGFloat = 128
     static let rasterCapPerComposite = 300
-    var ancestorChain: [VisualEffect] = []
-    var needsTexture: Bool {
-        displayItems.count >= Self.shortDisplayListLimit
+    var ancestorChain: [Engine.VisualEffect] = []
+
+    var needsEffectLayer: Bool {
+        for effect in ancestorChain {
+            if let blend = effect as? Blend,
+                blend.opacity < 1 || (blend.blendMode != nil && blend.blendMode != .normal) {
+                return true
+            }
+            if let transform = effect as? Transform,
+                transform.translation != nil || transform.isAnimated {
+                return true
+            }
+            if let blur = effect as? BlurFilter, blur.radius > 0 { return true }
+            if effect is ScrollEffect { return true }
+        }
+        return false
+    }
+
+    func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
+        let t = Self.tileSize
+        tiles = tiles.filter{ index, _ in
+            let top = CGFloat(index.row) * t
+            return top + t > keepTop && top < keepBottom
+        }
     }
 
     init(displayItem: PaintCommand) {
@@ -68,7 +88,7 @@ class CompositedLayer {
     }
 
     func rasterIfNeeded(scale: CGFloat, store: TileStore, window: RasterWindow, budget: RasterBudget) {
-        guard needsTexture else { return }
+        guard !displayItems.isEmpty else { return }
         let bounds = compositedBounds()
         let width = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return }

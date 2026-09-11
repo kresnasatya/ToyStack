@@ -1,6 +1,6 @@
 import Foundation
 
-public class MeasureTime {
+public class MeasureTime: @unchecked Sendable {
     private let lock = NSLock()
     private var file: FileHandle?
 
