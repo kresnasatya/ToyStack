@@ -13,27 +13,19 @@ final class RasterBudget {
 }
 
 class CompositedLayer {
+    struct EffectImageKey: Equatable {
+        let scale: CGFloat
+        let blur: CGFloat
+        let bounds: Rect
+    }
+
     var displayItems: [PaintCommand] = []
     var tiles: [TileIndex: CGImage] = [:]
+    var effectImage: CGImage?
+    var effectImageKey: EffectImageKey?
     static let tileSize: CGFloat = 128
     static let rasterCapPerComposite = 300
     var ancestorChain: [Engine.VisualEffect] = []
-
-    var needsEffectLayer: Bool {
-        for effect in ancestorChain {
-            if let blend = effect as? Blend,
-                blend.opacity < 1 || (blend.blendMode != nil && blend.blendMode != .normal) {
-                return true
-            }
-            if let transform = effect as? Transform,
-                transform.translation != nil || transform.isAnimated {
-                return true
-            }
-            if let blur = effect as? BlurFilter, blur.radius > 0 { return true }
-            if effect is ScrollEffect { return true }
-        }
-        return false
-    }
 
     func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
         let t = Self.tileSize
@@ -57,6 +49,8 @@ class CompositedLayer {
     func add(_ displayItem: PaintCommand) {
         displayItems.append(displayItem)
         tiles = [:]
+        effectImage = nil
+        effectImageKey = nil
     }
 
     func compositedBounds() -> Rect {

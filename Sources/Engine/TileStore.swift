@@ -31,6 +31,7 @@ final class TileStore: @unchecked Sendable {
     private var viewportBottom: CGFloat = 0
     private var entries: [TileKey: Entry] = [:]
     private var usageClock = 0
+    private(set) var needsMoreTiles = false
 
     // For temporary debug print
     private(set) var hits = 0
@@ -50,6 +51,11 @@ final class TileStore: @unchecked Sendable {
         self.viewportBottom = viewportBottom
         hits = 0
         misses = 0
+        needsMoreTiles = false
+    }
+
+    func markDeferred() {
+        needsMoreTiles = true
     }
 
     func image(for key: TileKey) -> CGImage? {

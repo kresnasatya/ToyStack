@@ -20,28 +20,16 @@ struct RasterInputs: @unchecked Sendable {
     let scrollState: ScrollState
 }
 
-public struct TilePlacement {
-    public let image: CGImage
-    public let frame: CGRect
-    public let zIndex: Int
-
-    public init(image: CGImage, frame: CGRect, zIndex: Int) {
-        self.image = image
-        self.frame = frame
-        self.zIndex = zIndex
-    }
-}
-
 struct RenderedContent {
-    var tiles: [TilePlacement] = []
+    var placements: [PlacedLayer] = []
     var image: CGImage?
     var regionTop: CGFloat = 0
-    var usesTiles: Bool = false
+    var usesSublayers: Bool = false
 }
 
 struct RasterOutput: @unchecked Sendable {
     let compositedLayers: [CompositedLayer]?
     let drawList: [Any]?
     let content: RenderedContent
-    let tileSignature: Int
+    let structureSignature: Int
 }

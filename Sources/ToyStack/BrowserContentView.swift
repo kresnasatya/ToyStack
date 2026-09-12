@@ -1,3 +1,4 @@
+import CoreImage
 import Combine
 import Engine
 import SwiftUI
@@ -7,7 +8,8 @@ final class ContentLayerView: NSView {
     private let contentLayer = CALayer()
     private let scrollbarLayer = CALayer()
     private var lastImage: CGImage?
-    private var lastTilesVersion = -1
+    private var lastStructureVersion = -1
+    private var layersByKey: [ObjectIdentifier: CALayer] = [:]
     private weak var browser: Browser?
 
     private func ensureLayers() {
@@ -28,13 +30,11 @@ final class ContentLayerView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        if browser.usesTiles {
-            applyTiles(browser)
+        if browser.usesSublayers {
+            applySublayers(browser)
         } else {
             applyImage(browser)
         }
-
-
 
         if let bar = browser.activeSidebar {
             scrollbarLayer.isHidden = false
@@ -45,7 +45,7 @@ final class ContentLayerView: NSView {
         }
     }
 
-    private func applyTiles(_ browser: Browser) {
+    private func applySublayers(_ browser: Browser) {
         if lastImage != nil {
             lastImage = nil
             contentLayer.contents = nil
@@ -57,24 +57,50 @@ final class ContentLayerView: NSView {
             width: bounds.width,
             height: bounds.height
         )
-        guard browser.tilesVersion != lastTilesVersion else { return }
-        lastTilesVersion = browser.tilesVersion
-        contentLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
-        for tile in browser.activeTiles {
-            let layer = CALayer()
-            layer.contents = tile.image
-            layer.contentsScale = browser.displayScale
-            layer.contentsGravity = .resize
-            layer.frame = tile.frame
-            layer.zPosition = CGFloat(tile.zIndex)
-            contentLayer.addSublayer(layer)
+        let placements = browser.activePlacements
+        if browser.structureVersion != lastStructureVersion {
+            lastStructureVersion = browser.structureVersion
+            contentLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
+            for placed in browser.activePlacements {
+                let layer = CALayer()
+                layer.contents = placed.image
+                layer.contentsScale = browser.displayScale
+                layer.contentsGravity = .resize
+                layer.frame = placed.frame
+                layer.zPosition = CGFloat(placed.zIndex)
+                if let effect = placed.effect {
+                    applyEffect(effect, to: layer)
+                    applyBlend(effect, to: layer)
+                    if let key = effect.key { layersByKey[key] = layer }
+                }
+                contentLayer.addSublayer(layer)
+            }
+        } else {
+            for placed in placements {
+                guard let effect = placed.effect, let key = effect.key, let layer = layersByKey[key] else { continue }
+                applyEffect(effect, to: layer)
+            }
         }
     }
 
+    private func applyEffect(_ effect: LayerEffect, to layer: CALayer) {
+        layer.opacity = Float(effect.opacity)
+        layer.transform = CATransform3DMakeTranslation(effect.translation.x, effect.translation.y, 0)
+    }
+
+    private func applyBlend(_ effect: LayerEffect, to layer: CALayer) {
+        guard let mode = effect.blendMode,
+            let name = mode.compositingFilterName,
+            let filter = CIFilter(name: name)
+            else { return }
+        layer.compositingFilter = filter
+    }
+
     private func applyImage(_ browser: Browser) {
-        if lastTilesVersion != -1 {
-            lastTilesVersion = -1
+        if lastStructureVersion != -1 {
+            lastStructureVersion = -1
             contentLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
+            layersByKey.removeAll()
         }
 
         if let image = browser.contentImage, image !== lastImage {

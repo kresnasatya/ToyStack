@@ -57,12 +57,12 @@ public class Browser: ObservableObject {
     public var activeTabInterestTop: CGFloat { activeFrame.scroll.interestTop }
     public var contentImage: CGImage? { activeFrame.render.content.image }
     public var contentRegionTop: CGFloat { activeFrame.render.content.regionTop }
-    public var activeTiles: [TilePlacement] { activeFrame.render.content.tiles }
-    public var usesTiles: Bool { activeFrame.render.content.usesTiles }
-    public private(set) var tilesVersion = 0
+    public var activePlacements: [PlacedLayer] { activeFrame.render.content.placements }
+    public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
+    public private(set) var structureVersion = 0
     public var onContentImage: (() -> Void)?
     public var onScroll: (() -> Void)?
-    private var activeTileSignature = 0
+    private var activeStructureSignature = 0
     private var lastTileScroll: CGFloat = .nan
 
     public var canvasColor: CGColor {
@@ -93,6 +93,8 @@ public class Browser: ObservableObject {
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
     private var compositeInFlight = false
+    private var needsTileContinuation = false
+    private var tileContinuationPasses = 0
 
     @Published public var prefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
@@ -190,6 +192,16 @@ public class Browser: ObservableObject {
             objectWillChange.send()
         }
 
+        if let updates = data.paint.compositedUpdates, !updates.isEmpty,
+            activeFrame.render.content.usesSublayers,
+            !needsComposite, !needsRaster, !needsDraw, !compositeInFlight,
+            Browser.updatesAreCA(updates),
+            applyEffectFastPath(updates)
+        {
+            frames[ObjectIdentifier(tab)] = activeFrame
+            return
+        }
+
         if data.paint.compositedUpdates == nil {
             setNeedsComposite()
         } else {
@@ -198,6 +210,19 @@ public class Browser: ObservableObject {
 
         frames[ObjectIdentifier(tab)] = activeFrame
         scheduleRasterAndDraw()
+    }
+
+    private func applyEffectFastPath(_ updates: [ObjectIdentifier: Engine.VisualEffect]) -> Bool {
+        let layers = activeFrame.render.layers
+        let infos = layers.map({ Browser.layerEffectInfo($0, updates: updates) })
+        let keys = Set(infos.compactMap({ $0.effect?.key }))
+        guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
+        for (index, info) in infos.enumerated() where info.kind == .ca {
+            if layers[index].effectImage == nil { return false }
+        }
+        activeFrame.render.content.placements = Browser.layerPlacements(layers, infos: infos)
+        onContentImage?()
+        return true
     }
 
     private func resolvePendingHover() {
@@ -258,11 +283,14 @@ public class Browser: ObservableObject {
             theme: ThemeState(prefersDark: activeFrame.theme.prefersDark, forcedColors: activeFrame.theme.forcedColors),
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
         )
-        if signature == activeFrame.render.signature {
+        if signature == activeFrame.render.signature && !needsTileContinuation {
             needsDraw = false
             frameStartTime = .distantPast
             return
         }
+
+        if !needsTileContinuation { tileContinuationPasses = 0 }
+        needsTileContinuation = false
 
         if wantsComposite {
             compositeInFlight = true
@@ -295,15 +323,21 @@ public class Browser: ObservableObject {
                     visibleBottom: inputs.scrollState.scroll + tabHeight
                 )
 
-                let usesTiles = inputs.scene.compositedUpdates.isEmpty && layers.allSatisfy({ !$0.needsEffectLayer })
+                let infos = layers.map {
+                    Browser.layerEffectInfo($0, updates: inputs.scene.compositedUpdates)
+                }
+                let usesSublayers = !infos.contains {
+                    $0.kind == .blendFallback || $0.kind == .scrollFallback
+                }
                 measure.start("raster.tiles")
-                if usesTiles {
+                if usesSublayers {
                     inputs.scene.tileStore.beginComposite(
                         viewportTop: inputs.scrollState.scroll,
                         viewportBottom: inputs.scrollState.scroll + tabHeight
                     )
                     let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
-                    for layer in layers {
+                    measure.start("raster.tiles.flat")
+                    for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
                         layer.rasterIfNeeded(
                             scale: inputs.settings.viewport.displayScale,
                             store: inputs.scene.tileStore,
@@ -315,6 +349,19 @@ public class Browser: ObservableObject {
                             keepBottom: inputs.scrollState.scroll + tabHeight + 4 * CompositedLayer.tileSize
                         )
                     }
+                    measure.stop("raster.tiles.flat")
+                    if budget.remaining == 0 {
+                        inputs.scene.tileStore.markDeferred()
+                    }
+                    measure.start("raster.effect")
+                    for (index, layer) in layers.enumerated() where infos[index].kind == .ca {
+                        Browser.updateEffectImage(
+                            layer,
+                            scale: inputs.settings.viewport.displayScale,
+                            blur: infos[index].blur
+                        )
+                    }
+                    measure.stop("raster.effect")
                 }
                 measure.stop("raster.tiles")
 
@@ -326,7 +373,7 @@ public class Browser: ObservableObject {
                 let regionTop = inputs.scrollState.scroll
                 var contentImage: CGImage? = nil
 
-                if !usesTiles && inputs.settings.flags.needsDraw {
+                if !usesSublayers && inputs.settings.flags.needsDraw {
                     let regionHeight = inputs.settings.viewport.topInset + tabHeight
                     measure.start("raster.bitmap")
                     contentImage =
@@ -359,12 +406,12 @@ public class Browser: ObservableObject {
                     compositedLayers: inputs.settings.flags.needsComposite ? layers : nil,
                     drawList: drawList,
                     content: RenderedContent(
-                        tiles: usesTiles ? Browser.tilePlacements(layers) : [],
+                        placements: usesSublayers ? Browser.layerPlacements(layers, infos: infos) : [],
                         image: contentImage,
                         regionTop: regionTop,
-                        usesTiles: usesTiles
+                        usesSublayers: usesSublayers
                     ),
-                    tileSignature: usesTiles ? Browser.tileSignature(layers) : 0
+                    structureSignature: usesSublayers ? Browser.structureSignature(layers, infos: infos) : 0
                 )
             },
             then: { [weak self] (output: RasterOutput) in
@@ -374,16 +421,21 @@ public class Browser: ObservableObject {
                     if ownerID == self.activeFrameID {
                         self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
                         if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
-                        if output.tileSignature != self.activeTileSignature {
-                            self.activeTileSignature = output.tileSignature
-                            self.tilesVersion &+= 1
+                        if output.structureSignature != self.activeStructureSignature {
+                            self.activeStructureSignature = output.structureSignature
+                            self.structureVersion &+= 1
                         }
-                        if inputs.settings.flags.needsDraw || output.content.usesTiles {
+                        if inputs.settings.flags.needsDraw || output.content.usesSublayers {
                             self.activeFrame.render.content = output.content
                             self.onContentImage?()
                         }
                         self.activeFrame.render.signature = signature
                         self.frames[ownerID] = self.activeFrame
+                        if output.content.usesSublayers, inputs.scene.tileStore.needsMoreTiles, self.tileContinuationPasses < 8 {
+                            self.tileContinuationPasses += 1
+                            self.needsTileContinuation = true
+                            self.needsRaster = true
+                        }
                         if self.commitedPrefersDark != inputs.settings.theme.prefersDark {
                             self.commitedPrefersDark = inputs.settings.theme.prefersDark
                         }
@@ -495,6 +547,72 @@ public class Browser: ObservableObject {
         return effect
     }
 
+    nonisolated static func layerEffectInfo(_ layer: CompositedLayer, updates: [ObjectIdentifier: Engine.VisualEffect]) -> LayerEffectInfo {
+        var kind = LayerEffectInfo.Kind.flat
+        var opacity: Double = 1
+        var translation = CGPoint.zero
+        var blur: CGFloat = 0
+        var key: ObjectIdentifier?
+        var blendMode: EngineBlendMode?
+        for effect in layer.ancestorChain {
+            let latest = getLatest(effect, in: updates)
+            if latest is ScrollEffect {
+                kind = max(kind, .scrollFallback)
+            } else if let blend = latest as? Blend {
+                opacity *= blend.opacity
+                if let mode = blend.blendMode, mode != .normal {
+                    if mode.compositingFilterName != nil {
+                        kind = max(kind, .ca)
+                        if blendMode == nil { blendMode = mode }
+                    } else {
+                        kind = max(kind, .blendFallback)
+                    }
+                } else if blend.opacity < 1 {
+                    kind = max(kind, .ca)
+                }
+                if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
+            } else if let transform = latest as? Transform {
+                if let t = transform.translation {
+                    translation.x += t.x
+                    translation.y += t.y
+                    kind = max(kind, .ca)
+                }
+                if transform.isAnimated { kind = max(kind, .ca) }
+                if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
+            } else if let filter = latest as? BlurFilter, filter.radius > 0 {
+                blur = max(blur, filter.radius)
+                kind = max(kind, .ca)
+                if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
+            }
+        }
+        let effect = kind == .ca
+            ? LayerEffect(
+                key: key,
+                opacity: opacity,
+                translation: translation,
+                blendMode: blendMode
+            )
+            : nil
+        return LayerEffectInfo(kind: kind, effect: effect, blur: blur)
+    }
+
+    nonisolated static func updatesAreCA(_ updates: [ObjectIdentifier: Engine.VisualEffect]) -> Bool {
+        updates.values.allSatisfy({ isCAEffect($0) })
+    }
+
+    nonisolated private static func isCAEffect(_ effect: Engine.VisualEffect) -> Bool {
+        if effect is ScrollEffect { return false }
+        if let blend = effect as? Blend,
+            let mode = blend.blendMode, mode != .normal, mode.compositingFilterName == nil {
+            return false
+        }
+        if let blur = effect as? BlurFilter, blur.radius > 0 { return false }
+        for child in effect.children {
+            if let nested = child as? VisualEffect, isCAEffect(nested) { return false }
+        }
+        return true
+    }
+
     nonisolated static func computePaintDrawList(
         layers: [CompositedLayer],
         inputs: RasterInputs
@@ -551,40 +669,100 @@ public class Browser: ObservableObject {
         return drawList
     }
 
-    nonisolated static func tilePlacements(_ layers: [CompositedLayer]) -> [TilePlacement] {
+    nonisolated static func layerPlacements(_ layers: [CompositedLayer], infos: [LayerEffectInfo]) -> [PlacedLayer] {
         let t = CompositedLayer.tileSize
-        var placements: [TilePlacement] = []
+        var placements: [PlacedLayer] = []
         for (z, layer) in layers.enumerated() {
-            for (index, image) in layer.tiles {
-                placements.append(
-                    TilePlacement(
-                        image: image,
-                        frame: CGRect(
-                            x: CGFloat(index.col) * t,
-                            y: CGFloat(index.row) * t,
-                            width: t,
-                            height: t
-                        ),
-                        zIndex: z
+            switch infos[z].kind {
+                case .flat:
+                    for (index, image) in layer.tiles {
+                        placements.append(
+                            PlacedLayer(
+                                image: image,
+                                frame: CGRect(
+                                    x: CGFloat(index.col) * t,
+                                    y: CGFloat(index.row) * t,
+                                    width: t,
+                                    height: t
+                                ),
+                                zIndex: z
+                            )
+                        )
+                    }
+                case .ca:
+                    guard let image = layer.effectImage else { break }
+                    let bounds = layer.compositedBounds()
+                    placements.append(
+                        PlacedLayer(
+                            image: image,
+                            frame: CGRect(x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top),
+                            zIndex: z,
+                            effect: infos[z].effect
+                        )
                     )
-                )
+                case .blendFallback, .scrollFallback:
+                    break
             }
         }
         return placements
     }
 
-    nonisolated static func tileSignature(_ layers: [CompositedLayer]) -> Int {
+    nonisolated static func structureSignature(_ layers: [CompositedLayer], infos: [LayerEffectInfo]) -> Int {
         var hash = layers.count
         for (z, layer) in layers.enumerated() {
-            for (index, image) in layer.tiles {
-                var tileHash = Hasher()
-                tileHash.combine(z)
-                tileHash.combine(index)
-                tileHash.combine(ObjectIdentifier(image))
-                hash ^= tileHash.finalize()
+            switch infos[z].kind {
+                case .flat:
+                    for (index, image) in layer.tiles {
+                        var tileHash = Hasher()
+                        tileHash.combine(z)
+                        tileHash.combine(index)
+                        tileHash.combine(ObjectIdentifier(image))
+                        hash ^= tileHash.finalize()
+                    }
+                case .ca:
+                    var layerHash = Hasher()
+                    layerHash.combine(z)
+                    layerHash.combine(ObjectIdentifier(layer))
+                    if let image = layer.effectImage {
+                        layerHash.combine(ObjectIdentifier(image))
+                    }
+                    if let effect = infos[z].effect {
+                        layerHash.combine(effect.opacity)
+                        layerHash.combine(effect.translation.x)
+                        layerHash.combine(effect.translation.y)
+                        if let key = effect.key { layerHash.combine(key) }
+                        if let name = effect.blendMode?.compositingFilterName {
+                            layerHash.combine(name)
+                        }
+                    }
+                    hash ^= layerHash.finalize()
+                case .blendFallback, .scrollFallback:
+                    break
             }
         }
         return hash
+    }
+
+    nonisolated static func rasterEffectBitmap(_ layer: CompositedLayer, scale: CGFloat, blur: CGFloat) -> CGImage? {
+        let bounds = layer.compositedBounds()
+        let size = CGSize(width: bounds.right - bounds.left, height: bounds.bottom - bounds.top)
+        guard size.width > 0, size.height > 0 else { return nil }
+        return CGRenderer.renderBitmap(size: size, scale: scale, { renderer in
+            if blur > 0 {
+                renderer.drawLayer(LayerOptions(blur: blur), content: { inner in
+                    layer.raster(renderer: inner)
+                })
+            } else {
+                layer.raster(renderer: renderer)
+            }
+        })
+    }
+
+    nonisolated static func updateEffectImage(_ layer: CompositedLayer, scale: CGFloat, blur: CGFloat) {
+        let key = CompositedLayer.EffectImageKey(scale: scale, blur: blur, bounds: layer.compositedBounds())
+        guard layer.effectImageKey != key else { return }
+        layer.effectImage = Browser.rasterEffectBitmap(layer, scale: scale, blur: blur)
+        layer.effectImageKey = key
     }
 
     func setNeedsComposite() {
@@ -615,7 +793,7 @@ public class Browser: ObservableObject {
             frames[id]?.scroll.scroll = scroll
         }
 
-        if activeFrame.render.content.usesTiles {
+        if activeFrame.render.content.usesSublayers {
             onScroll?()
             let step = CompositedLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
@@ -687,13 +865,13 @@ public class Browser: ObservableObject {
         needsComposite = false
         needsRaster = false
         needsDraw = false
-        if activeFrame.render.content.image == nil && !activeFrame.render.content.usesTiles {
+        if activeFrame.render.content.image == nil && !activeFrame.render.content.usesSublayers {
             setNeedsComposite()
         } else if let sig = activeFrame.render.signature,
             sig.geometry.viewport != windowSize || sig.geometry.displayScale != displayScale {
             setNeedsComposite()
         }
-        tilesVersion &+= 1
+        structureVersion &+= 1
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()
     }
