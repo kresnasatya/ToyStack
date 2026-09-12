@@ -254,7 +254,7 @@ public class Browser: ObservableObject {
             maxScroll: activeFrame.scroll.maxScroll
         )
 
-        let inputs = RasterInputs(
+        let inputs = RasterInput(
             scene: RasterScene(
                 displayList: activeFrame.paint.displayList,
                 compositedUpdates: activeFrame.paint.compositedUpdates,
@@ -504,7 +504,7 @@ public class Browser: ObservableObject {
             })
     }
 
-    nonisolated static func computeComposite(_ inputs: RasterInputs) -> [CompositedLayer] {
+    nonisolated static func computeComposite(_ inputs: RasterInput) -> [CompositedLayer] {
         var displayList = inputs.scene.displayList
         addParentPointers(&displayList)
 
@@ -650,7 +650,7 @@ public class Browser: ObservableObject {
 
     nonisolated static func computePaintDrawList(
         layers: [CompositedLayer],
-        inputs: RasterInputs
+        inputs: RasterInput
     ) -> [Any] {
         var newEffects: [ObjectIdentifier: VisualEffect] = [:]
         var drawList: [Any] = []

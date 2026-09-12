@@ -283,7 +283,7 @@ public struct BrowserView: View {
                     """
                 )
             }
-            app.newTab(WebURL("https://browser.engineering"))
+            app.newTab(WebURL("https://browser.engineering/visual-effects.html"))
         }
     }
 }
