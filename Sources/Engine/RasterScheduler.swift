@@ -1,13 +1,13 @@
 import Foundation
 
-class RasterThread: @unchecked Sendable {
+class RasterScheduler: @unchecked Sendable {
     private let queue = DispatchQueue(label: "browser.raster", qos: .userInitiated)
 
     private let lock = NSLock()
     private var pending: (@Sendable () -> Void)?
     private var draining = false
 
-    func submit<T: Sendable>(
+    func schedule<T: Sendable>(
         _ work: @Sendable @escaping () -> T,
         then completion: @MainActor @escaping (T) -> Void
     ) {

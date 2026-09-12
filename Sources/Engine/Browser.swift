@@ -105,7 +105,7 @@ public class Browser: ObservableObject {
     public var measure = MeasureTime()
 
     let networkingThread = NetworkingThread()
-    let rasterThread = RasterThread()
+    let rasterScheduler = RasterScheduler()
     private let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
 
     public init() {}
@@ -305,7 +305,7 @@ public class Browser: ObservableObject {
         let ownerID = activeFrameID
 
         let measure = self.measure
-        rasterThread.submit(
+        rasterScheduler.schedule(
             { () -> RasterOutput in
                 measure.start("raster.composite")
                 let layers =
