@@ -447,6 +447,22 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
     let borderRadius = CGFloat(Double(radiusStr) ?? 0)
     let blurRadius = parseBlur(node.style["filter"] ?? "")
 
+    let blendMode: EngineBlendMode? = {
+        switch blendModeStr {
+        case "multiply": return .multiply
+        case "difference": return .difference
+        case "destination-in": return .destinationIn
+        default: return nil
+        }
+    }()
+    let animated = node.animations["transform-x"] != nil
+        || node.animations["transform-y"] != nil
+        || node.animations["opacity"] != nil
+    guard borderRadius > 0 || blurRadius > 0 || opacity < 1
+        || (blendMode != nil && blendMode != .normal)
+        || translation != nil || animated
+    else { return cmds }
+
     var effectCmds: [Any] = cmds
     if borderRadius > 0 {
         let clip = Blend(
@@ -460,15 +476,6 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
     if blurRadius > 0 {
         effectCmds = [BlurFilter(radius: blurRadius, node: node, children: effectCmds)]
     }
-
-    let blendMode: EngineBlendMode? = {
-        switch blendModeStr {
-        case "multiply": return .multiply
-        case "difference": return .difference
-        case "destination-in": return .destinationIn
-        default: return nil
-        }
-    }()
 
     let blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: effectCmds)
     let transform = Transform(translation: translation, rect: rect, node: node, children: [blend])

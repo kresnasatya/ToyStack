@@ -26,8 +26,10 @@ final class ContentLayerView: NSView {
         self.browser = browser
         ensureLayers()
 
+        browser.measure.start("view.apply")
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        defer { browser.measure.stop("view.apply") }
         defer { CATransaction.commit() }
 
         if browser.usesSublayers {
@@ -59,6 +61,7 @@ final class ContentLayerView: NSView {
         )
         let placements = browser.activePlacements
         if browser.structureVersion != lastStructureVersion {
+            browser.measure.start("view.rebuild")
             lastStructureVersion = browser.structureVersion
             contentLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
             for placed in browser.activePlacements {
@@ -75,7 +78,19 @@ final class ContentLayerView: NSView {
                 }
                 contentLayer.addSublayer(layer)
             }
+            browser.measure.stop("view.rebuild")
+            browser.measure.counter("view",
+                [
+                    "rebuild": 1,
+                    "placements": placements.count,
+                    "sublayers": contentLayer.sublayers?.count ?? 0
+                ]
+            )
         } else {
+            browser.measure.counter("view", [
+                "rebuild" : 0,
+                "placements": placements.count
+            ])
             for placed in placements {
                 guard let effect = placed.effect, let key = effect.key, let layer = layersByKey[key] else { continue }
                 applyEffect(effect, to: layer)

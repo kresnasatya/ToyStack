@@ -745,7 +745,7 @@ public class Tab {
         let interestBottom = interestTop + 4 * tabHeight
         if scroll < interestTop || scroll + tabHeight > interestBottom {
             interestTop = max(0, scroll - tabHeight)
-            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
+            browser?.applyScrollAndUpdateInterest(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
             return true
         }
         return false
@@ -776,7 +776,7 @@ public class Tab {
                 scroll = 0
             }
             interestTop = max(0, scroll - tabHeight)
-            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
+            browser?.applyScrollAndUpdateInterest(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
         } else {
             performLoad(entry.url)
         }
@@ -794,7 +794,7 @@ public class Tab {
                 scroll = 0
             }
             interestTop = max(0, scroll - tabHeight)
-            browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
+            browser?.applyScrollAndUpdateInterest(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
         } else {
             performLoad(entry.url, payload: entry.payload)
         }
@@ -881,7 +881,7 @@ public class Tab {
                         self.url = resolved
                         scrollToFragment(String(href.dropFirst()))
                         interestTop = max(0, scroll - tabHeight)
-                        browser?.applyScrollAndRecomposite(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
+                        browser?.applyScrollAndUpdateInterest(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
                     } else {
                         load(url.resolve(href))
                     }

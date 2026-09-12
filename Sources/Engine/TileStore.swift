@@ -79,24 +79,11 @@ final class TileStore: @unchecked Sendable {
     private func evictIfNeeded() {
         var total = entries.values.reduce(0) { $0 + $1.pixels }
         guard total > pixelBudget else { return }
-        let farthestFirst = entries.sorted { a, b in
-            let da = distanceFromViewport(a.key)
-            let db = distanceFromViewport(b.key)
-            if da != db { return da > db }
-            return a.value.lastUsed < b.value.lastUsed
-        }
-        for (key, _) in farthestFirst {
+        let oldestFirst = entries.sorted(by: { $0.value.lastUsed < $1.value.lastUsed })
+        for (key, _) in oldestFirst {
             guard total > pixelBudget, let entry = entries.removeValue(forKey: key) else { break }
             total -= entry.pixels
         }
-    }
-
-    private func distanceFromViewport(_ key: TileKey) -> CGFloat {
-        let top = CGFloat(key.index.row) * tileSize
-        let bottom = top + tileSize
-        if bottom <= viewportTop { return viewportTop - bottom }
-        if top >= viewportBottom { return top - viewportBottom }
-        return 0
     }
 }
 

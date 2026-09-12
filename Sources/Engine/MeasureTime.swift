@@ -36,6 +36,18 @@ public class MeasureTime: @unchecked Sendable {
         )
     }
 
+    public func counter(_ name: String, _ args: [String: Int]) {
+        lock.lock()
+        defer { lock.unlock() }
+        seekBeforeClose()
+        let ts = Int(Date().timeIntervalSince1970 * 1_000_000)
+        let tid = UInt(bitPattern: ObjectIdentifier(Thread.current))
+        let body = args.map { "\"\($0.key)\": \($0.value)"}.joined(separator: ", ")
+        writeTrace(
+            ", { \"ph\": \"C\", \"cat\": \"_\", \"name\": \"\(name)\", \"ts\": \(ts), \"pid\": 1, \"tid\": \(tid), \"args\": {\(body)}}]}"
+        )
+    }
+
     public func close() {
         lock.lock()
         defer { lock.unlock() }

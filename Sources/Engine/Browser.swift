@@ -316,11 +316,20 @@ public class Browser: ObservableObject {
 
                 let tabHeight = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
                 let prefetch = 2 * CompositedLayer.tileSize
+                let viewportWidth = inputs.settings.viewport.windowSize.width
                 let window = RasterWindow(
-                    hintTop: inputs.scrollState.scroll - prefetch,
-                    hintBottom: inputs.scrollState.scroll + tabHeight + prefetch,
-                    visibleTop: inputs.scrollState.scroll,
-                    visibleBottom: inputs.scrollState.scroll + tabHeight
+                    hint: Rect(
+                        left: 0,
+                        top: inputs.scrollState.scroll - prefetch,
+                        right: viewportWidth,
+                        bottom: inputs.scrollState.scroll + tabHeight + prefetch
+                    ),
+                    visible: Rect(
+                        left: 0,
+                        top: inputs.scrollState.scroll,
+                        right: viewportWidth,
+                        bottom: inputs.scrollState.scroll + tabHeight
+                    )
                 )
 
                 let infos = layers.map {
@@ -337,19 +346,45 @@ public class Browser: ObservableObject {
                     )
                     let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
                     measure.start("raster.tiles.flat")
+                    var strips: [TileStrip] = []
                     for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
-                        layer.rasterIfNeeded(
+                        strips.append(contentsOf: layer.rasterIfNeeded(
                             scale: inputs.settings.viewport.displayScale,
                             store: inputs.scene.tileStore,
                             window: window,
                             budget: budget
-                        )
+                        ))
                         layer.pruneTiles(
                             keepTop: inputs.scrollState.scroll - 4 * CompositedLayer.tileSize,
                             keepBottom: inputs.scrollState.scroll + tabHeight + 4 * CompositedLayer.tileSize
                         )
                     }
+                    let images = TileStripRasterizer.render(
+                        strips,
+                        scale: inputs.settings.viewport.displayScale
+                    )
+                    for (i, strip) in strips.enumerated() {
+                        guard let stripImage = images[i] else { continue }
+                        for key in strip.tiles {
+                            guard let tile = stripImage.cropping(
+                                to: TileStrip.sliceRect(
+                                    for: key,
+                                    in: strip.bounds,
+                                    scale: inputs.settings.viewport.displayScale
+                                )
+                            ) else { continue }
+                            strip.layer.tiles[key.index] = tile
+                            inputs.scene.tileStore.insert(tile, key: key)
+                        }
+                    }
                     measure.stop("raster.tiles.flat")
+                    measure.counter("tiles", [
+                        "scroll": Int(inputs.scrollState.scroll),
+                        "hits": inputs.scene.tileStore.hits,
+                        "misses": inputs.scene.tileStore.misses,
+                        "layers": layers.count,
+                        "flat": infos.filter({ $0.kind == .flat }).count
+                    ])
                     if budget.remaining == 0 {
                         inputs.scene.tileStore.markDeferred()
                     }
@@ -807,7 +842,7 @@ public class Browser: ObservableObject {
         }
     }
 
-    public func applyScrollAndRecomposite(scroll: CGFloat, interestTop: CGFloat, interestBottom: CGFloat) {
+    public func applyScrollAndUpdateInterest(scroll: CGFloat, interestTop: CGFloat, interestBottom: CGFloat) {
         activeFrame.scroll.scroll = scroll
         activeFrame.scroll.interestTop = interestTop
         activeFrame.scroll.interestBottom = interestBottom
@@ -816,7 +851,7 @@ public class Browser: ObservableObject {
             frames[id]?.scroll.interestTop = interestTop
             frames[id]?.scroll.interestBottom = interestBottom
         }
-        setNeedsComposite()
+        setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
 
