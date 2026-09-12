@@ -42,7 +42,7 @@ public class Tab {
     public var canGoForward: Bool { historyIndex < history.count - 1 }
 
     private(set) var taskRunner: TaskRunner = TaskRunner()
-    var networkingThread: NetworkingThread?
+    var networkTaskRunner: NetworkTaskRunner?
     private(set) var accessibilityTree: AccessibilityNode? = nil
     private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
 
@@ -97,23 +97,23 @@ public class Tab {
     }
 
     private func performLoad(_ url: WebURL, payload: String? = nil) {
-        guard let networkingThread else { return }
+        guard let networkTaskRunner else { return }
         let referrer = effectiveReferrer(for: url)
 
         Task {
-            let result = await networkingThread.schedule(name: "load\(url.toString())") {
+            let result = await networkTaskRunner.schedule(name: "load\(url.toString())") {
                 await self.fetchPage(url: url, referrer: referrer, payload: payload)
             }
 
             guard let styleURLs = self.parseHTML(url: url, result: result) else { return }
 
-            let styleBodies = await networkingThread.schedule(name: "fetch-styles") {
+            let styleBodies = await networkTaskRunner.schedule(name: "fetch-styles") {
                 await self.fetchStyles(urls: styleURLs)
             }
 
             let scriptURLs = self.applyStyles(url: url, bodies: styleBodies)
 
-            let scriptBodies = await networkingThread.schedule(name: "fetch-scripts") {
+            let scriptBodies = await networkTaskRunner.schedule(name: "fetch-scripts") {
                 await self.fetchScripts(urls: scriptURLs)
             }
 

@@ -104,7 +104,7 @@ public class Browser: ObservableObject {
 
     public var measure = MeasureTime()
 
-    let networkingThread = NetworkingThread()
+    let networkTaskRunner = NetworkTaskRunner()
     let rasterScheduler = RasterScheduler()
     private let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
 
@@ -116,7 +116,7 @@ public class Browser: ObservableObject {
             tabWidth: windowSize.width
         )
         tab.browser = self
-        tab.networkingThread = networkingThread
+        tab.networkTaskRunner = networkTaskRunner
         tab.prefersDark = prefersDark
         tab.forcedColors = forcedColors
         tab.load(url)

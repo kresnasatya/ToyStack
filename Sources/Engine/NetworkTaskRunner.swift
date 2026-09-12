@@ -1,6 +1,6 @@
 import Foundation
 
-class NetworkingThread: @unchecked Sendable {
+class NetworkTaskRunner: @unchecked Sendable {
     private var tasks: [NetworkTask] = []
     private let queue = DispatchQueue(
         label: "browser.networking",
