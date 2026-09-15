@@ -30,6 +30,7 @@ final class TileStore: @unchecked Sendable {
     private var viewportTop: CGFloat = 0
     private var viewportBottom: CGFloat = 0
     private var entries: [TileKey: Entry] = [:]
+    private var totalPixels = 0
     private var usageClock = 0
     private(set) var needsMoreTiles = false
 
@@ -37,8 +38,7 @@ final class TileStore: @unchecked Sendable {
     private(set) var hits = 0
     private(set) var misses = 0
     var populationDebug: String {
-        let pixels = entries.values.reduce(0, { $0 + $1.pixels })
-        return "store: \(entries.count) entries, \(pixels)/\(pixelBudget) px"
+        return "store: \(entries.count) entries, \(totalPixels)/\(pixelBudget) px"
     }
 
     init(tileSize: CGFloat) {
@@ -72,17 +72,20 @@ final class TileStore: @unchecked Sendable {
 
     func insert(_ image: CGImage, key: TileKey) {
         usageClock += 1
-        entries[key] = Entry(image: image, pixels: image.width * image.height, lastUsed: usageClock)
+        let pixels = image.width * image.height
+        if let previous = entries[key] {
+            totalPixels -= previous.pixels
+        }
+        entries[key] = Entry(image: image, pixels: pixels, lastUsed: usageClock)
+        totalPixels += pixels
         evictIfNeeded()
     }
 
     private func evictIfNeeded() {
-        var total = entries.values.reduce(0) { $0 + $1.pixels }
-        guard total > pixelBudget else { return }
-        let oldestFirst = entries.sorted(by: { $0.value.lastUsed < $1.value.lastUsed })
-        for (key, _) in oldestFirst {
-            guard total > pixelBudget, let entry = entries.removeValue(forKey: key) else { break }
-            total -= entry.pixels
+        while totalPixels > pixelBudget,
+            let oldest = entries.min(by: { $0.value.lastUsed < $1.value.lastUsed }) {
+            totalPixels -= oldest.value.pixels
+            entries.removeValue(forKey: oldest.key)
         }
     }
 }

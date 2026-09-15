@@ -11,6 +11,7 @@ class RasterScheduler: @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "browser.compositor", qos: .userInitiated)
     private let workers = RasterWorkerPool()
+    var measure: MeasureTime?
     private let lock = NSLock()
     private var pending: Job?
     private var draining = false
@@ -39,7 +40,7 @@ class RasterScheduler: @unchecked Sendable {
             finish(job: job, plan: plan, images: [])
             return
         }
-        workers.render(plan.batch.strips, scale: job.scale) { images in
+        workers.render(plan.batch.strips, scale: job.scale, measure: measure) { images in
             self.queue.async {
                 self.finish(job: job, plan: plan, images: images)
             }

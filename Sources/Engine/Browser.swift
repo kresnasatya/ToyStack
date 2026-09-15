@@ -108,7 +108,9 @@ public class Browser: ObservableObject {
     let rasterScheduler = RasterScheduler()
     private let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
 
-    public init() {}
+    public init() {
+        rasterScheduler.measure = measure
+    }
 
     public func newTab(_ url: WebURL) {
         let tab = Engine.Tab(

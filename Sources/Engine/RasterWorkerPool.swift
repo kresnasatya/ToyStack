@@ -32,6 +32,7 @@ final class RasterWorkerPool: @unchecked Sendable {
     func render(
         _ strips: [TileStrip],
         scale: CGFloat,
+        measure: MeasureTime?,
         completion: @escaping @Sendable ([CGImage?]) -> Void
     ) {
         guard !strips.isEmpty else {
@@ -44,12 +45,18 @@ final class RasterWorkerPool: @unchecked Sendable {
         for index in 0..<strips.count {
             group.enter()
             queue.async {
+                measure?.start("raster.worker")
                 let image = TileStripRasterizer.render(strips[index], scale: scale)
+                measure?.stop("raster.worker")
                 results.set(index, image)
                 group.leave()
             }
         }
         group.notify(queue: queue) {
+            measure?.counter("pool", [
+                "workers": RasterWorkerPool.defaultWorkerCount,
+                "strips": strips.count
+            ])
             completion(results.snapshot())
         }
     }
