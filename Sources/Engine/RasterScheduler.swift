@@ -4,13 +4,14 @@ import Foundation
 class RasterScheduler: @unchecked Sendable {
     struct Job {
         let scale: CGFloat
-        let plan: @Sendable () -> RasterPlan
-        let install: @Sendable (RasterPlan, [CGImage?]) -> RasterOutput
+        let plan: @Sendable (TileStore) -> RasterPlan
+        let install: @Sendable (TileStore, RasterPlan, [CGImage?]) -> RasterOutput
         let then: @MainActor (RasterOutput) -> Void
     }
 
     private let queue = DispatchQueue(label: "browser.compositor", qos: .userInitiated)
     private let workers = RasterWorkerPool()
+    let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
     var measure: MeasureTime?
     private let lock = NSLock()
     private var pending: Job?
@@ -35,7 +36,7 @@ class RasterScheduler: @unchecked Sendable {
         pending = nil
         lock.unlock()
 
-        let plan = job.plan()
+        let plan = job.plan(tileStore)
         guard !plan.batch.strips.isEmpty else {
             finish(job: job, plan: plan, images: [])
             return
@@ -48,7 +49,7 @@ class RasterScheduler: @unchecked Sendable {
     }
 
     private func finish(job: Job, plan: RasterPlan, images: [CGImage?]) {
-        let output = job.install(plan, images)
+        let output = job.install(tileStore, plan, images)
         Task { @MainActor in job.then(output) }
         drain()
     }

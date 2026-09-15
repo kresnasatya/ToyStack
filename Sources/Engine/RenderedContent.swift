@@ -1,8 +1,8 @@
 import CoreGraphics
 
-struct RenderedContent {
-    var placements: [PlacedLayer] = []
-    var image: CGImage?
-    var regionTop: CGFloat = 0
-    var usesSublayers: Bool = false
+public struct RenderedContent {
+    public var placements: [PlacedLayer] = []
+    public var image: CGImage?
+    public var regionTop: CGFloat = 0
+    public var usesSublayers: Bool = false
 }

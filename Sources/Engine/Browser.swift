@@ -59,10 +59,18 @@ public class Browser: ObservableObject {
     public var contentRegionTop: CGFloat { activeFrame.render.content.regionTop }
     public var activePlacements: [PlacedLayer] { activeFrame.render.content.placements }
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
-    public private(set) var structureVersion = 0
-    public var onContentImage: (() -> Void)?
-    public var onScroll: (() -> Void)?
-    private var activeStructureSignature = 0
+    public var presentedFrame: PresentedFrame {
+        PresentedFrame(
+            content: activeFrame.render.content,
+            viewport: PresentedViewport(
+                contentOffset: topInset - activeFrame.scroll.scroll,
+                displayScale: displayScale,
+                canvasColor: canvasColor,
+                scrollbar: activeSidebar
+            )
+        )
+    }
+    public var onPresent: ((PresentedFrame) -> Void)?
     private var lastTileScroll: CGFloat = .nan
 
     public var canvasColor: CGColor {
@@ -106,7 +114,6 @@ public class Browser: ObservableObject {
 
     let networkTaskRunner = NetworkTaskRunner()
     let rasterScheduler = RasterScheduler()
-    private let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
 
     public init() {
         rasterScheduler.measure = measure
@@ -223,7 +230,7 @@ public class Browser: ObservableObject {
             if layers[index].effectImage == nil { return false }
         }
         activeFrame.render.content.placements = Browser.layerPlacements(layers, infos: infos)
-        onContentImage?()
+        onPresent?(presentedFrame)
         return true
     }
 
@@ -261,7 +268,6 @@ public class Browser: ObservableObject {
                 displayList: activeFrame.paint.displayList,
                 compositedUpdates: activeFrame.paint.compositedUpdates,
                 previousLayers: activeFrame.render.layers,
-                tileStore: tileStore
             ),
             settings: RasterSettings(
                 viewport: ViewportInfo(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
@@ -310,7 +316,7 @@ public class Browser: ObservableObject {
         rasterScheduler.schedule(
             RasterScheduler.Job(
                 scale: inputs.settings.viewport.displayScale,
-                plan: { () -> RasterPlan in
+                plan: { (store: TileStore) -> RasterPlan in
                     measure.start("raster.plan")
 
                     measure.start("raster.composite")
@@ -349,7 +355,7 @@ public class Browser: ObservableObject {
                     var strips: [TileStrip] = []
                     var deferred = false
                     if usesSublayers {
-                        inputs.scene.tileStore.beginComposite(
+                        store.beginComposite(
                             viewportTop: inputs.scrollState.scroll,
                             viewportBottom: inputs.scrollState.scroll + tabHeight
                         )
@@ -358,7 +364,7 @@ public class Browser: ObservableObject {
                         for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
                             strips.append(contentsOf: layer.rasterIfNeeded(
                                 scale: inputs.settings.viewport.displayScale,
-                                store: inputs.scene.tileStore,
+                                store: store,
                                 window: window,
                                 budget: budget
                             ))
@@ -388,7 +394,7 @@ public class Browser: ObservableObject {
                         )
                     )
                 },
-                install: { (plan: RasterPlan, images: [CGImage?]) -> RasterOutput in
+                install: { (store: TileStore, plan: RasterPlan, images: [CGImage?]) -> RasterOutput in
                     let layers = plan.commit.layers
                     let infos = plan.commit.infos
                     let inputs = plan.commit.inputs
@@ -407,19 +413,19 @@ public class Browser: ObservableObject {
                                     )
                                 ) else { continue }
                                 strip.layer.tiles[key.index] = tile
-                                inputs.scene.tileStore.insert(tile, key: key)
+                                store.insert(tile, key: key)
                             }
                         }
                         measure.stop("raster.install.tiles")
                         measure.counter("tiles", [
                             "scroll": Int(inputs.scrollState.scroll),
-                            "hits": inputs.scene.tileStore.hits,
-                            "misses": inputs.scene.tileStore.misses,
+                            "hits": store.hits,
+                            "misses": store.misses,
                             "layers": layers.count,
                             "flat": infos.filter({ $0.kind == .flat }).count
                         ])
                         if plan.batch.deferred {
-                            inputs.scene.tileStore.markDeferred()
+                            store.markDeferred()
                         }
                         measure.start("raster.effect")
                         for (index, layer) in layers.enumerated() where infos[index].kind == .ca {
@@ -475,7 +481,7 @@ public class Browser: ObservableObject {
                             regionTop: regionTop,
                             usesSublayers: plan.commit.usesSublayers
                         ),
-                        structureSignature: plan.commit.usesSublayers ? Browser.structureSignature(layers, infos: infos) : 0
+                        needsMoreTiles: store.needsMoreTiles
                     )
                 },
                 then: { [weak self] (output: RasterOutput) in
@@ -485,17 +491,13 @@ public class Browser: ObservableObject {
                         if ownerID == self.activeFrameID {
                             self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
                             if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
-                            if output.structureSignature != self.activeStructureSignature {
-                                self.activeStructureSignature = output.structureSignature
-                                self.structureVersion &+= 1
-                            }
                             if inputs.settings.flags.needsDraw || output.content.usesSublayers {
                                 self.activeFrame.render.content = output.content
-                                self.onContentImage?()
+                                self.onPresent?(self.presentedFrame)
                             }
                             self.activeFrame.render.signature = signature
                             self.frames[ownerID] = self.activeFrame
-                            if output.content.usesSublayers, inputs.scene.tileStore.needsMoreTiles, self.tileContinuationPasses < 8 {
+                            if output.content.usesSublayers, output.needsMoreTiles, self.tileContinuationPasses < 8 {
                                 self.tileContinuationPasses += 1
                                 self.needsTileContinuation = true
                                 self.needsRaster = true
@@ -743,6 +745,7 @@ public class Browser: ObservableObject {
                     for (index, image) in layer.tiles {
                         placements.append(
                             PlacedLayer(
+                                key: .tile(zIndex: z, col: index.col, row: index.row),
                                 image: image,
                                 frame: CGRect(
                                     x: CGFloat(index.col) * t,
@@ -750,7 +753,6 @@ public class Browser: ObservableObject {
                                     width: t,
                                     height: t
                                 ),
-                                zIndex: z
                             )
                         )
                     }
@@ -759,9 +761,9 @@ public class Browser: ObservableObject {
                     let bounds = layer.compositedBounds()
                     placements.append(
                         PlacedLayer(
+                            key: .composited(zIndex: z),
                             image: image,
                             frame: CGRect(x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top),
-                            zIndex: z,
                             effect: infos[z].effect
                         )
                     )
@@ -770,42 +772,6 @@ public class Browser: ObservableObject {
             }
         }
         return placements
-    }
-
-    nonisolated static func structureSignature(_ layers: [CompositedLayer], infos: [LayerEffectInfo]) -> Int {
-        var hash = layers.count
-        for (z, layer) in layers.enumerated() {
-            switch infos[z].kind {
-                case .flat:
-                    for (index, image) in layer.tiles {
-                        var tileHash = Hasher()
-                        tileHash.combine(z)
-                        tileHash.combine(index)
-                        tileHash.combine(ObjectIdentifier(image))
-                        hash ^= tileHash.finalize()
-                    }
-                case .ca:
-                    var layerHash = Hasher()
-                    layerHash.combine(z)
-                    layerHash.combine(ObjectIdentifier(layer))
-                    if let image = layer.effectImage {
-                        layerHash.combine(ObjectIdentifier(image))
-                    }
-                    if let effect = infos[z].effect {
-                        layerHash.combine(effect.opacity)
-                        layerHash.combine(effect.translation.x)
-                        layerHash.combine(effect.translation.y)
-                        if let key = effect.key { layerHash.combine(key) }
-                        if let name = effect.blendMode?.compositingFilterName {
-                            layerHash.combine(name)
-                        }
-                    }
-                    hash ^= layerHash.finalize()
-                case .blendFallback, .scrollFallback:
-                    break
-            }
-        }
-        return hash
     }
 
     nonisolated static func rasterEffectBitmap(_ layer: CompositedLayer, scale: CGFloat, blur: CGFloat) -> CGImage? {
@@ -859,7 +825,7 @@ public class Browser: ObservableObject {
         }
 
         if activeFrame.render.content.usesSublayers {
-            onScroll?()
+            onPresent?(presentedFrame)
             let step = CompositedLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
                 lastTileScroll = scroll
@@ -936,7 +902,6 @@ public class Browser: ObservableObject {
             sig.geometry.viewport != windowSize || sig.geometry.displayScale != displayScale {
             setNeedsComposite()
         }
-        structureVersion &+= 1
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()
     }
