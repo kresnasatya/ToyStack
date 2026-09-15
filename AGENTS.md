@@ -6,9 +6,17 @@ This is a project to build a toy browser engine with Swift programming language.
 
 I'm a beginner on Swift programming language and browser engineering.
 
+## Code Architecture
+
+- Each class / struct / function restricted to have maximum 4 parameters.
+- Always put explicit type information to make Swift compiler fast to compile. Reference: https://developer.apple.com/documentation/xcode/improving-build-efficiency-with-good-coding-practices#Provide-the-Swift-compiler-with-explicit-type-information
+- One concept per file. Name each file after the main type it holds, don't leave a type inside a file named after something else (e.g. `BrowserFont` lives in `BrowserFont.swift`, NOT in `DOMUtils.swift`).
+- When a file grows several unrelated types, split each into its own file. A type belongs where its name says its belong, NOT where it happened to be first written.
+- Only small helpers that are truly support one type may share that type's file, grouped under a `// MARK: -` section (e.g. `ScrollbarGeometry` and `scrollbarBarRect` in `Scrollbar.swift`).
+
 ## Expected Result
 
-This project is intended to be used as learning purpose to understand how to make the actual browser engine with Swift programming language. The thinking process must be experienced web browser engineer and the output of code must be high quality.
+This project is intended to be used as learning purpose to understand how to make the actual browser engine with Swift programming language. The thinking process must be experienced web browser engineer. The output of code must be high quality and must follow the **Code Architecture** section.
 
 ## Workflow
 
@@ -40,14 +48,6 @@ For multi-file changes, group the diffs by file and include the file path before
 9. Reference existing code by file:line so I can navigate to it.
 
 10. Save it in markdown file in the `plans` directory.
-
-## Code Architecture
-
-- Each class / struct / function restricted to have maximum 4 parameters.
-- Always put explicit type information to make Swift compiler fast to compile. Reference: https://developer.apple.com/documentation/xcode/improving-build-efficiency-with-good-coding-practices#Provide-the-Swift-compiler-with-explicit-type-information
-- One concept per file. Name each file after the main type it holds, don't leave a type inside a file named after something else (e.g. `BrowserFont` lives in `BrowserFont.swift`, NOT in `DOMUtils.swift`).
-- When a file grows several unrelated types, split each into its own file. A type belongs where its name says its belong, NOT where it happened to be first written.
-- Only small helpers that are truly support one type may share that type's file, grouped under a `// MARK: -` section (e.g. `ScrollbarGeometry` and `scrollbarBarRect` in `Scrollbar.swift`).
 
 ## Debugging
 
