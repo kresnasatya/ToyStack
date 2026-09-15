@@ -306,202 +306,230 @@ public class Browser: ObservableObject {
 
         let measure = self.measure
         rasterScheduler.schedule(
-            { () -> RasterOutput in
-                measure.start("raster.composite")
-                let layers =
-                    inputs.settings.flags.needsComposite
-                    ? Browser.computeComposite(inputs)
-                    : inputs.scene.previousLayers
-                measure.stop("raster.composite")
+            RasterScheduler.Job(
+                scale: inputs.settings.viewport.displayScale,
+                plan: { () -> RasterPlan in
+                    measure.start("raster.plan")
 
-                let tabHeight = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
-                let prefetch = 2 * CompositedLayer.tileSize
-                let viewportWidth = inputs.settings.viewport.windowSize.width
-                let window = RasterWindow(
-                    hint: Rect(
-                        left: 0,
-                        top: inputs.scrollState.scroll - prefetch,
-                        right: viewportWidth,
-                        bottom: inputs.scrollState.scroll + tabHeight + prefetch
-                    ),
-                    visible: Rect(
-                        left: 0,
-                        top: inputs.scrollState.scroll,
-                        right: viewportWidth,
-                        bottom: inputs.scrollState.scroll + tabHeight
-                    )
-                )
+                    measure.start("raster.composite")
+                    let layers =
+                        inputs.settings.flags.needsComposite
+                        ? Browser.computeComposite(inputs)
+                        : inputs.scene.previousLayers
+                    measure.stop("raster.composite")
 
-                let infos = layers.map {
-                    Browser.layerEffectInfo($0, updates: inputs.scene.compositedUpdates)
-                }
-                let usesSublayers = !infos.contains {
-                    $0.kind == .blendFallback || $0.kind == .scrollFallback
-                }
-                measure.start("raster.tiles")
-                if usesSublayers {
-                    inputs.scene.tileStore.beginComposite(
-                        viewportTop: inputs.scrollState.scroll,
-                        viewportBottom: inputs.scrollState.scroll + tabHeight
+                    let tabHeight = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
+                    let prefetch = 2 * CompositedLayer.tileSize
+                    let viewportWidth = inputs.settings.viewport.windowSize.width
+                    let window = RasterWindow(
+                        hint: Rect(
+                            left: 0,
+                            top: inputs.scrollState.scroll - prefetch,
+                            right: viewportWidth,
+                            bottom: inputs.scrollState.scroll + tabHeight + prefetch
+                        ),
+                        visible: Rect(
+                            left: 0,
+                            top: inputs.scrollState.scroll,
+                            right: viewportWidth,
+                            bottom: inputs.scrollState.scroll + tabHeight
+                        )
                     )
-                    let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
-                    measure.start("raster.tiles.flat")
+
+                    let infos = layers.map {
+                        Browser.layerEffectInfo($0, updates: inputs.scene.compositedUpdates)
+                    }
+                    let usesSublayers = !infos.contains {
+                        $0.kind == .blendFallback || $0.kind == .scrollFallback
+                    }
+
+                    measure.start("raster.plan.tiles")
                     var strips: [TileStrip] = []
-                    for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
-                        strips.append(contentsOf: layer.rasterIfNeeded(
-                            scale: inputs.settings.viewport.displayScale,
-                            store: inputs.scene.tileStore,
-                            window: window,
-                            budget: budget
-                        ))
-                        layer.pruneTiles(
-                            keepTop: inputs.scrollState.scroll - 4 * CompositedLayer.tileSize,
-                            keepBottom: inputs.scrollState.scroll + tabHeight + 4 * CompositedLayer.tileSize
+                    var deferred = false
+                    if usesSublayers {
+                        inputs.scene.tileStore.beginComposite(
+                            viewportTop: inputs.scrollState.scroll,
+                            viewportBottom: inputs.scrollState.scroll + tabHeight
                         )
+                        let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
+
+                        for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
+                            strips.append(contentsOf: layer.rasterIfNeeded(
+                                scale: inputs.settings.viewport.displayScale,
+                                store: inputs.scene.tileStore,
+                                window: window,
+                                budget: budget
+                            ))
+                            layer.pruneTiles(
+                                keepTop: inputs.scrollState.scroll - 4 * CompositedLayer.tileSize,
+                                keepBottom: inputs.scrollState.scroll + tabHeight + 4 * CompositedLayer.tileSize
+                            )
+                        }
+
+                        deferred = budget.remaining == 0
                     }
-                    let images = TileStripRasterizer.render(
-                        strips,
-                        scale: inputs.settings.viewport.displayScale
+
+                    measure.stop("raster.plan.tiles")
+                    measure.stop("raster.plan")
+
+                    return RasterPlan(
+                        commit: RasterCommit(
+                            inputs: inputs,
+                            layers: layers,
+                            infos: infos,
+                            usesSublayers: usesSublayers,
+                        ),
+                        batch: TileBatch(
+                            strips: strips,
+                            tabHeight: tabHeight,
+                            deferred: deferred
+                        )
                     )
-                    for (i, strip) in strips.enumerated() {
-                        guard let stripImage = images[i] else { continue }
-                        for key in strip.tiles {
-                            guard let tile = stripImage.cropping(
-                                to: TileStrip.sliceRect(
-                                    for: key,
-                                    in: strip.bounds,
-                                    scale: inputs.settings.viewport.displayScale
-                                )
-                            ) else { continue }
-                            strip.layer.tiles[key.index] = tile
-                            inputs.scene.tileStore.insert(tile, key: key)
-                        }
-                    }
-                    measure.stop("raster.tiles.flat")
-                    measure.counter("tiles", [
-                        "scroll": Int(inputs.scrollState.scroll),
-                        "hits": inputs.scene.tileStore.hits,
-                        "misses": inputs.scene.tileStore.misses,
-                        "layers": layers.count,
-                        "flat": infos.filter({ $0.kind == .flat }).count
-                    ])
-                    if budget.remaining == 0 {
-                        inputs.scene.tileStore.markDeferred()
-                    }
-                    measure.start("raster.effect")
-                    for (index, layer) in layers.enumerated() where infos[index].kind == .ca {
-                        Browser.updateEffectImage(
-                            layer,
-                            scale: inputs.settings.viewport.displayScale,
-                            blur: infos[index].blur
-                        )
-                    }
-                    measure.stop("raster.effect")
-                }
-                measure.stop("raster.tiles")
+                },
+                install: { (plan: RasterPlan, images: [CGImage?]) -> RasterOutput in
+                    let layers = plan.commit.layers
+                    let infos = plan.commit.infos
+                    let inputs = plan.commit.inputs
 
-                let drawList = Browser.computePaintDrawList(
-                    layers: layers,
-                    inputs: inputs
-                )
-
-                let regionTop = inputs.scrollState.scroll
-                var contentImage: CGImage? = nil
-
-                if !usesSublayers && inputs.settings.flags.needsDraw {
-                    let regionHeight = inputs.settings.viewport.topInset + tabHeight
-                    measure.start("raster.bitmap")
-                    contentImage =
-                        inputs.settings.flags.needsDraw
-                        ? CGRenderer.renderBitmap(
-                            size: CGSize(
-                                width: inputs.settings.viewport.windowSize.width,
-                                height: regionHeight
-                            ),
-                            scale: inputs.settings.viewport.displayScale,
-                            backgroundColor: inputs.settings.theme.forcedColors
-                                ? EngineColor(cssName: ForcedColor.canvas)
-                                : (inputs.settings.theme.prefersDark ? EngineColor(cssName: "black") : EngineColor(cssName: "white"))
-                        ) { r in
-                            r.saveState()
-                            r.translateBy(x: 0, y: inputs.settings.viewport.topInset - regionTop)
-                            for item in drawList {
-                                if let cmd = item as? any PaintCommand {
-                                    cmd.execute(scroll: 0, renderer: r)
-                                } else if let ve = item as? Engine.VisualEffect {
-                                    ve.execute(renderer: r)
-                                }
+                    measure.start("raster.install")
+                    if plan.commit.usesSublayers {
+                        measure.start("raster.install.tiles")
+                        for (i, strip) in plan.batch.strips.enumerated() {
+                            guard let stripImage = images[i] else { continue }
+                            for key in strip.tiles {
+                                guard let tile = stripImage.cropping(
+                                    to: TileStrip.sliceRect(
+                                        for: key,
+                                        in: strip.bounds,
+                                        scale: inputs.settings.viewport.displayScale
+                                    )
+                                ) else { continue }
+                                strip.layer.tiles[key.index] = tile
+                                inputs.scene.tileStore.insert(tile, key: key)
                             }
-                            r.restoreState()
                         }
-                        : nil
-                    measure.stop("raster.bitmap")
-                }
-                return RasterOutput(
-                    compositedLayers: inputs.settings.flags.needsComposite ? layers : nil,
-                    drawList: drawList,
-                    content: RenderedContent(
-                        placements: usesSublayers ? Browser.layerPlacements(layers, infos: infos) : [],
-                        image: contentImage,
-                        regionTop: regionTop,
-                        usesSublayers: usesSublayers
-                    ),
-                    structureSignature: usesSublayers ? Browser.structureSignature(layers, infos: infos) : 0
-                )
-            },
-            then: { [weak self] (output: RasterOutput) in
-                guard let self = self else { return }
-                self.compositeInFlight = false
-                if let ownerID {
-                    if ownerID == self.activeFrameID {
-                        self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
-                        if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
-                        if output.structureSignature != self.activeStructureSignature {
-                            self.activeStructureSignature = output.structureSignature
-                            self.structureVersion &+= 1
+                        measure.stop("raster.install.tiles")
+                        measure.counter("tiles", [
+                            "scroll": Int(inputs.scrollState.scroll),
+                            "hits": inputs.scene.tileStore.hits,
+                            "misses": inputs.scene.tileStore.misses,
+                            "layers": layers.count,
+                            "flat": infos.filter({ $0.kind == .flat }).count
+                        ])
+                        if plan.batch.deferred {
+                            inputs.scene.tileStore.markDeferred()
                         }
-                        if inputs.settings.flags.needsDraw || output.content.usesSublayers {
-                            self.activeFrame.render.content = output.content
-                            self.onContentImage?()
+                        measure.start("raster.effect")
+                        for (index, layer) in layers.enumerated() where infos[index].kind == .ca {
+                            Browser.updateEffectImage(
+                                layer,
+                                scale: inputs.settings.viewport.displayScale,
+                                blur: infos[index].blur
+                            )
                         }
-                        self.activeFrame.render.signature = signature
-                        self.frames[ownerID] = self.activeFrame
-                        if output.content.usesSublayers, inputs.scene.tileStore.needsMoreTiles, self.tileContinuationPasses < 8 {
-                            self.tileContinuationPasses += 1
-                            self.needsTileContinuation = true
-                            self.needsRaster = true
-                        }
-                        if self.commitedPrefersDark != inputs.settings.theme.prefersDark {
-                            self.commitedPrefersDark = inputs.settings.theme.prefersDark
-                        }
-                        if self.commitedForcedColors != inputs.settings.theme.forcedColors {
-                            self.commitedForcedColors = inputs.settings.theme.forcedColors
-                        }
-                    } else if var stale = self.frames[ownerID] {
-                        stale.render.layers = output.compositedLayers ?? stale.render.layers
-                        if let drawList = output.drawList { stale.render.drawList = drawList }
-                        if inputs.settings.flags.needsDraw { stale.render.content = output.content }
-                        stale.render.signature = signature
-                        self.frames[ownerID] = stale
+                        measure.stop("raster.effect")
                     }
-                }
 
-                self.updateAccessibility()
-                self.measure.stop("composite_raster_and_draw")
-                if frameStart != .distantPast {
-                    let elapsed = Date().timeIntervalSince(frameStart)
-                    self.recentFrameTimes.append(elapsed)
-                    if self.recentFrameTimes.count > self.frameHistorySize {
-                        self.recentFrameTimes.removeFirst()
+                    let drawList = Browser.computePaintDrawList(layers: layers, inputs: inputs)
+                    let regionTop = inputs.scrollState.scroll
+                    var contentImage: CGImage? = nil
+
+                    if !plan.commit.usesSublayers && inputs.settings.flags.needsDraw {
+                        let regionHeight = inputs.settings.viewport.topInset + plan.batch.tabHeight
+                        measure.start("raster.bitmap")
+                        contentImage = inputs.settings.flags.needsDraw
+                            ? CGRenderer.renderBitmap(
+                                size: CGSize(
+                                    width: inputs.settings.viewport.windowSize.width,
+                                    height: regionHeight
+                                ),
+                                scale: inputs.settings.viewport.displayScale,
+                                backgroundColor: inputs.settings.theme.forcedColors
+                                    ? EngineColor(cssName: ForcedColor.canvas)
+                                    : (inputs.settings.theme.prefersDark ? EngineColor(cssName: "black") : EngineColor(cssName: "white"))
+                            ) { r in
+                                r.saveState()
+                                r.translateBy(x: 0, y: inputs.settings.viewport.topInset - regionTop)
+                                for item in drawList {
+                                    if let cmd = item as? any PaintCommand {
+                                        cmd.execute(scroll: 0, renderer: r)
+                                    } else if let ve = item as? Engine.VisualEffect {
+                                        ve.execute(renderer: r)
+                                    }
+                                }
+                                r.restoreState()
+                            }
+                            : nil
+                        measure.stop("raster.bitmap")
                     }
-                    let avg =
-                        self.recentFrameTimes.reduce(0, +) / Double(self.recentFrameTimes.count)
-                    self.estimatedFrameTime = max(avg, self.FRAME_BUDGET)
+                    measure.stop("raster.install")
+
+                    return RasterOutput(
+                        compositedLayers: inputs.settings.flags.needsComposite ? layers : nil,
+                        drawList: drawList,
+                        content: RenderedContent(
+                            placements: plan.commit.usesSublayers ? Browser.layerPlacements(layers, infos: infos) : [],
+                            image: contentImage,
+                            regionTop: regionTop,
+                            usesSublayers: plan.commit.usesSublayers
+                        ),
+                        structureSignature: plan.commit.usesSublayers ? Browser.structureSignature(layers, infos: infos) : 0
+                    )
+                },
+                then: { [weak self] (output: RasterOutput) in
+                    guard let self = self else { return }
+                    self.compositeInFlight = false
+                    if let ownerID {
+                        if ownerID == self.activeFrameID {
+                            self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
+                            if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
+                            if output.structureSignature != self.activeStructureSignature {
+                                self.activeStructureSignature = output.structureSignature
+                                self.structureVersion &+= 1
+                            }
+                            if inputs.settings.flags.needsDraw || output.content.usesSublayers {
+                                self.activeFrame.render.content = output.content
+                                self.onContentImage?()
+                            }
+                            self.activeFrame.render.signature = signature
+                            self.frames[ownerID] = self.activeFrame
+                            if output.content.usesSublayers, inputs.scene.tileStore.needsMoreTiles, self.tileContinuationPasses < 8 {
+                                self.tileContinuationPasses += 1
+                                self.needsTileContinuation = true
+                                self.needsRaster = true
+                            }
+                            if self.commitedPrefersDark != inputs.settings.theme.prefersDark {
+                                self.commitedPrefersDark = inputs.settings.theme.prefersDark
+                            }
+                            if self.commitedForcedColors != inputs.settings.theme.forcedColors {
+                                self.commitedForcedColors = inputs.settings.theme.forcedColors
+                            }
+                        } else if var stale = self.frames[ownerID] {
+                            stale.render.layers = output.compositedLayers ?? stale.render.layers
+                            if let drawList = output.drawList { stale.render.drawList = drawList }
+                            if inputs.settings.flags.needsDraw { stale.render.content = output.content }
+                            stale.render.signature = signature
+                            self.frames[ownerID] = stale
+                        }
+                    }
+
+                    self.updateAccessibility()
+                    self.measure.stop("composite_raster_and_draw")
+                    if frameStart != .distantPast {
+                        let elapsed = Date().timeIntervalSince(frameStart)
+                        self.recentFrameTimes.append(elapsed)
+                        if self.recentFrameTimes.count > self.frameHistorySize {
+                            self.recentFrameTimes.removeFirst()
+                        }
+                        let avg = self.recentFrameTimes.reduce(0, +) / Double(self.recentFrameTimes.count)
+                        self.estimatedFrameTime = max(avg, self.FRAME_BUDGET)
+                    }
+                    if self.needsComposite || self.needsRaster || self.needsDraw {
+                        self.scheduleRasterAndDraw()
+                    }
                 }
-                if self.needsComposite || self.needsRaster || self.needsDraw {
-                    self.scheduleRasterAndDraw()
-                }
-            })
+            )
+        )
     }
 
     nonisolated static func computeComposite(_ inputs: RasterInput) -> [CompositedLayer] {

@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct TileStrip {
+struct TileStrip: @unchecked Sendable {
     let layer: CompositedLayer
     let bounds: Rect
     let items: [PaintCommand]
