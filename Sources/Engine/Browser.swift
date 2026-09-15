@@ -230,8 +230,14 @@ public class Browser: ObservableObject {
             if layers[index].effectImage == nil { return false }
         }
         activeFrame.render.content.placements = Browser.layerPlacements(layers, infos: infos)
-        onPresent?(presentedFrame)
+        dispatchPresent()
         return true
+    }
+
+    private func dispatchPresent() {
+        measure.start("present.main")
+        onPresent?(presentedFrame)
+        measure.stop("present.main")
     }
 
     private func resolvePendingHover() {
@@ -493,7 +499,7 @@ public class Browser: ObservableObject {
                             if let drawList = output.drawList { self.activeFrame.render.drawList = drawList }
                             if inputs.settings.flags.needsDraw || output.content.usesSublayers {
                                 self.activeFrame.render.content = output.content
-                                self.onPresent?(self.presentedFrame)
+                                self.dispatchPresent()
                             }
                             self.activeFrame.render.signature = signature
                             self.frames[ownerID] = self.activeFrame
@@ -825,7 +831,7 @@ public class Browser: ObservableObject {
         }
 
         if activeFrame.render.content.usesSublayers {
-            onPresent?(presentedFrame)
+            dispatchPresent()
             let step = CompositedLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
                 lastTileScroll = scroll
