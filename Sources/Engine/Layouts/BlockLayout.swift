@@ -244,8 +244,14 @@ class BlockLayout: LayoutObject {
                 if breakIdx >= 0 {
                     let line = children.last!
                     let prev = line.children.last
-                    line.children.append(
-                        TextLayout(node: node, word: chunk + "-", parent: line, previous: prev))
+                    let chunkText = TextLayout(
+                        node: node,
+                        word: chunk + "-",
+                        parent: line,
+                        previous: prev
+                    )
+                    chunkText.fontOverride = font
+                    line.children.append(chunkText)
                     newLine()
                     addWord(
                         node: node, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}"))
@@ -258,8 +264,9 @@ class BlockLayout: LayoutObject {
         let line = children.last!
         let prevWord = line.children.last
         let textLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)
+        textLayout.fontOverride = font
         line.children.append(textLayout)
-        cursorX += w + font.measure(" ")
+        cursorX += w + font.spaceWidth
     }
 
     private func newLine() {
@@ -290,7 +297,7 @@ class BlockLayout: LayoutObject {
         let font = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
-        cursorX += w + font.measure(" ")
+        cursorX += w + font.spaceWidth
         width = dpx(BlockLayout.inputWidthPx, zoom: zoom)
     }
 
@@ -302,7 +309,7 @@ class BlockLayout: LayoutObject {
         let button = ButtonLayout(node: node, parent: line, previous: prevItem)
         line.children.append(button)
         let font = getFont(size: 12, weight: "normal", style: "roman")
-        cursorX += w + font.measure(" ")
+        cursorX += w + font.spaceWidth
     }
 
     private func isInsideAbbr(_ node: any DOMNode) -> Bool {

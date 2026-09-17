@@ -13,7 +13,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
 
-    var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+    var font: BrowserFont = inlineDefaultFont
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
 
@@ -38,7 +38,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             ?? getFont(
                 size: sizeInt, weight: weight, style: styleStr,
                 family: node.style["font-family"] ?? "serif")
-        width = font.measure(displayWord ?? word) + font.measure(" ")
+        width = font.measure(displayWord ?? word) + font.spaceWidth
 
         if let prev = previous as? InlineLayoutItem {
             x = prev.x + prev.width

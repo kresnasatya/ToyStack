@@ -507,6 +507,7 @@ public class Tab {
             browser?.measure.counter("layout.text", [
                 "words": layoutStats.words,
                 "measureCalls": layoutStats.measureCalls,
+                "measureMisses": layoutStats.measureMisses,
                 "measureMs": Int(layoutStats.measureNanos / 1_000_000),
                 "fontRequests": layoutStats.fontRequests
             ])

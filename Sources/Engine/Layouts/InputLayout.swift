@@ -15,7 +15,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
 
-    var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+    var font: BrowserFont = inlineDefaultFont
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -43,7 +43,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
 
         if let prev = previous as? InlineLayoutItem {
-            let space = prev.font.measure(" ")
+            let space = prev.font.spaceWidth
             x = prev.x + space + prev.width
         } else {
             x = parent!.x

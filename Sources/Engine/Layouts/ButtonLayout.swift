@@ -21,7 +21,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     var width: CGFloat = 0
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
-    var font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+    var font: BrowserFont = inlineDefaultFont
 
     private var cursorX: CGFloat = 0
 
@@ -46,7 +46,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
 
         width = dpx(InputLayout.inputWidthPx, zoom: zoom)
         if let prev = previous as? InlineLayoutItem {
-            x = prev.x + prev.font.measure(" ") + prev.width
+            x = prev.x + prev.font.spaceWidth + prev.width
         } else {
             x = parent!.x
         }
@@ -94,7 +94,9 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         if cursorX + w > width { newLine() }
         let line = children.last!
         let prev = line.children.last
-        line.children.append(TextLayout(node: node, word: word, parent: line, previous: prev))
+        let textLayout = TextLayout(node: node, word: word, parent: line, previous: prev)
+        textLayout.fontOverride = font
+        line.children.append(textLayout)
         cursorX += w
     }
 

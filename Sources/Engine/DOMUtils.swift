@@ -12,6 +12,7 @@ let SCROLL_STEP: CGFloat = 100
 
 // MARK: - Font Cache
 nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
+let inlineDefaultFont: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
 
 nonisolated(unsafe) var visitedURL: Set<String> = []
 
