@@ -257,10 +257,11 @@ public class Browser: ObservableObject {
 
         resolvePendingHover()
 
-        let wantsComposite = needsComposite && !compositeInFlight
         if compositeInFlight {
             return
         }
+
+        let wantsComposite = needsComposite
 
         let scrollState = ScrollState(
             scroll: activeFrame.scroll.scroll,
@@ -306,8 +307,8 @@ public class Browser: ObservableObject {
         if !needsTileContinuation { tileContinuationPasses = 0 }
         needsTileContinuation = false
 
+        compositeInFlight = true
         if wantsComposite {
-            compositeInFlight = true
             needsComposite = false
             needsRaster = false
         }
@@ -492,7 +493,6 @@ public class Browser: ObservableObject {
                 },
                 then: { [weak self] (output: RasterOutput) in
                     guard let self = self else { return }
-                    self.compositeInFlight = false
                     if let ownerID {
                         if ownerID == self.activeFrameID {
                             self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
@@ -525,6 +525,7 @@ public class Browser: ObservableObject {
 
                     self.updateAccessibility()
                     self.measure.stop("composite_raster_and_draw")
+                    self.compositeInFlight = false
                     if frameStart != .distantPast {
                         let elapsed = Date().timeIntervalSince(frameStart)
                         self.recentFrameTimes.append(elapsed)
