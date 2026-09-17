@@ -21,6 +21,11 @@ public struct BrowserFont {
     public var linespace: CGFloat { ascent + descent + leading }
 
     public func measure(_ text: String) -> CGFloat {
+        let start: UInt64 = DispatchTime.now().uptimeNanoseconds
+        defer {
+            layoutStats.measureCalls += 1
+            layoutStats.measureNanos += DispatchTime.now().uptimeNanoseconds - start
+        }
         let attr = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): ctFont
         ])

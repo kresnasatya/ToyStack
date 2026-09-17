@@ -101,23 +101,39 @@ public class Tab {
         let referrer = effectiveReferrer(for: url)
 
         Task {
+            self.browser?.measure.start("tab.load")
+            defer { self.browser?.measure.stop("tab.load") }
+
+            self.browser?.measure.start("tab.load.page")
             let result = await networkTaskRunner.schedule(name: "load\(url.toString())") {
                 await self.fetchPage(url: url, referrer: referrer, payload: payload)
             }
+            self.browser?.measure.stop("tab.load.page")
 
-            guard let styleURLs = self.parseHTML(url: url, result: result) else { return }
+            self.browser?.measure.start("tab.load.parseHTML")
+            let parsedStyleURLs = self.parseHTML(url: url, result: result)
+            self.browser?.measure.stop("tab.load.parseHTML")
+            guard let styleURLs = parsedStyleURLs else { return }
 
+            self.browser?.measure.start("tab.load.styles")
             let styleBodies = await networkTaskRunner.schedule(name: "fetch-styles") {
                 await self.fetchStyles(urls: styleURLs)
             }
+            self.browser?.measure.stop("tab.load.styles")
 
+            self.browser?.measure.start("tab.load.applyStyles")
             let scriptURLs = self.applyStyles(url: url, bodies: styleBodies)
+            self.browser?.measure.stop("tab.load.applyStyles")
 
+            self.browser?.measure.start("tab.load.scripts")
             let scriptBodies = await networkTaskRunner.schedule(name: "fetch-scripts") {
                 await self.fetchScripts(urls: scriptURLs)
             }
+            self.browser?.measure.stop("tab.load.scripts")
 
+            self.browser?.measure.start("tab.load.exec")
             self.execScripts(url: url, bodies: scriptBodies)
+            self.browser?.measure.stop("tab.load.exec")
         }
     }
 
@@ -153,7 +169,9 @@ public class Tab {
             interestTop = 0
             self.url = url
             visitedURL.insert(url.toString())
+            browser?.measure.start("tab.parse.html")
             nodes = HTMLParser(body: body).parse()
+            browser?.measure.stop("tab.parse.html")
 
             for node in treeToList(nodes) {
                 if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox"
@@ -400,22 +418,40 @@ public class Tab {
 
     func render() {
         if needsStyle {
-            let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
-            precomputeHas(node: nodes, rules: sortedRules)
+            browser?.measure.start("tab.style")
+            defer { browser?.measure.stop("tab.style") }
 
+            browser?.measure.start("tab.style.rules")
+            let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+            browser?.measure.stop("tab.style.rules")
+
+            browser?.measure.start("tab.style.has")
+            precomputeHas(node: nodes, rules: sortedRules)
+            browser?.measure.stop("tab.style.has")
+
+            browser?.measure.start("tab.style.snapshot")
             var oldStyles: [ObjectIdentifier: [String: String]] = [:]
             for node in treeToList(nodes) {
                 oldStyles[ObjectIdentifier(node)] = node.style
             }
+            browser?.measure.stop("tab.style.snapshot")
 
             inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
+            browser?.measure.start("tab.style.apply")
             applyStyle(
                 node: nodes,
                 rules: sortedRules,
                 theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
             )
+            browser?.measure.stop("tab.style.apply")
 
+            browser?.measure.counter("style.inputs", [
+                "nodes": treeToList(nodes).count,
+                "rules": sortedRules.count
+            ])
+
+            browser?.measure.start("tab.style.diff")
             for node in treeToList(nodes) {
                 let old = oldStyles[ObjectIdentifier(node)] ?? [:]
                 let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
@@ -423,7 +459,9 @@ public class Tab {
                     node.animations[property] = animation
                 }
             }
+            browser?.measure.stop("tab.style.diff")
 
+            browser?.measure.start("tab.style.keyframes")
             for node in treeToList(nodes) {
                 guard let animDecl = node.style["animation"],
                     let spec = parseAnimationShorthand(animDecl),
@@ -438,7 +476,9 @@ public class Tab {
                     node.animations[key] = anim
                 }
             }
+            browser?.measure.stop("tab.style.keyframes")
 
+            browser?.measure.start("tab.style.visited")
             for node in treeToList(nodes) {
                 guard let el = node as? Element, el.tag == "a",
                     let href = el.attributes["href"]
@@ -449,15 +489,25 @@ public class Tab {
                     el.style["color"] = forcedColors ? ForcedColor.visitedText : "purple"
                 }
             }
+            browser?.measure.stop("tab.style.visited")
 
             needsStyle = false
             needsLayout = true
         }
 
         if needsLayout {
+            browser?.measure.start("tab.layout")
+            defer { browser?.measure.stop("tab.layout") }
+            layoutStats.reset()
             let doc = DocumentLayout(node: nodes)
             doc.layout(availableWidth: tabWidth, zoom: zoom)
             document = doc
+            browser?.measure.counter("layout.text", [
+                "words": layoutStats.words,
+                "measureCalls": layoutStats.measureCalls,
+                "measureMs": Int(layoutStats.measureNanos / 1_000_000),
+                "fontRequests": layoutStats.fontRequests
+            ])
 
             needsLayout = false
             needsAccessibility = true
@@ -465,6 +515,8 @@ public class Tab {
         }
 
         if needsAccessibility {
+            browser?.measure.start("tab.a11y")
+            defer { browser?.measure.stop("tab.a11y") }
             let a11yTree = AccessibilityNode(node: nodes)
             a11yTree.build()
             accessibilityTree = a11yTree
@@ -473,6 +525,8 @@ public class Tab {
         }
 
         if needsPaint {
+            browser?.measure.start("tab.paint")
+            defer { browser?.measure.stop("tab.paint") }
             guard let doc = document else { return }
             var list: [Any] = []
             paintTree(doc, into: &list)
@@ -487,11 +541,16 @@ public class Tab {
 
     func runAnimationFrame() {
         guard js != nil else { return }
+        browser?.measure.start("tab.animFrame")
+        defer { browser?.measure.stop("tab.animFrame") }
+        browser?.measure.start("tab.raf")
         js.run(script: "raf", code: "__runRAFHandlers()")
+        browser?.measure.stop("tab.raf")
         var needsAnotherFrame = false
         let needsComposite = needsStyle || needsLayout || needsPaint
         var needsPaint = false
         var needsLayoutUpdate = false
+        browser?.measure.start("tab.animScan")
         for node in treeToList(nodes) {
             for (key, animation) in node.animations {
                 let property = (animation as? KeyframeAnimation)?.animatedProperty ?? key
@@ -528,6 +587,7 @@ public class Tab {
                 }
             }
         }
+        browser?.measure.stop("tab.animScan")
 
         if needsPaint {
             setNeedsPaint()

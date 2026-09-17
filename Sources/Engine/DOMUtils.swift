@@ -16,6 +16,7 @@ nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
 nonisolated(unsafe) var visitedURL: Set<String> = []
 
 public func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
+    layoutStats.fontRequests += 1
     let key = "\(size)-\(weight)-\(style)-\(family)"
     if let cached = fontCache[key] { return cached }
 

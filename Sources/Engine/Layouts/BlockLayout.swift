@@ -213,6 +213,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addWord(node: any DOMNode, word: String) {
+        layoutStats.words += 1
         let weight = node.style["font-weight"] ?? "normal"
         var style = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
