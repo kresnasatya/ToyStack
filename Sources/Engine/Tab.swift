@@ -111,23 +111,23 @@ public class Tab {
             self.browser?.measure.stop("tab.load.page")
 
             self.browser?.measure.start("tab.load.parseHTML")
-            let parsedStyleURLs = self.parseHTML(url: url, result: result)
+            let parsedPage = self.parseHTML(url: url, result: result)
             self.browser?.measure.stop("tab.load.parseHTML")
-            guard let styleURLs = parsedStyleURLs else { return }
+            guard let resources = parsedPage else { return }
 
             self.browser?.measure.start("tab.load.styles")
             let styleBodies = await networkTaskRunner.schedule(name: "fetch-styles") {
-                await self.fetchStyles(urls: styleURLs)
+                await self.fetchStyles(urls: resources.styleURLs)
             }
             self.browser?.measure.stop("tab.load.styles")
 
             self.browser?.measure.start("tab.load.applyStyles")
-            let scriptURLs = self.applyStyles(url: url, bodies: styleBodies)
+            self.applyStyles(bodies: styleBodies)
             self.browser?.measure.stop("tab.load.applyStyles")
 
             self.browser?.measure.start("tab.load.scripts")
             let scriptBodies = await networkTaskRunner.schedule(name: "fetch-scripts") {
-                await self.fetchScripts(urls: scriptURLs)
+                await self.fetchScripts(urls: resources.scriptURLs)
             }
             self.browser?.measure.stop("tab.load.scripts")
 
@@ -149,7 +149,7 @@ public class Tab {
 
     private func parseHTML(
         url: WebURL, result: Result<(status: Int, headers: [String: String], content: String), Error>
-    ) -> [(index: Int, url: WebURL, ref: WebURL?)]? {
+    ) -> PageResources? {
         let certErrorCodes: [URLError.Code] = [
             .serverCertificateUntrusted, .serverCertificateHasBadDate,
             .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot,
@@ -204,22 +204,23 @@ public class Tab {
 
             rules = defaultStyleSheet
 
-            return treeToList(nodes)
-                .compactMap({ $0 as? Element })
-                .filter({
-                    $0.tag == "link" && $0.attributes["rel"] == "stylesheet"
-                        && $0.attributes["href"] != nil
-                })
+            let elements = treeToList(nodes).compactMap({ $0 as? Element })
+            let styleURLs: [ResourceURL] = elements
+                .filter({ $0.tag == "link" && $0.attributes["rel"] == "stylesheet" && $0.attributes["href"] != nil })
                 .enumerated()
-                .compactMap({ (i, link) in
+                .map({ (i, link) in
                     let styleURL = url.resolve(link.attributes["href"]!)
-                    guard self.allowedRequest(styleURL) else {
-                        print(
-                            "Blocked style", link.attributes["href"]!, "due to CSP")
-                        return nil
-                    }
                     return (i, styleURL, self.effectiveReferrer(for: styleURL))
                 })
+            let scriptURLs: [ResourceURL] = elements
+                .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
+                .enumerated()
+                .map({ (i, node) in
+                    let scriptURL = url.resolve(node.attributes["src"]!)
+                    return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
+                })
+
+            return PageResources(styleURLs: styleURLs, scriptURLs: scriptURLs)
         }
     }
 
@@ -228,8 +229,16 @@ public class Tab {
     ) async -> [(index: Int, body: String)] {
         typealias Response = (status: Int, headers: [String: String], content: String)
         var result: [(index: Int, body: String)] = []
+        var allowed: [ResourceURL] = []
+        for entry in urls {
+            guard allowedRequest(entry.url) else {
+                print("Blocked style", entry.url.toString(), "due to CSP")
+                continue
+            }
+            allowed.append(entry)
+        }
         await withTaskGroup(of: (Int, WebURL, Response?).self) { group in
-            for (i, styleURL, ref) in urls {
+            for (i, styleURL, ref) in allowed {
                 group.addTask {
                     return (i, styleURL, try? await styleURL.request(referrer: ref))
                 }
@@ -244,10 +253,7 @@ public class Tab {
         return result
     }
 
-    private func applyStyles(
-        url: WebURL,
-        bodies: [(index: Int, body: String)]
-    ) -> [(index: Int, url: WebURL, ref: WebURL?)] {
+    private func applyStyles(bodies: [(index: Int, body: String)]) {
         for (_, body) in bodies.sorted(by: { $0.index < $1.index }) {
             let parsed = CSSParser(body).parse()
             rules.append(contentsOf: parsed.rules)
@@ -262,18 +268,6 @@ public class Tab {
             rules.append(contentsOf: parsed.rules)
             keyframes.merge(parsed.keyframes) { _, new in new }
         }
-
-        return treeToList(nodes).compactMap({ $0 as? Element })
-            .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
-            .enumerated()
-            .compactMap({ (i, node) in
-                let scriptURL = url.resolve(node.attributes["src"]!)
-                guard allowedRequest(scriptURL) else {
-                    print("Blocked script", node.attributes["src"]!, "due to CSP")
-                    return nil
-                }
-                return (i, scriptURL, effectiveReferrer(for: scriptURL))
-            })
     }
 
     private func fetchScripts(
@@ -281,8 +275,16 @@ public class Tab {
     ) async -> [(index: Int, url: WebURL, body: String)] {
         typealias Response = (status: Int, headers: [String: String], content: String)
         var result: [(index: Int, url: WebURL, body: String)] = []
+        var allowed: [ResourceURL] = []
+        for entry in urls {
+            guard allowedRequest(entry.url) else {
+                print("Blocked script", entry.url.toString(), "due to CSP")
+                continue
+            }
+            allowed.append(entry)
+        }
         await withTaskGroup(of: (Int, WebURL, Response?).self) { group in
-            for (i, scriptURL, ref) in urls {
+            for (i, scriptURL, ref) in allowed {
                 group.addTask {
                     return (i, scriptURL, (try? await scriptURL.request(referrer: ref)))
                 }
