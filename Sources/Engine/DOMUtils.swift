@@ -74,7 +74,8 @@ func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String
 
 // MARK: - CSS Cascade (style function)
 func applyStyle(
-    node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])],
+    node: any DOMNode,
+    rules: RuleIndex,
     theme: ThemeState,
     frameWidth: CGFloat = .greatestFiniteMagnitude
 ) {
@@ -84,31 +85,15 @@ func applyStyle(
         node.style[property] = node.parent?.style[property] ?? defaultValue
     }
 
-    for (media, selector, body) in rules {
-        if let m = media {
-            let matches: Bool
-            switch m {
-            case "dark":
-                matches = theme.prefersDark
-            case "light":
-                matches = !theme.prefersDark
-            case "forced-colors:active":
-                matches = theme.forcedColors
-            case "forced-colors:none":
-                matches = !theme.forcedColors
-            default:
-                if m.hasPrefix("max-width:") {
-                    let limit = Double(m.dropFirst("max-width:".count)) ?? 0
-                    matches = frameWidth <= CGFloat(limit)
-                } else {
-                    matches = false
-                }
+    if let element = node as? Element {
+        let flags: [Bool] = rules.candidateFlags(for: element)
+        for index in 0..<rules.rules.count where flags[index] {
+            let (media, selector, body) = rules.rules[index]
+            guard mediaMatches(media, theme: theme, frameWidth: frameWidth), selector.matches(node)
+                else { continue }
+            for (property, value) in body {
+                node.style[property] = value
             }
-            if !matches { continue }
-        }
-        guard selector.matches(node) else { continue }
-        for (property, value) in body {
-            node.style[property] = value
         }
     }
 
@@ -137,6 +122,22 @@ func applyStyle(
 
     for child in node.children {
         applyStyle(node: child, rules: rules, theme: theme, frameWidth: frameWidth)
+    }
+}
+
+func mediaMatches(_ media: String?, theme: ThemeState, frameWidth: CGFloat) -> Bool {
+    guard let m = media else { return true }
+    switch m {
+        case "dark": return theme.prefersDark
+        case "light": return !theme.prefersDark
+        case "forced-colors:active": return theme.forcedColors
+        case "forced-colors:none": return !theme.forcedColors
+        default:
+            if m.hasPrefix("max-width:") {
+                let limit = Double(m.dropFirst("max-width:".count)) ?? 0
+                return frameWidth <= CGFloat(limit)
+            }
+            return false
     }
 }
 

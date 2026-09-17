@@ -4,6 +4,7 @@ import Foundation
 protocol CSSSelector: Sendable {
     var priority: Int { get }
     var hasSelectors: [HasSelector] { get }
+    var bucketKey: SelectorBucketKey { get }
     func matches(_ node: any DOMNode) -> Bool
 }
 
@@ -12,6 +13,7 @@ struct TagSelector: CSSSelector {
     let tag: String
     let priority: Int = 1
     var hasSelectors: [HasSelector] { [] }
+    var bucketKey: SelectorBucketKey { .tag(tag) }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else {
@@ -25,6 +27,7 @@ struct TagSelector: CSSSelector {
 struct UniversalSelector: CSSSelector {
     let priority: Int = 0
     var hasSelectors: [HasSelector] { [] }
+    var bucketKey: SelectorBucketKey { .universal }
 
     func matches(_ node: any DOMNode) -> Bool {
         node is Element
@@ -36,6 +39,7 @@ struct IDSelector: CSSSelector {
     let id: String
     let priority: Int = 100
     var hasSelectors: [HasSelector] { [] }
+    var bucketKey: SelectorBucketKey { .id(id) }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else { return false }
@@ -48,6 +52,7 @@ struct ClassSelector: CSSSelector {
     let cls: String
     let priority: Int = 10
     var hasSelectors: [HasSelector] { [] }
+    var bucketKey: SelectorBucketKey { .className(cls) }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else { return false }
@@ -62,6 +67,7 @@ struct AttributeSelector: CSSSelector {
     let value: String?
     let priority: Int = 10
     var hasSelectors: [HasSelector] { [] }
+    var bucketKey: SelectorBucketKey { .universal }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element,
@@ -77,6 +83,9 @@ struct SelectorSequence: CSSSelector {
     let selectors: [any CSSSelector]
     var priority: Int { selectors.reduce(0, { $0 + $1.priority }) }
     var hasSelectors: [HasSelector] { selectors.flatMap { $0.hasSelectors } }
+    var bucketKey: SelectorBucketKey {
+        selectors.map({ $0.bucketKey }).max(by: { $0.rank < $1.rank }) ?? .universal
+    }
 
     func matches(_ node: any DOMNode) -> Bool {
         selectors.allSatisfy({ $0.matches(node) })
@@ -88,6 +97,7 @@ struct DescendantSelector: CSSSelector {
     let selectors: [any CSSSelector]
     var priority: Int { selectors.reduce(0, { $0 + $1.priority }) }
     var hasSelectors: [HasSelector] { selectors.flatMap { $0.hasSelectors } }
+    var bucketKey: SelectorBucketKey { selectors.last?.bucketKey ?? .universal }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard selectors.last!.matches(node) else { return false }
@@ -108,6 +118,7 @@ struct ImportantSelector: CSSSelector {
     let base: any CSSSelector
     var priority: Int { base.priority + 10_000 }
     var hasSelectors: [HasSelector] { base.hasSelectors }
+    var bucketKey: SelectorBucketKey { base.bucketKey }
 
     func matches(_ node: any DOMNode) -> Bool {
         base.matches(node)
@@ -121,6 +132,7 @@ struct HasSelector: CSSSelector {
     let inner: any CSSSelector
     var priority: Int { inner.priority }
     var hasSelectors: [HasSelector] { [self] }
+    var bucketKey: SelectorBucketKey { .universal }
 
     init(inner: any CSSSelector) {
         self.id = HasSelector.counter
@@ -139,6 +151,7 @@ struct PseudoclassSelector: CSSSelector {
     let base: any CSSSelector
     var priority: Int { base.priority }
     var hasSelectors: [HasSelector] { base.hasSelectors }
+    var bucketKey: SelectorBucketKey { base.bucketKey }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard base.matches(node) else { return false }

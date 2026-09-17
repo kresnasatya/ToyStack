@@ -425,6 +425,7 @@ public class Tab {
 
             browser?.measure.start("tab.style.rules")
             let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+            let ruleIndex = RuleIndex(rules: sortedRules)
             browser?.measure.stop("tab.style.rules")
 
             browser?.measure.start("tab.style.has")
@@ -442,7 +443,7 @@ public class Tab {
             browser?.measure.start("tab.style.apply")
             applyStyle(
                 node: nodes,
-                rules: sortedRules,
+                rules: ruleIndex,
                 theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
             )
