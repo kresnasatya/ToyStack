@@ -53,6 +53,8 @@ For multi-file changes, group the diffs by file and include the file path before
 
 To debug browser engine, we use `browser.trace` in the root directory. It means measurement is critical here.
 
+Profiling conventions (Profiler, metric names, `--no-profile`, how to to read the trace) are documented in [profiling.md](./profiling.md).
+
 ## Additional Information
 
 If you're using any colors that are not exist in this browser engine (@Sources/Engine/PaintCommand.swift) then put those colors into the markdown file.
