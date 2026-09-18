@@ -27,18 +27,25 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
     func layout() {
         profiler.measure("layout.text", {
-            zoom = computeZoom(node, parentZoom: parent!.zoom)
-            let weight = node.style["font-weight"] ?? "normal"
-            var styleStr = node.style["font-style"] ?? "normal"
-            if styleStr == "normal" { styleStr = "roman" }
+            let resolvedFont: BrowserFont
+            if let override = fontOverride {
+                resolvedFont = override
+            } else {
+                zoom = computeZoom(node, parentZoom: parent!.zoom)
+                let weight = node.style["font-weight"] ?? "normal"
+                var styleStr = node.style["font-style"] ?? "normal"
+                if styleStr == "normal" { styleStr = "roman" }
+                let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+                let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+                resolvedFont = getFont(
+                        size: sizeInt,
+                        weight: weight,
+                        style: styleStr,
+                        family: node.style["font-family"] ?? "serif"
+                )
+            }
 
-            let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-            let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
-            font =
-                fontOverride
-                ?? getFont(
-                    size: sizeInt, weight: weight, style: styleStr,
-                    family: node.style["font-family"] ?? "serif")
+            font = resolvedFont
             width = font.measure(displayWord ?? word) + font.spaceWidth
 
             if let prev = previous as? InlineLayoutItem {
