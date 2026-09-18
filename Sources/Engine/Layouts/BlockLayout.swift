@@ -21,6 +21,7 @@ class BlockLayout: LayoutObject {
     var zoom: CGFloat = 1.0
 
     private var cursorX: CGFloat = 0
+    private var fontByNode: [ObjectIdentifier: BrowserFont] = [:]
 
     var scrollOffset: CGFloat = 0
     var contentHeight: CGFloat = 0
@@ -218,14 +219,22 @@ class BlockLayout: LayoutObject {
 
     private func addWord(node: any DOMNode, word: String) {
         profiler.count("text.words")
-        let weight = node.style["font-weight"] ?? "normal"
-        var style = node.style["font-style"] ?? "normal"
-        if style == "normal" { style = "roman" }
-        let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
-        let font = getFont(
-            size: sizeInt, weight: weight, style: style,
-            family: node.style["font-family"] ?? "serif")
+        let font: BrowserFont
+        let nodeID = ObjectIdentifier(node)
+        if let cachedFont = fontByNode[nodeID] {
+            font = cachedFont
+        } else {
+            profiler.count("text.fontNodes")
+            let weight = node.style["font-weight"] ?? "normal"
+            var style = node.style["font-style"] ?? "normal"
+            if style == "normal" { style = "roman" }
+            let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+            let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+            font = getFont(
+                size: sizeInt, weight: weight, style: style,
+                family: node.style["font-family"] ?? "serif")
+            fontByNode[nodeID] = font
+        }
         let w = font.measure(word)
 
         if isInsideAbbr(node) && word.contains(where: { $0.isLowercase }) {
