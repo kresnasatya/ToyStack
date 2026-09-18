@@ -21,61 +21,65 @@ class LineLayout: LayoutObject {
     }
 
     func layout() {
-        zoom = computeZoom(node, parentZoom: parent!.zoom)
-        width = parent!.width
-        x = parent!.x
-        y = previous.map { $0.y + $0.height } ?? parent!.y
+        profiler.measure("layout.line.setup", {
+            zoom = computeZoom(node, parentZoom: parent!.zoom)
+            width = parent!.width
+            x = parent!.x
+            y = previous.map { $0.y + $0.height } ?? parent!.y
+        })
 
         for child in children { child.layout() }
 
-        if let lastText = children.last as? TextLayout {
-            lastText.width = lastText.font.measure(lastText.word)
-        }
-
-        guard !children.isEmpty else {
-            height = minHeight
-            return
-        }
-
-        let inlineChildren = children.compactMap { $0 as? InlineLayoutItem }
-        guard !inlineChildren.isEmpty else {
-            height = 0
-            return
-        }
-
-        let maxAscent = inlineChildren.map(\.font.ascent).max() ?? 0
-        let baseline = y + 1.25 * maxAscent
-
-        for child in inlineChildren {
-            if let el = child.node as? Element, el.tag == "sup" {
-                child.y = baseline - maxAscent
-            } else {
-                child.y = baseline - child.font.ascent
+        profiler.measure("layout.line.place", {
+            if let lastText = children.last as? TextLayout {
+                lastText.width = lastText.font.measure(lastText.word)
             }
-        }
 
-        if isRTL {
-            let lastChild = children.last!
-            let usedWidth = lastChild.x + lastChild.width - x
-            let offset = width - usedWidth
-
-            for child in children {
-                child.x += offset
+            guard !children.isEmpty else {
+                height = minHeight
+                return
             }
-        }
 
-        if centered {
-            let lastChild = children.last!
-            let usedWidth = lastChild.x + lastChild.width - x
-            let offset = (width - usedWidth) / 2
-
-            for child in children {
-                child.x += offset
+            let inlineChildren = children.compactMap { $0 as? InlineLayoutItem }
+            guard !inlineChildren.isEmpty else {
+                height = 0
+                return
             }
-        }
 
-        let maxDescent = inlineChildren.map(\.font.descent).max() ?? 0
-        height = 1.25 * (maxAscent + maxDescent)
+            let maxAscent = inlineChildren.map(\.font.ascent).max() ?? 0
+            let baseline = y + 1.25 * maxAscent
+
+            for child in inlineChildren {
+                if let el = child.node as? Element, el.tag == "sup" {
+                    child.y = baseline - maxAscent
+                } else {
+                    child.y = baseline - child.font.ascent
+                }
+            }
+
+            if isRTL {
+                let lastChild = children.last!
+                let usedWidth = lastChild.x + lastChild.width - x
+                let offset = width - usedWidth
+
+                for child in children {
+                    child.x += offset
+                }
+            }
+
+            if centered {
+                let lastChild = children.last!
+                let usedWidth = lastChild.x + lastChild.width - x
+                let offset = (width - usedWidth) / 2
+
+                for child in children {
+                    child.x += offset
+                }
+            }
+
+            let maxDescent = inlineChildren.map(\.font.descent).max() ?? 0
+            height = 1.25 * (maxAscent + maxDescent)
+        })
     }
 
     func paint() -> [Any] {

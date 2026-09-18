@@ -111,8 +111,10 @@ public class Tab {
             self.browser?.measure.stop("tab.load.page")
 
             self.browser?.measure.start("tab.load.parseHTML")
+            profiler.reset()
             let parsedPage = self.parseHTML(url: url, result: result)
             self.browser?.measure.stop("tab.load.parseHTML")
+            profiler.emitProfile(into: self.browser?.measure, named: "profile.load")
             guard let resources = parsedPage else { return }
 
             self.browser?.measure.start("tab.load.styles")
@@ -170,55 +172,66 @@ public class Tab {
             self.url = url
             visitedURL.insert(url.toString())
             browser?.measure.start("tab.parse.html")
-            nodes = HTMLParser(body: body).parse()
+            nodes = profiler.measure("load.parse", {
+                HTMLParser(body: body).parse()
+            })
             browser?.measure.stop("tab.parse.html")
 
-            for node in treeToList(nodes) {
-                if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox"
-                {
-                    el.isChecked = el.attributes["checked"] != nil
+            profiler.measure("load.checkboxes", {
+                for node in treeToList(nodes) {
+                    if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox"
+                    {
+                        el.isChecked = el.attributes["checked"] != nil
+                    }
                 }
-            }
+            })
 
-            js = JSRuntime(tab: self)
+            js = profiler.measure("load.jsInit", { JSRuntime(tab: self) })
 
-            let titleText =
+            let titleText: String = profiler.measure("load.title", {
                 treeToList(nodes)
                 .compactMap({ $0 as? Element })
                 .first(where: { $0.tag == "title" })?.children
                 .compactMap({ $0 as? TextNode })
                 .map(\.text).joined()
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            })
             title = titleText.isEmpty ? url.toString() : titleText
 
-            allowedOrigins = nil
-            referrerPolicy = headers["referrer-policy"] ?? ""
-            if let csp = headers["content-security-policy"] {
-                let parts = csp.split(separator: " ").map(String.init)
-                if parts.first == "default-src" {
-                    allowedOrigins = parts.dropFirst().map {
-                        WebURL($0).origin()
+            profiler.measure("load.headers", {
+                allowedOrigins = nil
+                referrerPolicy = headers["referrer-policy"] ?? ""
+                if let csp = headers["content-security-policy"] {
+                    let parts = csp.split(separator: " ").map(String.init)
+                    if parts.first == "default-src" {
+                        allowedOrigins = parts.dropFirst().map {
+                            WebURL($0).origin()
+                        }
                     }
                 }
-            }
+            })
 
-            rules = defaultStyleSheet
+            rules = profiler.measure("load.defaultCss") { defaultStyleSheet }
 
-            let elements = treeToList(nodes).compactMap({ $0 as? Element })
-            let styleURLs: [ResourceURL] = elements
-                .filter({ $0.tag == "link" && $0.attributes["rel"] == "stylesheet" && $0.attributes["href"] != nil })
-                .enumerated()
-                .map({ (i, link) in
-                    let styleURL = url.resolve(link.attributes["href"]!)
-                    return (i, styleURL, self.effectiveReferrer(for: styleURL))
-                })
-            let scriptURLs: [ResourceURL] = elements
-                .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
-                .enumerated()
-                .map({ (i, node) in
-                    let scriptURL = url.resolve(node.attributes["src"]!)
-                    return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
-                })
+            let (styleURLs, scriptURLs): ([ResourceURL], [ResourceURL]) =
+            profiler.measure("load.resources", {
+                let elements = treeToList(nodes).compactMap({ $0 as? Element })
+                let styles: [ResourceURL] = elements
+                    .filter({ $0.tag == "link" && $0.attributes["rel"] == "stylesheet" && $0.attributes["href"] != nil })
+                    .enumerated()
+                    .map({ (i, link) in
+                        let styleURL = url.resolve(link.attributes["href"]!)
+                        return (i, styleURL, self.effectiveReferrer(for: styleURL))
+                    })
+                let scripts: [ResourceURL] = elements
+                    .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
+                    .enumerated()
+                    .map({ (i, node) in
+                        let scriptURL = url.resolve(node.attributes["src"]!)
+                        return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
+                    })
+                return (styles, scripts)
+            })
 
             return PageResources(styleURLs: styleURLs, scriptURLs: scriptURLs)
         }

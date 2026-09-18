@@ -41,131 +41,135 @@ class BlockLayout: LayoutObject {
     }
 
     func layout() {
-        zoom = computeZoom(node, parentZoom: parent!.zoom)
-        let isAbsolute = node.style["position"] == "absolute"
-        if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
-            let l = Double(lStr.dropLast(2))
-        {
-            x = CGFloat(l)
-        } else {
-            x = parent!.x
-        }
-        if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
-            width = CGFloat(w)
-        } else {
-            width = parent!.width
-        }
-
-        if let el = node as? Element, el.tag == "li" {
-            x += BlockLayout.liIndent
-            width -= BlockLayout.liIndent
-        }
-
-        if isAbsolute, let tStr = node.style["top"], tStr.hasSuffix("px"),
-            let t = Double(tStr.dropLast(2))
-        {
-            y = CGFloat(t)
-        } else {
-            let ownTop = marginPx(node, "margin-top")
-            if let prev = previous, prev is BlockLayout {
-                y = prev.y + prev.height + marginPx(prev.node, "margin-bottom") + ownTop
+        profiler.measure("layout.block.build") {
+            zoom = computeZoom(node, parentZoom: parent!.zoom)
+            let isAbsolute = node.style["position"] == "absolute"
+            if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
+                let l = Double(lStr.dropLast(2))
+            {
+                x = CGFloat(l)
             } else {
-                y = (previous.map { $0.y + $0.height } ?? parent!.y) + ownTop
+                x = parent!.x
             }
-        }
+            if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
+                width = CGFloat(w)
+            } else {
+                width = parent!.width
+            }
 
-        if let el = node as? Element, el.attributes["id"] == "toc" {
-            y += VSTEP
-        }
+            if let el = node as? Element, el.tag == "li" {
+                x += BlockLayout.liIndent
+                width -= BlockLayout.liIndent
+            }
 
-        let mode = layoutMode()
-        if mode == "block" {
-            var prev: (any LayoutObject)? = nil
-            var inlineRun: [any DOMNode] = []
-            var pendingRunIn: Element? = nil
-
-            for child in node.children {
-                if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
-                    continue
-                }
-                let isBlock = child.style["display"] == "block"
-                if isBlock {
-                    if let el = child as? Element, el.tag == "h6" {
-                        if !inlineRun.isEmpty {
-                            let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                            children.append(anon)
-                            prev = anon
-                            inlineRun = []
-                        }
-                        pendingRunIn = el
-                    } else {
-                        if !inlineRun.isEmpty {
-                            let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                            children.append(anon)
-                            prev = anon
-                            inlineRun = []
-                        }
-                        if let runIn = pendingRunIn {
-                            let next = BlockLayout(
-                                nodes: [runIn, child], parent: self, previous: prev)
-                            children.append(next)
-                            prev = next
-                            pendingRunIn = nil
-                        } else {
-                            let next = BlockLayout(node: child, parent: self, previous: prev)
-                            children.append(next)
-                            if child.style["position"] != "absolute" { prev = next }
-                        }
-                    }
+            if isAbsolute, let tStr = node.style["top"], tStr.hasSuffix("px"),
+                let t = Double(tStr.dropLast(2))
+            {
+                y = CGFloat(t)
+            } else {
+                let ownTop = marginPx(node, "margin-top")
+                if let prev = previous, prev is BlockLayout {
+                    y = prev.y + prev.height + marginPx(prev.node, "margin-bottom") + ownTop
                 } else {
-                    inlineRun.append(child)
+                    y = (previous.map { $0.y + $0.height } ?? parent!.y) + ownTop
                 }
             }
-            if !inlineRun.isEmpty {
-                let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                children.append(anon)
+
+            if let el = node as? Element, el.attributes["id"] == "toc" {
+                y += VSTEP
             }
-            if let runIn = pendingRunIn {
-                let next = BlockLayout(node: runIn, parent: self, previous: prev)
-                children.append(next)
-            }
-        } else {
-            newLine()
-            if !extraNodes.isEmpty {
-                for n in extraNodes { recurse(n) }
+
+            let mode = layoutMode()
+            if mode == "block" {
+                var prev: (any LayoutObject)? = nil
+                var inlineRun: [any DOMNode] = []
+                var pendingRunIn: Element? = nil
+
+                for child in node.children {
+                    if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
+                        continue
+                    }
+                    let isBlock = child.style["display"] == "block"
+                    if isBlock {
+                        if let el = child as? Element, el.tag == "h6" {
+                            if !inlineRun.isEmpty {
+                                let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                children.append(anon)
+                                prev = anon
+                                inlineRun = []
+                            }
+                            pendingRunIn = el
+                        } else {
+                            if !inlineRun.isEmpty {
+                                let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                children.append(anon)
+                                prev = anon
+                                inlineRun = []
+                            }
+                            if let runIn = pendingRunIn {
+                                let next = BlockLayout(
+                                    nodes: [runIn, child], parent: self, previous: prev)
+                                children.append(next)
+                                prev = next
+                                pendingRunIn = nil
+                            } else {
+                                let next = BlockLayout(node: child, parent: self, previous: prev)
+                                children.append(next)
+                                if child.style["position"] != "absolute" { prev = next }
+                            }
+                        }
+                    } else {
+                        inlineRun.append(child)
+                    }
+                }
+                if !inlineRun.isEmpty {
+                    let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                    children.append(anon)
+                }
+                if let runIn = pendingRunIn {
+                    let next = BlockLayout(node: runIn, parent: self, previous: prev)
+                    children.append(next)
+                }
             } else {
-                recurse(node)
+                newLine()
+                if !extraNodes.isEmpty {
+                    for n in extraNodes { recurse(n) }
+                } else {
+                    recurse(node)
+                }
             }
         }
 
         for child in children { child.layout() }
 
-        let sumHeight = children.reduce(0) {
-            if $1.node.style["position"] == "absolute" { return $0 }
-            var h = $1.height
-            if $1 is BlockLayout {
-                h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
+        profiler.measure("layout.block.height", {
+            let sumHeight = children.reduce(0) {
+                if $1.node.style["position"] == "absolute" { return $0 }
+                var h = $1.height
+                if $1 is BlockLayout {
+                    h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
+                }
+                return $0 + h
             }
-            return $0 + h
-        }
-        if let hStr = node.style["height"], hStr.hasSuffix("px"),
-            let h = Double(hStr.dropLast(2))
-        {
-            contentHeight = sumHeight
-            height = CGFloat(h)
-        } else {
-            contentHeight = sumHeight
-            height = sumHeight
-        }
+            if let hStr = node.style["height"], hStr.hasSuffix("px"),
+                let h = Double(hStr.dropLast(2))
+            {
+                contentHeight = sumHeight
+                height = CGFloat(h)
+            } else {
+                contentHeight = sumHeight
+                height = sumHeight
+            }
 
-        if let el = node as? Element, el.attributes["id"] == "toc" {
-            height += VSTEP
-        }
+            if let el = node as? Element, el.attributes["id"] == "toc" {
+                height += VSTEP
+            }
 
-        if let el = node as? Element, el.style["overflow"] == "scroll" {
-            let maxScroll = max(0, contentHeight - height)
-            scrollOffset = min(el.scrollOffsetY, maxScroll)
-        }
+            if let el = node as? Element, el.style["overflow"] == "scroll" {
+                let maxScroll = max(0, contentHeight - height)
+                scrollOffset = min(el.scrollOffsetY, maxScroll)
+            }
+        })
     }
 
     private func layoutMode() -> String {

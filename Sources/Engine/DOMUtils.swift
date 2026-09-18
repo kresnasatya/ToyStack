@@ -18,29 +18,31 @@ nonisolated(unsafe) var visitedURL: Set<String> = []
 
 public func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
     profiler.count("text.fontRequests")
-    let key = "\(size)-\(weight)-\(style)-\(family)"
-    if let cached = fontCache[key] { return cached }
+    return profiler.measure("text.font", {
+        let key = "\(size)-\(weight)-\(style)-\(family)"
+        if let cached = fontCache[key] { return cached }
 
-    var traits: CTFontSymbolicTraits = []
-    if weight == "bold" { traits.insert(.traitBold) }
-    if style == "italic" { traits.insert(.traitItalic) }
+        var traits: CTFontSymbolicTraits = []
+        if weight == "bold" { traits.insert(.traitBold) }
+        if style == "italic" { traits.insert(.traitItalic) }
 
-    let ctFont: CTFont
-    if family == "monospace" {
-        let baseFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
-        ctFont =
-            CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
-            ?? baseFont
-    } else {
-        let baseFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
-        ctFont =
-            CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
-            ?? baseFont
-    }
+        let ctFont: CTFont
+        if family == "monospace" {
+            let baseFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
+            ctFont =
+                CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
+                ?? baseFont
+        } else {
+            let baseFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
+            ctFont =
+                CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
+                ?? baseFont
+        }
 
-    let font = BrowserFont(ctFont: ctFont)
-    fontCache[key] = font
-    return font
+        let font = BrowserFont(ctFont: ctFont)
+        fontCache[key] = font
+        return font
+    })
 }
 
 // MARK: - Inherited CSS Properties

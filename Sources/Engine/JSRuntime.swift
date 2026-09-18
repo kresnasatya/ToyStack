@@ -2,7 +2,7 @@ import Foundation
 import JavaScriptCore
 
 class JSRuntime: @unchecked Sendable {
-    private let jsContext = JSContext()!
+    private let jsContext: JSContext
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]
     private var intervalTimes: [Int: DispatchSourceTimer] = [:]
@@ -12,8 +12,9 @@ class JSRuntime: @unchecked Sendable {
 
     init(tab: Engine.Tab) {
         self.tab = tab
-        registerCallbacks()
-        loadRuntime()
+        self.jsContext = profiler.measure("jsc.context", { JSContext()! })
+        profiler.measure("jsc.callbacks", { registerCallbacks() })
+        profiler.measure("jsc.runtime", { loadRuntime() })
     }
 
     func run(script: String, code: String) {
@@ -459,11 +460,11 @@ class JSRuntime: @unchecked Sendable {
     }
 
     private func loadRuntime() {
-        guard let url = Bundle.module.url(forResource: "runtime", withExtension: "js"),
-            let source = try? String(contentsOf: url, encoding: .utf8)
-        else {
-            fatalError("runtime.js not found in bundle")
-        }
-        jsContext.evaluateScript(source)
+        let source: String? = profiler.measure("jsc.runtimeHead", {
+            guard let url = Bundle.module.url(forResource: "runtime", withExtension: "js") else { return nil }
+            return try? String(contentsOf: url, encoding: .utf8)
+        })
+        guard let source else { fatalError("runtime.js not found in bundle") }
+        profiler.measure("jsc.runtimeEval", { jsContext.evaluateScript(source) })
     }
 }

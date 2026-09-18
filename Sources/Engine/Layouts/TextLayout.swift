@@ -26,27 +26,29 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        zoom = computeZoom(node, parentZoom: parent!.zoom)
-        let weight = node.style["font-weight"] ?? "normal"
-        var styleStr = node.style["font-style"] ?? "normal"
-        if styleStr == "normal" { styleStr = "roman" }
+        profiler.measure("layout.text", {
+            zoom = computeZoom(node, parentZoom: parent!.zoom)
+            let weight = node.style["font-weight"] ?? "normal"
+            var styleStr = node.style["font-style"] ?? "normal"
+            if styleStr == "normal" { styleStr = "roman" }
 
-        let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
-        font =
-            fontOverride
-            ?? getFont(
-                size: sizeInt, weight: weight, style: styleStr,
-                family: node.style["font-family"] ?? "serif")
-        width = font.measure(displayWord ?? word) + font.spaceWidth
+            let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+            let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+            font =
+                fontOverride
+                ?? getFont(
+                    size: sizeInt, weight: weight, style: styleStr,
+                    family: node.style["font-family"] ?? "serif")
+            width = font.measure(displayWord ?? word) + font.spaceWidth
 
-        if let prev = previous as? InlineLayoutItem {
-            x = prev.x + prev.width
-        } else {
-            x = parent!.x
-        }
+            if let prev = previous as? InlineLayoutItem {
+                x = prev.x + prev.width
+            } else {
+                x = parent!.x
+            }
 
-        height = font.linespace
+            height = font.linespace
+        })
     }
 
     func paint() -> [Any] {
