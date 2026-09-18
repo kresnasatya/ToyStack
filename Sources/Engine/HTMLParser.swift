@@ -115,7 +115,8 @@ class HTMLParser {
     }
 
     func addText(_ text: String) {
-        if text.allSatisfy({ $0.isWhitespace }) {
+        let inPre: Bool = unfinished.contains(where: { $0.tag == "pre" })
+        if text.allSatisfy({ $0.isWhitespace }), !inPre {
             return
         }
         implicitTags(nil)
