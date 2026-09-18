@@ -1,6 +1,6 @@
 import Foundation
 
-enum SelectorBucketKey {
+enum SelectorBucketKey: Hashable {
     case tag(String)
     case className(String)
     case id(String)

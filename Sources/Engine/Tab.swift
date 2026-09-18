@@ -421,11 +421,14 @@ public class Tab {
     func render() {
         if needsStyle {
             browser?.measure.start("tab.style")
+            profiler.reset()
+            defer { profiler.emitProfile(into: browser?.measure, named: "profile.style") }
             defer { browser?.measure.stop("tab.style") }
 
             browser?.measure.start("tab.style.rules")
             let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             let ruleIndex = RuleIndex(rules: sortedRules)
+            profiler.count("style.rules", by: sortedRules.count)
             browser?.measure.stop("tab.style.rules")
 
             browser?.measure.start("tab.style.has")
@@ -441,18 +444,17 @@ public class Tab {
 
             inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
             browser?.measure.start("tab.style.apply")
-            applyStyle(
-                node: nodes,
+            let context = StyleContext(
                 rules: ruleIndex,
                 theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
             )
+            applyStyle(
+                node: nodes,
+                context: context,
+                ancestors: AncestorScope()
+            )
             browser?.measure.stop("tab.style.apply")
-
-            browser?.measure.counter("style.inputs", [
-                "nodes": treeToList(nodes).count,
-                "rules": sortedRules.count
-            ])
 
             browser?.measure.start("tab.style.diff")
             for node in treeToList(nodes) {
@@ -500,18 +502,12 @@ public class Tab {
 
         if needsLayout {
             browser?.measure.start("tab.layout")
+            profiler.reset()
+            defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("tab.layout") }
-            layoutStats.reset()
             let doc = DocumentLayout(node: nodes)
             doc.layout(availableWidth: tabWidth, zoom: zoom)
             document = doc
-            browser?.measure.counter("layout.text", [
-                "words": layoutStats.words,
-                "measureCalls": layoutStats.measureCalls,
-                "measureMisses": layoutStats.measureMisses,
-                "measureMs": Int(layoutStats.measureNanos / 1_000_000),
-                "fontRequests": layoutStats.fontRequests
-            ])
 
             needsLayout = false
             needsAccessibility = true
@@ -530,6 +526,8 @@ public class Tab {
 
         if needsPaint {
             browser?.measure.start("tab.paint")
+            profiler.reset()
+            defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
             defer { browser?.measure.stop("tab.paint") }
             guard let doc = document else { return }
             var list: [Any] = []

@@ -34,19 +34,17 @@ public struct BrowserFont {
     public var linespace: CGFloat { ascent + descent + leading }
 
     public func measure(_ text: String) -> CGFloat {
-        layoutStats.measureCalls += 1
+        profiler.count("text.measureCalls")
         if let cached = cache.widths[text] { return cached }
-        layoutStats.measureMisses += 1
-        let start: UInt64 = DispatchTime.now().uptimeNanoseconds
-        defer {
-            layoutStats.measureNanos += DispatchTime.now().uptimeNanoseconds - start
-        }
-        let attr = NSAttributedString(string: text, attributes: [
-            NSAttributedString.Key(kCTFontAttributeName as String): ctFont
-        ])
-        let line = CTLineCreateWithAttributedString(attr)
-        let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
-        cache.widths[text] = width
-        return width
+        profiler.count("text.measureMisses")
+        return profiler.measure("text.measure", {
+            let attr = NSAttributedString(string: text, attributes: [
+                NSAttributedString.Key(kCTFontAttributeName as String): ctFont
+            ])
+            let line = CTLineCreateWithAttributedString(attr)
+            let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+            cache.widths[text] = width
+            return width
+        })
     }
 }
