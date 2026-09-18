@@ -143,34 +143,32 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout() }
 
-        profiler.measure("layout.block.height", {
-            let sumHeight = children.reduce(0) {
-                if $1.node.style["position"] == "absolute" { return $0 }
-                var h = $1.height
-                if $1 is BlockLayout {
-                    h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
-                }
-                return $0 + h
+        let sumHeight = children.reduce(0) {
+            if $1.node.style["position"] == "absolute" { return $0 }
+            var h = $1.height
+            if $1 is BlockLayout {
+                h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
             }
-            if let hStr = node.style["height"], hStr.hasSuffix("px"),
-                let h = Double(hStr.dropLast(2))
-            {
-                contentHeight = sumHeight
-                height = CGFloat(h)
-            } else {
-                contentHeight = sumHeight
-                height = sumHeight
-            }
+            return $0 + h
+        }
+        if let hStr = node.style["height"], hStr.hasSuffix("px"),
+            let h = Double(hStr.dropLast(2))
+        {
+            contentHeight = sumHeight
+            height = CGFloat(h)
+        } else {
+            contentHeight = sumHeight
+            height = sumHeight
+        }
 
-            if let el = node as? Element, el.attributes["id"] == "toc" {
-                height += VSTEP
-            }
+        if let el = node as? Element, el.attributes["id"] == "toc" {
+            height += VSTEP
+        }
 
-            if let el = node as? Element, el.style["overflow"] == "scroll" {
-                let maxScroll = max(0, contentHeight - height)
-                scrollOffset = min(el.scrollOffsetY, maxScroll)
-            }
-        })
+        if let el = node as? Element, el.style["overflow"] == "scroll" {
+            let maxScroll = max(0, contentHeight - height)
+            scrollOffset = min(el.scrollOffsetY, maxScroll)
+        }
     }
 
     private func layoutMode() -> String {

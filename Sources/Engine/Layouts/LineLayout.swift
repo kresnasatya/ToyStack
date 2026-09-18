@@ -21,12 +21,10 @@ class LineLayout: LayoutObject {
     }
 
     func layout() {
-        profiler.measure("layout.line.setup", {
-            zoom = computeZoom(node, parentZoom: parent!.zoom)
-            width = parent!.width
-            x = parent!.x
-            y = previous.map { $0.y + $0.height } ?? parent!.y
-        })
+        zoom = computeZoom(node, parentZoom: parent!.zoom)
+        width = parent!.width
+        x = parent!.x
+        y = previous.map { $0.y + $0.height } ?? parent!.y
 
         for child in children { child.layout() }
 

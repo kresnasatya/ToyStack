@@ -171,11 +171,9 @@ public class Tab {
             interestTop = 0
             self.url = url
             visitedURL.insert(url.toString())
-            browser?.measure.start("tab.parse.html")
             nodes = profiler.measure("load.parse", {
                 HTMLParser(body: body).parse()
             })
-            browser?.measure.stop("tab.parse.html")
 
             profiler.measure("load.checkboxes", {
                 for node in treeToList(nodes) {
@@ -198,18 +196,16 @@ public class Tab {
             })
             title = titleText.isEmpty ? url.toString() : titleText
 
-            profiler.measure("load.headers", {
-                allowedOrigins = nil
-                referrerPolicy = headers["referrer-policy"] ?? ""
-                if let csp = headers["content-security-policy"] {
-                    let parts = csp.split(separator: " ").map(String.init)
-                    if parts.first == "default-src" {
-                        allowedOrigins = parts.dropFirst().map {
-                            WebURL($0).origin()
-                        }
+            allowedOrigins = nil
+            referrerPolicy = headers["referrer-policy"] ?? ""
+            if let csp = headers["content-security-policy"] {
+                let parts = csp.split(separator: " ").map(String.init)
+                if parts.first == "default-src" {
+                    allowedOrigins = parts.dropFirst().map {
+                        WebURL($0).origin()
                     }
                 }
-            })
+            }
 
             rules = profiler.measure("load.defaultCss") { defaultStyleSheet }
 
