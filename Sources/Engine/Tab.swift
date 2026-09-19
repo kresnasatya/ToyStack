@@ -484,9 +484,7 @@ public class Tab {
                 else { continue }
                 let key: String = "animation/\(spec.name)"
                 guard node.animations[key] == nil else { continue }
-                if let anim = buildKeyframeAnimation(
-                    frames: frames, numFrames: spec.numFrames, infinite: spec.infinite,
-                    alternate: spec.alternate)
+                if let anim = KeyframeAnimation.make(frames: frames, numFrames: spec.numFrames, infinite: spec.infinite, alternate: spec.alternate)
                 {
                     node.animations[key] = anim
                 }

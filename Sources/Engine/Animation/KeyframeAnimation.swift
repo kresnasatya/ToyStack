@@ -56,48 +56,50 @@ class KeyframeAnimation: Animation {
     }
 }
 
-func buildKeyframeAnimation(
-    frames: [Keyframe],
-    numFrames: Int,
-    infinite: Bool,
-    alternate: Bool
-) -> KeyframeAnimation? {
-    guard let from = frames.first(where: { $0.offset == 0.0 }),
-        let to = frames.first(where: { $0.offset == 1.0 })
-    else { return nil }
+extension KeyframeAnimation {
+    static func make(
+        frames: [Keyframe],
+        numFrames: Int,
+        infinite: Bool,
+        alternate: Bool
+    ) -> KeyframeAnimation? {
+        guard let from = frames.first(where: { $0.offset == 0.0 }),
+            let to = frames.first(where: { $0.offset == 1.0 })
+        else { return nil }
 
-    let differing: [String : String] = from.body.filter { to.body[$0.key] != $0.value }
-    guard let (property, oldVal) = differing.first, let newVal = to.body[property]
-    else { return nil }
+        let differing: [String : String] = from.body.filter { to.body[$0.key] != $0.value }
+        guard let (property, oldVal) = differing.first, let newVal = to.body[property]
+        else { return nil }
 
-    let factory: (String, String, Int, Easing) -> Animation?
-    switch property {
-    case "opacity":
-        factory = { old, new, nf, e in
-            guard let o = Double(old), let n = Double(new) else { return nil }
-            return NumericAnimation(oldValue: o, newValue: n, numFrames: nf, easing: e)
+        let factory: (String, String, Int, Easing) -> Animation?
+        switch property {
+        case "opacity":
+            factory = { old, new, nf, e in
+                guard let o = Double(old), let n = Double(new) else { return nil }
+                return NumericAnimation(oldValue: o, newValue: n, numFrames: nf, easing: e)
+            }
+        case "width", "height":
+            factory = { old, new, nf, e in
+                PixelAnimation(oldValue: old, newValue: new, numFrames: nf, easing: e)
+            }
+        case "background-color":
+            factory = { old, new, nf, e in
+                guard let o = cssColorToRGB(old), let n = cssColorToRGB(new) else { return nil }
+                return ColorAnimation(oldColor: o, newColor: n, numFrames: nf, easing: e)
+            }
+        default:
+            return nil
         }
-    case "width", "height":
-        factory = { old, new, nf, e in
-            PixelAnimation(oldValue: old, newValue: new, numFrames: nf, easing: e)
-        }
-    case "background-color":
-        factory = { old, new, nf, e in
-            guard let o = cssColorToRGB(old), let n = cssColorToRGB(new) else { return nil }
-            return ColorAnimation(oldColor: o, newColor: n, numFrames: nf, easing: e)
-        }
-    default:
-        return nil
+
+        return KeyframeAnimation(
+            animatedProperty: property,
+            range: KeyframeRange(from: oldVal, to: newVal),
+            timing: KeyframeTiming(
+                spec: TransitionSpec(numFrames: numFrames, easing: .ease),
+                infinite: infinite,
+                alternate: alternate
+            ),
+            factory: factory
+        )
     }
-
-    return KeyframeAnimation(
-        animatedProperty: property,
-        range: KeyframeRange(from: oldVal, to: newVal),
-        timing: KeyframeTiming(
-            spec: TransitionSpec(numFrames: numFrames, easing: .ease),
-            infinite: infinite,
-            alternate: alternate
-        ),
-        factory: factory
-    )
 }
