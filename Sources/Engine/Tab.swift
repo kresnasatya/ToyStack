@@ -18,6 +18,7 @@ public class Tab {
         status: Int, headers: [String: String], content: String
     )?)? = nil
     public private(set) var url: WebURL!
+    private nonisolated(unsafe) var visitedURL: Set<String> = []
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [Any] = []
