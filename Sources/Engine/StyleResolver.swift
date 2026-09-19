@@ -8,6 +8,7 @@ nonisolated(unsafe) var inheritedProperties: [String: String] = [
     "font-weight": "normal",
     "color": "black",
     "white-space": "normal",
+    "direction": "ltr"
 ]
 
 // MARK: - CSS Cascade (style function)
@@ -30,6 +31,9 @@ func applyStyle(
 
     if let element = node as? Element {
         profiler.count("style.elements")
+        if let dir = element.attributes["dir"]?.lowercased(), dir == "ltr" || dir == "rtl" {
+            node.style["direction"] = dir
+        }
         let flags: [Bool] = profiler.measure("style.apply.flags", {
             context.rules.candidateFlags(for: element, ancestors: ancestors)
         })
