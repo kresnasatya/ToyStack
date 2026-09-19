@@ -298,9 +298,6 @@ class BlockLayout: LayoutObject {
         cursorX = 0
         let lastLine: (any LayoutObject)? = children.last
         let line: LineLayout = LineLayout(node: node, parent: self, previous: lastLine)
-        if let el = node as? Element, el.tag == "h1", el.attributes["class"] == "title" {
-            line.centered = true
-        }
         children.append(line)
     }
 
