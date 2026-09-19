@@ -479,7 +479,7 @@ public class Tab {
             browser?.measure.start("tab.style.keyframes")
             for node in treeToList(nodes) {
                 guard let animDecl = node.style["animation"],
-                    let spec = parseAnimationShorthand(animDecl),
+                    let spec = AnimationSpec.parse(animDecl),
                     let frames = keyframes[spec.name]
                 else { continue }
                 let key: String = "animation/\(spec.name)"

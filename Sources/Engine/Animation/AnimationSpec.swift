@@ -6,27 +6,30 @@ struct AnimationSpec {
     let alternate: Bool
 }
 
-func parseAnimationShorthand(_ value: String) -> AnimationSpec? {
-    let tokens: [String] = value.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-    guard !tokens.isEmpty else { return nil }
+extension AnimationSpec {
+    static func parse(_ value: String) -> AnimationSpec? {
+        let tokens: [String] = value.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !tokens.isEmpty else { return nil }
 
-    var name: String?
-    var numFrames: Int?
-    var infinite: Bool = false
-    var alternate: Bool = false
+        var name: String?
+        var numFrames: Int?
+        var infinite: Bool = false
+        var alternate: Bool = false
 
-    for token in tokens {
-        if token.hasSuffix("s"), let seconds = Double(token.dropLast()) {
-            numFrames = Int(seconds / secondsPerFrame)
-        } else if token == "infinite" {
-            infinite = true
-        } else if token == "alternate" {
-            alternate = true
-        } else {
-            name = token
+        for token in tokens {
+            if token.hasSuffix("s"), let seconds = Double(token.dropLast()) {
+                numFrames = Int(seconds / secondsPerFrame)
+            } else if token == "infinite" {
+                infinite = true
+            } else if token == "alternate" {
+                alternate = true
+            } else {
+                name = token
+            }
         }
+
+        guard let n = name, let nf = numFrames else { return nil }
+        return AnimationSpec(name: n, numFrames: nf, infinite: infinite, alternate: alternate)
     }
 
-    guard let n = name, let nf = numFrames else { return nil }
-    return AnimationSpec(name: n, numFrames: nf, infinite: infinite, alternate: alternate)
 }

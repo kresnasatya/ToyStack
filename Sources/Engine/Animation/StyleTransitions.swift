@@ -2,7 +2,7 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
     Animation]
 {
     var animations: [String: Animation] = [:]
-    let transitions: [String : TransitionSpec] = parseTransition(newStyle["transition"] ?? "")
+    let transitions: [String : TransitionSpec] = TransitionSpec.parse(newStyle["transition"] ?? "")
     for (property, spec) in transitions {
         let numFrames: Int = spec.numFrames
         guard let oldVal = oldStyle[property],
