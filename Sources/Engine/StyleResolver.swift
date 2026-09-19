@@ -31,8 +31,8 @@ func applyStyle(
 
     if let element = node as? Element {
         profiler.count("style.elements")
-        if let dir = element.attributes["dir"]?.lowercased(), dir == "ltr" || dir == "rtl" {
-            node.style["direction"] = dir
+        if let direction = DirectionResolver.resolve(element) {
+            node.style["direction"] = direction.rawValue
         }
         let flags: [Bool] = profiler.measure("style.apply.flags", {
             context.rules.candidateFlags(for: element, ancestors: ancestors)
