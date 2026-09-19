@@ -73,7 +73,7 @@ public class Tab {
     private var interestBottom: CGFloat { interestTop + 4 * tabHeight }
 
     private var scrollFocusNode: Element? = nil
-    private var scrollAnimation: ScrollAnimation? = nil
+    private var scrollTween: ScrollTween? = nil
     private var paintedBottom: CGFloat = 0
 
     var maxScroll: CGFloat {
@@ -168,7 +168,7 @@ public class Tab {
         case .success(let (_, headers, body)):
             isSecure = url.scheme == "https"
             scroll = 0
-            scrollAnimation = nil
+            scrollTween = nil
             interestTop = 0
             self.url = url
             visitedURL.insert(url.toString())
@@ -618,13 +618,13 @@ public class Tab {
             needsFocusScroll = false
         }
 
-        if let anim = scrollAnimation {
-            if let value = anim.animate() {
+        if let tween = scrollTween {
+            if let value = tween.nextValue() {
                 scroll = max(0, min(value, maxScroll))
                 needsAnotherFrame = true
                 checkInterestRegion()
             } else {
-                scrollAnimation = nil
+                scrollTween = nil
             }
         }
 
@@ -645,7 +645,7 @@ public class Tab {
     }
 
     private func scrollTo(_ elt: Element) {
-        scrollAnimation = nil
+        scrollTween = nil
         guard let doc = document else { return }
         let objs: [any LayoutObject] = treeToList(doc).filter({ $0.node === elt || $0.node.parent === elt })
         guard let obj = objs.first else { return }
@@ -661,7 +661,7 @@ public class Tab {
         })
         if let target = target {
             scroll = max(0, min(target.y, maxScroll))
-            scrollAnimation = nil
+            scrollTween = nil
         }
     }
 
@@ -727,14 +727,20 @@ public class Tab {
     }
 
     public func scrollDown() {
-        let target: CGFloat = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxScroll)
-        scrollAnimation = ScrollAnimation(from: scroll, to: target)
+        if let tween = scrollTween {
+            tween.aim(from: scroll, by: SCROLL_STEP, within: 0...maxScroll)
+        } else {
+            scrollTween = ScrollTween(from: scroll, to: min(scroll + SCROLL_STEP, maxScroll))
+        }
         browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollUp() {
-        let target: CGFloat = max((scrollAnimation?.target ?? scroll) - SCROLL_STEP, 0)
-        scrollAnimation = ScrollAnimation(from: scroll, to: target)
+        if let tween = scrollTween {
+            tween.aim(from: scroll, by: -SCROLL_STEP, within: 0...maxScroll)
+        } else {
+            scrollTween = ScrollTween(from: scroll, to: max(scroll - SCROLL_STEP, 0))
+        }
         browser?.setNeedsAnimationFrame(self)
     }
 
@@ -761,7 +767,7 @@ public class Tab {
     }
 
     public func scrollBy(deltaY: CGFloat) {
-        scrollAnimation = nil
+        scrollTween = nil
         scroll = max(0, min(scroll - deltaY, maxScroll))
         if !checkInterestRegion() {
             browser?.applyScroll(scroll)

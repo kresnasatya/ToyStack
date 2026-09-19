@@ -1,9 +1,8 @@
 import CoreGraphics
 
-class ScrollAnimation {
-    let target: CGFloat
-
-    private let start: CGFloat
+class ScrollTween {
+    private var start: CGFloat
+    private var target: CGFloat
     private let numFrames: Int
     private let easing: Easing
     private var frameCount: Int = 0
@@ -18,7 +17,13 @@ class ScrollAnimation {
         self.easing = easing
     }
 
-    func animate() -> CGFloat? {
+    func aim(from current: CGFloat, by delta: CGFloat, within bounds: ClosedRange<CGFloat>) {
+        start = current
+        target = min(max(target + delta, bounds.lowerBound), bounds.upperBound)
+        frameCount = 0
+    }
+
+    func nextValue() -> CGFloat? {
         frameCount += 1
         if frameCount > numFrames { return nil }
         let t: Double = Double(frameCount) / Double(numFrames)
