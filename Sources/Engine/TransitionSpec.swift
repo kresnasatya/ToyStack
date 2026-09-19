@@ -1,5 +1,10 @@
 let REFRESH_RATE_SEC: Double = 1.0 / 60.0
 
+struct TransitionSpec {
+    let numFrames: Int
+    let easing: EasingFunction
+}
+
 func parseTransition(_ value: String) -> [String: TransitionSpec] {
     var properties: [String: TransitionSpec] = [:]
     guard !value.isEmpty else { return properties }
