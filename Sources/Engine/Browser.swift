@@ -627,7 +627,7 @@ public class Browser: ObservableObject {
         var translation: CGPoint = CGPoint.zero
         var blur: CGFloat = 0
         var key: ObjectIdentifier?
-        var blendMode: EngineBlendMode?
+        var blendMode: BrowserBlendMode?
         for effect in layer.ancestorChain {
             let latest: VisualEffect = getLatest(effect, in: updates)
             if latest is ScrollEffect {

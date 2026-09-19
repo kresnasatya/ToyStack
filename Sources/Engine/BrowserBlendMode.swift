@@ -1,11 +1,11 @@
-public enum EngineBlendMode: String {
+public enum BrowserBlendMode: String {
     case normal
     case multiply
     case difference
     case destinationIn
 }
 
-extension EngineBlendMode {
+extension BrowserBlendMode {
     public var compositingFilterName: String? {
         switch self {
             case .normal, .destinationIn: return nil

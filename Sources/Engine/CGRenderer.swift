@@ -120,7 +120,7 @@ extension BrowserColor {
     }
 }
 
-extension EngineBlendMode {
+extension BrowserBlendMode {
     var toCG: CGBlendMode {
         switch self {
             case .normal: return .normal

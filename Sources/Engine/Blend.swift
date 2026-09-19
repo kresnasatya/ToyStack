@@ -2,9 +2,9 @@ import CoreGraphics
 
 public class Blend: VisualEffect {
     let opacity: Double
-    let blendMode: EngineBlendMode?
+    let blendMode: BrowserBlendMode?
 
-    init(opacity: Double, blendMode: EngineBlendMode?, node: DOMNode?, children: [Any]) {
+    init(opacity: Double, blendMode: BrowserBlendMode?, node: DOMNode?, children: [Any]) {
         self.opacity = opacity
         self.blendMode = blendMode
 

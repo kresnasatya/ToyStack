@@ -34,7 +34,7 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
     let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
     let blurRadius: CGFloat = parseBlur(node.style["filter"] ?? "")
 
-    let blendMode: EngineBlendMode? = {
+    let blendMode: BrowserBlendMode? = {
         switch blendModeStr {
         case "multiply": return .multiply
         case "difference": return .difference

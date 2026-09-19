@@ -79,7 +79,7 @@ final class SwiftUIRenderer: Renderer {
     }
 }
 
-extension EngineBlendMode {
+extension BrowserBlendMode {
     var toSwiftUI: GraphicsContext.BlendMode {
         switch self {
             case .normal: return .normal
