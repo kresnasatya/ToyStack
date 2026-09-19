@@ -43,4 +43,24 @@ enum EasingFunction {
             return bezierY(u)
         }
     }
+
+    static func parse(_ value: String) -> EasingFunction {
+        switch value {
+        case "linear": return .linear
+        case "ease": return .ease
+        case "ease-in": return .easeIn
+        case "ease-out": return .easeOut
+        default:
+            if value.hasPrefix("cubic-bezier(") && value.hasSuffix(")") {
+                let inner: Substring.SubSequence = value.dropFirst("cubic-bezier(".count).dropLast()
+                let nums: [Double] = inner.split(separator: ",")
+                    .compactMap({ Double($0.trimmingCharacters(in: .whitespaces)) })
+                if nums.count == 4 {
+                    return .cubicBezier(x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3])
+                }
+            }
+            return .ease
+        }
+    }
+
 }

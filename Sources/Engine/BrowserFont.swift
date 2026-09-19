@@ -48,3 +48,36 @@ public struct BrowserFont {
         })
     }
 }
+
+// MARK: - Font Cache
+nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
+let inlineDefaultFont: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+
+public func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
+    profiler.count("text.fontRequests")
+    return profiler.measure("text.font", {
+        let key: String = "\(size)-\(weight)-\(style)-\(family)"
+        if let cached = fontCache[key] { return cached }
+
+        var traits: CTFontSymbolicTraits = []
+        if weight == "bold" { traits.insert(.traitBold) }
+        if style == "italic" { traits.insert(.traitItalic) }
+
+        let ctFont: CTFont
+        if family == "monospace" {
+            let baseFont: CTFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
+            ctFont =
+                CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
+                ?? baseFont
+        } else {
+            let baseFont: CTFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
+            ctFont =
+                CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
+                ?? baseFont
+        }
+
+        let font: BrowserFont = BrowserFont(ctFont: ctFont)
+        fontCache[key] = font
+        return font
+    })
+}
