@@ -5,8 +5,8 @@ struct KeyframeTiming {
 }
 
 struct KeyframeRange {
-    let from: String
-    let to: String
+    let from: AnimatedValue
+    let to: AnimatedValue
 }
 
 class KeyframeAnimation: Animation {
@@ -15,9 +15,9 @@ class KeyframeAnimation: Animation {
     private let alternate: Bool
     private let numFrames: Int
     private let easing: Easing
-    private let oldValue: String
-    private let newValue: String
-    private let factory: (String, String, Int, Easing) -> Animation?
+    private let oldValue: AnimatedValue
+    private let newValue: AnimatedValue
+    private let factory: (AnimatedValue, AnimatedValue, Int, Easing) -> Animation?
     private var inner: Animation
     private var reversed: Bool = false
 
@@ -25,7 +25,7 @@ class KeyframeAnimation: Animation {
         animatedProperty: String,
         range: KeyframeRange,
         timing: KeyframeTiming,
-        factory: @escaping (String, String, Int, Easing) -> Animation?
+        factory: @escaping (AnimatedValue, AnimatedValue, Int, Easing) -> Animation?
     ) {
         self.animatedProperty = animatedProperty
         self.oldValue = range.from
@@ -46,8 +46,8 @@ class KeyframeAnimation: Animation {
 
         if alternate {
             reversed.toggle()
-            let from: String = reversed ? newValue : oldValue
-            let to: String = reversed ? oldValue : newValue
+            let from: AnimatedValue = reversed ? newValue : oldValue
+            let to: AnimatedValue = reversed ? oldValue : newValue
             inner = factory(from, to, numFrames, easing) ?? inner
         } else {
             inner = factory(oldValue, newValue, numFrames, easing) ?? inner
@@ -71,44 +71,25 @@ extension KeyframeAnimation {
         guard let (property, oldVal) = differing.first, let newVal = to.body[property]
         else { return nil }
 
-        let factory: (String, String, Int, Easing) -> Animation?
-        switch property {
-        case "opacity":
-            factory = { old, new, nf, e in
-                guard let o = Double(old), let n = Double(new) else { return nil }
-                return NumericAnimation(
-                    animatedProperty: property,
-                    oldValue: o,
-                    newValue: n,
-                    spec: TransitionSpec(numFrames: nf, easing: e)
-                )
-            }
-        case "width", "height":
-            factory = { old, new, nf, e in
-                PixelAnimation(
-                    animatedProperty: property,
-                    oldValue: old,
-                    newValue: new,
-                    spec: TransitionSpec(numFrames: nf, easing: e)
-                )
-            }
-        case "background-color":
-            factory = { old, new, nf, e in
-                guard let o = cssColorToRGB(old), let n = cssColorToRGB(new) else { return nil }
-                return ColorAnimation(
-                    animatedProperty: property,
-                    oldColor: o,
-                    newColor: n,
-                    spec: TransitionSpec(numFrames: nf, easing: e)
-                )
-            }
+        guard let oldValue = AnimatedValue(css: oldVal, property: property),
+            let newValue = AnimatedValue(css: newVal, property: property)
+        else { return nil }
+
+        let factory: (AnimatedValue, AnimatedValue, Int, Easing) -> Animation?
+        switch (oldValue, newValue) {
+        case (.number(let o), .number(let n)):
+            factory = { _, _, nf, e in NumericAnimation(animatedProperty: property, oldValue: o, newValue: n, spec: TransitionSpec(numFrames: nf, easing: e)) }
+        case (.length(let o), .length(let n)):
+            factory = { _, _, nf, e in PixelAnimation(animatedProperty: property, oldValue: o, newValue: n, spec: TransitionSpec(numFrames: nf, easing: e)) }
+        case (.color(let o), .color(let n)):
+            factory = { _, _, nf, e in ColorAnimation(animatedProperty: property, oldColor: o, newColor: n, spec: TransitionSpec(numFrames: nf, easing: e)) }
         default:
             return nil
         }
 
         return KeyframeAnimation(
             animatedProperty: property,
-            range: KeyframeRange(from: oldVal, to: newVal),
+            range: KeyframeRange(from: oldValue, to: newValue),
             timing: KeyframeTiming(
                 transition: TransitionSpec(numFrames: numFrames, easing: .ease),
                 infinite: infinite,

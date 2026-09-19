@@ -25,20 +25,8 @@ class NumericAnimation: Animation {
 }
 
 class PixelAnimation: NumericAnimation {
-    init?(animatedProperty: String, oldValue: String, newValue: String, spec: TransitionSpec) {
-        guard let old = PixelAnimation.parsePx(oldValue),
-            let new = PixelAnimation.parsePx(newValue)
-        else { return nil }
-        super.init(animatedProperty: animatedProperty, oldValue: old, newValue: new, spec: spec)
-    }
-
     override func nextValue() -> String? {
         guard let value = super.nextValue() else { return nil }
         return value + "px"
-    }
-
-    private static func parsePx(_ value: String) -> Double? {
-        guard value.hasSuffix("px") else { return nil }
-        return Double(value.dropLast(2))
     }
 }
