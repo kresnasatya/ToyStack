@@ -1,3 +1,10 @@
+public enum EngineBlendMode: String {
+    case normal
+    case multiply
+    case difference
+    case destinationIn
+}
+
 extension EngineBlendMode {
     public var compositingFilterName: String? {
         switch self {

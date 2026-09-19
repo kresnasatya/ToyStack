@@ -1,13 +1,6 @@
 import CoreGraphics
 import CoreText
 
-public enum EngineBlendMode: String {
-    case normal
-    case multiply
-    case difference
-    case destinationIn
-}
-
 public struct LayerOptions {
     public var opacity: Double?
     public var blendMode: EngineBlendMode?
