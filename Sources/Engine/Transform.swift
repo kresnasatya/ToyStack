@@ -48,14 +48,7 @@ public class Transform: VisualEffect {
     }
 }
 
-func mapTranslation(rect: Rect, translation: CGPoint?, reversed: Bool = false) -> Rect {
-    guard let t = translation else { return rect }
-    let dx: CGFloat = reversed ? -t.x : t.x
-    let dy: CGFloat = reversed ? -t.y : t.y
-    return Rect(
-        left: rect.left + dx, top: rect.top + dy, right: rect.right + dx, bottom: rect.bottom + dy)
-}
-
+// MARK: - CSS transform parsing
 func parseTransform(_ value: String) -> CGPoint? {
     let pattern: String = #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
     guard let regex = try? NSRegularExpression(pattern: pattern),
