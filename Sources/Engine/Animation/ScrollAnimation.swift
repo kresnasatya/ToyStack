@@ -5,12 +5,12 @@ class ScrollAnimation {
 
     private let start: CGFloat
     private let numFrames: Int
-    private let easing: EasingFunction
+    private let easing: Easing
     private var frameCount: Int = 0
 
     init(
         from start: CGFloat, to target: CGFloat, numFrames: Int = 12,
-        easing: EasingFunction = .easeOut
+        easing: Easing = .easeOut
     ) {
         self.start = start
         self.target = target

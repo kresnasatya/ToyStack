@@ -14,10 +14,10 @@ class KeyframeAnimation: Animation {
     private let infinite: Bool
     private let alternate: Bool
     private let numFrames: Int
-    private let easing: EasingFunction
+    private let easing: Easing
     private let oldValue: String
     private let newValue: String
-    private let factory: (String, String, Int, EasingFunction) -> Animation?
+    private let factory: (String, String, Int, Easing) -> Animation?
     private var inner: Animation
     private var reversed: Bool = false
 
@@ -25,7 +25,7 @@ class KeyframeAnimation: Animation {
         animatedProperty: String,
         range: KeyframeRange,
         timing: KeyframeTiming,
-        factory: @escaping (String, String, Int, EasingFunction) -> Animation?
+        factory: @escaping (String, String, Int, Easing) -> Animation?
     ) {
         self.animatedProperty = animatedProperty
         self.oldValue = range.from
@@ -70,7 +70,7 @@ func buildKeyframeAnimation(
     guard let (property, oldVal) = differing.first, let newVal = to.body[property]
     else { return nil }
 
-    let factory: (String, String, Int, EasingFunction) -> Animation?
+    let factory: (String, String, Int, Easing) -> Animation?
     switch property {
     case "opacity":
         factory = { old, new, nf, e in

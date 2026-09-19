@@ -1,15 +1,15 @@
-enum EasingFunction {
+enum Easing {
     case linear
     case cubicBezier(x1: Double, y1: Double, x2: Double, y2: Double)
 
-    static let ease: EasingFunction = cubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
-    static let easeIn: EasingFunction = cubicBezier(x1: 0.42, y1: 0.0, x2: 1.0, y2: 1.0)
-    static let easeOut: EasingFunction = cubicBezier(x1: 0.0, y1: 0.0, x2: 0.58, y2: 1.0)
+    static let ease: Easing = cubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
+    static let easeIn: Easing = cubicBezier(x1: 0.42, y1: 0.0, x2: 1.0, y2: 1.0)
+    static let easeOut: Easing = cubicBezier(x1: 0.0, y1: 0.0, x2: 0.58, y2: 1.0)
 
-    func apply(_ t: Double) -> Double {
+    func apply(_ progress: Double) -> Double {
         switch self {
         case .linear:
-            return t
+            return progress
         case .cubicBezier(let x1, let y1, let x2, let y2):
             func bezierX(_ u: Double) -> Double {
                 let m: Double = 1.0 - u
@@ -23,20 +23,20 @@ enum EasingFunction {
                 let m: Double = 1.0 - u
                 return 3 * m * m * x1 + 6 * m * u * (x2 - x1) + 3 * u * u * (1.0 - x2)
             }
-            var u: Double = t
+            var u: Double = progress
             for _ in 0..<8 {
-                let x: Double = bezierX(u) - t
+                let x: Double = bezierX(u) - progress
                 if abs(x) < 1e-6 { break }
                 let d: Double = bezierXPrime(u)
                 if abs(d) < 1e-6 { break }
                 u -= x / d
             }
-            if u < 0 || u > 1 || abs(bezierX(u) - t) > 1e-4 {
+            if u < 0 || u > 1 || abs(bezierX(u) - progress) > 1e-4 {
                 var lo: Double = 0.0
                 var hi: Double = 1.0
                 for _ in 0..<40 {
                     let mid: Double = (lo + hi) / 2
-                    if bezierX(mid) < t { lo = mid } else { hi = mid }
+                    if bezierX(mid) < progress { lo = mid } else { hi = mid }
                 }
                 u = (lo + hi) / 2
             }
@@ -44,7 +44,7 @@ enum EasingFunction {
         }
     }
 
-    static func parse(_ value: String) -> EasingFunction {
+    static func parse(_ value: String) -> Easing {
         switch value {
         case "linear": return .linear
         case "ease": return .ease

@@ -17,7 +17,7 @@ func parseAnimationShorthand(_ value: String) -> AnimationSpec? {
 
     for token in tokens {
         if token.hasSuffix("s"), let seconds = Double(token.dropLast()) {
-            numFrames = Int(seconds / REFRESH_RATE_SEC)
+            numFrames = Int(seconds / secondsPerFrame)
         } else if token == "infinite" {
             infinite = true
         } else if token == "alternate" {

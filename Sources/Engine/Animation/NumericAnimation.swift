@@ -2,11 +2,11 @@ class NumericAnimation: Animation {
     let oldValue: Double
     let newValue: Double
     let numFrames: Int
-    let easing: EasingFunction
+    let easing: Easing
     private(set) var frameCount: Int = 1
     private let changePerFrame: Double
 
-    init(oldValue: Double, newValue: Double, numFrames: Int, easing: EasingFunction = .ease) {
+    init(oldValue: Double, newValue: Double, numFrames: Int, easing: Easing = .ease) {
         self.oldValue = oldValue
         self.newValue = newValue
         self.numFrames = numFrames
@@ -25,7 +25,7 @@ class NumericAnimation: Animation {
 }
 
 class PixelAnimation: NumericAnimation {
-    init?(oldValue: String, newValue: String, numFrames: Int, easing: EasingFunction = .ease) {
+    init?(oldValue: String, newValue: String, numFrames: Int, easing: Easing = .ease) {
         guard let old = PixelAnimation.parsePx(oldValue),
             let new = PixelAnimation.parsePx(newValue)
         else { return nil }

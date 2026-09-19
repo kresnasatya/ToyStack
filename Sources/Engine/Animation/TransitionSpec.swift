@@ -1,8 +1,6 @@
-let REFRESH_RATE_SEC: Double = 1.0 / 60.0
-
 struct TransitionSpec {
     let numFrames: Int
-    let easing: EasingFunction
+    let easing: Easing
 }
 
 func parseTransition(_ value: String) -> [String: TransitionSpec] {
@@ -19,8 +17,8 @@ func parseTransition(_ value: String) -> [String: TransitionSpec] {
         let durationStr: String = tokens[1]
         guard durationStr.hasSuffix("s"), let seconds = Double(durationStr.dropLast())
         else { continue }
-        let numFrames: Int = Int(seconds / REFRESH_RATE_SEC)
-        let easing: EasingFunction = tokens.count >= 3 ? EasingFunction.parse(tokens[2]) : .ease
+        let numFrames: Int = Int(seconds / secondsPerFrame)
+        let easing: Easing = tokens.count >= 3 ? Easing.parse(tokens[2]) : .ease
         properties[property] = TransitionSpec(numFrames: numFrames, easing: easing)
     }
     return properties

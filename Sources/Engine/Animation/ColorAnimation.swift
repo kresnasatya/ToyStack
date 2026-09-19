@@ -2,11 +2,11 @@ class ColorAnimation: Animation {
     let oldColor: RGBColor
     let newColor: RGBColor
     let numFrames: Int
-    let easing: EasingFunction
+    let easing: Easing
     private(set) var frameCount: Int = 1
     private let changePerFrame: RGBColor
 
-    init(oldColor: RGBColor, newColor: RGBColor, numFrames: Int, easing: EasingFunction = .ease) {
+    init(oldColor: RGBColor, newColor: RGBColor, numFrames: Int, easing: Easing = .ease) {
         self.oldColor = oldColor
         self.newColor = newColor
         self.numFrames = numFrames
