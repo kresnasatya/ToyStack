@@ -14,7 +14,7 @@ class NumericAnimation: Animation {
         self.changePerFrame = (newValue - oldValue) / Double(numFrames)
     }
 
-    func animate() -> String? {
+    func nextValue() -> String? {
         frameCount += 1
         if frameCount > numFrames { return nil }
         let t: Double = Double(frameCount) / Double(numFrames)
@@ -32,8 +32,8 @@ class PixelAnimation: NumericAnimation {
         super.init(oldValue: old, newValue: new, numFrames: numFrames, easing: easing)
     }
 
-    override func animate() -> String? {
-        guard let value = super.animate() else { return nil }
+    override func nextValue() -> String? {
+        guard let value = super.nextValue() else { return nil }
         return value + "px"
     }
 

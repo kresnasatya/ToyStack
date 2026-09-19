@@ -38,8 +38,8 @@ class KeyframeAnimation: Animation {
         self.inner = factory(range.from, range.to, timing.spec.numFrames, timing.spec.easing)!
     }
 
-    func animate() -> String? {
-        if let value = inner.animate() {
+    func nextValue() -> String? {
+        if let value = inner.nextValue() {
             return value
         }
         guard infinite else { return nil }
@@ -52,7 +52,7 @@ class KeyframeAnimation: Animation {
         } else {
             inner = factory(oldValue, newValue, numFrames, easing) ?? inner
         }
-        return inner.animate()
+        return inner.nextValue()
     }
 }
 

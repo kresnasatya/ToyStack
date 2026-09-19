@@ -566,7 +566,7 @@ public class Tab {
         for node in treeToList(nodes) {
             for (key, animation) in node.animations {
                 let property: String = (animation as? KeyframeAnimation)?.animatedProperty ?? key
-                if let value = animation.animate() {
+                if let value = animation.nextValue() {
                     needsAnotherFrame = true
                     if property == "transform-x" || property == "transform-y"
                         || property == "opacity"

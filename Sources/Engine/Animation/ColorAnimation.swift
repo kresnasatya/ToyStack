@@ -18,7 +18,7 @@ class ColorAnimation: Animation {
         )
     }
 
-    func animate() -> String? {
+    func nextValue() -> String? {
         frameCount += 1
         if frameCount > numFrames { return nil }
         let t: Double = Double(frameCount) / Double(numFrames)

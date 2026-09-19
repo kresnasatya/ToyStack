@@ -1,3 +1,3 @@
 protocol Animation: AnyObject {
-    func animate() -> String?
+    func nextValue() -> String?
 }
