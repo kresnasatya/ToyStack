@@ -2,9 +2,9 @@ enum EasingFunction {
     case linear
     case cubicBezier(x1: Double, y1: Double, x2: Double, y2: Double)
 
-    static let ease = cubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
-    static let easeIn = cubicBezier(x1: 0.42, y1: 0.0, x2: 1.0, y2: 1.0)
-    static let easeOut = cubicBezier(x1: 0.0, y1: 0.0, x2: 0.58, y2: 1.0)
+    static let ease: EasingFunction = cubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
+    static let easeIn: EasingFunction = cubicBezier(x1: 0.42, y1: 0.0, x2: 1.0, y2: 1.0)
+    static let easeOut: EasingFunction = cubicBezier(x1: 0.0, y1: 0.0, x2: 0.58, y2: 1.0)
 
     func apply(_ t: Double) -> Double {
         switch self {

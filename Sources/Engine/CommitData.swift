@@ -3,7 +3,7 @@ import CoreGraphics
 struct PaintResult {
     let displayList: [Any]
     let compositedUpdates: [ObjectIdentifier: Engine.VisualEffect]?
-    let paintEpoch: Int
+    let paintEpoch: UInt
 }
 
 class CommitData {

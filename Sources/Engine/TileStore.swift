@@ -30,13 +30,13 @@ final class TileStore: @unchecked Sendable {
     private var viewportTop: CGFloat = 0
     private var viewportBottom: CGFloat = 0
     private var entries: [TileKey: Entry] = [:]
-    private var totalPixels = 0
-    private var usageClock = 0
-    private(set) var needsMoreTiles = false
+    private var totalPixels: Int = 0
+    private var usageClock: Int = 0
+    private(set) var needsMoreTiles: Bool = false
 
     // For temporary debug print
-    private(set) var hits = 0
-    private(set) var misses = 0
+    private(set) var hits: Int = 0
+    private(set) var misses: Int = 0
     var populationDebug: String {
         return "store: \(entries.count) entries, \(totalPixels)/\(pixelBudget) px"
     }

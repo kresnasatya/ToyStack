@@ -55,6 +55,6 @@ final class Profiler {
     }
 }
 
-nonisolated(unsafe) let profiler = Profiler(
+nonisolated(unsafe) let profiler: Profiler = Profiler(
     enabled: !ProcessInfo.processInfo.arguments.contains("--no-profile")
 )

@@ -3,7 +3,7 @@ import Foundation
 // MARK: - CookieJar
 
 actor CookieJar {
-    static let shared = CookieJar()
+    static let shared: CookieJar = CookieJar()
 
     private var storage: [String: (cookie: String, params: [String: String], expires: Date?)] = [:]
 

@@ -129,7 +129,7 @@ public class WebURL: @unchecked Sendable {
         let cacheKey = toString()
         if method == "GET" {
             if let cached = await ResponseCache.shared.get(cacheKey) {
-                return cached
+                return (cached.status, cached.headers, cached.content)
             }
         }
 
@@ -230,10 +230,24 @@ public class WebURL: @unchecked Sendable {
                 )
             {
                 await ResponseCache.shared.set(
-                    cacheKey, status: httpResponse.statusCode, headers: headers, content: content, maxAge: maxAge)
+                    cacheKey,
+                    response: HttpResponse(
+                        status: httpResponse.statusCode,
+                        headers: headers,
+                        content: content
+                    ),
+                    maxAge: maxAge
+                )
             } else if cacheControl.isEmpty {
                 await ResponseCache.shared.set(
-                    cacheKey, status: httpResponse.statusCode, headers: headers, content: content, maxAge: -1)
+                    cacheKey,
+                    response: HttpResponse(
+                        status: httpResponse.statusCode,
+                        headers: headers,
+                        content: content
+                    ),
+                    maxAge: -1
+                )
             }
         }
 

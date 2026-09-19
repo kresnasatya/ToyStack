@@ -306,7 +306,7 @@ func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
         .map { $0.element }
 }
 
-let REFRESH_RATE_SEC = 1.0 / 60.0
+let REFRESH_RATE_SEC: Double = 1.0 / 60.0
 
 func splitTopLevel(_ value: String, separator: Character) -> [String] {
     var parts: [String] = []

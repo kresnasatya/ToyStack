@@ -6,8 +6,8 @@ struct RasterWindow {
 }
 
 final class RasterBudget {
-    var remaining: Int
-    init(_ n: Int) { remaining = n }
+    var remaining: UInt
+    init(_ n: UInt) { remaining = n }
 }
 
 class CompositedLayer {
@@ -22,9 +22,9 @@ class CompositedLayer {
     var effectImage: CGImage?
     var effectImageKey: EffectImageKey?
     private var keyCache: [TileIndex: TileKey] = [:]
-    private var keyCacheScale = -1
+    private var keyCacheScale: Int = -1
     static let tileSize: CGFloat = 128
-    static let rasterCapPerComposite = 300
+    static let rasterCapPerComposite: UInt = 300
     var ancestorChain: [Engine.VisualEffect] = []
 
     func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {

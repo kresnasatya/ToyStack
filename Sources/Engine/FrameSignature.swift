@@ -7,8 +7,8 @@ struct FrameGeometry: Equatable {
 }
 
 struct FrameEpoch: Equatable {
-    let paintEpoch: Int
-    let effectUpdates: Int
+    let paintEpoch: UInt
+    let effectUpdates: UInt
 }
 
 struct FrameSignature: Equatable {

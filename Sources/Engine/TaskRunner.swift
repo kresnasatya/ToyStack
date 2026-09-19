@@ -3,7 +3,7 @@ import Foundation
 class TaskRunner {
     private var highQueue: [BrowserTask] = []
     private var lowQueue: [BrowserTask] = []
-    private var needsQuit = false
+    private var needsQuit: Bool = false
 
     // Low-priority task waits at most 100ms before being force-run
     private let starvationThreshold: TimeInterval = 0.1

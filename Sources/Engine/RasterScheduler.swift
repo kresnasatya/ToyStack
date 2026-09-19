@@ -9,13 +9,13 @@ class RasterScheduler: @unchecked Sendable {
         let then: @MainActor (RasterOutput) -> Void
     }
 
-    private let queue = DispatchQueue(label: "browser.compositor", qos: .userInitiated)
-    private let workers = RasterWorkerPool()
-    let tileStore = TileStore(tileSize: CompositedLayer.tileSize)
+    private let queue: DispatchQueue = DispatchQueue(label: "browser.compositor", qos: .userInitiated)
+    private let workers: RasterWorkerPool = RasterWorkerPool()
+    let tileStore: TileStore = TileStore(tileSize: CompositedLayer.tileSize)
     var measure: MeasureTime?
-    private let lock = NSLock()
+    private let lock: NSLock = NSLock()
     private var pending: Job?
-    private var draining = false
+    private var draining: Bool = false
 
     func schedule(_ job: Job) {
         lock.lock()

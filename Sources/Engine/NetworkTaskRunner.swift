@@ -2,11 +2,11 @@ import Foundation
 
 class NetworkTaskRunner: @unchecked Sendable {
     private var tasks: [NetworkTask] = []
-    private let queue = DispatchQueue(
+    private let queue: DispatchQueue = DispatchQueue(
         label: "browser.networking",
         qos: .userInitiated
     )
-    private var isRunning = false
+    private var isRunning: Bool = false
 
     func schedule<T: Sendable>(name: String, _ work: @escaping () async -> T) async -> T {
         await withCheckedContinuation({ continuation in

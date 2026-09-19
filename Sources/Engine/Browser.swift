@@ -16,7 +16,7 @@ public class Browser: ObservableObject {
     private var recentFrameTimes: [TimeInterval] = []
     private let frameHistorySize: Int = 5
     private var estimatedFrameTime: TimeInterval = 1.0 / 60.0
-    private let accessibilityThread = AccessibilityThread()
+    private let accessibilityThread: AccessibilityThread = AccessibilityThread()
     public var accessibilityIsOn: Bool = false
     private var hasSpokenDocument: Bool = false
     private var spokenAlerts: [AccessibilityNode] = []
@@ -30,27 +30,27 @@ public class Browser: ObservableObject {
     struct FramePaint {
         var displayList: [Any] = []
         var compositedUpdates: [ObjectIdentifier: Engine.VisualEffect] = [:]
-        var paintEpoch = 0
-        var effectUpdateEpoch = 0
+        var paintEpoch: UInt = 0
+        var effectUpdateEpoch: UInt = 0
     }
 
     struct FrameRender {
         var layers: [CompositedLayer] = []
         var drawList: [Any] = []
-        var content = RenderedContent()
+        var content: RenderedContent = RenderedContent()
         var signature: FrameSignature?
     }
 
     private struct TabFrame {
-        var paint = FramePaint()
-        var scroll = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
-        var render = FrameRender()
-        var theme = ThemeState(prefersDark: false, forcedColors: false)
+        var paint: FramePaint = FramePaint()
+        var scroll: ScrollState = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
+        var render: FrameRender = FrameRender()
+        var theme: ThemeState = ThemeState(prefersDark: false, forcedColors: false)
     }
 
     private var frames: [ObjectIdentifier: TabFrame] = [:]
     private var activeFrameID: ObjectIdentifier?
-    private var activeFrame = TabFrame()
+    private var activeFrame: TabFrame = TabFrame()
 
     public var drawList: [Any] { activeFrame.render.drawList }
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
@@ -100,9 +100,9 @@ public class Browser: ObservableObject {
     private var needsRaster: Bool = false
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
-    private var compositeInFlight = false
-    private var needsTileContinuation = false
-    private var tileContinuationPasses = 0
+    private var compositeInFlight: Bool = false
+    private var needsTileContinuation: Bool = false
+    private var tileContinuationPasses: UInt = 0
 
     @Published public var prefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
@@ -110,10 +110,10 @@ public class Browser: ObservableObject {
     @Published public var forcedColors: Bool = false
     @Published public private(set) var commitedForcedColors: Bool = false
 
-    public var measure = MeasureTime()
+    public var measure: MeasureTime = MeasureTime()
 
-    let networkTaskRunner = NetworkTaskRunner()
-    let rasterScheduler = RasterScheduler()
+    let networkTaskRunner: NetworkTaskRunner = NetworkTaskRunner()
+    let rasterScheduler: RasterScheduler = RasterScheduler()
 
     public init() {
         rasterScheduler.measure = measure

@@ -2,17 +2,17 @@ import CoreGraphics
 
 // MARK: - Forced Colors Palette
 public enum ForcedColor {
-    public static let canvas = "black"
-    public static let canvasText = "white"
-    public static let linkText = "yellow"
-    public static let visitedText = "orchid"
-    public static let buttonFace = "black"
-    public static let buttonText = "white"
-    public static let buttonBorder = "white"
-    public static let highlight = "gold"
+    public static let canvas: String = "black"
+    public static let canvasText: String = "white"
+    public static let linkText: String = "yellow"
+    public static let visitedText: String = "orchid"
+    public static let buttonFace: String = "black"
+    public static let buttonText: String = "white"
+    public static let buttonBorder: String = "white"
+    public static let highlight: String = "gold"
 }
 
-let forcedColorsMarker = "-forced-colors"
+let forcedColorsMarker: String = "-forced-colors"
 
 func isForcedColors(_ node: any DOMNode) -> Bool {
     node.style[forcedColorsMarker] == "active"

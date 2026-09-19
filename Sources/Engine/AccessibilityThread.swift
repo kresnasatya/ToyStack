@@ -1,9 +1,9 @@
 import AVFoundation
 
 final class AccessibilityThread: NSObject, @unchecked Sendable, AVSpeechSynthesizerDelegate {
-    private let synthesizer = AVSpeechSynthesizer()
+    private let synthesizer: AVSpeechSynthesizer = AVSpeechSynthesizer()
     private var politeQueue: [String] = []
-    private var isSpeaking = false
+    private var isSpeaking: Bool = false
 
     override init() {
         super.init()

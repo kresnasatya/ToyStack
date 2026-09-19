@@ -21,7 +21,7 @@ public class Tab {
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [Any] = []
-    private var paintEpoch = 0
+    private var paintEpoch: UInt = 0
     public private(set) var title: String = "New Tab"
     public private(set) var isSecure: Bool = false
 

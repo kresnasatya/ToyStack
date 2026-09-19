@@ -5,7 +5,7 @@ final class RasterWorkerPool: @unchecked Sendable {
     static let defaultWorkerCount: Int = min(ProcessInfo.processInfo.activeProcessorCount, 4)
 
     private final class Results: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock: NSLock = NSLock()
         private var images: [CGImage?]
 
         init(count: Int) { images = Array(repeating: nil, count: count) }
@@ -23,7 +23,7 @@ final class RasterWorkerPool: @unchecked Sendable {
         }
     }
 
-    private let queue = DispatchQueue(
+    private let queue: DispatchQueue = DispatchQueue(
         label: "browser.raster.workers",
         qos: .userInitiated,
         attributes: .concurrent
@@ -40,8 +40,8 @@ final class RasterWorkerPool: @unchecked Sendable {
             return
         }
 
-        let results = Results(count: strips.count)
-        let group = DispatchGroup()
+        let results: Results = Results(count: strips.count)
+        let group: DispatchGroup = DispatchGroup()
         for index in 0..<strips.count {
             group.enter()
             queue.async {

@@ -6,7 +6,7 @@ public final class CGRenderer: Renderer {
     private let cg: CGContext
     private let canvasSize: CGSize
     private let scale: CGFloat
-    private static let ciContext = CIContext(options: nil)
+    private static let ciContext: CIContext = CIContext(options: nil)
 
     init(cg: CGContext, canvasSize: CGSize, scale: CGFloat = 1) {
         self.cg = cg

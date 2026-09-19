@@ -8,7 +8,7 @@ class JSRuntime: @unchecked Sendable {
     private var intervalTimes: [Int: DispatchSourceTimer] = [:]
     private weak var tab: Engine.Tab?
 
-    private static let eventDispatchJS = "new Node(__handle).dispatchEvent(new Event(__type))"
+    private static let eventDispatchJS: String = "new Node(__handle).dispatchEvent(new Event(__type))"
 
     init(tab: Engine.Tab) {
         self.tab = tab
