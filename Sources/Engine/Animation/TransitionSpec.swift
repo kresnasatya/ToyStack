@@ -6,10 +6,10 @@ struct TransitionSpec {
 func parseTransition(_ value: String) -> [String: TransitionSpec] {
     var properties: [String: TransitionSpec] = [:]
     guard !value.isEmpty else { return properties }
-    for item in splitTopLevel(value, separator: ",") {
+    for item in splitOutsiteParentheses(value, separator: ",") {
         let normalized: String = item.split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
-        let tokens: [String] = splitTopLevel(normalized, separator: " ").filter({
+        let tokens: [String] = splitOutsiteParentheses(normalized, separator: " ").filter({
             !$0.isEmpty
         })
         guard tokens.count >= 2 else { continue }
@@ -22,26 +22,4 @@ func parseTransition(_ value: String) -> [String: TransitionSpec] {
         properties[property] = TransitionSpec(numFrames: numFrames, easing: easing)
     }
     return properties
-}
-
-func splitTopLevel(_ value: String, separator: Character) -> [String] {
-    var parts: [String] = []
-    var depth: Int = 0
-    var current: String = ""
-    for ch in value {
-        if ch == "(" {
-            depth += 1
-            current.append(ch)
-        } else if ch == ")" {
-            depth -= 1
-            current.append(ch)
-        } else if ch == separator && depth == 0 {
-            parts.append(current)
-            current = ""
-        } else {
-            current.append(ch)
-        }
-    }
-    if !current.isEmpty { parts.append(current) }
-    return parts
 }
