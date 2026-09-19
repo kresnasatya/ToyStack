@@ -1,5 +1,5 @@
 struct KeyframeTiming {
-    let spec: TransitionSpec
+    let transition: TransitionSpec
     let infinite: Bool
     let alternate: Bool
 }
@@ -30,12 +30,12 @@ class KeyframeAnimation: Animation {
         self.animatedProperty = animatedProperty
         self.oldValue = range.from
         self.newValue = range.to
-        self.numFrames = timing.spec.numFrames
-        self.easing = timing.spec.easing
+        self.numFrames = timing.transition.numFrames
+        self.easing = timing.transition.easing
         self.infinite = timing.infinite
         self.alternate = timing.alternate
         self.factory = factory
-        self.inner = factory(range.from, range.to, timing.spec.numFrames, timing.spec.easing)!
+        self.inner = factory(range.from, range.to, timing.transition.numFrames, timing.transition.easing)!
     }
 
     func nextValue() -> String? {
@@ -95,7 +95,7 @@ extension KeyframeAnimation {
             animatedProperty: property,
             range: KeyframeRange(from: oldVal, to: newVal),
             timing: KeyframeTiming(
-                spec: TransitionSpec(numFrames: numFrames, easing: .ease),
+                transition: TransitionSpec(numFrames: numFrames, easing: .ease),
                 infinite: infinite,
                 alternate: alternate
             ),
