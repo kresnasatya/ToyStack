@@ -76,16 +76,31 @@ extension KeyframeAnimation {
         case "opacity":
             factory = { old, new, nf, e in
                 guard let o = Double(old), let n = Double(new) else { return nil }
-                return NumericAnimation(oldValue: o, newValue: n, numFrames: nf, easing: e)
+                return NumericAnimation(
+                    animatedProperty: property,
+                    oldValue: o,
+                    newValue: n,
+                    spec: TransitionSpec(numFrames: nf, easing: e)
+                )
             }
         case "width", "height":
             factory = { old, new, nf, e in
-                PixelAnimation(oldValue: old, newValue: new, numFrames: nf, easing: e)
+                PixelAnimation(
+                    animatedProperty: property,
+                    oldValue: old,
+                    newValue: new,
+                    spec: TransitionSpec(numFrames: nf, easing: e)
+                )
             }
         case "background-color":
             factory = { old, new, nf, e in
                 guard let o = cssColorToRGB(old), let n = cssColorToRGB(new) else { return nil }
-                return ColorAnimation(oldColor: o, newColor: n, numFrames: nf, easing: e)
+                return ColorAnimation(
+                    animatedProperty: property,
+                    oldColor: o,
+                    newColor: n,
+                    spec: TransitionSpec(numFrames: nf, easing: e)
+                )
             }
         default:
             return nil

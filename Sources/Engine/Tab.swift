@@ -563,7 +563,7 @@ public class Tab {
         browser?.measure.start("tab.animScan")
         for node in treeToList(nodes) {
             for (key, animation) in node.animations {
-                let property: String = (animation as? KeyframeAnimation)?.animatedProperty ?? key
+                let property: String = animation.animatedProperty
                 if let value = animation.nextValue() {
                     needsAnotherFrame = true
                     if property == "transform-x" || property == "transform-y"
@@ -591,7 +591,7 @@ public class Tab {
                         needsPaint = true
                     }
                 } else {
-                    node.animations.removeValue(forKey: property)
+                    node.animations.removeValue(forKey: key)
                     needsCompositeForPaint = true
                     needsPaint = true
                 }

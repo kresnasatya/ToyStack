@@ -1,35 +1,35 @@
 class NumericAnimation: Animation {
     let oldValue: Double
     let newValue: Double
-    let numFrames: Int
-    let easing: Easing
+    let spec: TransitionSpec
+    let animatedProperty: String
     private(set) var frameCount: Int = 1
     private let changePerFrame: Double
 
-    init(oldValue: Double, newValue: Double, numFrames: Int, easing: Easing = .ease) {
+    init(animatedProperty: String, oldValue: Double, newValue: Double, spec: TransitionSpec) {
+        self.animatedProperty = animatedProperty
         self.oldValue = oldValue
         self.newValue = newValue
-        self.numFrames = numFrames
-        self.easing = easing
-        self.changePerFrame = (newValue - oldValue) / Double(numFrames)
+        self.spec = spec
+        self.changePerFrame = (newValue - oldValue) / Double(spec.numFrames)
     }
 
     func nextValue() -> String? {
         frameCount += 1
-        if frameCount > numFrames { return nil }
-        let t: Double = Double(frameCount) / Double(numFrames)
-        let eased: Double = easing.apply(t)
+        if frameCount > spec.numFrames { return nil }
+        let t: Double = Double(frameCount) / Double(spec.numFrames)
+        let eased: Double = spec.easing.apply(t)
         let current: Double = oldValue + (newValue - oldValue) * eased
         return String(current)
     }
 }
 
 class PixelAnimation: NumericAnimation {
-    init?(oldValue: String, newValue: String, numFrames: Int, easing: Easing = .ease) {
+    init?(animatedProperty: String, oldValue: String, newValue: String, spec: TransitionSpec) {
         guard let old = PixelAnimation.parsePx(oldValue),
             let new = PixelAnimation.parsePx(newValue)
         else { return nil }
-        super.init(oldValue: old, newValue: new, numFrames: numFrames, easing: easing)
+        super.init(animatedProperty: animatedProperty, oldValue: old, newValue: new, spec: spec)
     }
 
     override func nextValue() -> String? {
