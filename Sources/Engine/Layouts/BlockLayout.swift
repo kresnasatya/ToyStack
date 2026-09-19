@@ -191,17 +191,7 @@ class BlockLayout: LayoutObject {
 
     private func recurse(_ n: any DOMNode) {
         if let textNode = n as? TextNode {
-            if isInsidePre(textNode) {
-                let segments = textNode.text.components(separatedBy: "\n")
-                for (i, segment) in segments.enumerated() {
-                    if i > 0 { newLine() }
-                    if !segment.isEmpty { addWord(node: n, word: segment) }
-                }
-            } else {
-                for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
-                    addWord(node: n, word: String(word))
-                }
-            }
+            addTextNode(textNode)
         } else if let el = n as? Element {
             if el.tag == "br" {
                 newLine()
@@ -211,6 +201,29 @@ class BlockLayout: LayoutObject {
                 addButton(el)
             } else {
                 for child in el.children { recurse(child) }
+            }
+        }
+    }
+
+    private func addTextNode(_ textNode: TextNode) {
+        let mode: WhiteSpace = WhiteSpace.mode(of: textNode)
+        if mode.keepsNewlines {
+            let segments: [String] = textNode.text.components(separatedBy: "\n")
+            for (i, segment) in segments.enumerated() {
+                if i > 0 { newLine() }
+                addSegment(node: textNode, text: segment, mode: mode)
+            }
+        } else {
+            addSegment(node: textNode, text: textNode.text, mode: mode)
+        }
+    }
+
+    private func addSegment(node: any DOMNode, text: String, mode: WhiteSpace) {
+        if mode.keepSpaces {
+            if !text.isEmpty { addWord(node: node, word: text) }
+        } else {
+            for word in text.split(whereSeparator: { $0.isWhitespace }) {
+                addWord(node: node, word: String(word))
             }
         }
     }
@@ -240,7 +253,8 @@ class BlockLayout: LayoutObject {
             return
         }
 
-        if cursorX + w > width && !isInsidePre(node) {
+        let mode: WhiteSpace = WhiteSpace.mode(of: node)
+        if cursorX + w > width && mode.wraps {
             if word.contains("\u{00AD}") {
                 let parts = word.components(separatedBy: "\u{00AD}")
                 var chunk = ""
@@ -327,17 +341,6 @@ class BlockLayout: LayoutObject {
         var current = node.parent
         while let c = current {
             if let el = c as? Element, el.tag == "abbr" { return true }
-            current = c.parent
-        }
-        return false
-    }
-
-    private func isInsidePre(_ node: any DOMNode) -> Bool {
-        var current: (any DOMNode)? = node
-        while let c = current {
-            if let el = c as? Element, el.tag == "pre" {
-                return true
-            }
             current = c.parent
         }
         return false

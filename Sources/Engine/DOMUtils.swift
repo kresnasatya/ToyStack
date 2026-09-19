@@ -52,6 +52,7 @@ nonisolated(unsafe) var inheritedProperties: [String: String] = [
     "font-style": "normal",
     "font-weight": "normal",
     "color": "black",
+    "white-space": "normal",
 ]
 
 func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])]) {

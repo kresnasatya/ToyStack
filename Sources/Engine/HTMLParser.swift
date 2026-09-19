@@ -115,12 +115,17 @@ class HTMLParser {
     }
 
     func addText(_ text: String) {
-        let inPre: Bool = unfinished.contains(where: { $0.tag == "pre" })
-        if text.allSatisfy({ $0.isWhitespace }), !inPre {
+        let isWhiteSpace: Bool = text.allSatisfy({ $0.isWhitespace })
+        if isWhiteSpace {
+            guard let parent = unfinished.last else { return }
+            appendText(text, to: parent)
             return
         }
         implicitTags(nil)
-        let parent = unfinished.last!
+        appendText(text, to: unfinished.last!)
+    }
+
+    private func appendText(_ text: String, to parent: Element) {
         let processedText =
             text
             .replacingOccurrences(of: "&lt;", with: "<")

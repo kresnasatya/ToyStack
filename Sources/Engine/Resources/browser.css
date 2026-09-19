@@ -147,6 +147,7 @@ h6 {
 pre {
     background-color: gray;
     font-family: monospace;
+    white-space: pre;
 }
 code {
     font-family: monospace;

@@ -87,6 +87,9 @@ class AccessibilityNode {
     }
 
     private func buildInternal(_ childNode: DOMNode) {
+        if let text = childNode as? TextNode, text.text.allSatisfy({ $0.isWhitespace }) {
+            return
+        }
         if let el = childNode as? Element, el.tag == "style" || el.tag == "script" {
             return
         }
