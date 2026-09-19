@@ -6,7 +6,7 @@ enum MIMEType {
 
     static func essence(_ contentType: String?) -> String {
         guard let contentType else { return "" }
-        let head = contentType.split(separator: ";", maxSplits: 1).first ?? ""
+        let head: String.SubSequence = contentType.split(separator: ";", maxSplits: 1).first ?? ""
         return head.trimmingCharacters(in: .whitespaces).lowercased()
     }
 

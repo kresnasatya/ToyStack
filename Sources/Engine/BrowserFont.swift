@@ -38,11 +38,11 @@ public struct BrowserFont {
         if let cached = cache.widths[text] { return cached }
         profiler.count("text.measureMisses")
         return profiler.measure("text.measure", {
-            let attr = NSAttributedString(string: text, attributes: [
+            let attr: NSAttributedString = NSAttributedString(string: text, attributes: [
                 NSAttributedString.Key(kCTFontAttributeName as String): ctFont
             ])
-            let line = CTLineCreateWithAttributedString(attr)
-            let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+            let line: CTLine = CTLineCreateWithAttributedString(attr)
+            let width: CGFloat = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
             cache.widths[text] = width
             return width
         })

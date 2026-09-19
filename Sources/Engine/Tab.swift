@@ -76,7 +76,7 @@ public class Tab {
     private var paintedBottom: CGFloat = 0
 
     var maxScroll: CGFloat {
-        let padded = (document?.height ?? 0) + 2 * VSTEP
+        let padded: CGFloat = (document?.height ?? 0) + 2 * VSTEP
         return max(max(padded, paintedBottom + VSTEP) - tabHeight, 0)
     }
 
@@ -98,27 +98,27 @@ public class Tab {
 
     private func performLoad(_ url: WebURL, payload: String? = nil) {
         guard let networkTaskRunner else { return }
-        let referrer = effectiveReferrer(for: url)
+        let referrer: WebURL? = effectiveReferrer(for: url)
 
         Task {
             self.browser?.measure.start("tab.load")
             defer { self.browser?.measure.stop("tab.load") }
 
             self.browser?.measure.start("tab.load.page")
-            let result = await networkTaskRunner.schedule(name: "load\(url.toString())") {
+            let result: Result<(status: Int, headers: [String : String], content: String), any Error> = await networkTaskRunner.schedule(name: "load\(url.toString())") {
                 await self.fetchPage(url: url, referrer: referrer, payload: payload)
             }
             self.browser?.measure.stop("tab.load.page")
 
             self.browser?.measure.start("tab.load.parseHTML")
             profiler.reset()
-            let parsedPage = self.parseHTML(url: url, result: result)
+            let parsedPage: PageResources? = self.parseHTML(url: url, result: result)
             self.browser?.measure.stop("tab.load.parseHTML")
             profiler.emitProfile(into: self.browser?.measure, named: "profile.load")
             guard let resources = parsedPage else { return }
 
             self.browser?.measure.start("tab.load.styles")
-            let styleBodies = await networkTaskRunner.schedule(name: "fetch-styles") {
+            let styleBodies: [(index: Int, body: String)] = await networkTaskRunner.schedule(name: "fetch-styles") {
                 await self.fetchStyles(urls: resources.styleURLs)
             }
             self.browser?.measure.stop("tab.load.styles")
@@ -128,7 +128,7 @@ public class Tab {
             self.browser?.measure.stop("tab.load.applyStyles")
 
             self.browser?.measure.start("tab.load.scripts")
-            let scriptBodies = await networkTaskRunner.schedule(name: "fetch-scripts") {
+            let scriptBodies: [(index: Int, url: WebURL, body: String)] = await networkTaskRunner.schedule(name: "fetch-scripts") {
                 await self.fetchScripts(urls: resources.scriptURLs)
             }
             self.browser?.measure.stop("tab.load.scripts")
@@ -199,7 +199,7 @@ public class Tab {
             allowedOrigins = nil
             referrerPolicy = headers["referrer-policy"] ?? ""
             if let csp = headers["content-security-policy"] {
-                let parts = csp.split(separator: " ").map(String.init)
+                let parts: [String] = csp.split(separator: " ").map(String.init)
                 if parts.first == "default-src" {
                     allowedOrigins = parts.dropFirst().map {
                         WebURL($0).origin()
@@ -211,19 +211,19 @@ public class Tab {
 
             let (styleURLs, scriptURLs): ([ResourceURL], [ResourceURL]) =
             profiler.measure("load.resources", {
-                let elements = treeToList(nodes).compactMap({ $0 as? Element })
+                let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
                 let styles: [ResourceURL] = elements
                     .filter({ $0.tag == "link" && $0.attributes["rel"] == "stylesheet" && $0.attributes["href"] != nil })
                     .enumerated()
                     .map({ (i, link) in
-                        let styleURL = url.resolve(link.attributes["href"]!)
+                        let styleURL: WebURL = url.resolve(link.attributes["href"]!)
                         return (i, styleURL, self.effectiveReferrer(for: styleURL))
                     })
                 let scripts: [ResourceURL] = elements
                     .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
                     .enumerated()
                     .map({ (i, node) in
-                        let scriptURL = url.resolve(node.attributes["src"]!)
+                        let scriptURL: WebURL = url.resolve(node.attributes["src"]!)
                         return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
                     })
                 return (styles, scripts)
@@ -264,7 +264,7 @@ public class Tab {
 
     private func applyStyles(bodies: [(index: Int, body: String)]) {
         for (_, body) in bodies.sorted(by: { $0.index < $1.index }) {
-            let parsed = CSSParser(body).parse()
+            let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
             rules.append(contentsOf: parsed.rules)
             keyframes.merge(parsed.keyframes) { _, new in new }
         }
@@ -272,8 +272,8 @@ public class Tab {
         for styleNode in treeToList(nodes).compactMap({ $0 as? Element }).filter({
             $0.tag == "style"
         }) {
-            let css = styleNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
-            let parsed = CSSParser(css).parse()
+            let css: String = styleNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+            let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(css).parse()
             rules.append(contentsOf: parsed.rules)
             keyframes.merge(parsed.keyframes) { _, new in new }
         }
@@ -322,7 +322,7 @@ public class Tab {
         for scriptNode in treeToList(nodes).compactMap({ $0 as? Element })
             .filter({ $0.tag == "script" && $0.attributes["src"] == nil })
         {
-            let code = scriptNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+            let code: String = scriptNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
             if !code.isEmpty { js.run(script: "inline", code: code) }
         }
 
@@ -389,12 +389,12 @@ public class Tab {
             guard let el = node as? Element, el.tag == "script",
                 let src = el.attributes["src"]
             else { continue }
-            let scriptURL = url.resolve(src)
+            let scriptURL: WebURL = url.resolve(src)
             guard allowedRequest(scriptURL) else {
                 print("Blocked script", src, "due to CSP")
                 continue
             }
-            let urlStr = scriptURL.toString()
+            let urlStr: String = scriptURL.toString()
             guard !loadedScriptURLs.contains(urlStr) else { continue }
             guard let (status, headers, body) = scriptURL.requestSync() else { continue }
             guard Tab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
@@ -410,17 +410,17 @@ public class Tab {
             if el.tag == "link", el.attributes["rel"] == "stylesheet",
                 let href = el.attributes["href"]
             {
-                let styleURL = url.resolve(href)
+                let styleURL: WebURL = url.resolve(href)
                 guard allowedRequest(styleURL) else { continue }
                 guard let (status, headers, body) = styleURL.requestSync() else { continue }
                 guard Tab.isUsableStylesheet(status: status, headers: headers, url: styleURL) else { continue }
-                let parsed = CSSParser(body).parse()
+                let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
                 rules.append(contentsOf: parsed.rules)
                 keyframes.merge(parsed.keyframes) { _, new in new }
             }
             if el.tag == "style" {
-                let css = el.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
-                let parsed = CSSParser(css).parse()
+                let css: String = el.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+                let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(css).parse()
                 rules.append(contentsOf: parsed.rules)
                 keyframes.merge(parsed.keyframes) { _, new in new }
             }
@@ -435,8 +435,8 @@ public class Tab {
             defer { browser?.measure.stop("tab.style") }
 
             browser?.measure.start("tab.style.rules")
-            let sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
-            let ruleIndex = RuleIndex(rules: sortedRules)
+            let sortedRules: [(String?, any CSSSelector, [String : String])] = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+            let ruleIndex: RuleIndex = RuleIndex(rules: sortedRules)
             profiler.count("style.rules", by: sortedRules.count)
             browser?.measure.stop("tab.style.rules")
 
@@ -453,7 +453,7 @@ public class Tab {
 
             inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
             browser?.measure.start("tab.style.apply")
-            let context = StyleContext(
+            let context: StyleContext = StyleContext(
                 rules: ruleIndex,
                 theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
@@ -467,8 +467,8 @@ public class Tab {
 
             browser?.measure.start("tab.style.diff")
             for node in treeToList(nodes) {
-                let old = oldStyles[ObjectIdentifier(node)] ?? [:]
-                let newAnimations = diffStyles(node: node, oldStyle: old, newStyle: node.style)
+                let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
+                let newAnimations: [String : any Animation] = diffStyles(node: node, oldStyle: old, newStyle: node.style)
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
                 }
@@ -481,7 +481,7 @@ public class Tab {
                     let spec = parseAnimationShorthand(animDecl),
                     let frames = keyframes[spec.name]
                 else { continue }
-                let key = "animation/\(spec.name)"
+                let key: String = "animation/\(spec.name)"
                 guard node.animations[key] == nil else { continue }
                 if let anim = buildKeyframeAnimation(
                     frames: frames, numFrames: spec.numFrames, infinite: spec.infinite,
@@ -514,7 +514,7 @@ public class Tab {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("tab.layout") }
-            let doc = DocumentLayout(node: nodes)
+            let doc: DocumentLayout = DocumentLayout(node: nodes)
             doc.layout(availableWidth: tabWidth, zoom: zoom)
             document = doc
 
@@ -526,7 +526,7 @@ public class Tab {
         if needsAccessibility {
             browser?.measure.start("tab.a11y")
             defer { browser?.measure.stop("tab.a11y") }
-            let a11yTree = AccessibilityNode(node: nodes)
+            let a11yTree: AccessibilityNode = AccessibilityNode(node: nodes)
             a11yTree.build()
             accessibilityTree = a11yTree
 
@@ -557,14 +557,14 @@ public class Tab {
         browser?.measure.start("tab.raf")
         js.run(script: "raf", code: "__runRAFHandlers()")
         browser?.measure.stop("tab.raf")
-        var needsAnotherFrame = false
-        let needsComposite = needsStyle || needsLayout || needsPaint
-        var needsPaint = false
-        var needsLayoutUpdate = false
+        var needsAnotherFrame: Bool = false
+        let needsComposite: Bool = needsStyle || needsLayout || needsPaint
+        var needsPaint: Bool = false
+        var needsLayoutUpdate: Bool = false
         browser?.measure.start("tab.animScan")
         for node in treeToList(nodes) {
             for (key, animation) in node.animations {
-                let property = (animation as? KeyframeAnimation)?.animatedProperty ?? key
+                let property: String = (animation as? KeyframeAnimation)?.animatedProperty ?? key
                 if let value = animation.animate() {
                     needsAnotherFrame = true
                     if property == "transform-x" || property == "transform-y"
@@ -635,7 +635,7 @@ public class Tab {
 
         let updates: [ObjectIdentifier: VisualEffect]? =
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
-        let data = CommitData(
+        let data: CommitData = CommitData(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
             paint: PaintResult(displayList: displayList, compositedUpdates: updates, paintEpoch: paintEpoch),
             theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors)
@@ -648,7 +648,7 @@ public class Tab {
     private func scrollTo(_ elt: Element) {
         scrollAnimation = nil
         guard let doc = document else { return }
-        let objs = treeToList(doc).filter({ $0.node === elt || $0.node.parent === elt })
+        let objs: [any LayoutObject] = treeToList(doc).filter({ $0.node === elt || $0.node.parent === elt })
         guard let obj = objs.first else { return }
         if scroll < obj.y && obj.y + obj.height < scroll + tabHeight { return }
         scroll = max(0, min(obj.y - SCROLL_STEP, maxScroll))
@@ -657,7 +657,7 @@ public class Tab {
 
     private func scrollToFragment(_ id: String) {
         guard let doc = document else { return }
-        let target = treeToList(doc).first(where: {
+        let target: (any LayoutObject)? = treeToList(doc).first(where: {
             ($0.node as? Element)?.attributes["id"] == id
         })
         if let target = target {
@@ -667,9 +667,9 @@ public class Tab {
     }
 
     public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
-        let adjustedY = y + scroll
+        let adjustedY: CGFloat = y + scroll
         guard let doc = document else { return nil }
-        let objs = treeToList(doc).filter {
+        let objs: [any LayoutObject] = treeToList(doc).filter {
             $0.x <= x && x < $0.x + $0.width
                 && $0.y <= adjustedY && adjustedY < $0.y + $0.height
         }
@@ -721,37 +721,37 @@ public class Tab {
     }
 
     private var scrollBehaviorIsSmooth: Bool {
-        let body = treeToList(nodes)
+        let body: Element? = treeToList(nodes)
             .compactMap({ $0 as? Element })
             .first(where: { $0.tag == "body" })
         return body?.style["scroll-behavior"] == "smooth"
     }
 
     public func scrollDown() {
-        let target = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxScroll)
+        let target: CGFloat = min((scrollAnimation?.target ?? scroll) + SCROLL_STEP, maxScroll)
         scrollAnimation = ScrollAnimation(from: scroll, to: target)
         browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollUp() {
-        let target = max((scrollAnimation?.target ?? scroll) - SCROLL_STEP, 0)
+        let target: CGFloat = max((scrollAnimation?.target ?? scroll) - SCROLL_STEP, 0)
         scrollAnimation = ScrollAnimation(from: scroll, to: target)
         browser?.setNeedsAnimationFrame(self)
     }
 
     public func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
-        let adjustedY = y + scroll
+        let adjustedY: CGFloat = y + scroll
         guard let doc = document else { return }
-        let scrollBlock = treeToList(doc)
+        let scrollBlock: BlockLayout? = treeToList(doc)
             .compactMap({ $0 as? BlockLayout })
             .first(where: { block in
                 guard block.node.style["overflow"] == "scroll" else { return false }
-                let r = block.selfRect()
+                let r: Rect = block.selfRect()
                 return r.left <= x && x < r.right && r.top <= adjustedY && adjustedY < r.bottom
             })
         if let block = scrollBlock, let el = block.node as? Element {
-            let maxScroll = max(0, block.contentHeight - block.height)
-            let current = min(el.scrollOffsetY, maxScroll)
+            let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
+            let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             el.scrollOffsetY = max(0, min(current - deltaY, maxScroll))
             block.scrollOffset = el.scrollOffsetY
             scrollFocusNode = el
@@ -795,8 +795,8 @@ public class Tab {
         guard let node = scrollFocusNode, let block = liveScrollBlock() else {
             return
         }
-        let maxScroll = max(0, block.contentHeight - block.height)
-        let current = min(node.scrollOffsetY, maxScroll)
+        let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
+        let current: CGFloat = min(node.scrollOffsetY, maxScroll)
         node.scrollOffsetY = min(current + SCROLL_STEP, maxScroll)
         block.scrollOffset = node.scrollOffsetY
         setNeedsPaint()
@@ -804,8 +804,8 @@ public class Tab {
 
     public func scrollElementUp() {
         guard let node = scrollFocusNode, let block = liveScrollBlock() else { return }
-        let maxScroll = max(0, block.contentHeight - block.height)
-        let current = min(node.scrollOffsetY, maxScroll)
+        let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
+        let current: CGFloat = min(node.scrollOffsetY, maxScroll)
         node.scrollOffsetY = max(current - SCROLL_STEP, 0)
         block.scrollOffset = node.scrollOffsetY
         setNeedsPaint()
@@ -813,7 +813,7 @@ public class Tab {
 
     @discardableResult
     private func checkInterestRegion() -> Bool {
-        let interestBottom = interestTop + 4 * tabHeight
+        let interestBottom: CGFloat = interestTop + 4 * tabHeight
         if scroll < interestTop || scroll + tabHeight > interestBottom {
             interestTop = max(0, scroll - tabHeight)
             browser?.applyScrollAndUpdateInterest(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
@@ -832,7 +832,7 @@ public class Tab {
     public func goBack() {
         guard canGoBack else { return }
         historyIndex -= 1
-        let entry = history[historyIndex]
+        let entry: HistoryEntry = history[historyIndex]
         if let payload = entry.payload {
             if Tab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
                 performLoad(entry.url, payload: payload)
@@ -856,7 +856,7 @@ public class Tab {
     public func goForward() {
         guard canGoForward else { return }
         historyIndex += 1
-        let entry = history[historyIndex]
+        let entry: HistoryEntry = history[historyIndex]
         if let currentURL = self.url, isSameDocument(currentURL, entry.url) {
             self.url = entry.url
             if let fragment = entry.url.fragment {
@@ -903,7 +903,7 @@ public class Tab {
     @discardableResult
     public func advanceTab() -> Bool {
         guard document != nil else { return false }
-        let focusableElements = treeToList(nodes)
+        let focusableElements: [Element] = treeToList(nodes)
             .compactMap({ $0 as? Element })
             .filter({ isFocusable($0) })
             .enumerated()
@@ -911,7 +911,7 @@ public class Tab {
             .map(\.element)
         guard !focusableElements.isEmpty else { return false }
         if let current = focus, let idx = focusableElements.firstIndex(where: { $0 === current }) {
-            let next = idx + 1
+            let next: Int = idx + 1
             if next < focusableElements.count {
                 focusElement(focusableElements[next])
                 return true
@@ -935,7 +935,7 @@ public class Tab {
 
         scrollFocusNode = scrollableAncestor(of: source)
 
-        let prevented = js.dispatchEvent(type: "click", elt: source.node)
+        let prevented: Bool = js.dispatchEvent(type: "click", elt: source.node)
 
         if !prevented {
             var elt: (any DOMNode)? = source.node
@@ -945,7 +945,7 @@ public class Tab {
                 } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"]
                 {
                     if href.hasPrefix("#") {
-                        let resolved = url.resolve(href)
+                        let resolved: WebURL = url.resolve(href)
                         history = Array(history.prefix(historyIndex + 1))
                         history.append(HistoryEntry(url: resolved, payload: nil))
                         historyIndex = history.count - 1
@@ -999,7 +999,7 @@ public class Tab {
 
     private func submitForm(_ elt: Element) {
         if js.dispatchEvent(type: "submit", elt: elt) { return }
-        let inputs = treeToList(elt)
+        let inputs: [Element] = treeToList(elt)
             .compactMap {
                 $0 as? Element
             }
@@ -1007,8 +1007,8 @@ public class Tab {
                 $0.tag == "input" && $0.attributes["name"] != nil
                     && ($0.attributes["type"] != "checkbox" || $0.isChecked)
             })
-        let body = inputs.map({ input -> String in
-            let name =
+        let body: String = inputs.map({ input -> String in
+            let name: String =
                 input.attributes["name"]!
                 .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             let value: String
@@ -1024,8 +1024,8 @@ public class Tab {
             return "\(name)=\(value)"
         }).joined(separator: "&")
 
-        let action = url.resolve(elt.attributes["action"]!)
-        let method = elt.attributes["method"]?.lowercased() ?? "get"
+        let action: WebURL = url.resolve(elt.attributes["action"]!)
+        let method: String = elt.attributes["method"]?.lowercased() ?? "get"
 
         if method == "post" {
             load(action, payload: body)
@@ -1079,29 +1079,29 @@ private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = 
 
 private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFloat) -> Bool {
     guard rect.containsPoint(x, y) else { return false }
-    let r = radius
+    let r: CGFloat = radius
 
     if x < rect.left + r && y < rect.top + r {
-        let dx = x - (rect.left + r)
-        let dy = y - (rect.top + r)
+        let dx: CGFloat = x - (rect.left + r)
+        let dy: CGFloat = y - (rect.top + r)
         return dx * dx + dy * dy <= r * r
     }
 
     if x >= rect.right - r && y < rect.top + r {
-        let dx = x - (rect.right - r)
-        let dy = y - (rect.top + r)
+        let dx: CGFloat = x - (rect.right - r)
+        let dy: CGFloat = y - (rect.top + r)
         return dx * dx + dy * dy <= r * r
     }
 
     if x < rect.left + r && y >= rect.bottom - r {
-        let dx = x - (rect.left + r)
-        let dy = y - (rect.bottom - r)
+        let dx: CGFloat = x - (rect.left + r)
+        let dy: CGFloat = y - (rect.bottom - r)
         return dx * dx + dy * dy <= r * r
     }
 
     if x >= rect.right - r && y >= rect.bottom - r {
-        let dx = x - (rect.right - r)
-        let dy = y - (rect.bottom - r)
+        let dx: CGFloat = x - (rect.right - r)
+        let dy: CGFloat = y - (rect.bottom - r)
         return dx * dx + dy * dy <= r * r
     }
 

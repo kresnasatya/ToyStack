@@ -6,7 +6,7 @@ public class BlurFilter: Engine.VisualEffect {
     init(radius: CGFloat, node: DOMNode?, children: [Any]) {
         self.radius = radius
 
-        var combinedRect = Rect(left: 0, top: 0, right: 0, bottom: 0)
+        var combinedRect: Rect = Rect(left: 0, top: 0, right: 0, bottom: 0)
         for child in children {
             if let ve = child as? Engine.VisualEffect {
                 combinedRect = combinedRect.union(ve.rect)

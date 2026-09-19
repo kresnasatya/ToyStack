@@ -27,15 +27,15 @@ class HTMLParser {
     }
 
     func parse() -> any DOMNode {
-        var text = ""
+        var text: String = ""
         var quoteChar: Character? = nil
-        var inTag = false
-        var inComment = false
-        var inScript = false
-        var i = body.startIndex
+        var inTag: Bool = false
+        var inComment: Bool = false
+        var inScript: Bool = false
+        var i: String.Index = body.startIndex
 
         while i < body.endIndex {
-            let ch = body[i]
+            let ch: Character = body[i]
 
             if inScript {
                 if isScriptClose(at: i) {
@@ -65,12 +65,12 @@ class HTMLParser {
                     text.append(ch)
                     i = body.index(i, offsetBy: 1)
                 } else if ch == ">" {
-                    let tagText = text
+                    let tagText: String = text
                     inTag = false
                     addTag(text)
                     text = ""
                     i = body.index(i, offsetBy: 1)
-                    let firstWord =
+                    let firstWord: String =
                         tagText.split(separator: " ", maxSplits: 1)
                         .first.map { String($0).lowercased() } ?? ""
                     if firstWord == "script" {
@@ -126,12 +126,12 @@ class HTMLParser {
     }
 
     private func appendText(_ text: String, to parent: Element) {
-        let processedText =
+        let processedText: String =
             text
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&shy;", with: "\u{00AD}")
-        let node = TextNode(text: processedText, parent: parent)
+        let node: TextNode = TextNode(text: processedText, parent: parent)
         parent.children.append(node)
     }
 
@@ -149,52 +149,52 @@ class HTMLParser {
         implicitTags(tagName)
 
         if tagName.hasPrefix("/") {
-            let baseTag = String(tagName.dropFirst())
+            let baseTag: String = String(tagName.dropFirst())
 
             if HTMLParser.formattingTags.contains(baseTag),
                 let targetIdx = unfinished.lastIndex(where: { $0.tag == baseTag }),
                 targetIdx < unfinished.count - 1
             {
-                let toReopen = unfinished[(targetIdx + 1)...]
+                let toReopen: [String] = unfinished[(targetIdx + 1)...]
                     .filter({ HTMLParser.formattingTags.contains($0.tag) })
                     .map({ $0.tag })
 
                 while unfinished.count > targetIdx + 1 {
-                    let node = unfinished.removeLast()
+                    let node: Element = unfinished.removeLast()
                     unfinished.last!.children.append(node)
                 }
 
                 if unfinished.count > 1 {
-                    let node = unfinished.removeLast()
+                    let node: Element = unfinished.removeLast()
                     unfinished.last!.children.append(node)
                 }
 
                 for tag in toReopen {
                     let parent: (any DOMNode)? = unfinished.last
-                    let node = Element(tag: tag, attributes: [:], parent: parent)
+                    let node: Element = Element(tag: tag, attributes: [:], parent: parent)
                     unfinished.append(node)
                 }
                 return
             }
 
             if unfinished.count == 1 { return }
-            let node = unfinished.removeLast()
+            let node: Element = unfinished.removeLast()
             unfinished.last!.children.append(node)
         } else if HTMLParser.selfClosingTags.contains(tagName) {
-            let parent = unfinished.last!
-            let node = Element(tag: tagName, attributes: attributes, parent: parent)
+            let parent: Element = unfinished.last!
+            let node: Element = Element(tag: tagName, attributes: attributes, parent: parent)
             parent.children.append(node)
         } else {
             let parent: (any DOMNode)? = unfinished.last
-            let node = Element(tag: tagName, attributes: attributes, parent: parent)
+            let node: Element = Element(tag: tagName, attributes: attributes, parent: parent)
             unfinished.append(node)
         }
     }
 
     private func getAttributes(_ raw: String) -> (String, [String: String]) {
-        let raw = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+        let raw: String = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
         var parts: [String] = []
-        var current = ""
+        var current: String = ""
         var inQuote: Character? = nil
 
         for ch in raw {
@@ -216,12 +216,12 @@ class HTMLParser {
         guard !parts.isEmpty else {
             return ("", [:])
         }
-        let tagName = parts[0].lowercased()
+        let tagName: String = parts[0].lowercased()
         var attributes: [String: String] = [:]
         for pair in parts.dropFirst() {
             if let eqIdx = pair.firstIndex(of: "=") {
-                let key = String(pair[pair.startIndex..<eqIdx]).lowercased()
-                var value = String(pair[pair.index(after: eqIdx)...])
+                let key: String = String(pair[pair.startIndex..<eqIdx]).lowercased()
+                var value: String = String(pair[pair.index(after: eqIdx)...])
                 if value.count > 1, value.first == "\"" || value.first == "'",
                     value.last == value.first
                 {
@@ -240,7 +240,7 @@ class HTMLParser {
             implicitTags(nil)
         }
         while unfinished.count > 1 {
-            let node = unfinished.removeLast()
+            let node: Element = unfinished.removeLast()
             unfinished.last!.children.append(node)
         }
         return unfinished.removeLast()
@@ -248,7 +248,7 @@ class HTMLParser {
 
     private func implicitTags(_ tag: String?) {
         while true {
-            let openTags = unfinished.map(\.tag)
+            let openTags: [String] = unfinished.map(\.tag)
             if openTags.isEmpty, tag != "html" {
                 addTag("html")
             } else if openTags == ["html"], tag != "head", tag != "body", tag != "/html" {
@@ -269,11 +269,11 @@ class HTMLParser {
 
     private func closeIfOpen(_ target: String, stoppedBy stoppers: Set<String>) {
         for idx in stride(from: unfinished.count - 1, through: 0, by: -1) {
-            let t = unfinished[idx].tag
+            let t: String = unfinished[idx].tag
             if stoppers.contains(t) { return }
             if t == target {
                 while unfinished.count > idx {
-                    let node = unfinished.removeLast()
+                    let node: Element = unfinished.removeLast()
                     if !unfinished.isEmpty {
                         unfinished.last!.children.append(node)
                     }
@@ -284,9 +284,9 @@ class HTMLParser {
     }
 
     private func isScriptClose(at i: String.Index) -> Bool {
-        let marker = "</script"
+        let marker: String = "</script"
         guard body.distance(from: i, to: body.endIndex) >= marker.count else { return false }
-        let end = body.index(i, offsetBy: marker.count)
+        let end: String.Index = body.index(i, offsetBy: marker.count)
         guard String(body[i..<end]).lowercased() == marker else { return false }
         if end >= body.endIndex { return true }
         return " \t\r\u{000B}/>".contains(body[end])

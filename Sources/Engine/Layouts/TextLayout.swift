@@ -32,11 +32,11 @@ class TextLayout: LayoutObject, InlineLayoutItem {
                 resolvedFont = override
             } else {
                 zoom = computeZoom(node, parentZoom: parent!.zoom)
-                let weight = node.style["font-weight"] ?? "normal"
-                var styleStr = node.style["font-style"] ?? "normal"
+                let weight: String = node.style["font-weight"] ?? "normal"
+                var styleStr: String = node.style["font-style"] ?? "normal"
                 if styleStr == "normal" { styleStr = "roman" }
-                let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-                let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+                let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+                let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
                 resolvedFont = getFont(
                         size: sizeInt,
                         weight: weight,
@@ -59,7 +59,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func paint() -> [Any] {
-        let color = node.style["color"] ?? "black"
+        let color: String = node.style["color"] ?? "black"
         return [
             DrawText(
                 at: CGPoint(x: x, y: y),

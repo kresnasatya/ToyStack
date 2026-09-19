@@ -28,9 +28,9 @@ class CompositedLayer {
     var ancestorChain: [Engine.VisualEffect] = []
 
     func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
-        let t = Self.tileSize
+        let t: CGFloat = Self.tileSize
         tiles = tiles.filter{ index, _ in
-            let top = CGFloat(index.row) * t
+            let top: CGFloat = CGFloat(index.row) * t
             return top + t > keepTop && top < keepBottom
         }
     }
@@ -63,7 +63,7 @@ class CompositedLayer {
     }
 
     func absoluteBounds() -> Rect {
-        var rect = compositedBounds()
+        var rect: Rect = compositedBounds()
         var effect: VisualEffect? = displayItems.first?.parentEffect
         while let e = effect {
             rect = e.map(rect: rect)
@@ -73,7 +73,7 @@ class CompositedLayer {
     }
 
     func raster(renderer: any Renderer) {
-        let bounds = compositedBounds()
+        let bounds: Rect = compositedBounds()
         guard bounds.right > bounds.left && bounds.bottom > bounds.top else { return }
         renderer.saveState()
         renderer.translateBy(x: -bounds.left, y: -bounds.top)
@@ -85,20 +85,20 @@ class CompositedLayer {
 
     func rasterIfNeeded(scale: CGFloat, store: TileStore, window: RasterWindow, budget: RasterBudget) -> [TileStrip] {
         guard !displayItems.isEmpty else { return [] }
-        let bounds = compositedBounds()
-        let width = bounds.right - bounds.left
+        let bounds: Rect = compositedBounds()
+        let width: CGFloat = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return [] }
 
-        let items = displayItems
-        let left = bounds.left
-        let t = Self.tileSize
-        let firstCol = max(0, Int(left / t), Int(window.hint.left / t))
-        let lastCol = min(Int((bounds.right - 1) / t), Int(window.hint.right / t))
-        let firstRow = max(0, Int(bounds.top / t), Int(window.hint.top / t))
-        let lastRow = min(Int((bounds.bottom - 1) / t) , Int(window.hint.bottom / t))
+        let items: [any PaintCommand] = displayItems
+        let left: CGFloat = bounds.left
+        let t: CGFloat = Self.tileSize
+        let firstCol: Int = max(0, Int(left / t), Int(window.hint.left / t))
+        let lastCol: Int = min(Int((bounds.right - 1) / t), Int(window.hint.right / t))
+        let firstRow: Int = max(0, Int(bounds.top / t), Int(window.hint.top / t))
+        let lastRow: Int = min(Int((bounds.bottom - 1) / t) , Int(window.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
-        let scaleInt = Int(scale)
+        let scaleInt: Int = Int(scale)
         if keyCacheScale != scaleInt {
             keyCache = [:]
             keyCacheScale = scaleInt
@@ -106,8 +106,8 @@ class CompositedLayer {
 
         var rowItems: [Int: [PaintCommand]] = [:]
         for item in items {
-            let first = max(firstRow, Int(item.rect.top / t))
-            let last = min(lastRow, Int((item.rect.bottom - 1) / t))
+            let first: Int = max(firstRow, Int(item.rect.top / t))
+            let last: Int = min(lastRow, Int((item.rect.bottom - 1) / t))
             guard first <= last else { continue }
             for row in first...last {
                 rowItems[row, default: []].append(item)
@@ -115,24 +115,24 @@ class CompositedLayer {
         }
 
         func rowDistance(_ row: Int) -> CGFloat {
-            let top = CGFloat(row) * t
-            let bottom = top + t
+            let top: CGFloat = CGFloat(row) * t
+            let bottom: CGFloat = top + t
             if bottom <= window.visible.top { return window.visible.top - bottom }
             if top >= window.visible.bottom { return top - window.visible.bottom }
             return 0
         }
 
-        let sortedRows = (firstRow...lastRow).sorted { rowDistance($0) < rowDistance($1) }
+        let sortedRows: [ClosedRange<Int>.Element] = (firstRow...lastRow).sorted { rowDistance($0) < rowDistance($1) }
         var strips: [TileStrip] = []
         for row in sortedRows {
-            let rowTop = CGFloat(row) * t
-            let strip = rowItems[row] ?? []
+            let rowTop: CGFloat = CGFloat(row) * t
+            let strip: [any PaintCommand] = rowItems[row] ?? []
             var missing: [TileKey] = []
             for col in firstCol...lastCol {
-                let colLeft = CGFloat(col) * t
-                let colRight = colLeft + t
-                let inside = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
-                let index = TileIndex(row: row, col: col)
+                let colLeft: CGFloat = CGFloat(col) * t
+                let colRight: CGFloat = colLeft + t
+                let inside: [any PaintCommand] = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
+                let index: TileIndex = TileIndex(row: row, col: col)
                 let key: TileKey
                 if let cached = keyCache[index] {
                     key = cached
@@ -175,7 +175,7 @@ class CompositedLayer {
     }
 
     private func tileHash(_ inside: [PaintCommand]) -> Int {
-        var hasher = Hasher()
+        var hasher: Hasher = Hasher()
         for item in inside {
             hasher.combine(item.contentHash)
         }

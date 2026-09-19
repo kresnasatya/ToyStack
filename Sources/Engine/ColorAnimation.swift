@@ -21,11 +21,11 @@ class ColorAnimation: Animation {
     func animate() -> String? {
         frameCount += 1
         if frameCount > numFrames { return nil }
-        let t = Double(frameCount) / Double(numFrames)
-        let eased = easing.apply(t)
-        let r = oldColor.r + (newColor.r - oldColor.r) * eased
-        let g = oldColor.g + (newColor.g - oldColor.g) * eased
-        let b = oldColor.b + (newColor.b - oldColor.b) * eased
+        let t: Double = Double(frameCount) / Double(numFrames)
+        let eased: Double = easing.apply(t)
+        let r: Double = oldColor.r + (newColor.r - oldColor.r) * eased
+        let g: Double = oldColor.g + (newColor.g - oldColor.g) * eased
+        let b: Double = oldColor.b + (newColor.b - oldColor.b) * eased
         return rgbToHex(r, g, b)
     }
 }

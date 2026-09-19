@@ -15,7 +15,7 @@ public struct EngineColor {
     }
 
     public init(cssName: String) {
-        let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
+        let name: String = cssName.lowercased().trimmingCharacters(in: .whitespaces)
         if name == "transparent" {
             self = EngineColor(red: 0, green: 0, blue: 0, alpha: 0)
             return

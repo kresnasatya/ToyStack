@@ -49,8 +49,8 @@ public class Transform: VisualEffect {
 
 func mapTranslation(rect: Rect, translation: CGPoint?, reversed: Bool = false) -> Rect {
     guard let t = translation else { return rect }
-    let dx = reversed ? -t.x : t.x
-    let dy = reversed ? -t.y : t.y
+    let dx: CGFloat = reversed ? -t.x : t.x
+    let dy: CGFloat = reversed ? -t.y : t.y
     return Rect(
         left: rect.left + dx, top: rect.top + dy, right: rect.right + dx, bottom: rect.bottom + dy)
 }

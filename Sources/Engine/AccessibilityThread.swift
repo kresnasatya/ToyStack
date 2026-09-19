@@ -12,7 +12,7 @@ final class AccessibilityThread: NSObject, @unchecked Sendable, AVSpeechSynthesi
 
     func speak(_ text: String) {
         print("SPEAK:", text)
-        let utterance = AVSpeechUtterance(string: text)
+        let utterance: AVSpeechUtterance = AVSpeechUtterance(string: text)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         synthesizer.speak(utterance)

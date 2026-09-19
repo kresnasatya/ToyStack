@@ -25,17 +25,17 @@ class JSRuntime: @unchecked Sendable {
     }
 
     func dispatchEvent(type: String, elt: any DOMNode) -> Bool {
-        let handle = getHandle(elt)
+        let handle: Int = getHandle(elt)
         jsContext.setObject(handle, forKeyedSubscript: "__handle" as NSString)
         jsContext.setObject(type, forKeyedSubscript: "__type" as NSString)
-        let result = jsContext.evaluateScript(Self.eventDispatchJS)
+        let result: JSValue? = jsContext.evaluateScript(Self.eventDispatchJS)
         return !(result?.toBool() ?? true)
     }
 
     private func getHandle(_ elt: any DOMNode) -> Int {
-        let id = ObjectIdentifier(elt)
+        let id: ObjectIdentifier = ObjectIdentifier(elt)
         if let handle = nodeToHandle[id] { return handle }
-        let handle = nodeToHandle.count
+        let handle: Int = nodeToHandle.count
         nodeToHandle[id] = handle
         handleToNode[handle] = elt
         return handle
@@ -46,8 +46,8 @@ class JSRuntime: @unchecked Sendable {
             return text.text
         }
         guard let elt = node as? Element else { return "" }
-        let attrs = elt.attributes.map { " \($0.key)=\($0.value)" }.joined()
-        let inner = elt.children.map { serialize($0) }.joined()
+        let attrs: String = elt.attributes.map { " \($0.key)=\($0.value)" }.joined()
+        let inner: String = elt.children.map { serialize($0) }.joined()
         return "<\(elt.tag)\(attrs)>\(inner)</\(elt.tag)>"
     }
 
@@ -68,8 +68,8 @@ class JSRuntime: @unchecked Sendable {
                 [weak self] (selectorText: String) -> [Int] in
                 guard let self, let tab = self.tab else { return [] }
                 return MainActor.assumeIsolated({
-                    let selector = CSSParser(selectorText).selector()
-                    let nodes = treeToList(tab.nodes).filter { selector.matches($0) }
+                    let selector: any CSSSelector = CSSParser(selectorText).selector()
+                    let nodes: [any DOMNode] = treeToList(tab.nodes).filter { selector.matches($0) }
                     return nodes.map { self.getHandle($0) }
                 })
             } as @convention(block) (String) -> [Int],
@@ -116,10 +116,10 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] () -> String in
                 guard let self, let tab = self.tab else { return "" }
-                let host = MainActor.assumeIsolated({ tab.url?.host ?? "" })
+                let host: String = MainActor.assumeIsolated({ tab.url?.host ?? "" })
                 guard !host.isEmpty else { return "" }
-                var result = ""
-                let semaphore = DispatchSemaphore(value: 0)
+                var result: String = ""
+                let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
                 Task {
                     if let (cookie, params) = await CookieJar.shared.get(host) {
                         if params["httponly"] != "true" {
@@ -137,9 +137,9 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (cookieStr: String) in
                 guard let self, let tab = self.tab else { return }
-                let host = MainActor.assumeIsolated({ tab.url?.host ?? "" })
+                let host: String = MainActor.assumeIsolated({ tab.url?.host ?? "" })
                 guard !host.isEmpty else { return }
-                let semaphore = DispatchSemaphore(value: 0)
+                let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
                 Task {
                     if let (_, params) = await CookieJar.shared.get(host) {
                         if params["httponly"] == "true" {
@@ -148,20 +148,20 @@ class JSRuntime: @unchecked Sendable {
                         }
                     }
 
-                    var newCookieStr = cookieStr
+                    var newCookieStr: String = cookieStr
                     var cookieParams: [String: String] = [:]
                     if cookieStr.contains(";") {
-                        let parts = cookieStr.split(separator: ";", maxSplits: 1)
+                        let parts: [String.SubSequence] = cookieStr.split(separator: ";", maxSplits: 1)
                         newCookieStr = String(parts[0])
                         if parts.count > 1 {
                             for param in String(parts[1]).split(separator: ";") {
-                                let trimmed = param.trimmingCharacters(in: .whitespaces)
+                                let trimmed: String = param.trimmingCharacters(in: .whitespaces)
                                 if trimmed.contains("=") {
-                                    let kv = trimmed.split(separator: "=", maxSplits: 1)
+                                    let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
                                     cookieParams[String(kv[0]).lowercased()] = String(kv[1])
                                         .lowercased()
                                 } else {
-                                    let key = trimmed.lowercased()
+                                    let key: String = trimmed.lowercased()
                                     if key != "httponly" {
                                         cookieParams[key] = "true"
                                     }
@@ -224,8 +224,8 @@ class JSRuntime: @unchecked Sendable {
                     guard let self, let tab = self.tab,
                         let elt = self.handleToNode[handle] as? Element
                     else { return }
-                    let doc = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
-                    let newNodes = (doc.children.first as? Element)?.children
+                    let doc: any DOMNode = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
+                    let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
                     elt.children = newNodes ?? []
                     for child in elt.children { child.parent = elt }
                     tab.runNewScripts(in: elt)
@@ -249,7 +249,7 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (tag: String) -> Int in
                 guard let self else { return -1 }
-                let elt = Element(tag: tag, attributes: [:], parent: nil)
+                let elt: Element = Element(tag: tag, attributes: [:], parent: nil)
                 return self.getHandle(elt)
             } as @convention(block) (String) -> Int,
             forKeyedSubscript: "_createElement" as NSString)
@@ -312,7 +312,7 @@ class JSRuntime: @unchecked Sendable {
                 [weak self] (method: String, url: String, body: String?) -> String in
                 return MainActor.assumeIsolated({
                     guard let self, let tab = self.tab else { return "" }
-                    let fullURL = tab.url.resolve(url)
+                    let fullURL: WebURL = tab.url.resolve(url)
 
                     guard tab.allowedRequest(fullURL) else {
                         print("Cross-origin XHR blocked by CSP")
@@ -324,14 +324,14 @@ class JSRuntime: @unchecked Sendable {
                         return out
                     }
 
-                    let origin = tab.url.origin()
+                    let origin: String = tab.url.origin()
                     guard
                         let (_, headers, out) = fullURL.requestSync(
                             payload: body,
                             extraHeaders: ["Origin": origin]
                         )
                     else { return "" }
-                    let allowed = headers["access-control-allow-origin"] ?? ""
+                    let allowed: String = headers["access-control-allow-origin"] ?? ""
                     guard allowed == "*" || allowed == origin else {
                         print("Cross-origin XHR request not allowed")
                         return ""
@@ -347,7 +347,7 @@ class JSRuntime: @unchecked Sendable {
                 guard let tab = self?.tab else { return }
                 Task { @MainActor in
                     guard tab.browser?.activeTab === tab else { return }
-                    let task = BrowserTask(name: "runAnimationFrame", measure: tab.browser?.measure)
+                    let task: BrowserTask = BrowserTask(name: "runAnimationFrame", measure: tab.browser?.measure)
                     {
                         tab.runAnimationFrame()
                     }
@@ -360,10 +360,10 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (handle: Int, time: Double) in
                 guard let tab = self?.tab else { return }
-                let delay = time / 1000.0
+                let delay: Double = time / 1000.0
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     Task { @MainActor in
-                        let task = BrowserTask(
+                        let task: BrowserTask = BrowserTask(
                             name: "runSetTimeout", priority: .low, measure: tab.browser?.measure
                         ) {
                             tab.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
@@ -378,13 +378,13 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (handle: Int, time: Double) in
                 guard let tab = self?.tab else { return }
-                let interval = time / 1000.0
-                let timer = DispatchSource.makeTimerSource(queue: .main)
+                let interval: Double = time / 1000.0
+                let timer: any DispatchSourceTimer = DispatchSource.makeTimerSource(queue: .main)
                 timer.schedule(deadline: .now() + interval, repeating: interval)
                 timer.setEventHandler(handler: {
                     Task { @MainActor in
                         guard tab.browser?.activeTab === tab else { return }
-                        let task = BrowserTask(
+                        let task: BrowserTask = BrowserTask(
                             name: "runSetInterval", priority: .low, measure: tab.browser?.measure
                         ) {
                             tab.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")

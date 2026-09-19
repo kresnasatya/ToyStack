@@ -2,7 +2,7 @@ class HTMLSyntaxHighlighter: HTMLParser {
     private(set) var result = ""
 
     override func addText(_ text: String) {
-        let escaped =
+        let escaped: String =
             text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
@@ -11,7 +11,7 @@ class HTMLSyntaxHighlighter: HTMLParser {
     }
 
     override func addTag(_ tag: String) {
-        let escaped =
+        let escaped: String =
             tag
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")

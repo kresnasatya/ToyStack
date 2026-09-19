@@ -21,7 +21,7 @@ actor CookieJar {
         if let maxAge = params["max-age"], let seconds = Double(maxAge) {
             expires = Date().addingTimeInterval(seconds)
         } else if let expiresStr = params["expires"] {
-            let formatter = DateFormatter()
+            let formatter: DateFormatter = DateFormatter()
             formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
             formatter.locale = Locale(identifier: "en_US_POSIX")
             expires = formatter.date(from: expiresStr)

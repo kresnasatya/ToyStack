@@ -26,7 +26,7 @@ class AccessibilityNode {
             var result: Rect? = nil
             for lineLayout in block.children {
                 for item in lineLayout.children where item.node === node {
-                    let r = Rect(
+                    let r: Rect = Rect(
                         left: item.x, top: item.y,
                         right: item.x + item.width, bottom: item.y + item.height
                     )
@@ -52,7 +52,7 @@ class AccessibilityNode {
         guard let el = node as? Element else { return "none" }
         switch el.tag {
         case "input":
-            let type = el.attributes["type"] ?? ""
+            let type: String = el.attributes["type"] ?? ""
             if type == "checkbox" {
                 return el.attributes["checked"] != nil ? "checked" : "unchecked"
             }
@@ -69,7 +69,7 @@ class AccessibilityNode {
 
     private static func computeLive(for node: DOMNode) -> String {
         guard let el = node as? Element else { return "off" }
-        let live = el.attributes["aria-live"] ?? "off"
+        let live: String = el.attributes["aria-live"] ?? "off"
         if live == "assertive" || live == "polite" { return live }
         return "off"
     }
@@ -93,7 +93,7 @@ class AccessibilityNode {
         if let el = childNode as? Element, el.tag == "style" || el.tag == "script" {
             return
         }
-        let child = AccessibilityNode(node: childNode, parent: self)
+        let child: AccessibilityNode = AccessibilityNode(node: childNode, parent: self)
         if child.role != "none" || child.live != "off" {
             children.append(child)
             child.build()

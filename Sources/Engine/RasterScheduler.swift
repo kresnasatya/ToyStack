@@ -20,7 +20,7 @@ class RasterScheduler: @unchecked Sendable {
     func schedule(_ job: Job) {
         lock.lock()
         pending = job
-        let kick = !draining
+        let kick: Bool = !draining
         if kick { draining = true }
         lock.unlock()
         if kick { queue.async { self.drain() } }
@@ -36,7 +36,7 @@ class RasterScheduler: @unchecked Sendable {
         pending = nil
         lock.unlock()
 
-        let plan = job.plan(tileStore)
+        let plan: RasterPlan = job.plan(tileStore)
         guard !plan.batch.strips.isEmpty else {
             finish(job: job, plan: plan, images: [])
             return
@@ -49,7 +49,7 @@ class RasterScheduler: @unchecked Sendable {
     }
 
     private func finish(job: Job, plan: RasterPlan, images: [CGImage?]) {
-        let output = job.install(tileStore, plan, images)
+        let output: RasterOutput = job.install(tileStore, plan, images)
         Task { @MainActor in job.then(output) }
         drain()
     }

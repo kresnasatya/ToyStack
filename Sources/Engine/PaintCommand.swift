@@ -1,10 +1,10 @@
 import CoreGraphics
 
 func cssColorToRGB(_ cssName: String) -> RGBColor? {
-    let name = cssName.lowercased().trimmingCharacters(in: .whitespaces)
+    let name: String = cssName.lowercased().trimmingCharacters(in: .whitespaces)
     if name.hasPrefix("#") {
-        let hex = String(name.dropFirst())
-        let expanded = hex.count == 3 ? hex.map { "\($0)\($0)" }.joined() : hex
+        let hex: String = String(name.dropFirst())
+        let expanded: String = hex.count == 3 ? hex.map { "\($0)\($0)" }.joined() : hex
         if expanded.count == 6,
             let r = UInt8(expanded.prefix(2), radix: 16),
             let g = UInt8(expanded.dropFirst(2).prefix(2), radix: 16),
@@ -57,7 +57,7 @@ public struct DrawRect: PaintCommand {
     }
 
     public func execute(scroll: CGFloat, renderer: any Renderer) {
-        let r = CGRect(
+        let r: CGRect = CGRect(
             x: rect.left,
             y: rect.top - scroll,
             width: rect.right - rect.left,
@@ -136,7 +136,7 @@ public struct DrawOutline: PaintCommand {
     }
 
     public func execute(scroll: CGFloat, renderer: any Renderer) {
-        let r = CGRect(
+        let r: CGRect = CGRect(
             x: rect.left, y: rect.top - scroll, width: rect.right - rect.left,
             height: rect.bottom - rect.top)
         renderer.strokeRect(r, color: EngineColor(cssName: color), lineWidth: thickness)
@@ -159,12 +159,12 @@ struct DrawCompositedLayer: PaintCommand {
     }
 
     func execute(scroll: CGFloat, renderer: any Renderer) {
-        let bounds = layer.compositedBounds()
+        let bounds: Rect = layer.compositedBounds()
         if !layer.tiles.isEmpty {
-            let t = CompositedLayer.tileSize
+            let t: CGFloat = CompositedLayer.tileSize
             for (index, image) in layer.tiles {
-                let tileLeft = CGFloat(index.col) * t
-                let tileTop = CGFloat(index.row) * t
+                let tileLeft: CGFloat = CGFloat(index.col) * t
+                let tileTop: CGFloat = CGFloat(index.row) * t
                 if tileTop + t <= visibleTop || tileTop >= visibleBottom { continue }
                 renderer.drawImage(image, in: CGRect(x: tileLeft, y: tileTop, width: t, height: t))
             }

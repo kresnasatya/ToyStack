@@ -5,10 +5,10 @@ public class MeasureTime: @unchecked Sendable {
     private var file: FileHandle?
 
     public init() {
-        let path = FileManager.default.currentDirectoryPath + "/browser.trace"
+        let path: String = FileManager.default.currentDirectoryPath + "/browser.trace"
         FileManager.default.createFile(atPath: path, contents: nil)
         file = FileHandle(forUpdatingAtPath: path)
-        let ts = Int(Date().timeIntervalSince1970 * 1_000_000)
+        let ts: Int = Int(Date().timeIntervalSince1970 * 1_000_000)
         writeTrace(
             #"{"traceEvents": [{ "name": "process_name", "ph": "M", "ts": \#(ts), "pid": 1, "cat": "__metadata", "args": {"name": "Browser"}}]}"#
         )
@@ -18,8 +18,8 @@ public class MeasureTime: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         seekBeforeClose()
-        let ts = Int(Date().timeIntervalSince1970 * 1_000_000)
-        let tid = UInt(bitPattern: ObjectIdentifier(Thread.current))
+        let ts: Int = Int(Date().timeIntervalSince1970 * 1_000_000)
+        let tid: UInt = UInt(bitPattern: ObjectIdentifier(Thread.current))
         writeTrace(
             ", { \"ph\": \"B\", \"cat\": \"_\", \"name\": \"\(name)\", \"ts\": \(ts), \"pid\": 1, \"tid\": \(tid)}]}"
         )
@@ -29,8 +29,8 @@ public class MeasureTime: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         seekBeforeClose()
-        let ts = Int(Date().timeIntervalSince1970 * 1_000_000)
-        let tid = UInt(bitPattern: ObjectIdentifier(Thread.current))
+        let ts: Int = Int(Date().timeIntervalSince1970 * 1_000_000)
+        let tid: UInt = UInt(bitPattern: ObjectIdentifier(Thread.current))
         writeTrace(
             ", { \"ph\": \"E\", \"cat\": \"_\", \"name\": \"\(name)\", \"ts\": \(ts), \"pid\": 1, \"tid\": \(tid)}]}"
         )
@@ -40,9 +40,9 @@ public class MeasureTime: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         seekBeforeClose()
-        let ts = Int(Date().timeIntervalSince1970 * 1_000_000)
-        let tid = UInt(bitPattern: ObjectIdentifier(Thread.current))
-        let body = args.map { "\"\($0.key)\": \($0.value)"}.joined(separator: ", ")
+        let ts: Int = Int(Date().timeIntervalSince1970 * 1_000_000)
+        let tid: UInt = UInt(bitPattern: ObjectIdentifier(Thread.current))
+        let body: String = args.map { "\"\($0.key)\": \($0.value)"}.joined(separator: ", ")
         writeTrace(
             ", { \"ph\": \"C\", \"cat\": \"_\", \"name\": \"\(name)\", \"ts\": \(ts), \"pid\": 1, \"tid\": \(tid), \"args\": {\(body)}}]}"
         )
@@ -56,7 +56,7 @@ public class MeasureTime: @unchecked Sendable {
     }
 
     private func seekBeforeClose() {
-        let end = file?.seekToEndOfFile() ?? 2
+        let end: UInt64 = file?.seekToEndOfFile() ?? 2
         file?.seek(toFileOffset: end - 2)
     }
 

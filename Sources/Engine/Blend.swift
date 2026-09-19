@@ -8,7 +8,7 @@ public class Blend: VisualEffect {
         self.opacity = opacity
         self.blendMode = blendMode
 
-        var combinedRect = Rect(left: 0, top: 0, right: 0, bottom: 0)
+        var combinedRect: Rect = Rect(left: 0, top: 0, right: 0, bottom: 0)
         for child in children {
             if let ve = child as? VisualEffect {
                 combinedRect = combinedRect.union(ve.rect)

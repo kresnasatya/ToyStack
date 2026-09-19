@@ -30,7 +30,7 @@ actor ResponseCache {
     func get(_ url: String) -> HttpResponse? {
         guard let entry = storage[url] else { return nil }
         if entry.maxAge >= 0 {
-            let age = Date().timeIntervalSince(entry.timestamp)
+            let age: TimeInterval = Date().timeIntervalSince(entry.timestamp)
             if age > Double(entry.maxAge) {
                 storage.removeValue(forKey: url)
                 return nil

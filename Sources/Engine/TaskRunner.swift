@@ -38,7 +38,7 @@ class TaskRunner {
         guard !needsQuit else { return }
 
         // Promote a low-priority task if it has waited too long.
-        let starved =
+        let starved: Bool =
             lowQueue.first.map {
                 Date().timeIntervalSince($0.enqueuedAt) > starvationThreshold
             } ?? false

@@ -72,7 +72,7 @@ final class TileStore: @unchecked Sendable {
 
     func insert(_ image: CGImage, key: TileKey) {
         usageClock += 1
-        let pixels = image.width * image.height
+        let pixels: Int = image.width * image.height
         if let previous = entries[key] {
             totalPixels -= previous.pixels
         }
@@ -92,7 +92,7 @@ final class TileStore: @unchecked Sendable {
 
 extension PaintCommand {
     var contentHash: Int {
-        var hasher = Hasher()
+        var hasher: Hasher = Hasher()
         hasher.combine(String(describing: type(of: self)))
         hasher.combine(rect.left)
         hasher.combine(rect.top)

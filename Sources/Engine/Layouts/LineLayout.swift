@@ -38,14 +38,14 @@ class LineLayout: LayoutObject {
                 return
             }
 
-            let inlineChildren = children.compactMap { $0 as? InlineLayoutItem }
+            let inlineChildren: [any InlineLayoutItem] = children.compactMap { $0 as? InlineLayoutItem }
             guard !inlineChildren.isEmpty else {
                 height = 0
                 return
             }
 
-            let maxAscent = inlineChildren.map(\.font.ascent).max() ?? 0
-            let baseline = y + 1.25 * maxAscent
+            let maxAscent: CGFloat = inlineChildren.map(\.font.ascent).max() ?? 0
+            let baseline: CGFloat = y + 1.25 * maxAscent
 
             for child in inlineChildren {
                 if let el = child.node as? Element, el.tag == "sup" {
@@ -56,9 +56,9 @@ class LineLayout: LayoutObject {
             }
 
             if isRTL {
-                let lastChild = children.last!
-                let usedWidth = lastChild.x + lastChild.width - x
-                let offset = width - usedWidth
+                let lastChild: any LayoutObject = children.last!
+                let usedWidth: CGFloat = lastChild.x + lastChild.width - x
+                let offset: CGFloat = width - usedWidth
 
                 for child in children {
                     child.x += offset
@@ -66,16 +66,16 @@ class LineLayout: LayoutObject {
             }
 
             if centered {
-                let lastChild = children.last!
-                let usedWidth = lastChild.x + lastChild.width - x
-                let offset = (width - usedWidth) / 2
+                let lastChild: any LayoutObject = children.last!
+                let usedWidth: CGFloat = lastChild.x + lastChild.width - x
+                let offset: CGFloat = (width - usedWidth) / 2
 
                 for child in children {
                     child.x += offset
                 }
             }
 
-            let maxDescent = inlineChildren.map(\.font.descent).max() ?? 0
+            let maxDescent: CGFloat = inlineChildren.map(\.font.descent).max() ?? 0
             height = 1.25 * (maxAscent + maxDescent)
         })
     }
@@ -87,7 +87,7 @@ class LineLayout: LayoutObject {
         for child in children {
             guard let ancestor = focusVisibleInlineAncestor(child.node) else { continue }
             focused = ancestor
-            let childRect = Rect(
+            let childRect: Rect = Rect(
                 left: child.x, top: child.y, right: child.x + child.width,
                 bottom: child.y + child.height)
                 outlineRect = outlineRect?.union(childRect) ?? childRect

@@ -13,7 +13,7 @@ public class ScrollEffect: Engine.VisualEffect {
 
     public override func execute(renderer: any Renderer) {
         renderer.saveState()
-        let cgRect = CGRect(
+        let cgRect: CGRect = CGRect(
             x: clipRect.left, y: clipRect.top,
             width: clipRect.right - clipRect.left,
             height: clipRect.bottom - clipRect.top

@@ -56,7 +56,7 @@ struct ClassSelector: CSSSelector {
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else { return false }
-        let classes = element.attributes["class"]?.split(separator: " ").map(String.init) ?? []
+        let classes: [String] = element.attributes["class"]?.split(separator: " ").map(String.init) ?? []
         return classes.contains(cls)
     }
 }
@@ -102,8 +102,8 @@ struct DescendantSelector: CSSSelector {
     func matches(_ node: any DOMNode) -> Bool {
         guard selectors.last!.matches(node) else { return false }
 
-        var j = selectors.count - 2
-        var current = node.parent
+        var j: Int = selectors.count - 2
+        var current: (any DOMNode)? = node.parent
         while let p = current {
             if j < 0 { return true }
             if selectors[j].matches(p) { j -= 1 }
@@ -208,9 +208,9 @@ class CSSParser {
     }
 
     private func word() throws -> String {
-        let start = i
+        let start: Int = i
         while i < chars.count {
-            let c = chars[i]
+            let c: Character = chars[i]
             if c.isLetter || c.isNumber || "#-.%".contains(c) {
                 i += 1
             } else {
@@ -242,14 +242,14 @@ class CSSParser {
 
     private func pair() throws -> (String, String) {
         skipWhitespace()
-        let prop = try word()
+        let prop: String = try word()
         skipWhitespace()
         try literal(":")
         skipWhitespace()
-        var val = try word()
+        var val: String = try word()
         if i < chars.count && chars[i] == "(" {
-            let start = i
-            var depth = 0
+            let start: Int = i
+            var depth: Int = 0
             while i < chars.count {
                 if chars[i] == "(" {
                     depth += 1
@@ -281,7 +281,7 @@ class CSSParser {
 
     private static func expandFont(_ tokens: [String]) -> [String: String] {
         var props: [String: String] = [:]
-        var t = tokens
+        var t: [String] = tokens
         if let f = t.first, f == "italic" || f == "oblique" {
             props["font-style"] = t.removeFirst()
         }
@@ -359,7 +359,7 @@ class CSSParser {
 
         while i < chars.count && chars[i] != "}" {
             if let (prop, val) = try? pair() {
-                var tokens = [val]
+                var tokens: [String] = [val]
                 if CSSParser.isShortHand(prop) {
                     skipWhitespace()
                     while i < chars.count && chars[i] != ";" && chars[i] != "}" {
@@ -376,7 +376,7 @@ class CSSParser {
                 }
 
                 skipWhitespace()
-                var isImportant = false
+                var isImportant: Bool = false
                 if i < chars.count && chars[i] == "!" {
                     i += 1
                     if let keyword = try? word(), keyword.lowercased() == "important" {
@@ -389,14 +389,14 @@ class CSSParser {
                         isImportant ? (important[k] = v) : (normal[k] = v)
                     }
                 } else {
-                    let fullVal = tokens.joined(separator: " ")
+                    let fullVal: String = tokens.joined(separator: " ")
                     isImportant ? (important[prop] = fullVal) : (normal[prop] = fullVal)
                 }
                 skipWhitespace()
                 _ = try? literal(";")
                 skipWhitespace()
             } else {
-                let found = ignoreUntil([";", "}"])
+                let found: Character? = ignoreUntil([";", "}"])
                 if found == ";" {
                     _ = try? literal(";")
                     skipWhitespace()
@@ -409,15 +409,15 @@ class CSSParser {
     }
 
     func body() -> [String: String] {
-        let parts = bodyParts()
+        let parts: (normal: [String : String], important: [String : String]) = bodyParts()
         return parts.normal.merging(parts.important) { _, imp in imp }
     }
 
     private func parseSimpleSelector(_ token: String) -> any CSSSelector {
-        let parts = token.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        let parts: [String] = token.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
         var selectors: [any CSSSelector] = []
         if let first = parts.first {
-            let hashParts = first.split(separator: "#", omittingEmptySubsequences: false).map(
+            let hashParts: [String] = first.split(separator: "#", omittingEmptySubsequences: false).map(
                 String.init)
             if let tag = hashParts.first, !tag.isEmpty {
                 selectors.append(TagSelector(tag: tag.lowercased()))
@@ -454,13 +454,13 @@ class CSSParser {
 
     private func quotedOrWord() -> String? {
         guard i < chars.count else { return nil }
-        let quote = chars[i]
+        let quote: Character = chars[i]
         guard quote == "\"" || quote == "'" else { return try? word() }
         i += 1
-        let start = i
+        let start: Int = i
         while i < chars.count && chars[i] != quote { i += 1 }
         guard i < chars.count else { return nil }
-        let text = String(chars[start..<i])
+        let text: String = String(chars[start..<i])
         i += 1
         return text
     }
@@ -488,12 +488,12 @@ class CSSParser {
             if keyword == "has" {
                 guard (try? literal("(")) != nil else { break }
                 skipWhitespace()
-                let inner = selector()
+                let inner: any CSSSelector = selector()
                 skipWhitespace()
                 _ = try? literal(")")
                 parts.append(HasSelector(inner: inner))
             } else {
-                let base =
+                let base: any CSSSelector =
                     parts.isEmpty
                     ? TagSelector(tag: "")
                     : (parts.count == 1 ? parts[0] : SelectorSequence(selectors: parts))
@@ -528,11 +528,11 @@ class CSSParser {
         skipWhitespace()
         try literal("(")
         skipWhitespace()
-        let prop = try word()
+        let prop: String = try word()
         skipWhitespace()
         try literal(":")
         skipWhitespace()
-        let val = try word()
+        let val: String = try word()
         skipWhitespace()
         try literal(")")
         switch prop {
@@ -555,7 +555,7 @@ class CSSParser {
 
     private func parseKeyframeOffset() throws -> Double {
         skipWhitespace()
-        let w = try word()
+        let w: String = try word()
         switch w.lowercased() {
         case "from": return 0.0
         case "to": return 1.0
@@ -568,7 +568,7 @@ class CSSParser {
     }
 
     private func skipBlock() {
-        var depth = 1
+        var depth: Int = 1
         while i < chars.count {
             if chars[i] == "{" {
                 depth += 1
@@ -593,10 +593,10 @@ class CSSParser {
             skipWhitespace()
             do {
                 if i < chars.count && chars[i] == "@" && media == nil {
-                    let saveI = i
+                    let saveI: Int = i
                     i += 1
                     skipWhitespace()
-                    let keyword = (try? word()) ?? ""
+                    let keyword: String = (try? word()) ?? ""
                     if keyword == "media" {
                         i = saveI
                         media = try mediaQuery()
@@ -610,16 +610,16 @@ class CSSParser {
                         skipWhitespace()
                     } else if keyword == "keyframes" {
                         skipWhitespace()
-                        let name = try word()
+                        let name: String = try word()
                         skipWhitespace()
                         try literal("{")
                         var frames: [Keyframe] = []
                         while i < chars.count && chars[i] != "}" {
-                            let offset = try parseKeyframeOffset()
+                            let offset: Double = try parseKeyframeOffset()
                             skipWhitespace()
                             try literal("{")
                             skipWhitespace()
-                            let parts = bodyParts()
+                            let parts: (normal: [String : String], important: [String : String]) = bodyParts()
                             try literal("}")
                             skipWhitespace()
                             frames.append(Keyframe(offset: offset, body: parts.normal))
@@ -636,10 +636,10 @@ class CSSParser {
                     media = nil
                     skipWhitespace()
                 } else {
-                    let sel = selector()
+                    let sel: any CSSSelector = selector()
                     try literal("{")
                     skipWhitespace()
-                    let parts = bodyParts()
+                    let parts: (normal: [String : String], important: [String : String]) = bodyParts()
                     try literal("}")
                     skipWhitespace()
                     if !parts.normal.isEmpty {
@@ -650,7 +650,7 @@ class CSSParser {
                     }
                 }
             } catch {
-                let found = ignoreUntil(["{", "}"])
+                let found: Character? = ignoreUntil(["{", "}"])
                 if found == "{" {
                     _ = try? literal("{")
                     skipBlock()

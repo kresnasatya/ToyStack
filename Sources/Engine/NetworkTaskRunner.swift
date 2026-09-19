@@ -12,7 +12,7 @@ class NetworkTaskRunner: @unchecked Sendable {
         await withCheckedContinuation({ continuation in
             scheduleTask(
                 NetworkTask(name: name) {
-                    let result = await work()
+                    let result: T = await work()
                     continuation.resume(returning: result)
                 })
         })

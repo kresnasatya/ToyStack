@@ -17,9 +17,9 @@ class NumericAnimation: Animation {
     func animate() -> String? {
         frameCount += 1
         if frameCount > numFrames { return nil }
-        let t = Double(frameCount) / Double(numFrames)
-        let eased = easing.apply(t)
-        let current = oldValue + (newValue - oldValue) * eased
+        let t: Double = Double(frameCount) / Double(numFrames)
+        let eased: Double = easing.apply(t)
+        let current: Double = oldValue + (newValue - oldValue) * eased
         return String(current)
     }
 }

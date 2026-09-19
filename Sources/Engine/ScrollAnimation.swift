@@ -21,8 +21,8 @@ class ScrollAnimation {
     func animate() -> CGFloat? {
         frameCount += 1
         if frameCount > numFrames { return nil }
-        let t = Double(frameCount) / Double(numFrames)
-        let eased = easing.apply(t)
+        let t: Double = Double(frameCount) / Double(numFrames)
+        let eased: Double = easing.apply(t)
         return start + (target - start) * CGFloat(eased)
     }
 }

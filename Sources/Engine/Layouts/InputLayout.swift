@@ -28,11 +28,11 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         zoom = computeZoom(node, parentZoom: parent!.zoom)
         guard let element = node as? Element else { return }
 
-        let weight = element.style["font-weight"] ?? "normal"
-        var styleStr = element.style["font-style"] ?? "normal"
+        let weight: String = element.style["font-weight"] ?? "normal"
+        var styleStr: String = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
-        let sizePx = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+        let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
@@ -43,7 +43,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
 
         if let prev = previous as? InlineLayoutItem {
-            let space = prev.font.spaceWidth
+            let space: CGFloat = prev.font.spaceWidth
             x = prev.x + space + prev.width
         } else {
             x = parent!.x
@@ -61,10 +61,10 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
         var cmds: [any PaintCommand] = []
 
-        let bgcolor = element.style["background-color"] ?? "transparent"
-        let radiusStr = (element.style["border-radius"] ?? "0px").replacingOccurrences(
+        let bgcolor: String = element.style["background-color"] ?? "transparent"
+        let radiusStr: String = (element.style["border-radius"] ?? "0px").replacingOccurrences(
             of: "px", with: "")
-        let borderRadius = CGFloat(Double(radiusStr) ?? 0)
+        let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" {
             if borderRadius > 0 {
                 cmds.append(
@@ -89,7 +89,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                     )
                 )
             }
-            let outline = cssOutline(node, rect: selfRect())
+            let outline: DrawOutline? = cssOutline(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 2))
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 4))
@@ -98,9 +98,9 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             return cmds
         }
 
-        var text = ""
+        var text: String = ""
         if element.tag == "input" {
-            let value = element.attributes["value"] ?? ""
+            let value: String = element.attributes["value"] ?? ""
             if element.attributes["type"] == "password" {
                 text = String(repeating: "*", count: value.count)
             } else {
@@ -113,13 +113,13 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 text = textNode.text
             }
         }
-        let color = element.style["color"] ?? "black"
+        let color: String = element.style["color"] ?? "black"
         cmds.append(DrawText(at: CGPoint(x: x, y: y), text: text, font: font, color: color))
 
         if element.isFocused {
             // NOTE: cx = caret X
             // The caret X is the x-position of the blinking text cursor when the input has focus.
-            let cx = x + font.measure(text)
+            let cx: CGFloat = x + font.measure(text)
             cmds.append(
                 DrawLine(
                     from: CGPoint(x: cx, y: y),
@@ -129,7 +129,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 )
             )
         }
-        let outline = cssOutline(node, rect: selfRect())
+        let outline: DrawOutline? = cssOutline(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))

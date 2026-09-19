@@ -74,12 +74,12 @@ public class Browser: ObservableObject {
     private var lastTileScroll: CGFloat = .nan
 
     public var canvasColor: CGColor {
-        let name = activeFrame.theme.forcedColors ? ForcedColor.canvas : (activeFrame.theme.prefersDark ? "black" : "white")
+        let name: String = activeFrame.theme.forcedColors ? ForcedColor.canvas : (activeFrame.theme.prefersDark ? "black" : "white")
         return EngineColor(cssName: name).cgColor
     }
 
     public var activeSidebar: (frame: CGRect, color: CGColor)? {
-        let contentHeight = windowSize.height - topInset
+        let contentHeight: CGFloat = windowSize.height - topInset
         guard contentHeight > 0,
             let bar = scrollbarBarRect(
                 ScrollbarGeometry(
@@ -92,7 +92,7 @@ public class Browser: ObservableObject {
                 topInset: topInset
             )
         else { return nil }
-        let color = EngineColor(cssName: activeFrame.theme.forcedColors ? ForcedColor.canvasText : "blue")
+        let color: EngineColor = EngineColor(cssName: activeFrame.theme.forcedColors ? ForcedColor.canvasText : "blue")
         return (bar.rect.cgRect, color.cgColor)
     }
 
@@ -120,7 +120,7 @@ public class Browser: ObservableObject {
     }
 
     public func newTab(_ url: WebURL) {
-        let tab = Engine.Tab(
+        let tab: Tab = Engine.Tab(
             tabHeight: windowSize.height - topInset,
             tabWidth: windowSize.width
         )
@@ -131,7 +131,7 @@ public class Browser: ObservableObject {
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
-        let id = ObjectIdentifier(tab)
+        let id: ObjectIdentifier = ObjectIdentifier(tab)
         activeFrameID = id
         activeFrame = TabFrame()
         frames[id] = activeFrame
@@ -150,10 +150,10 @@ public class Browser: ObservableObject {
     }
 
     private func scheduleNextFrame() {
-        let now = Date()
+        let now: Date = Date()
 
         nextFrameTime = max(nextFrameTime + FRAME_BUDGET, now)
-        let delay = nextFrameTime.timeIntervalSinceNow
+        let delay: TimeInterval = nextFrameTime.timeIntervalSinceNow
         animationTimer = Timer.scheduledTimer(
             withTimeInterval: max(0, delay), repeats: false,
             block: {
@@ -182,7 +182,7 @@ public class Browser: ObservableObject {
 
     func commit(tab: Engine.Tab, data: CommitData) {
         guard tab === activeTab else { return }
-        let paintChanged = data.paint.paintEpoch != activeFrame.paint.paintEpoch
+        let paintChanged: Bool = data.paint.paintEpoch != activeFrame.paint.paintEpoch
         activeFrame.paint.displayList = data.paint.displayList
         activeFrame.scroll.scroll = data.scrollState.scroll
         activeFrame.scroll.interestTop = data.scrollState.interestTop
@@ -222,9 +222,9 @@ public class Browser: ObservableObject {
     }
 
     private func applyEffectFastPath(_ updates: [ObjectIdentifier: Engine.VisualEffect]) -> Bool {
-        let layers = activeFrame.render.layers
-        let infos = layers.map({ Browser.layerEffectInfo($0, updates: updates) })
-        let keys = Set(infos.compactMap({ $0.effect?.key }))
+        let layers: [CompositedLayer] = activeFrame.render.layers
+        let infos: [LayerEffectInfo] = layers.map({ Browser.layerEffectInfo($0, updates: updates) })
+        let keys: Set<ObjectIdentifier> = Set(infos.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
         for (index, info) in infos.enumerated() where info.kind == .ca {
             if layers[index].effectImage == nil { return false }
@@ -242,7 +242,7 @@ public class Browser: ObservableObject {
 
     private func resolvePendingHover() {
         guard let pending = pendingHover else { return }
-        let adjustedY = pending.y + activeTabScroll
+        let adjustedY: CGFloat = pending.y + activeTabScroll
         if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x, y: adjustedY) {
             if hoveredA11yNode == nil || hit.node !== hoveredA11yNode!.node {
                 needsSpeakHoveredNode = true
@@ -261,16 +261,16 @@ public class Browser: ObservableObject {
             return
         }
 
-        let wantsComposite = needsComposite
+        let wantsComposite: Bool = needsComposite
 
-        let scrollState = ScrollState(
+        let scrollState: ScrollState = ScrollState(
             scroll: activeFrame.scroll.scroll,
             interestTop: activeFrame.scroll.interestTop,
             interestBottom: activeFrame.scroll.interestBottom,
             maxScroll: activeFrame.scroll.maxScroll
         )
 
-        let inputs = RasterInput(
+        let inputs: RasterInput = RasterInput(
             scene: RasterScene(
                 displayList: activeFrame.paint.displayList,
                 compositedUpdates: activeFrame.paint.compositedUpdates,
@@ -285,7 +285,7 @@ public class Browser: ObservableObject {
             scrollState: scrollState
         )
 
-        let signature = FrameSignature(
+        let signature: FrameSignature = FrameSignature(
             geometry: FrameGeometry(
                 scroll: activeFrame.scroll.scroll,
                 viewport: windowSize,
@@ -315,11 +315,11 @@ public class Browser: ObservableObject {
         needsDraw = false
 
         measure.start("composite_raster_and_draw")
-        let frameStart = frameStartTime
+        let frameStart: Date = frameStartTime
         frameStartTime = .distantPast
-        let ownerID = activeFrameID
+        let ownerID: ObjectIdentifier? = activeFrameID
 
-        let measure = self.measure
+        let measure: MeasureTime = self.measure
         rasterScheduler.schedule(
             RasterScheduler.Job(
                 scale: inputs.settings.viewport.displayScale,
@@ -327,16 +327,16 @@ public class Browser: ObservableObject {
                     measure.start("raster.plan")
 
                     measure.start("raster.composite")
-                    let layers =
+                    let layers: [CompositedLayer] =
                         inputs.settings.flags.needsComposite
                         ? Browser.computeComposite(inputs)
                         : inputs.scene.previousLayers
                     measure.stop("raster.composite")
 
-                    let tabHeight = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
-                    let prefetch = 2 * CompositedLayer.tileSize
-                    let viewportWidth = inputs.settings.viewport.windowSize.width
-                    let window = RasterWindow(
+                    let tabHeight: CGFloat = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
+                    let prefetch: CGFloat = 2 * CompositedLayer.tileSize
+                    let viewportWidth: CGFloat = inputs.settings.viewport.windowSize.width
+                    let window: RasterWindow = RasterWindow(
                         hint: Rect(
                             left: 0,
                             top: inputs.scrollState.scroll - prefetch,
@@ -351,22 +351,22 @@ public class Browser: ObservableObject {
                         )
                     )
 
-                    let infos = layers.map {
+                    let infos: [LayerEffectInfo] = layers.map {
                         Browser.layerEffectInfo($0, updates: inputs.scene.compositedUpdates)
                     }
-                    let usesSublayers = !infos.contains {
+                    let usesSublayers: Bool = !infos.contains {
                         $0.kind == .blendFallback || $0.kind == .scrollFallback
                     }
 
                     measure.start("raster.plan.tiles")
                     var strips: [TileStrip] = []
-                    var deferred = false
+                    var deferred: Bool = false
                     if usesSublayers {
                         store.beginComposite(
                             viewportTop: inputs.scrollState.scroll,
                             viewportBottom: inputs.scrollState.scroll + tabHeight
                         )
-                        let budget = RasterBudget(CompositedLayer.rasterCapPerComposite)
+                        let budget: RasterBudget = RasterBudget(CompositedLayer.rasterCapPerComposite)
 
                         for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
                             strips.append(contentsOf: layer.rasterIfNeeded(
@@ -402,9 +402,9 @@ public class Browser: ObservableObject {
                     )
                 },
                 install: { (store: TileStore, plan: RasterPlan, images: [CGImage?]) -> RasterOutput in
-                    let layers = plan.commit.layers
-                    let infos = plan.commit.infos
-                    let inputs = plan.commit.inputs
+                    let layers: [CompositedLayer] = plan.commit.layers
+                    let infos: [LayerEffectInfo] = plan.commit.infos
+                    let inputs: RasterInput = plan.commit.inputs
 
                     measure.start("raster.install")
                     if plan.commit.usesSublayers {
@@ -445,12 +445,12 @@ public class Browser: ObservableObject {
                         measure.stop("raster.effect")
                     }
 
-                    let drawList = Browser.computePaintDrawList(layers: layers, inputs: inputs)
-                    let regionTop = inputs.scrollState.scroll
+                    let drawList: [Any] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
+                    let regionTop: CGFloat = inputs.scrollState.scroll
                     var contentImage: CGImage? = nil
 
                     if !plan.commit.usesSublayers && inputs.settings.flags.needsDraw {
-                        let regionHeight = inputs.settings.viewport.topInset + plan.batch.tabHeight
+                        let regionHeight: CGFloat = inputs.settings.viewport.topInset + plan.batch.tabHeight
                         measure.start("raster.bitmap")
                         contentImage = inputs.settings.flags.needsDraw
                             ? CGRenderer.renderBitmap(
@@ -527,12 +527,12 @@ public class Browser: ObservableObject {
                     self.measure.stop("composite_raster_and_draw")
                     self.compositeInFlight = false
                     if frameStart != .distantPast {
-                        let elapsed = Date().timeIntervalSince(frameStart)
+                        let elapsed: TimeInterval = Date().timeIntervalSince(frameStart)
                         self.recentFrameTimes.append(elapsed)
                         if self.recentFrameTimes.count > self.frameHistorySize {
                             self.recentFrameTimes.removeFirst()
                         }
-                        let avg = self.recentFrameTimes.reduce(0, +) / Double(self.recentFrameTimes.count)
+                        let avg: Double = self.recentFrameTimes.reduce(0, +) / Double(self.recentFrameTimes.count)
                         self.estimatedFrameTime = max(avg, self.FRAME_BUDGET)
                     }
                     if self.needsComposite || self.needsRaster || self.needsDraw {
@@ -544,7 +544,7 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func computeComposite(_ inputs: RasterInput) -> [CompositedLayer] {
-        var displayList = inputs.scene.displayList
+        var displayList: [Any] = inputs.scene.displayList
         addParentPointers(&displayList)
 
         var allCommands: [Any] = []
@@ -552,7 +552,7 @@ public class Browser: ObservableObject {
             treeToList(item, into: &allCommands)
         }
 
-        let nonComposited = allCommands.compactMap({ item -> (any PaintCommand)? in
+        let nonComposited: [any PaintCommand] = allCommands.compactMap({ item -> (any PaintCommand)? in
             if let pc = item as? (any PaintCommand) { return pc }
             if let ve = item as? VisualEffect, !ve.needsCompositing {
                 if ve.parent == nil || ve.parent!.needsCompositing { return nil }
@@ -561,13 +561,13 @@ public class Browser: ObservableObject {
         })
 
         var compositedLayers: [CompositedLayer] = []
-        var assumeOverlap = false
+        var assumeOverlap: Bool = false
         for cmd in nonComposited {
-            let underAnimated = sequence(
+            let underAnimated: Bool = sequence(
                 first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
             ).contains(where: { ($0 as? Transform)?.isAnimated == true })
             if underAnimated { assumeOverlap = true }
-            var merged = false
+            var merged: Bool = false
             for layer in compositedLayers.reversed() {
                 if layer.canMerge(cmd) {
                     layer.add(cmd)
@@ -586,7 +586,7 @@ public class Browser: ObservableObject {
 
         for layer in compositedLayers {
             var chain: [VisualEffect] = []
-            var effect = layer.displayItems.first?.parentEffect
+            var effect: VisualEffect? = layer.displayItems.first?.parentEffect
             while let e = effect {
                 chain.append(e)
                 effect = e.parent
@@ -602,7 +602,7 @@ public class Browser: ObservableObject {
         in compositedUpdates: [ObjectIdentifier: Engine.VisualEffect]
     ) -> Engine.VisualEffect {
         guard let node = effect.node else { return effect }
-        let key = ObjectIdentifier(node)
+        let key: ObjectIdentifier = ObjectIdentifier(node)
         guard let updated = compositedUpdates[key] else { return effect }
         if type(of: effect) == type(of: updated) {
             return updated
@@ -622,14 +622,14 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func layerEffectInfo(_ layer: CompositedLayer, updates: [ObjectIdentifier: Engine.VisualEffect]) -> LayerEffectInfo {
-        var kind = LayerEffectInfo.Kind.flat
+        var kind: LayerEffectInfo.Kind = LayerEffectInfo.Kind.flat
         var opacity: Double = 1
-        var translation = CGPoint.zero
+        var translation: CGPoint = CGPoint.zero
         var blur: CGFloat = 0
         var key: ObjectIdentifier?
         var blendMode: EngineBlendMode?
         for effect in layer.ancestorChain {
-            let latest = getLatest(effect, in: updates)
+            let latest: VisualEffect = getLatest(effect, in: updates)
             if latest is ScrollEffect {
                 kind = max(kind, .scrollFallback)
             } else if let blend = latest as? Blend {
@@ -659,7 +659,7 @@ public class Browser: ObservableObject {
                 if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
             }
         }
-        let effect = kind == .ca
+        let effect: LayerEffect? = kind == .ca
             ? LayerEffect(
                 key: key,
                 opacity: opacity,
@@ -700,10 +700,10 @@ public class Browser: ObservableObject {
                 visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
                 visibleBottom: inputs.scrollState.scroll + (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) + 2 * CompositedLayer.tileSize
             )
-            var mergedIntoExisting = false
+            var mergedIntoExisting: Bool = false
             for p in layer.ancestorChain {
-                let newParent = getLatest(p, in: inputs.scene.compositedUpdates)
-                let newParentKey = ObjectIdentifier(newParent)
+                let newParent: VisualEffect = getLatest(p, in: inputs.scene.compositedUpdates)
+                let newParentKey: ObjectIdentifier = ObjectIdentifier(newParent)
                 if let existing = newEffects[newParentKey] {
                     existing.children.append(currentEffect)
                     mergedIntoExisting = true
@@ -744,7 +744,7 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func layerPlacements(_ layers: [CompositedLayer], infos: [LayerEffectInfo]) -> [PlacedLayer] {
-        let t = CompositedLayer.tileSize
+        let t: CGFloat = CompositedLayer.tileSize
         var placements: [PlacedLayer] = []
         for (z, layer) in layers.enumerated() {
             switch infos[z].kind {
@@ -765,7 +765,7 @@ public class Browser: ObservableObject {
                     }
                 case .ca:
                     guard let image = layer.effectImage else { break }
-                    let bounds = layer.compositedBounds()
+                    let bounds: Rect = layer.compositedBounds()
                     placements.append(
                         PlacedLayer(
                             key: .composited(zIndex: z),
@@ -782,8 +782,8 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func rasterEffectBitmap(_ layer: CompositedLayer, scale: CGFloat, blur: CGFloat) -> CGImage? {
-        let bounds = layer.compositedBounds()
-        let size = CGSize(width: bounds.right - bounds.left, height: bounds.bottom - bounds.top)
+        let bounds: Rect = layer.compositedBounds()
+        let size: CGSize = CGSize(width: bounds.right - bounds.left, height: bounds.bottom - bounds.top)
         guard size.width > 0, size.height > 0 else { return nil }
         return CGRenderer.renderBitmap(size: size, scale: scale, { renderer in
             if blur > 0 {
@@ -797,7 +797,7 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func updateEffectImage(_ layer: CompositedLayer, scale: CGFloat, blur: CGFloat) {
-        let key = CompositedLayer.EffectImageKey(scale: scale, blur: blur, bounds: layer.compositedBounds())
+        let key: CompositedLayer.EffectImageKey = CompositedLayer.EffectImageKey(scale: scale, blur: blur, bounds: layer.compositedBounds())
         guard layer.effectImageKey != key else { return }
         layer.effectImage = Browser.rasterEffectBitmap(layer, scale: scale, blur: blur)
         layer.effectImageKey = key
@@ -833,7 +833,7 @@ public class Browser: ObservableObject {
 
         if activeFrame.render.content.usesSublayers {
             dispatchPresent()
-            let step = CompositedLayer.tileSize
+            let step: CGFloat = CompositedLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
                 lastTileScroll = scroll
                 setNeedsDrawOnly()
@@ -882,7 +882,7 @@ public class Browser: ObservableObject {
         else {
             return
         }
-        let nextIdx = (idx + 1) % tabs.count
+        let nextIdx: Int = (idx + 1) % tabs.count
         selectTab(tabs[nextIdx])
     }
 
@@ -891,7 +891,7 @@ public class Browser: ObservableObject {
         if let oldID = activeFrameID {
             frames[oldID] = activeFrame
         }
-        let id = ObjectIdentifier(tab)
+        let id: ObjectIdentifier = ObjectIdentifier(tab)
         activeFrameID = id
         activeFrame = frames[id] ?? TabFrame()
         activeTab = tab
@@ -919,7 +919,7 @@ public class Browser: ObservableObject {
 
     private func speakDocument() {
         guard let tree = activeTab?.accessibilityTree else { return }
-        var text = "Here the document contents: "
+        var text: String = "Here the document contents: "
         for node in treeToList(tree) {
             if !node.text.isEmpty { text += "\n" + node.text }
         }
@@ -929,16 +929,16 @@ public class Browser: ObservableObject {
 
     public func advanceAccessibility() {
         guard accessibilityIsOn, let tree = activeTab?.accessibilityTree else { return }
-        let readable = treeToList(tree).filter({ !$0.text.isEmpty })
+        let readable: [AccessibilityNode] = treeToList(tree).filter({ !$0.text.isEmpty })
         guard !readable.isEmpty else { return }
 
-        var nextIndex = 0
+        var nextIndex: Int = 0
         if let current = accessibilityFocusNode, let idx = readable.firstIndex(where: { $0.node === current.node }) {
             nextIndex = idx + 1
         }
 
         if nextIndex < readable.count {
-            let next = readable[nextIndex]
+            let next: AccessibilityNode = readable[nextIndex]
             accessibilityFocusNode = next
             speakNode(next, "")
         } else {
@@ -951,7 +951,7 @@ public class Browser: ObservableObject {
     }
 
     private func speakNode(_ node: AccessibilityNode, _ prefix: String) {
-        let text = prefix + node.text
+        let text: String = prefix + node.text
         if !text.isEmpty { speakText(text) }
     }
 
@@ -963,13 +963,13 @@ public class Browser: ObservableObject {
             hasSpokenDocument = true
         }
 
-        let allNodes = treeToList(tree)
+        let allNodes: [AccessibilityNode] = treeToList(tree)
 
         // --- Live Regions (aria-live) ---
-        let liveNodes = allNodes.filter({ $0.live != "off" })
+        let liveNodes: [AccessibilityNode] = allNodes.filter({ $0.live != "off" })
         for node in liveNodes {
-            let key = ObjectIdentifier(node.node)
-            let newText = node.text
+            let key: ObjectIdentifier = ObjectIdentifier(node.node)
+            let newText: String = node.text
             guard let oldText = liveRegionTexts[key] else {
                 liveRegionTexts[key] = newText
                 continue
@@ -987,7 +987,7 @@ public class Browser: ObservableObject {
         }
 
         // --- Legacy "role=alert" (backward compat) ---
-        let activeAlerts = allNodes.filter({ $0.role == "alert" })
+        let activeAlerts: [AccessibilityNode] = allNodes.filter({ $0.role == "alert" })
         for alert in activeAlerts {
             if !spokenAlerts.contains(where: { $0.node === alert.node }) {
                 speakNode(alert, "New alert")
@@ -998,7 +998,7 @@ public class Browser: ObservableObject {
             allNodes.contains(where: { $0.node === old.node && $0.role == "alert" })
         })
 
-        let currentFocus = activeTab?.focus
+        let currentFocus: Element? = activeTab?.focus
         if currentFocus !== lastFocus {
             if let f = currentFocus,
                 let focused = allNodes.first(where: { $0.node === f })

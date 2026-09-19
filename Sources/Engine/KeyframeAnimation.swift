@@ -46,8 +46,8 @@ class KeyframeAnimation: Animation {
 
         if alternate {
             reversed.toggle()
-            let from = reversed ? newValue : oldValue
-            let to = reversed ? oldValue : newValue
+            let from: String = reversed ? newValue : oldValue
+            let to: String = reversed ? oldValue : newValue
             inner = factory(from, to, numFrames, easing) ?? inner
         } else {
             inner = factory(oldValue, newValue, numFrames, easing) ?? inner

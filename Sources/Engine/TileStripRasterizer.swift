@@ -2,7 +2,7 @@ import CoreGraphics
 
 enum TileStripRasterizer {
     static func render(_ strip: TileStrip, scale: CGFloat) -> CGImage? {
-        let size = CGSize(
+        let size: CGSize = CGSize(
             width: strip.bounds.right - strip.bounds.left,
             height: strip.bounds.bottom - strip.bounds.top
         )

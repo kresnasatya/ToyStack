@@ -19,8 +19,8 @@ protocol LayoutObject: AnyObject {
 
 extension LayoutObject {
     func hitTest(x: CGFloat, y: CGFloat) -> (any LayoutObject)? {
-        var x = x
-        var y = y
+        var x: CGFloat = x
+        var y: CGFloat = y
 
         if let t = parseTransform(node.style["transform"] ?? "") {
             x -= t.x

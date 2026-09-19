@@ -19,7 +19,7 @@ nonisolated(unsafe) var visitedURL: Set<String> = []
 public func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
     profiler.count("text.fontRequests")
     return profiler.measure("text.font", {
-        let key = "\(size)-\(weight)-\(style)-\(family)"
+        let key: String = "\(size)-\(weight)-\(style)-\(family)"
         if let cached = fontCache[key] { return cached }
 
         var traits: CTFontSymbolicTraits = []
@@ -28,18 +28,18 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
 
         let ctFont: CTFont
         if family == "monospace" {
-            let baseFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
+            let baseFont: CTFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
             ctFont =
                 CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
                 ?? baseFont
         } else {
-            let baseFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
+            let baseFont: CTFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
             ctFont =
                 CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
                 ?? baseFont
         }
 
-        let font = BrowserFont(ctFont: ctFont)
+        let font: BrowserFont = BrowserFont(ctFont: ctFont)
         fontCache[key] = font
         return font
     })
@@ -56,11 +56,11 @@ nonisolated(unsafe) var inheritedProperties: [String: String] = [
 ]
 
 func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])]) {
-    let allNodes = treeToList(node)
+    let allNodes: [any DOMNode] = treeToList(node)
 
     for n in allNodes { n.satisfiedHas = [] }
 
-    let allHasSelectors = rules.flatMap({ $0.1.hasSelectors })
+    let allHasSelectors: [HasSelector] = rules.flatMap({ $0.1.hasSelectors })
     guard !allHasSelectors.isEmpty else { return }
 
     for n in allNodes.reversed() {
@@ -166,9 +166,9 @@ func applyStyle(
         }
 
         if let fontSize = node.style["font-size"], fontSize.hasSuffix("%") {
-            let parentFontSize = node.parent?.style["font-size"] ?? inheritedProperties["font-size"]!
-            let percentage = Double(fontSize.dropLast()) ?? 100.0
-            let parentPx = Double(parentFontSize.dropLast(2)) ?? 16.0
+            let parentFontSize: String = node.parent?.style["font-size"] ?? inheritedProperties["font-size"]!
+            let percentage: Double = Double(fontSize.dropLast()) ?? 100.0
+            let parentPx: Double = Double(parentFontSize.dropLast(2)) ?? 16.0
             node.style["font-size"] = "\(percentage / 100.0 * parentPx)px"
         }
     })
@@ -198,7 +198,7 @@ func mediaMatches(_ media: String?, theme: ThemeState, frameWidth: CGFloat) -> B
         case "forced-colors:none": return !theme.forcedColors
         default:
             if m.hasPrefix("max-width:") {
-                let limit = Double(m.dropFirst("max-width:".count)) ?? 0
+                let limit: Double = Double(m.dropFirst("max-width:".count)) ?? 0
                 return frameWidth <= CGFloat(limit)
             }
             return false
@@ -206,7 +206,7 @@ func mediaMatches(_ media: String?, theme: ThemeState, frameWidth: CGFloat) -> B
 }
 
 func setInlineStyleProperty(_ elt: Element, property: String, value: String) {
-    var props = CSSParser(elt.attributes["style"] ?? "").body()
+    var props: [String : String] = CSSParser(elt.attributes["style"] ?? "").body()
     props[property.lowercased()] = value
     elt.attributes["style"] = props.map({
         "\($0.key): \($0.value)"
@@ -246,7 +246,7 @@ func treeToList(_ item: Any, into list: inout [Any]) {
 }
 
 func treeToList(_ node: AccessibilityNode) -> [AccessibilityNode] {
-    var result = [node]
+    var result: [AccessibilityNode] = [node]
     for child in node.children {
         result.append(contentsOf: treeToList(child))
     }
@@ -262,8 +262,8 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
         var childCmds: [Any] = []
-        let visibleTop = block.y + block.scrollOffset
-        let visibleBottom = visibleTop + block.height
+        let visibleTop: CGFloat = block.y + block.scrollOffset
+        let visibleBottom: CGFloat = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []
         for child in obj.children {
             if child.y + child.height < visibleTop { continue }
@@ -273,7 +273,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
         for child in inPaintOrder(visibleChildren) {
             paintTree(child, into: &childCmds)
         }
-        let effect = ScrollEffect(
+        let effect: ScrollEffect = ScrollEffect(
             rect: block.selfRect(), scrollOffset: block.scrollOffset, node: block.node,
             children: childCmds)
         cmds.append(effect)
@@ -299,8 +299,8 @@ func effectiveZIndex(_ node: any DOMNode) -> Int {
 func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
     return children.enumerated()
         .sorted { a, b in
-            let za = effectiveZIndex(a.element.node)
-            let zb = effectiveZIndex(b.element.node)
+            let za: Int = effectiveZIndex(a.element.node)
+            let zb: Int = effectiveZIndex(b.element.node)
             return za == zb ? a.offset < b.offset : za < zb
         }
         .map { $0.element }
@@ -310,8 +310,8 @@ let REFRESH_RATE_SEC: Double = 1.0 / 60.0
 
 func splitTopLevel(_ value: String, separator: Character) -> [String] {
     var parts: [String] = []
-    var depth = 0
-    var current = ""
+    var depth: Int = 0
+    var current: String = ""
     for ch in value {
         if ch == "(" {
             depth += 1
@@ -338,8 +338,8 @@ func parseEasing(_ value: String) -> EasingFunction {
     case "ease-out": return .easeOut
     default:
         if value.hasPrefix("cubic-bezier(") && value.hasSuffix(")") {
-            let inner = value.dropFirst("cubic-bezier(".count).dropLast()
-            let nums = inner.split(separator: ",")
+            let inner: Substring.SubSequence = value.dropFirst("cubic-bezier(".count).dropLast()
+            let nums: [Double] = inner.split(separator: ",")
                 .compactMap({ Double($0.trimmingCharacters(in: .whitespaces)) })
             if nums.count == 4 {
                 return .cubicBezier(x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3])
@@ -353,18 +353,18 @@ func parseTransition(_ value: String) -> [String: TransitionSpec] {
     var properties: [String: TransitionSpec] = [:]
     guard !value.isEmpty else { return properties }
     for item in splitTopLevel(value, separator: ",") {
-        let normalized = item.split(whereSeparator: { $0.isWhitespace })
+        let normalized: String = item.split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
-        let tokens = splitTopLevel(normalized, separator: " ").filter({
+        let tokens: [String] = splitTopLevel(normalized, separator: " ").filter({
             !$0.isEmpty
         })
         guard tokens.count >= 2 else { continue }
-        let property = tokens[0]
-        let durationStr = tokens[1]
+        let property: String = tokens[0]
+        let durationStr: String = tokens[1]
         guard durationStr.hasSuffix("s"), let seconds = Double(durationStr.dropLast())
         else { continue }
-        let numFrames = Int(seconds / REFRESH_RATE_SEC)
-        let easing = tokens.count >= 3 ? parseEasing(tokens[2]) : .ease
+        let numFrames: Int = Int(seconds / REFRESH_RATE_SEC)
+        let easing: EasingFunction = tokens.count >= 3 ? parseEasing(tokens[2]) : .ease
         properties[property] = TransitionSpec(numFrames: numFrames, easing: easing)
     }
     return properties
@@ -379,13 +379,13 @@ struct AnimationSpec {
 }
 
 func parseAnimationShorthand(_ value: String) -> AnimationSpec? {
-    let tokens = value.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+    let tokens: [String] = value.split(whereSeparator: { $0.isWhitespace }).map(String.init)
     guard !tokens.isEmpty else { return nil }
 
     var name: String?
     var numFrames: Int?
-    var infinite = false
-    var alternate = false
+    var infinite: Bool = false
+    var alternate: Bool = false
 
     for token in tokens {
         if token.hasSuffix("s"), let seconds = Double(token.dropLast()) {
@@ -407,9 +407,9 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
     Animation]
 {
     var animations: [String: Animation] = [:]
-    let transitions = parseTransition(newStyle["transition"] ?? "")
+    let transitions: [String : TransitionSpec] = parseTransition(newStyle["transition"] ?? "")
     for (property, spec) in transitions {
-        let numFrames = spec.numFrames
+        let numFrames: Int = spec.numFrames
         guard let oldVal = oldStyle[property],
             let newVal = newStyle[property],
             oldVal != newVal
@@ -458,7 +458,7 @@ func buildKeyframeAnimation(
         let to = frames.first(where: { $0.offset == 1.0 })
     else { return nil }
 
-    let differing = from.body.filter { to.body[$0.key] != $0.value }
+    let differing: [String : String] = from.body.filter { to.body[$0.key] != $0.value }
     guard let (property, oldVal) = differing.first, let newVal = to.body[property]
     else { return nil }
 
@@ -495,7 +495,7 @@ func buildKeyframeAnimation(
 }
 
 func parseTransform(_ value: String) -> CGPoint? {
-    let pattern = #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
+    let pattern: String = #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
     guard let regex = try? NSRegularExpression(pattern: pattern),
         let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
         let xRange = Range(match.range(at: 1), in: value),
@@ -507,12 +507,12 @@ func parseTransform(_ value: String) -> CGPoint? {
 }
 
 func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
-    let opacity = Double(node.style["opacity"] ?? "1.0") ?? 1.0
-    let blendModeStr = node.style["mix-blend-mode"]
-    let translation = parseTransform(node.style["transform"] ?? "")
-    let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
-    let borderRadius = CGFloat(Double(radiusStr) ?? 0)
-    let blurRadius = parseBlur(node.style["filter"] ?? "")
+    let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
+    let blendModeStr: String? = node.style["mix-blend-mode"]
+    let translation: CGPoint? = parseTransform(node.style["transform"] ?? "")
+    let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
+    let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
+    let blurRadius: CGFloat = parseBlur(node.style["filter"] ?? "")
 
     let blendMode: EngineBlendMode? = {
         switch blendModeStr {
@@ -522,7 +522,7 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
         default: return nil
         }
     }()
-    let animated = node.animations["transform-x"] != nil
+    let animated: Bool = node.animations["transform-x"] != nil
         || node.animations["transform-y"] != nil
         || node.animations["opacity"] != nil
     guard borderRadius > 0 || blurRadius > 0 || opacity < 1
@@ -532,7 +532,7 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
 
     var effectCmds: [Any] = cmds
     if borderRadius > 0 {
-        let clip = Blend(
+        let clip: Blend = Blend(
             opacity: 1.0, blendMode: .normal, node: node,
             children: [
                 DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: "transparent")
@@ -544,19 +544,19 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
         effectCmds = [BlurFilter(radius: blurRadius, node: node, children: effectCmds)]
     }
 
-    let blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: effectCmds)
-    let transform = Transform(translation: translation, rect: rect, node: node, children: [blend])
+    let blend: Blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: effectCmds)
+    let transform: Transform = Transform(translation: translation, rect: rect, node: node, children: [blend])
     return [transform]
 }
 
 // MARK: - CSS outline
 func cssOutline(_ node: any DOMNode, rect: Rect) -> DrawOutline? {
-    let style = node.style["outline-style"] ?? "none"
+    let style: String = node.style["outline-style"] ?? "none"
     guard style != "none", style != "hidden" else { return nil }
     guard let thickness = outlineWidthPx(node.style["outline-width"] ?? "medium"),
         thickness > 0
     else { return nil }
-    let color = node.style["outline-color"] ?? node.style["color"] ?? "black"
+    let color: String = node.style["outline-color"] ?? node.style["color"] ?? "black"
     return DrawOutline(rect: rect, color: color, thickness: thickness)
 }
 
@@ -586,7 +586,7 @@ func getTabIndex(_ node: DOMNode) -> Int {
 
 func computeZoom(_ node: any DOMNode, parentZoom: CGFloat) -> CGFloat {
     guard let zoomStr = node.style["zoom"] else { return parentZoom }
-    let trimmed = zoomStr.trimmingCharacters(in: .whitespaces)
+    let trimmed: String = zoomStr.trimmingCharacters(in: .whitespaces)
     let factor: CGFloat
     if trimmed.hasSuffix("%"), let pct = Double(trimmed.dropLast()) {
         factor = CGFloat(pct / 100.0)
@@ -603,14 +603,14 @@ func dpx(_ cssPx: CGFloat, zoom: CGFloat) -> CGFloat {
 }
 
 func addParentPointers(_ items: inout [Any], parent: VisualEffect? = nil) {
-    var visited = Set<ObjectIdentifier>()
+    var visited: Set<ObjectIdentifier> = Set<ObjectIdentifier>()
     var stack: [([Any], VisualEffect?)] = [(items, parent)]
 
     while !stack.isEmpty {
         let (currentNodes, currentParent) = stack.removeLast()
         for node in currentNodes {
             if let ve = node as? VisualEffect {
-                let id = ObjectIdentifier(ve)
+                let id: ObjectIdentifier = ObjectIdentifier(ve)
                 guard !visited.contains(id) else { continue }
                 visited.insert(id)
                 ve.parent = currentParent
@@ -628,7 +628,7 @@ func addParentPointers(_ items: inout [Any], parent: VisualEffect? = nil) {
 
 func parseBlur(_ value: String) -> CGFloat {
     guard value.hasPrefix("blur("), value.hasSuffix(")") else { return 0 }
-    let inner = value.dropFirst(5).dropLast()
-    let digits = inner.hasSuffix("px") ? inner.dropLast(2) : inner
+    let inner: Substring.SubSequence = value.dropFirst(5).dropLast()
+    let digits: Substring.SubSequence = inner.hasSuffix("px") ? inner.dropLast(2) : inner
     return CGFloat(Double(digits) ?? 0)
 }

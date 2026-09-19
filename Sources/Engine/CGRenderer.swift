@@ -24,7 +24,7 @@ public final class CGRenderer: Renderer {
         ctx.translateBy(x: 0, y: size.height)
         ctx.scaleBy(x: 1, y: -1)
 
-        let r = CGRenderer(cg: ctx, canvasSize: CGSize(width: size.width, height: size.height), scale: scale)
+        let r: CGRenderer = CGRenderer(cg: ctx, canvasSize: CGSize(width: size.width, height: size.height), scale: scale)
         if let bg = backgroundColor {
             r.fillRect(CGRect(x: 0, y: 0, width: size.width, height: size.height), color: bg)
         }
@@ -43,7 +43,7 @@ public final class CGRenderer: Renderer {
     }
 
     public func fillRRect(_ rect: CGRect, radius: CGFloat, color: EngineColor) {
-        let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+        let path: CGPath = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         cg.setFillColor(color.cgColor)
         cg.addPath(path)
         cg.fillPath()
@@ -64,11 +64,11 @@ public final class CGRenderer: Renderer {
     }
 
     public func drawText(_ text: String, font: CTFont, color: EngineColor, at point: CGPoint) {
-        let attrs = NSAttributedString(string: text, attributes: [
+        let attrs: NSAttributedString = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
         ])
-        let line = CTLineCreateWithAttributedString(attrs)
+        let line: CTLine = CTLineCreateWithAttributedString(attrs)
         cg.saveGState()
         cg.translateBy(x: point.x, y: point.y + CTFontGetAscent(font))
         cg.scaleBy(x: 1, y: -1)
@@ -95,8 +95,8 @@ public final class CGRenderer: Renderer {
                 backgroundColor: nil, content
             )
                 else { return }
-            var ci = CIImage(cgImage: layerImage)
-            let extent = ci.extent
+            var ci: CIImage = CIImage(cgImage: layerImage)
+            let extent: CGRect = ci.extent
             ci = ci.clampedToExtent()
             ci = ci.applyingGaussianBlur(sigma: blur / 2)
             ci = ci.cropped(to: extent)

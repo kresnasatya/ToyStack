@@ -21,7 +21,7 @@ public class WebURL: @unchecked Sendable {
             scheme = "data"
             host = ""
             port = 0
-            let afterScheme = String(rawURL.dropFirst(5))  // remove "data:"
+            let afterScheme: String = String(rawURL.dropFirst(5))  // remove "data:"
             if let commaIdx = afterScheme.firstIndex(of: ",") {
                 mimeType = String(afterScheme[afterScheme.startIndex..<commaIdx])
                 path = String(afterScheme[afterScheme.index(after: commaIdx)...])
@@ -59,7 +59,7 @@ public class WebURL: @unchecked Sendable {
             return
         }
 
-        let parsedScheme = String(rawURL[rawURL.startIndex..<schemeRange.lowerBound])
+        let parsedScheme: String = String(rawURL[rawURL.startIndex..<schemeRange.lowerBound])
         guard parsedScheme == "http" || parsedScheme == "https" || parsedScheme == "file" else {
             scheme = "about"
             host = ""
@@ -70,14 +70,14 @@ public class WebURL: @unchecked Sendable {
         }
         scheme = parsedScheme
 
-        var rest = String(rawURL[schemeRange.upperBound...])
+        var rest: String = String(rawURL[schemeRange.upperBound...])
         if !rest.contains("/") {
             rest += "/"
         }
 
-        let slashIdx = rest.firstIndex(of: "/")!
-        var hostPart = String(rest[rest.startIndex..<slashIdx])
-        let pathPart = String(rest[slashIdx...])
+        let slashIdx: String.Index = rest.firstIndex(of: "/")!
+        var hostPart: String = String(rest[rest.startIndex..<slashIdx])
+        let pathPart: String = String(rest[slashIdx...])
         if let hashIdx = pathPart.firstIndex(of: "#") {
             path = String(pathPart[pathPart.startIndex..<hashIdx])
             fragment = String(pathPart[pathPart.index(after: hashIdx)...])
@@ -85,9 +85,9 @@ public class WebURL: @unchecked Sendable {
             path = pathPart.isEmpty ? "/" : pathPart
         }
 
-        var defaultPort = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
+        var defaultPort: Int = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
         if hostPart.contains(":") {
-            let parts = hostPart.split(separator: ":", maxSplits: 1)
+            let parts: [String.SubSequence] = hostPart.split(separator: ":", maxSplits: 1)
             hostPart = String(parts[0])
             defaultPort = Int(parts[1])!
         }
@@ -110,7 +110,7 @@ public class WebURL: @unchecked Sendable {
 
         if scheme == "file" {
             // Read the file at `path` and return its contents
-            let content = try String(contentsOfFile: path, encoding: .utf8)
+            let content: String = try String(contentsOfFile: path, encoding: .utf8)
             return (status: 200, headers: [:], content: content)
         }
 
@@ -119,21 +119,21 @@ public class WebURL: @unchecked Sendable {
         }
 
         if scheme == "view-source" {
-            let innerURL = WebURL(path)
+            let innerURL: WebURL = WebURL(path)
             let (_, _, content) = try await innerURL.request()
             return (status: 200, headers: [:], content: HTMLSyntaxHighlighter(body: content).highlight())
         }
 
-        let method = payload != nil ? "POST" : "GET"
+        let method: String = payload != nil ? "POST" : "GET"
 
-        let cacheKey = toString()
+        let cacheKey: String = toString()
         if method == "GET" {
             if let cached = await ResponseCache.shared.get(cacheKey) {
                 return (cached.status, cached.headers, cached.content)
             }
         }
 
-        var components = Foundation.URLComponents()
+        var components: URLComponents = Foundation.URLComponents()
         components.scheme = scheme
         components.host = host
         components.port =
@@ -149,7 +149,7 @@ public class WebURL: @unchecked Sendable {
             fatalError("Could not construct URL from components")
         }
 
-        var urlRequest = URLRequest(url: foundationURL)
+        var urlRequest: URLRequest = URLRequest(url: foundationURL)
         urlRequest.httpMethod = method
         urlRequest.setValue(host, forHTTPHeaderField: "Host")
         urlRequest.setValue("keep-alive", forHTTPHeaderField: "Connection")
@@ -165,7 +165,7 @@ public class WebURL: @unchecked Sendable {
         }
 
         if let (cookie, params) = await CookieJar.shared.get(host) {
-            var allowCookie = true
+            var allowCookie: Bool = true
             if let ref = referrer, params["samesite"] == "lax" {
                 if method != "GET" {
                     allowCookie = host == ref.host
@@ -195,17 +195,17 @@ public class WebURL: @unchecked Sendable {
         }
 
         if let setCookie = headers["set-cookie"] {
-            var cookieStr = setCookie
+            var cookieStr: String = setCookie
             var cookieParams: [String: String] = [:]
             if cookieStr.contains(";") {
-                let parts = cookieStr.split(separator: ";", maxSplits: 1)
+                let parts: [String.SubSequence] = cookieStr.split(separator: ";", maxSplits: 1)
                 cookieStr = String(parts[0])
                 if parts.count > 1 {
-                    let rest = String(parts[1])
+                    let rest: String = String(parts[1])
                     for param in rest.split(separator: ";") {
-                        let trimmed = param.trimmingCharacters(in: .whitespaces)
+                        let trimmed: String = param.trimmingCharacters(in: .whitespaces)
                         if trimmed.contains("=") {
-                            let kv = trimmed.split(separator: "=", maxSplits: 1)
+                            let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
                             cookieParams[String(kv[0]).lowercased()] = String(kv[1]).lowercased()
                         } else {
                             cookieParams[trimmed.lowercased()] = "true"
@@ -217,10 +217,10 @@ public class WebURL: @unchecked Sendable {
             await CookieJar.shared.set(self.host, cookie: cookieStr, params: cookieParams)
         }
 
-        let content = String(data: data, encoding: .utf8) ?? ""
+        let content: String = String(data: data, encoding: .utf8) ?? ""
 
         if method == "GET" && httpResponse.statusCode == 200 {
-            let cacheControl = headers["cache-control"] ?? ""
+            let cacheControl: String = headers["cache-control"] ?? ""
             if cacheControl.contains("no-store") {
 
             } else if cacheControl.contains("max-age="),
@@ -260,8 +260,8 @@ public class WebURL: @unchecked Sendable {
         final class ResultBox: @unchecked Sendable {
             var value: (status: Int, headers: [String: String], content: String)?
         }
-        let box = ResultBox()
-        let semaphore = DispatchSemaphore(value: 0)
+        let box: ResultBox = ResultBox()
+        let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
         Task {
             box.value = try? await self.request(payload: payload, extraHeaders: extraHeaders)
             semaphore.signal()
@@ -271,7 +271,7 @@ public class WebURL: @unchecked Sendable {
     }
 
     public func toString() -> String {
-        var portPart = ":\(port)"
+        var portPart: String = ":\(port)"
         if scheme == "https" && port == 443 { portPart = "" }
         if scheme == "http" && port == 80 { portPart = "" }
         if scheme == "file" { portPart = "" }
@@ -285,7 +285,7 @@ public class WebURL: @unchecked Sendable {
             return "about:\(path)"
         }
 
-        var result = "\(scheme)://\(host)\(portPart)\(path)"
+        var result: String = "\(scheme)://\(host)\(portPart)\(path)"
         if let f = fragment { result += "#\(f)" }
         return result
     }
@@ -314,7 +314,7 @@ public class WebURL: @unchecked Sendable {
             dir = ""
         }
 
-        var relURL = rawURL
+        var relURL: String = rawURL
         while relURL.hasPrefix("../") {
             relURL = String(relURL.dropFirst(3))
             if let lastSlash = dir.lastIndex(of: "/") {

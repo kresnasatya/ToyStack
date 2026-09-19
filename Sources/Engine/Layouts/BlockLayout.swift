@@ -44,7 +44,7 @@ class BlockLayout: LayoutObject {
     func layout() {
         profiler.measure("layout.block.build") {
             zoom = computeZoom(node, parentZoom: parent!.zoom)
-            let isAbsolute = node.style["position"] == "absolute"
+            let isAbsolute: Bool = node.style["position"] == "absolute"
             if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
             {
@@ -68,7 +68,7 @@ class BlockLayout: LayoutObject {
             {
                 y = CGFloat(t)
             } else {
-                let ownTop = marginPx(node, "margin-top")
+                let ownTop: CGFloat = marginPx(node, "margin-top")
                 if let prev = previous, prev is BlockLayout {
                     y = prev.y + prev.height + marginPx(prev.node, "margin-bottom") + ownTop
                 } else {
@@ -80,7 +80,7 @@ class BlockLayout: LayoutObject {
                 y += VSTEP
             }
 
-            let mode = layoutMode()
+            let mode: String = layoutMode()
             if mode == "block" {
                 var prev: (any LayoutObject)? = nil
                 var inlineRun: [any DOMNode] = []
@@ -90,11 +90,11 @@ class BlockLayout: LayoutObject {
                     if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
                         continue
                     }
-                    let isBlock = child.style["display"] == "block"
+                    let isBlock: Bool = child.style["display"] == "block"
                     if isBlock {
                         if let el = child as? Element, el.tag == "h6" {
                             if !inlineRun.isEmpty {
-                                let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                let anon: BlockLayout = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
                                 children.append(anon)
                                 prev = anon
                                 inlineRun = []
@@ -102,19 +102,19 @@ class BlockLayout: LayoutObject {
                             pendingRunIn = el
                         } else {
                             if !inlineRun.isEmpty {
-                                let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                let anon: BlockLayout = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
                                 children.append(anon)
                                 prev = anon
                                 inlineRun = []
                             }
                             if let runIn = pendingRunIn {
-                                let next = BlockLayout(
+                                let next: BlockLayout = BlockLayout(
                                     nodes: [runIn, child], parent: self, previous: prev)
                                 children.append(next)
                                 prev = next
                                 pendingRunIn = nil
                             } else {
-                                let next = BlockLayout(node: child, parent: self, previous: prev)
+                                let next: BlockLayout = BlockLayout(node: child, parent: self, previous: prev)
                                 children.append(next)
                                 if child.style["position"] != "absolute" { prev = next }
                             }
@@ -124,11 +124,11 @@ class BlockLayout: LayoutObject {
                     }
                 }
                 if !inlineRun.isEmpty {
-                    let anon = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                    let anon: BlockLayout = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
                     children.append(anon)
                 }
                 if let runIn = pendingRunIn {
-                    let next = BlockLayout(node: runIn, parent: self, previous: prev)
+                    let next: BlockLayout = BlockLayout(node: runIn, parent: self, previous: prev)
                     children.append(next)
                 }
             } else {
@@ -143,9 +143,9 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout() }
 
-        let sumHeight = children.reduce(0) {
+        let sumHeight: Double = children.reduce(0) {
             if $1.node.style["position"] == "absolute" { return $0 }
-            var h = $1.height
+            var h: CGFloat = $1.height
             if $1 is BlockLayout {
                 h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
             }
@@ -166,7 +166,7 @@ class BlockLayout: LayoutObject {
         }
 
         if let el = node as? Element, el.style["overflow"] == "scroll" {
-            let maxScroll = max(0, contentHeight - height)
+            let maxScroll: CGFloat = max(0, contentHeight - height)
             scrollOffset = min(el.scrollOffsetY, maxScroll)
         }
     }
@@ -174,7 +174,7 @@ class BlockLayout: LayoutObject {
     private func layoutMode() -> String {
         if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
-        let hasBlockChild = node.children.contains(where: {
+        let hasBlockChild: Bool = node.children.contains(where: {
             $0.style["display"] == "block"
         })
         if hasBlockChild { return "block" }
@@ -231,22 +231,22 @@ class BlockLayout: LayoutObject {
     private func addWord(node: any DOMNode, word: String) {
         profiler.count("text.words")
         let font: BrowserFont
-        let nodeID = ObjectIdentifier(node)
+        let nodeID: ObjectIdentifier = ObjectIdentifier(node)
         if let cachedFont = fontByNode[nodeID] {
             font = cachedFont
         } else {
             profiler.count("text.fontNodes")
-            let weight = node.style["font-weight"] ?? "normal"
-            var style = node.style["font-style"] ?? "normal"
+            let weight: String = node.style["font-weight"] ?? "normal"
+            var style: String = node.style["font-style"] ?? "normal"
             if style == "normal" { style = "roman" }
-            let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-            let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+            let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+            let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
             font = getFont(
                 size: sizeInt, weight: weight, style: style,
                 family: node.style["font-family"] ?? "serif")
             fontByNode[nodeID] = font
         }
-        let w = font.measure(word)
+        let w: CGFloat = font.measure(word)
 
         if isInsideAbbr(node) && word.contains(where: { $0.isLowercase }) {
             addAbbrWord(node: node, word: word)
@@ -256,20 +256,20 @@ class BlockLayout: LayoutObject {
         let mode: WhiteSpace = WhiteSpace.mode(of: node)
         if cursorX + w > width && mode.wraps {
             if word.contains("\u{00AD}") {
-                let parts = word.components(separatedBy: "\u{00AD}")
-                var chunk = ""
-                var breakIdx = -1
+                let parts: [String] = word.components(separatedBy: "\u{00AD}")
+                var chunk: String = ""
+                var breakIdx: Int = -1
                 for (i, part) in parts.dropLast().enumerated() {
-                    let candidate = chunk + part + "-"
+                    let candidate: String = chunk + part + "-"
                     if cursorX + font.measure(candidate) <= width {
                         chunk = chunk + part
                         breakIdx = i
                     }
                 }
                 if breakIdx >= 0 {
-                    let line = children.last!
-                    let prev = line.children.last
-                    let chunkText = TextLayout(
+                    let line: any LayoutObject = children.last!
+                    let prev: (any LayoutObject)? = line.children.last
+                    let chunkText: TextLayout = TextLayout(
                         node: node,
                         word: chunk + "-",
                         parent: line,
@@ -286,9 +286,9 @@ class BlockLayout: LayoutObject {
             newLine()
         }
 
-        let line = children.last!
-        let prevWord = line.children.last
-        let textLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)
+        let line: any LayoutObject = children.last!
+        let prevWord: (any LayoutObject)? = line.children.last
+        let textLayout: TextLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)
         textLayout.fontOverride = font
         line.children.append(textLayout)
         cursorX += w + font.spaceWidth
@@ -296,8 +296,8 @@ class BlockLayout: LayoutObject {
 
     private func newLine() {
         cursorX = 0
-        let lastLine = children.last
-        let line = LineLayout(node: node, parent: self, previous: lastLine)
+        let lastLine: (any LayoutObject)? = children.last
+        let line: LineLayout = LineLayout(node: node, parent: self, previous: lastLine)
         if let el = node as? Element, el.tag == "h1", el.attributes["class"] == "title" {
             line.centered = true
         }
@@ -307,19 +307,19 @@ class BlockLayout: LayoutObject {
     private func addInput(_ node: Element) {
         if node.attributes["type"] == "hidden" { return }
 
-        let w = BlockLayout.inputWidthPx
+        let w: CGFloat = BlockLayout.inputWidthPx
         if cursorX + w > width { newLine() }
-        let line = children.last!
-        let prevItem = line.children.last
-        let input = InputLayout(node: node, parent: line, previous: prevItem)
+        let line: any LayoutObject = children.last!
+        let prevItem: (any LayoutObject)? = line.children.last
+        let input: InputLayout = InputLayout(node: node, parent: line, previous: prevItem)
         line.children.append(input)
 
-        let weight = node.style["font-weight"] ?? "normal"
-        var style = node.style["font-style"] ?? "normal"
+        let weight: String = node.style["font-weight"] ?? "normal"
+        var style: String = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
-        let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(sizePx * 0.75)
-        let font = getFont(
+        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizeInt: Int = Int(sizePx * 0.75)
+        let font: BrowserFont = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
         cursorX += w + font.spaceWidth
@@ -327,18 +327,18 @@ class BlockLayout: LayoutObject {
     }
 
     private func addButton(_ node: Element) {
-        let w = InputLayout.inputWidthPx
+        let w: CGFloat = InputLayout.inputWidthPx
         if cursorX + w > width { newLine() }
-        let line = children.last!
-        let prevItem = line.children.last
-        let button = ButtonLayout(node: node, parent: line, previous: prevItem)
+        let line: any LayoutObject = children.last!
+        let prevItem: (any LayoutObject)? = line.children.last
+        let button: ButtonLayout = ButtonLayout(node: node, parent: line, previous: prevItem)
         line.children.append(button)
-        let font = getFont(size: 12, weight: "normal", style: "roman")
+        let font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
         cursorX += w + font.spaceWidth
     }
 
     private func isInsideAbbr(_ node: any DOMNode) -> Bool {
-        var current = node.parent
+        var current: (any DOMNode)? = node.parent
         while let c = current {
             if let el = c as? Element, el.tag == "abbr" { return true }
             current = c.parent
@@ -349,7 +349,7 @@ class BlockLayout: LayoutObject {
     private func addAbbrWord(node: any DOMNode, word: String) {
         var runs: [(String, Bool)] = []
         for ch in word {
-            let isLower = ch.isLowercase
+            let isLower: Bool = ch.isLowercase
             if runs.last?.1 == isLower {
                 runs[runs.count - 1].0.append(ch)
             } else {
@@ -357,16 +357,16 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        let weight = node.style["font-weight"] ?? "normal"
-        var styleStr = node.style["font-style"] ?? "normal"
+        let weight: String = node.style["font-weight"] ?? "normal"
+        var styleStr: String = node.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
-        let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(sizePx * 0.75)
-        let smallSize = Int(Double(sizeInt) * 0.75)
+        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizeInt: Int = Int(sizePx * 0.75)
+        let smallSize: Int = Int(Double(sizeInt) * 0.75)
 
         for (text, isLower) in runs {
-            let displayText = isLower ? text.uppercased() : text
-            let font =
+            let displayText: String = isLower ? text.uppercased() : text
+            let font: BrowserFont =
                 isLower
                 ? getFont(
                     size: smallSize, weight: "bold", style: styleStr,
@@ -374,11 +374,11 @@ class BlockLayout: LayoutObject {
                 : getFont(
                     size: sizeInt, weight: weight, style: styleStr,
                     family: node.style["font-family"] ?? "serif")
-            let w = font.measure(displayText)
+            let w: CGFloat = font.measure(displayText)
             if cursorX + w > width { newLine() }
-            let line = children.last!
-            let prev = line.children.last
-            let textLayout = TextLayout(node: node, word: text, parent: line, previous: prev)
+            let line: any LayoutObject = children.last!
+            let prev: (any LayoutObject)? = line.children.last
+            let textLayout: TextLayout = TextLayout(node: node, word: text, parent: line, previous: prev)
             textLayout.fontOverride = font
             textLayout.displayWord = displayText
             line.children.append(textLayout)
@@ -391,10 +391,10 @@ class BlockLayout: LayoutObject {
 
     func paint() -> [Any] {
         var commands: [Any] = []
-        let bgcolor = node.style["background-color"] ?? "transparent"
-        let radiusStr = (node.style["border-radius"] ?? "0px").replacingOccurrences(
+        let bgcolor: String = node.style["background-color"] ?? "transparent"
+        let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(
             of: "px", with: "")
-        let borderRadius = CGFloat(Double(radiusStr) ?? 0)
+        let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
             if borderRadius > 0 {
                 commands.append(
@@ -406,28 +406,28 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        let borderStyle = node.style["border-style"] ?? "none"
+        let borderStyle: String = node.style["border-style"] ?? "none"
         if borderStyle != "none",
             let widthStr = node.style["border-width"],
             let borderPx = Double(widthStr.dropLast(2))
         {
-            let color = node.style["border-color"] ?? "black"
+            let color: String = node.style["border-color"] ?? "black"
             commands.append(
                 DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
         }
 
-        let outline = cssOutline(node, rect: selfRect())
+        let outline: DrawOutline? = cssOutline(node, rect: selfRect())
         if node.isFocusVisible && outline == nil {
-            let ring = ringColors(node)
+            let ring: (outer: String, inner: String) = ringColors(node)
             commands.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
             commands.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
         }
         if let outline = outline { commands.append(outline) }
 
         if let el = node as? Element, el.tag == "li" {
-            let bulletX = x - BlockLayout.liIndent
-            let bulletY = y + (VSTEP - BlockLayout.bulletSize) / 2
-            let bulletRect = Rect(
+            let bulletX: CGFloat = x - BlockLayout.liIndent
+            let bulletY: CGFloat = y + (VSTEP - BlockLayout.bulletSize) / 2
+            let bulletRect: Rect = Rect(
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
@@ -435,9 +435,9 @@ class BlockLayout: LayoutObject {
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
-            let headerRect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
+            let headerRect: Rect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
             commands.append(DrawRect(rect: headerRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray"))
-            let font = getFont(size: 12, weight: "bold", style: "roman")
+            let font: BrowserFont = getFont(size: 12, weight: "bold", style: "roman")
             commands.append(
                 DrawText(
                     at: CGPoint(x: x, y: y),
@@ -454,10 +454,10 @@ class BlockLayout: LayoutObject {
     func paintScrollbar() -> [Any] {
         guard node.style["overflow"] == "scroll", contentHeight > height else { return [] }
         let barWidth: CGFloat = 8
-        let ratio = height / contentHeight
-        let barHeight = ratio * height
-        let barTop = y + (scrollOffset / contentHeight) * height
-        let barRect = Rect(
+        let ratio: CGFloat = height / contentHeight
+        let barHeight: CGFloat = ratio * height
+        let barTop: CGFloat = y + (scrollOffset / contentHeight) * height
+        let barRect: Rect = Rect(
             left: x + width - barWidth, top: barTop, right: x + width, bottom: barTop + barHeight)
         return [DrawRect(rect: barRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray")]
     }

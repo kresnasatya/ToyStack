@@ -46,7 +46,7 @@ final class RasterWorkerPool: @unchecked Sendable {
             group.enter()
             queue.async {
                 measure?.start("raster.worker")
-                let image = TileStripRasterizer.render(strips[index], scale: scale)
+                let image: CGImage? = TileStripRasterizer.render(strips[index], scale: scale)
                 measure?.stop("raster.worker")
                 results.set(index, image)
                 group.leave()

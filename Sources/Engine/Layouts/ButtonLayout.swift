@@ -9,7 +9,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     var y: CGFloat = 0 {
         didSet {
             guard y != oldValue else { return }
-            let delta = y - oldValue
+            let delta: CGFloat = y - oldValue
             for child in children {
                 child.y += delta
                 for grandchild in child.children {
@@ -35,11 +35,11 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         zoom = computeZoom(node, parentZoom: parent!.zoom)
         guard let element = node as? Element else { return }
 
-        let weight = element.style["font-weight"] ?? "normal"
-        var styleStr = element.style["font-style"] ?? "normal"
+        let weight: String = element.style["font-weight"] ?? "normal"
+        var styleStr: String = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
-        let sizePx = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
+        let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
@@ -61,7 +61,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
 
     private func newLine() {
         cursorX = 0
-        let line = LineLayout(node: node, parent: self, previous: children.last)
+        let line: LineLayout = LineLayout(node: node, parent: self, previous: children.last)
         children.append(line)
     }
 
@@ -82,29 +82,29 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
 
     private func addWord(node: any DOMNode, word: String) {
-        let weight = node.style["font-weight"] ?? "normal"
-        var style = node.style["font-style"] ?? "normal"
+        let weight: String = node.style["font-weight"] ?? "normal"
+        var style: String = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
-        let sizePx = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt = Int(dpx(sizePx * 0.75, zoom: zoom))
-        let font = getFont(
+        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
+        let font: BrowserFont = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
-        let w = font.measure(word)
+        let w: CGFloat = font.measure(word)
         if cursorX + w > width { newLine() }
-        let line = children.last!
-        let prev = line.children.last
-        let textLayout = TextLayout(node: node, word: word, parent: line, previous: prev)
+        let line: any LayoutObject = children.last!
+        let prev: (any LayoutObject)? = line.children.last
+        let textLayout: TextLayout = TextLayout(node: node, word: word, parent: line, previous: prev)
         textLayout.fontOverride = font
         line.children.append(textLayout)
         cursorX += w
     }
 
     private func addInput(_ node: Element) {
-        let w = dpx(InputLayout.inputWidthPx, zoom: zoom)
+        let w: CGFloat = dpx(InputLayout.inputWidthPx, zoom: zoom)
         if cursorX + w > width { newLine() }
-        let line = children.last!
-        let prev = line.children.last
+        let line: any LayoutObject = children.last!
+        let prev: (any LayoutObject)? = line.children.last
         line.children.append(InputLayout(node: node, parent: line, previous: prev))
         cursorX += w
     }
@@ -116,12 +116,12 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     func paint() -> [Any] {
         guard let element = node as? Element else { return [] }
         var cmds: [any PaintCommand] = []
-        let bgcolor = element.style["background-color"] ?? "transparent"
-        let displayColor = bgcolor == "transparent" ? (isForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
+        let bgcolor: String = element.style["background-color"] ?? "transparent"
+        let displayColor: String = bgcolor == "transparent" ? (isForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
         cmds.append(DrawRect(rect: selfRect(), color: displayColor))
         cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
 
-        let outline = cssOutline(node, rect: selfRect())
+        let outline: DrawOutline? = cssOutline(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))

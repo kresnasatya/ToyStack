@@ -21,7 +21,7 @@ class DocumentLayout: LayoutObject {
 
     func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0) {
         self.zoom = zoom
-        let child = BlockLayout(node: node, parent: self, previous: nil)
+        let child: BlockLayout = BlockLayout(node: node, parent: self, previous: nil)
         children.append(child)
 
         width = availableWidth - 2 * dpx(HSTEP, zoom: zoom)
