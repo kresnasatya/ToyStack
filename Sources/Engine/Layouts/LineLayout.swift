@@ -55,7 +55,7 @@ class LineLayout: LayoutObject {
                 }
             }
 
-            if node.style["direction"] == "rtl" {
+            if Direction(cssValue: node.style["direction"]) == .rtl {
                 let lastChild: any LayoutObject = children.last!
                 let usedWidth: CGFloat = lastChild.x + lastChild.width - x
                 let offset: CGFloat = width - usedWidth
