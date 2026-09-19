@@ -1,6 +1,6 @@
 typealias RGBColor = (r: Double, g: Double, b: Double)
 
-public struct EngineColor {
+public struct BrowserColor {
     public var red: Double
     public var green: Double
     public var blue: Double
@@ -16,13 +16,13 @@ public struct EngineColor {
     public init(cssName: String) {
         let name: String = cssName.lowercased().trimmingCharacters(in: .whitespaces)
         if name == "transparent" {
-            self = EngineColor(red: 0, green: 0, blue: 0, alpha: 0)
+            self = BrowserColor(red: 0, green: 0, blue: 0, alpha: 0)
             return
         }
         if let rgb = cssColorToRGB(name) {
-            self = EngineColor(red: rgb.r / 255, green: rgb.g / 255, blue: rgb.b / 255)
+            self = BrowserColor(red: rgb.r / 255, green: rgb.g / 255, blue: rgb.b / 255)
         } else {
-            self = EngineColor(red: 0, green: 0, blue: 0)
+            self = BrowserColor(red: 0, green: 0, blue: 0)
         }
     }
 }

@@ -80,7 +80,7 @@ MainActor.assumeIsolated {
     let image = CGRenderer.renderBitmap(
         size: browser.windowSize,
         scale: browser.displayScale,
-        backgroundColor: EngineColor(cssName: "white")
+        backgroundColor: BrowserColor(cssName: "white")
     ) { r in
         if let tab = browser.activeTab {
             r.saveState()

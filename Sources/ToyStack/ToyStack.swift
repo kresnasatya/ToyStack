@@ -71,7 +71,7 @@ public struct BrowserView: View {
                 }
             }
         }
-        .background(app.commitedForcedColors ? Color(engine: EngineColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
+        .background(app.commitedForcedColors ? Color(engine: BrowserColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
         .background(
             WindowReader { window in
                 browserWindow = window

@@ -14,7 +14,7 @@ public final class CGRenderer: Renderer {
         self.scale = scale
     }
 
-    public static func renderBitmap(size: CGSize, scale: CGFloat, backgroundColor: EngineColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
+    public static func renderBitmap(size: CGSize, scale: CGFloat, backgroundColor: BrowserColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
         let pxW = Int(size.width * scale), pxH = Int(size.height * scale)
         guard pxW > 0, pxH > 0,
             let ctx = CGContext(data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -37,19 +37,19 @@ public final class CGRenderer: Renderer {
     public func translateBy(x: CGFloat, y: CGFloat) { cg.translateBy(x: x, y: y) }
     public func clip(to rect: CGRect) { cg.clip(to: rect) }
 
-    public func fillRect(_ rect: CGRect, color: EngineColor) {
+    public func fillRect(_ rect: CGRect, color: BrowserColor) {
         cg.setFillColor(color.cgColor)
         cg.fill(rect)
     }
 
-    public func fillRRect(_ rect: CGRect, radius: CGFloat, color: EngineColor) {
+    public func fillRRect(_ rect: CGRect, radius: CGFloat, color: BrowserColor) {
         let path: CGPath = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         cg.setFillColor(color.cgColor)
         cg.addPath(path)
         cg.fillPath()
     }
 
-    public func strokeSegment(from: CGPoint, to: CGPoint, color: EngineColor, lineWidth: CGFloat) {
+    public func strokeSegment(from: CGPoint, to: CGPoint, color: BrowserColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
         cg.move(to: from)
@@ -57,13 +57,13 @@ public final class CGRenderer: Renderer {
         cg.strokePath()
     }
 
-    public func strokeRect(_ rect: CGRect, color: EngineColor, lineWidth: CGFloat) {
+    public func strokeRect(_ rect: CGRect, color: BrowserColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
         cg.stroke(rect)
     }
 
-    public func drawText(_ text: String, font: CTFont, color: EngineColor, at point: CGPoint) {
+    public func drawText(_ text: String, font: CTFont, color: BrowserColor, at point: CGPoint) {
         let attrs: NSAttributedString = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
@@ -114,7 +114,7 @@ public final class CGRenderer: Renderer {
     }
 }
 
-extension EngineColor {
+extension BrowserColor {
     var cgColor: CGColor {
         CGColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
     }

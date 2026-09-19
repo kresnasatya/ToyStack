@@ -25,7 +25,7 @@ public struct DrawRect: PaintCommand {
             width: rect.right - rect.left,
             height: rect.bottom - rect.top
         )
-        renderer.fillRect(r, color: EngineColor(cssName: color))
+        renderer.fillRect(r, color: BrowserColor(cssName: color))
     }
 }
 
@@ -51,7 +51,7 @@ public struct DrawLine: PaintCommand {
         renderer.strokeSegment(
             from: CGPoint(x: rect.left, y: rect.top - scroll),
             to: CGPoint(x: rect.right, y: rect.bottom - scroll),
-            color: EngineColor(cssName: color),
+            color: BrowserColor(cssName: color),
             lineWidth: thickness
         )
     }
@@ -80,7 +80,7 @@ public struct DrawText: PaintCommand {
     }
 
     public func execute(scroll: CGFloat, renderer: any Renderer) {
-        renderer.drawText(text, font: font.ctFont, color: EngineColor(cssName: color), at: CGPoint(x: rect.left, y: rect.top - scroll))
+        renderer.drawText(text, font: font.ctFont, color: BrowserColor(cssName: color), at: CGPoint(x: rect.left, y: rect.top - scroll))
     }
 }
 
@@ -101,7 +101,7 @@ public struct DrawOutline: PaintCommand {
         let r: CGRect = CGRect(
             x: rect.left, y: rect.top - scroll, width: rect.right - rect.left,
             height: rect.bottom - rect.top)
-        renderer.strokeRect(r, color: EngineColor(cssName: color), lineWidth: thickness)
+        renderer.strokeRect(r, color: BrowserColor(cssName: color), lineWidth: thickness)
     }
 }
 
@@ -148,6 +148,6 @@ struct DrawRRect: PaintCommand {
     let color: String
 
     func execute(scroll: CGFloat, renderer: any Renderer) {
-        renderer.fillRRect(rect.cgRect, radius: radius, color: EngineColor(cssName: color))
+        renderer.fillRRect(rect.cgRect, radius: radius, color: BrowserColor(cssName: color))
     }
 }

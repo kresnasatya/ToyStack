@@ -27,29 +27,29 @@ final class SwiftUIRenderer: Renderer {
         context.clip(to: Path(rect))
     }
 
-    func fillRect(_ rect: CGRect, color: EngineColor) {
+    func fillRect(_ rect: CGRect, color: BrowserColor) {
         context.fill(Path(rect), with: .color(Color(engine: color)))
     }
 
-    func fillRRect(_ rect: CGRect, radius: CGFloat, color: EngineColor) {
+    func fillRRect(_ rect: CGRect, radius: CGFloat, color: BrowserColor) {
         context.fill(
             Path(roundedRect: rect, cornerRadius: radius),
             with: .color(Color(engine: color))
         )
     }
 
-    func strokeSegment(from: CGPoint, to: CGPoint, color: EngineColor, lineWidth: CGFloat) {
+    func strokeSegment(from: CGPoint, to: CGPoint, color: BrowserColor, lineWidth: CGFloat) {
         var path = Path()
         path.move(to: from)
         path.addLine(to: to)
         context.stroke(path, with: .color(Color(engine: color)), lineWidth: lineWidth)
     }
 
-    func strokeRect(_ rect: CGRect, color: EngineColor, lineWidth: CGFloat) {
+    func strokeRect(_ rect: CGRect, color: BrowserColor, lineWidth: CGFloat) {
         context.stroke(Path(rect), with: .color(Color(engine: color)), lineWidth: lineWidth)
     }
 
-    func drawText(_ text: String, font: CTFont, color: EngineColor, at point: CGPoint) {
+    func drawText(_ text: String, font: CTFont, color: BrowserColor, at point: CGPoint) {
         let swiftText = Text(text)
             .font(Font(font))
             .foregroundColor(Color(engine: color))
@@ -91,7 +91,7 @@ extension EngineBlendMode {
 }
 
 extension Color {
-    init(engine: EngineColor) {
+    init(engine: BrowserColor) {
         self = Color(
             .sRGB,
             red: engine.red,

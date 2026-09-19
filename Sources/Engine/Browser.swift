@@ -75,7 +75,7 @@ public class Browser: ObservableObject {
 
     public var canvasColor: CGColor {
         let name: String = activeFrame.theme.forcedColors ? ForcedColor.canvas : (activeFrame.theme.prefersDark ? "black" : "white")
-        return EngineColor(cssName: name).cgColor
+        return BrowserColor(cssName: name).cgColor
     }
 
     public var activeSidebar: (frame: CGRect, color: CGColor)? {
@@ -92,7 +92,7 @@ public class Browser: ObservableObject {
                 topInset: topInset
             )
         else { return nil }
-        let color: EngineColor = EngineColor(cssName: activeFrame.theme.forcedColors ? ForcedColor.canvasText : "blue")
+        let color: BrowserColor = BrowserColor(cssName: activeFrame.theme.forcedColors ? ForcedColor.canvasText : "blue")
         return (bar.rect.cgRect, color.cgColor)
     }
 
@@ -460,8 +460,8 @@ public class Browser: ObservableObject {
                                 ),
                                 scale: inputs.settings.viewport.displayScale,
                                 backgroundColor: inputs.settings.theme.forcedColors
-                                    ? EngineColor(cssName: ForcedColor.canvas)
-                                    : (inputs.settings.theme.prefersDark ? EngineColor(cssName: "black") : EngineColor(cssName: "white"))
+                                    ? BrowserColor(cssName: ForcedColor.canvas)
+                                    : (inputs.settings.theme.prefersDark ? BrowserColor(cssName: "black") : BrowserColor(cssName: "white"))
                             ) { r in
                                 r.saveState()
                                 r.translateBy(x: 0, y: inputs.settings.viewport.topInset - regionTop)
