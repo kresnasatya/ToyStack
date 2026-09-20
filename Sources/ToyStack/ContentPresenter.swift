@@ -136,6 +136,7 @@ final class ContentPresenter: @unchecked Sendable {
         if (layer.contents as AnyObject?) !== placed.image {
             layer.contents = placed.image
         }
+        layer.transform = CATransform3DIdentity
         if layer.frame != placed.frame {
             layer.frame = placed.frame
         }
