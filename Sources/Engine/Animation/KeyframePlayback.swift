@@ -1,18 +1,20 @@
-// MARK: - CSS animation shorthand
+// MARK: - KeyframePlayback
 struct KeyframePlayback {
     let name: String
-    let totalFrames: Int
+    let timing: FrameTiming
     let infinite: Bool
     let alternate: Bool
 }
 
 extension KeyframePlayback {
     static func parse(_ value: String) -> KeyframePlayback? {
-        let tokens: [String] = value.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let normalized: String = value.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        let tokens: [String] = splitOutsiteParentheses(normalized, separator: " ").filter({ !$0.isEmpty })
         guard !tokens.isEmpty else { return nil }
 
         var name: String?
         var totalFrames: Int?
+        var easing: Easing = .ease
         var infinite: Bool = false
         var alternate: Bool = false
 
@@ -23,13 +25,20 @@ extension KeyframePlayback {
                 infinite = true
             } else if token == "alternate" {
                 alternate = true
+            } else if let parsed = Easing.parseIfValid(token) {
+                easing = parsed
             } else {
                 name = token
             }
         }
 
         guard let n = name, let tf = totalFrames else { return nil }
-        return KeyframePlayback(name: n, totalFrames: tf, infinite: infinite, alternate: alternate)
+        return KeyframePlayback(
+            name: n,
+            timing: FrameTiming(totalFrames: tf, easing: easing),
+            infinite: infinite,
+            alternate: alternate
+        )
     }
 
 }

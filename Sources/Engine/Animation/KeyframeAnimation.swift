@@ -7,8 +7,7 @@ class KeyframeAnimation: Animation {
     let animatedProperty: String
     private let infinite: Bool
     private let alternate: Bool
-    private let totalFrames: Int
-    private let easing: Easing
+    private let timing: FrameTiming
     private let oldValue: AnimatedValue
     private let newValue: AnimatedValue
     private let factory: (AnimatedValue, AnimatedValue, Int, Easing) -> Animation?
@@ -24,12 +23,11 @@ class KeyframeAnimation: Animation {
         self.animatedProperty = animatedProperty
         self.oldValue = range.from
         self.newValue = range.to
-        self.totalFrames = playback.totalFrames
-        self.easing = .ease
+        self.timing = playback.timing
         self.infinite = playback.infinite
         self.alternate = playback.alternate
         self.factory = factory
-        self.inner = factory(range.from, range.to, playback.totalFrames, .ease)!
+        self.inner = factory(range.from, range.to, playback.timing.totalFrames, playback.timing.easing)!
     }
 
     func nextValue() -> String? {
@@ -42,9 +40,9 @@ class KeyframeAnimation: Animation {
             reversed.toggle()
             let from: AnimatedValue = reversed ? newValue : oldValue
             let to: AnimatedValue = reversed ? oldValue : newValue
-            inner = factory(from, to, totalFrames, easing) ?? inner
+            inner = factory(from, to, timing.totalFrames, timing.easing) ?? inner
         } else {
-            inner = factory(oldValue, newValue, totalFrames, easing) ?? inner
+            inner = factory(oldValue, newValue, timing.totalFrames, timing.easing) ?? inner
         }
         return inner.nextValue()
     }

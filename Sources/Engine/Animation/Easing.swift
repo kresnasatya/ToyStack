@@ -5,6 +5,7 @@ enum Easing {
     static let ease: Easing = cubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
     static let easeIn: Easing = cubicBezier(x1: 0.42, y1: 0.0, x2: 1.0, y2: 1.0)
     static let easeOut: Easing = cubicBezier(x1: 0.0, y1: 0.0, x2: 0.58, y2: 1.0)
+    static let easeInOut: Easing = cubicBezier(x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0)
 
     func apply(_ progress: Double) -> Double {
         switch self {
@@ -45,11 +46,16 @@ enum Easing {
     }
 
     static func parse(_ value: String) -> Easing {
+        parseIfValid(value) ?? .ease
+    }
+
+    static func parseIfValid(_ value: String) -> Easing? {
         switch value {
         case "linear": return .linear
         case "ease": return .ease
         case "ease-in": return .easeIn
         case "ease-out": return .easeOut
+        case "ease-in-out": return .easeInOut
         default:
             if value.hasPrefix("cubic-bezier(") && value.hasSuffix(")") {
                 let inner: Substring.SubSequence = value.dropFirst("cubic-bezier(".count).dropLast()
@@ -59,7 +65,7 @@ enum Easing {
                     return .cubicBezier(x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3])
                 }
             }
-            return .ease
+            return nil
         }
     }
 
