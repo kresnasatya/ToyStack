@@ -2,10 +2,6 @@
 
 This is a project to build a toy browser engine with Swift programming language.
 
-## Information
-
-I'm a beginner on Swift programming language and browser engineering.
-
 ## Code Architecture
 
 - Each class / struct / function restricted to have maximum 4 parameters.
@@ -26,7 +22,7 @@ This project is intended to be used as learning purpose to understand how to mak
 
 3. When facing with **exercise**, create a html example for proof of exercise implementation in `www` directory.
  
-4. You're NOT ALLOWED to edit the code. I (the human) will do it myself to get better understanding.
+4. You're **NOT ALLOWED** to edit the code. I will do it by myself to get better understanding.
 
 5. Avoid jargon!
 
