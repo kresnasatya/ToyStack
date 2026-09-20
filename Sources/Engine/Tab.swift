@@ -469,7 +469,7 @@ public class Tab {
             browser?.measure.start("tab.style.diff")
             for node in treeToList(nodes) {
                 let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
-                let newAnimations: [String : any Animation] = diffStyles(node: node, oldStyle: old, newStyle: node.style)
+                let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style)
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
                 }

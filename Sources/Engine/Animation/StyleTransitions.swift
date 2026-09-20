@@ -1,54 +1,63 @@
-func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String:
-    Animation]
-{
-    var animations: [String: Animation] = [:]
-    let transitions: [String : FrameTiming] = FrameTiming.parse(newStyle["transition"] ?? "")
-    for (property, timing) in transitions {
-        guard let oldVal = oldStyle[property],
-            let newVal = newStyle[property],
-            oldVal != newVal
-        else { continue }
-        if property == "opacity", let old = Double(oldVal), let new = Double(newVal) {
-            animations[property] = NumericAnimation(
-                animatedProperty: property,
-                oldValue: old,
-                newValue: new,
-                timing: timing
-            )
-            node.style[property] = oldVal
-        } else if property == "transform", let oldPoint = parseTransform(oldVal),
-            let newPoint = parseTransform(newVal)
+enum StyleTransitions {
+    static func diff(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String: Animation]
+    {
+        var animations: [String: Animation] = [:]
+        let transitions: [String : FrameTiming] = FrameTiming.parse(newStyle["transition"] ?? "")
+        for (property, timing) in transitions {
+            guard let oldValue = oldStyle[property],
+                let newValue = newStyle[property],
+                oldValue != newValue,
+                let animation = makeAnimation(property: property, oldValue: oldValue, newValue: newValue, timing: timing)
+            else { continue }
+            animations[property] = animation
+            node.style[property] = oldValue
+        }
+        return animations
+    }
+
+    private static func makeAnimation(
+        property: String,
+        oldValue: String,
+        newValue: String,
+        timing: FrameTiming
+    ) -> Animation? {
+        if property == "transform", let oldPoint = parseTransform(oldValue),
+            let newPoint = parseTransform(newValue)
         {
-            animations[property] = TransformAnimation(
+            return TransformAnimation(
                 animatedProperty: property,
                 oldPoint: oldPoint,
                 newPoint: newPoint,
                 timing: timing
             )
-            node.style[property] = oldVal
-        } else if property == "background-color",
-            let old = cssColorToRGB(oldVal),
-            let new = cssColorToRGB(newVal)
-        {
-            animations[property] = ColorAnimation(
+        }
+        guard let old = AnimatedValue(css: oldValue, property: property),
+            let new = AnimatedValue(css: newValue, property: property)
+        else { return nil }
+        switch (old, new) {
+        case (.number(let o), .number(let n)):
+            return NumericAnimation(
                 animatedProperty: property,
-                oldColor: old,
-                newColor: new,
+                oldValue: o,
+                newValue: n,
                 timing: timing
             )
-            node.style[property] = oldVal
-        } else if property == "width" || property == "height",
-            let old = AnimatedValue(css: oldVal, property: property)?.length,
-            let new = AnimatedValue(css: newVal, property: property)?.length
-        {
-            animations[property] = PixelAnimation(
+        case (.length(let o), .length(let n)):
+            return PixelAnimation(
                 animatedProperty: property,
-                oldValue: old,
-                newValue: new,
+                oldValue: o,
+                newValue: n,
                 timing: timing
             )
-            node.style[property] = oldVal
+        case (.color(let o), .color(let n)):
+            return ColorAnimation(
+                animatedProperty: property,
+                oldColor: o,
+                newColor: n,
+                timing: timing
+            )
+        default:
+            return nil
         }
     }
-    return animations
 }
