@@ -51,7 +51,7 @@ For multi-file changes, group the diffs by file and include the file path before
 
 ## Debugging
 
-There are two ways to debugging the browser engine:
+There are two options to debugging the browser engine:
 
 1. We use `browser.trace` in the root directory. 
 2. We use `ffmpeg` if we want to debug visual like animation or transition.
