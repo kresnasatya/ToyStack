@@ -1076,37 +1076,6 @@ private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = 
     return CSSParser(source).parse().rules
 }()
 
-private func pointInRoundedRect(x: CGFloat, y: CGFloat, rect: Rect, radius: CGFloat) -> Bool {
-    guard rect.containsPoint(x, y) else { return false }
-    let r: CGFloat = radius
-
-    if x < rect.left + r && y < rect.top + r {
-        let dx: CGFloat = x - (rect.left + r)
-        let dy: CGFloat = y - (rect.top + r)
-        return dx * dx + dy * dy <= r * r
-    }
-
-    if x >= rect.right - r && y < rect.top + r {
-        let dx: CGFloat = x - (rect.right - r)
-        let dy: CGFloat = y - (rect.top + r)
-        return dx * dx + dy * dy <= r * r
-    }
-
-    if x < rect.left + r && y >= rect.bottom - r {
-        let dx: CGFloat = x - (rect.left + r)
-        let dy: CGFloat = y - (rect.bottom - r)
-        return dx * dx + dy * dy <= r * r
-    }
-
-    if x >= rect.right - r && y >= rect.bottom - r {
-        let dx: CGFloat = x - (rect.right - r)
-        let dy: CGFloat = y - (rect.bottom - r)
-        return dx * dx + dy * dy <= r * r
-    }
-
-    return true
-}
-
 private func maxRectBottom(_ items: [Any]) -> CGFloat {
     var result: CGFloat = 0
     for item in items {
