@@ -32,12 +32,6 @@ The process divided into 4 chapters:
 
 - [ ] ch16 - It covers Chapter 16 (Reusing Previous Computation)
 
-## NOTE
+## How to Run?
 
-To run this project, use the command `swift run`.
-
-To run the `right-to-left` text mode, use this command below.
-
-```sh
-swift run ToyStack -- --rtl
-```
+To run this project, build with command `swift build` then use command `swift run ToyStack` to launch ToyStack browser.
