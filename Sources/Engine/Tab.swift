@@ -26,6 +26,7 @@ public class Tab {
     public private(set) var title: String = "New Tab"
     public private(set) var isSecure: Bool = false
 
+    private let SCROLL_STEP: CGFloat = 100
     private var scroll: CGFloat = 0
     public private(set) var tabHeight: CGFloat
     private var tabWidth: CGFloat
