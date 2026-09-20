@@ -1,5 +1,4 @@
 import CoreGraphics
-import Foundation
 
 public class Transform: VisualEffect {
     let translation: CGPoint?
@@ -46,17 +45,4 @@ public class Transform: VisualEffect {
             left: rect.left - t.x, top: rect.top - t.y, right: rect.right - t.x,
             bottom: rect.bottom - t.y)
     }
-}
-
-// MARK: - CSS transform parsing
-func parseTransform(_ value: String) -> CGPoint? {
-    let pattern: String = #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
-    guard let regex = try? NSRegularExpression(pattern: pattern),
-        let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
-        let xRange = Range(match.range(at: 1), in: value),
-        let yRange = Range(match.range(at: 2), in: value),
-        let x = Double(value[xRange]),
-        let y = Double(value[yRange])
-    else { return nil }
-    return CGPoint(x: x, y: y)
 }
