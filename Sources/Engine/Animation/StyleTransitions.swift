@@ -19,16 +19,10 @@ func diffStyles(node: DOMNode, oldStyle: [String: String], newStyle: [String: St
         } else if property == "transform", let oldPoint = parseTransform(oldVal),
             let newPoint = parseTransform(newVal)
         {
-            animations["transform-x"] = NumericAnimation(
+            animations[property] = TransformAnimation(
                 animatedProperty: property,
-                oldValue: Double(oldPoint.x),
-                newValue: Double(newPoint.x),
-                timing: timing
-            )
-            animations["transform-y"] = NumericAnimation(
-                animatedProperty: property,
-                oldValue: Double(oldPoint.y),
-                newValue: Double(newPoint.y),
+                oldPoint: oldPoint,
+                newPoint: newPoint,
                 timing: timing
             )
             node.style[property] = oldVal

@@ -566,16 +566,9 @@ public class Tab {
                 let property: String = animation.animatedProperty
                 if let value = animation.nextValue() {
                     needsAnotherFrame = true
-                    if property == "transform-x" || property == "transform-y"
-                        || property == "opacity"
+                    if property == "transform" || property == "opacity"
                     {
                         node.style[property] = value
-                        if property == "transform-x" || property == "transform-y" {
-                            if let x = node.style["transform-x"], let y = node.style["transform-y"]
-                            {
-                                node.style["transform"] = "translate(\(x)px, \(y)px)"
-                            }
-                        }
                         if let rect = (node.layoutObject as? BlockLayout)?.selfRect(),
                             let effect = paintVisualEffects(node: node, cmds: [], rect: rect).first
                                 as? VisualEffect

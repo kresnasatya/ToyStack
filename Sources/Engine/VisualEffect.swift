@@ -42,9 +42,7 @@ func paintVisualEffects(node: DOMNode, cmds: [Any], rect: Rect) -> [Any] {
         default: return nil
         }
     }()
-    let animated: Bool = node.animations["transform-x"] != nil
-        || node.animations["transform-y"] != nil
-        || node.animations["opacity"] != nil
+    let animated: Bool = node.animations["transform"] != nil || node.animations["opacity"] != nil
     guard borderRadius > 0 || blurRadius > 0 || opacity < 1
         || (blendMode != nil && blendMode != .normal)
         || translation != nil || animated

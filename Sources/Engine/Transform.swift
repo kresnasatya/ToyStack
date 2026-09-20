@@ -5,7 +5,7 @@ public class Transform: VisualEffect {
     let translation: CGPoint?
     var isAnimated: Bool {
         guard let node = node else { return false }
-        return node.animations["transform-x"] != nil || node.animations["transform-y"] != nil
+        return node.animations["transform"] != nil
     }
 
     init(translation: CGPoint?, rect: Rect, node: DOMNode?, children: [Any]) {
