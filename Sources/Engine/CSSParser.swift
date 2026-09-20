@@ -248,23 +248,27 @@ class CSSParser {
         skipWhitespace()
         var val: String = try word()
         if i < chars.count && chars[i] == "(" {
-            let start: Int = i
-            var depth: Int = 0
-            while i < chars.count {
-                if chars[i] == "(" {
-                    depth += 1
-                    i += 1
-                } else if chars[i] == ")" {
-                    depth -= 1
-                    i += 1
-                    if depth == 0 { break }
-                } else {
-                    i += 1
-                }
-            }
-            val += String(chars[start..<i])
+            val += consumeParentheses()
         }
         return (prop.lowercased(), val)
+    }
+
+    private func consumeParentheses() -> String {
+        let start: Int = i
+        var depth: Int = 0
+        while i < chars.count {
+            if chars[i] == "(" {
+                depth += 1
+                i += 1
+            } else if chars[i] == ")" {
+                depth -= 1
+                i += 1
+                if depth == 0 { break }
+            } else {
+                i += 1
+            }
+        }
+        return String(chars[start..<i])
     }
 
     private static func expand(shorthand: String, tokens: [String]) -> [String: String]? {
@@ -369,7 +373,10 @@ class CSSParser {
                             skipWhitespace()
                             continue
                         }
-                        guard let t = try? word() else { break }
+                        guard var t = try? word() else { break }
+                        if i < chars.count && chars[i] == "(" {
+                            t += consumeParentheses()
+                        }
                         tokens.append(t)
                         skipWhitespace()
                     }
