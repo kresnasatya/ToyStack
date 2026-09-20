@@ -51,9 +51,12 @@ For multi-file changes, group the diffs by file and include the file path before
 
 ## Debugging
 
-To debug browser engine, we use `browser.trace` in the root directory. It means measurement is critical here.
+There are two ways to debugging the browser engine:
 
-Profiling conventions (Profiler, metric names, `--no-profile`, how to to read the trace) are documented in [profiling.md](./profiling.md).
+1. We use `browser.trace` in the root directory. 
+2. We use `ffmpeg` if we want to debug visual like animation or transition.
+
+For profiling conventions (Profiler, metric names, `--no-profile`, how to to read the trace) are documented in [profiling.md](./profiling.md).
 
 ## Additional Information
 
