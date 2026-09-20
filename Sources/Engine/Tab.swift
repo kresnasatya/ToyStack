@@ -479,12 +479,12 @@ public class Tab {
             browser?.measure.start("tab.style.keyframes")
             for node in treeToList(nodes) {
                 guard let animDecl = node.style["animation"],
-                    let spec = AnimationSpec.parse(animDecl),
-                    let frames = keyframes[spec.name]
+                    let playback = KeyframePlayback.parse(animDecl),
+                    let frames = keyframes[playback.name]
                 else { continue }
-                let key: String = "animation/\(spec.name)"
+                let key: String = "animation/\(playback.name)"
                 guard node.animations[key] == nil else { continue }
-                if let anim = KeyframeAnimation.make(frames: frames, numFrames: spec.numFrames, infinite: spec.infinite, alternate: spec.alternate)
+                if let anim = KeyframeAnimation.make(frames: frames, playback: playback)
                 {
                     node.animations[key] = anim
                 }

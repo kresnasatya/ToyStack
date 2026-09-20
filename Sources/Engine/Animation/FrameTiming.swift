@@ -1,11 +1,11 @@
-struct TransitionSpec {
-    let numFrames: Int
+struct FrameTiming {
+    let totalFrames: Int
     let easing: Easing
 }
 
-extension TransitionSpec {
-    static func parse(_ value: String) -> [String: TransitionSpec] {
-        var properties: [String: TransitionSpec] = [:]
+extension FrameTiming {
+    static func parse(_ value: String) -> [String: FrameTiming] {
+        var properties: [String: FrameTiming] = [:]
         guard !value.isEmpty else { return properties }
         for item in splitOutsiteParentheses(value, separator: ",") {
             let normalized: String = item.split(whereSeparator: { $0.isWhitespace })
@@ -18,9 +18,9 @@ extension TransitionSpec {
             let durationStr: String = tokens[1]
             guard durationStr.hasSuffix("s"), let seconds = Double(durationStr.dropLast())
             else { continue }
-            let numFrames: Int = Int(seconds / secondsPerFrame)
+            let totalFrames: Int = Int(seconds / secondsPerFrame)
             let easing: Easing = tokens.count >= 3 ? Easing.parse(tokens[2]) : .ease
-            properties[property] = TransitionSpec(numFrames: numFrames, easing: easing)
+            properties[property] = FrameTiming(totalFrames: totalFrames, easing: easing)
         }
         return properties
     }

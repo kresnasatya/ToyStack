@@ -2,27 +2,27 @@ class ColorAnimation: Animation {
     let animatedProperty: String
     let oldColor: RGBColor
     let newColor: RGBColor
-    let spec: TransitionSpec
-    private(set) var frameCount: Int = 1
+    let timing: FrameTiming
+    private(set) var currentFrame: Int = 0
     private let changePerFrame: RGBColor
 
-    init(animatedProperty: String, oldColor: RGBColor, newColor: RGBColor, spec: TransitionSpec) {
+    init(animatedProperty: String, oldColor: RGBColor, newColor: RGBColor, timing: FrameTiming) {
         self.animatedProperty = animatedProperty
         self.oldColor = oldColor
         self.newColor = newColor
-        self.spec = spec
+        self.timing = timing
         self.changePerFrame = (
-            (newColor.r - oldColor.r) / Double(spec.numFrames),
-            (newColor.g - oldColor.g) / Double(spec.numFrames),
-            (newColor.b - oldColor.b) / Double(spec.numFrames)
+            (newColor.r - oldColor.r) / Double(timing.totalFrames),
+            (newColor.g - oldColor.g) / Double(timing.totalFrames),
+            (newColor.b - oldColor.b) / Double(timing.totalFrames)
         )
     }
 
     func nextValue() -> String? {
-        frameCount += 1
-        if frameCount > spec.numFrames { return nil }
-        let t: Double = Double(frameCount) / Double(spec.numFrames)
-        let eased: Double = spec.easing.apply(t)
+        currentFrame += 1
+        if currentFrame > timing.totalFrames { return nil }
+        let t: Double = Double(currentFrame) / Double(timing.totalFrames)
+        let eased: Double = timing.easing.apply(t)
         let r: Double = oldColor.r + (newColor.r - oldColor.r) * eased
         let g: Double = oldColor.g + (newColor.g - oldColor.g) * eased
         let b: Double = oldColor.b + (newColor.b - oldColor.b) * eased

@@ -1,24 +1,24 @@
 class NumericAnimation: Animation {
     let oldValue: Double
     let newValue: Double
-    let spec: TransitionSpec
+    let timing: FrameTiming
     let animatedProperty: String
-    private(set) var frameCount: Int = 1
+    private(set) var currentFrame: Int = 0
     private let changePerFrame: Double
 
-    init(animatedProperty: String, oldValue: Double, newValue: Double, spec: TransitionSpec) {
+    init(animatedProperty: String, oldValue: Double, newValue: Double, timing: FrameTiming) {
         self.animatedProperty = animatedProperty
         self.oldValue = oldValue
         self.newValue = newValue
-        self.spec = spec
-        self.changePerFrame = (newValue - oldValue) / Double(spec.numFrames)
+        self.timing = timing
+        self.changePerFrame = (newValue - oldValue) / Double(timing.totalFrames)
     }
 
     func nextValue() -> String? {
-        frameCount += 1
-        if frameCount > spec.numFrames { return nil }
-        let t: Double = Double(frameCount) / Double(spec.numFrames)
-        let eased: Double = spec.easing.apply(t)
+        currentFrame += 1
+        if currentFrame > timing.totalFrames { return nil }
+        let t: Double = Double(currentFrame) / Double(timing.totalFrames)
+        let eased: Double = timing.easing.apply(t)
         let current: Double = oldValue + (newValue - oldValue) * eased
         return String(current)
     }
