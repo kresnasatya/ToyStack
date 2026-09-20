@@ -39,6 +39,17 @@ extension LayoutObject {
 
         return nil
     }
+
+    func linkElement(at x: CGFloat, y: CGFloat) -> Element? {
+        var node: (any DOMNode)? = hitTest(x: x, y: y)?.node
+        while let current = node {
+            if let el = current as? Element, el.tag == "a", el.attributes["href"] != nil {
+                return el
+            }
+            node = current.parent
+        }
+        return nil
+    }
 }
 
 protocol InlineLayoutItem: LayoutObject {

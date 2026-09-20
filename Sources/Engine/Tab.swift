@@ -660,21 +660,8 @@ public class Tab {
     }
 
     public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
-        let adjustedY: CGFloat = y + scroll
-        guard let doc = document else { return nil }
-        let objs: [any LayoutObject] = treeToList(doc).filter {
-            $0.x <= x && x < $0.x + $0.width
-                && $0.y <= adjustedY && adjustedY < $0.y + $0.height
-        }
-        guard let hit = objs.last else { return nil }
-        var elt: (any DOMNode)? = hit.node
-        while let node = elt {
-            if let el = node as? Element, el.tag == "a", let href = el.attributes["href"] {
-                return url?.resolve(href)
-            }
-            elt = node.parent
-        }
-        return nil
+        guard let href = document?.linkElement(at: x, y: y + scroll)?.attributes["href"] else { return nil }
+        return url?.resolve(href)
     }
 
     public func visibleCommands(offset: CGFloat) -> [(command: Any, scroll: CGFloat)] {
