@@ -387,19 +387,19 @@ class BlockLayout: LayoutObject {
     }
 
     func paint() -> [Any] {
-        var commands: [Any] = []
+        var cmds: [any PaintCommand] = []
         let bgcolor: String = node.style["background-color"] ?? "transparent"
         let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(
             of: "px", with: "")
         let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
             if borderRadius > 0 {
-                commands.append(
+                cmds.append(
                     DrawRRect(
                         rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor)
                 )
             } else {
-                commands.append(DrawRect(rect: selfRect(), color: bgcolor))
+                cmds.append(DrawRect(rect: selfRect(), color: bgcolor))
             }
         }
 
@@ -409,17 +409,17 @@ class BlockLayout: LayoutObject {
             let borderPx = Double(widthStr.dropLast(2))
         {
             let color: String = node.style["border-color"] ?? "black"
-            commands.append(
+            cmds.append(
                 DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
         }
 
         let outline: DrawOutline? = cssOutline(node, rect: selfRect())
         if node.isFocusVisible && outline == nil {
             let ring: (outer: String, inner: String) = ringColors(node)
-            commands.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
-            commands.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
+            cmds.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
+            cmds.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
         }
-        if let outline = outline { commands.append(outline) }
+        if let outline = outline { cmds.append(outline) }
 
         if let el = node as? Element, el.tag == "li" {
             let bulletX: CGFloat = x - BlockLayout.liIndent
@@ -428,14 +428,14 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            commands.append(DrawRect(rect: bulletRect, color: isForcedColors(node) ? ForcedColor.canvasText : "black"))
+            cmds.append(DrawRect(rect: bulletRect, color: isForcedColors(node) ? ForcedColor.canvasText : "black"))
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             let headerRect: Rect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            commands.append(DrawRect(rect: headerRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray"))
+            cmds.append(DrawRect(rect: headerRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray"))
             let font: BrowserFont = getFont(size: 12, weight: "bold", style: "roman")
-            commands.append(
+            cmds.append(
                 DrawText(
                     at: CGPoint(x: x, y: y),
                     text: "Table of Contents",
@@ -445,7 +445,7 @@ class BlockLayout: LayoutObject {
             )
         }
 
-        return commands
+        return cmds
     }
 
     func paintScrollbar() -> [Any] {
