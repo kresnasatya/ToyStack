@@ -18,6 +18,10 @@ protocol LayoutObject: AnyObject {
 }
 
 extension LayoutObject {
+    func selfRect() -> Rect {
+        Rect(left: x, top: y, right: x + width, bottom: y + height)
+    }
+
     func hitTest(x: CGFloat, y: CGFloat) -> (any LayoutObject)? {
         var x: CGFloat = x
         var y: CGFloat = y

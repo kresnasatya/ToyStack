@@ -547,12 +547,12 @@ public class Browser: ObservableObject {
         var displayList: [any PaintItem] = inputs.scene.displayList
         addParentPointers(&displayList)
 
-        var allCommands: [any PaintItem] = []
+        var allItems: [any PaintItem] = []
         for item in displayList {
-            treeToList(item, into: &allCommands)
+            treeToList(item, into: &allItems)
         }
 
-        let nonComposited: [any PaintCommand] = allCommands.compactMap({ item -> (any PaintCommand)? in
+        let nonComposited: [any PaintCommand] = allItems.compactMap({ item -> (any PaintCommand)? in
             if let pc = item as? (any PaintCommand) { return pc }
             if let ve = item as? VisualEffect, !ve.needsCompositing {
                 if ve.parent == nil || ve.parent!.needsCompositing { return nil }

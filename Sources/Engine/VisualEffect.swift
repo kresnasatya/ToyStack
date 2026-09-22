@@ -26,7 +26,7 @@ public class VisualEffect: PaintItem {
     func unmap(rect: Rect) -> Rect { return rect }
 }
 
-func paintVisualEffects(node: DOMNode, cmds: [any PaintItem], rect: Rect) -> [any PaintItem] {
+func paintVisualEffects(node: DOMNode, items: [any PaintItem], rect: Rect) -> [any PaintItem] {
     let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendModeStr: String? = node.style["mix-blend-mode"]
     let translation: CGPoint? = parseTransform(node.style["transform"] ?? "")
@@ -46,9 +46,9 @@ func paintVisualEffects(node: DOMNode, cmds: [any PaintItem], rect: Rect) -> [an
     guard borderRadius > 0 || blurRadius > 0 || opacity < 1
         || (blendMode != nil && blendMode != .normal)
         || translation != nil || animated
-    else { return cmds }
+    else { return items }
 
-    var paintItems: [any PaintItem] = cmds
+    var paintItems: [any PaintItem] = items
     if borderRadius > 0 {
         let clip: Blend = Blend(
             opacity: 1.0, blendMode: .normal, node: node,

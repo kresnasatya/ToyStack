@@ -136,7 +136,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
         if let outline = outline { cmds.append(outline) }
 
-        return paintVisualEffects(node: node, cmds: cmds, rect: selfRect())
+        return cmds
     }
 
     func selfRect() -> Rect {

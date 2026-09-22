@@ -571,7 +571,7 @@ public class Tab {
                     {
                         node.style[property] = value
                         if let rect = (node.layoutObject as? BlockLayout)?.selfRect(),
-                            let effect = paintVisualEffects(node: node, cmds: [], rect: rect).first
+                            let effect = paintVisualEffects(node: node, items: [], rect: rect).first
                                 as? VisualEffect
                         {
                             compositedUpdates[ObjectIdentifier(node)] = effect
@@ -664,7 +664,7 @@ public class Tab {
         return url?.resolve(href)
     }
 
-    public func visibleCommands(offset: CGFloat) -> [(command: any PaintItem, scroll: CGFloat)] {
+    public func visibleItems(offset: CGFloat) -> [(items: any PaintItem, scroll: CGFloat)] {
         displayList.compactMap({ item in
             let rect: Rect?
             if let cmd = item as? any PaintCommand {

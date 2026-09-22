@@ -1,14 +1,14 @@
 import CoreGraphics
 
 func paintTree(_ obj: any LayoutObject, into displayList: inout [any PaintItem]) {
-    var cmds: [any PaintItem] = []
+    var items: [any PaintItem] = []
 
     if obj.shouldPaint() {
-        cmds.append(contentsOf: obj.paint())
+        items.append(contentsOf: obj.paint())
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
-        var childCmds: [any PaintItem] = []
+        var childItems: [any PaintItem] = []
         let visibleTop: CGFloat = block.y + block.scrollOffset
         let visibleBottom: CGFloat = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []
@@ -18,27 +18,25 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any PaintItem])
             visibleChildren.append(child)
         }
         for child in inPaintOrder(visibleChildren) {
-            paintTree(child, into: &childCmds)
+            paintTree(child, into: &childItems)
         }
         let effect: ScrollEffect = ScrollEffect(
             rect: block.selfRect(),
             scrollOffset: block.scrollOffset,
             node: block.node,
-            children: childCmds
+            children: childItems
         )
-        cmds.append(effect)
-        cmds.append(contentsOf: block.paintScrollbar())
+        items.append(effect)
+        items.append(contentsOf: block.paintScrollbar())
     } else {
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &cmds)
+            paintTree(child, into: &items)
         }
     }
 
-    if let block = obj as? BlockLayout {
-        cmds = paintVisualEffects(node: block.node, cmds: cmds, rect: block.selfRect())
-    }
+    items = paintVisualEffects(node: obj.node, items: items, rect: obj.selfRect())
 
-    displayList.append(contentsOf: cmds)
+    displayList.append(contentsOf: items)
 }
 
 func effectiveZIndex(_ node: any DOMNode) -> Int {
