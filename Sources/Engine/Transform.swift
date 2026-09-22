@@ -7,7 +7,7 @@ public class Transform: VisualEffect {
         return node.animations["transform"] != nil
     }
 
-    init(translation: CGPoint?, rect: Rect, node: DOMNode?, children: [any PaintItem]) {
+    init(translation: CGPoint?, rect: Rect, node: DOMNode?, children: [any DisplayItem]) {
         self.translation = translation
         super.init(rect: rect, children: children, node: node)
     }
@@ -21,14 +21,14 @@ public class Transform: VisualEffect {
         for child in children {
             if let ve = child as? VisualEffect {
                 ve.execute(renderer: renderer)
-            } else if let pc = child as? PaintCommand {
-                pc.execute(scroll: 0, renderer: renderer)
+            } else if let dc = child as? DisplayCommand {
+                dc.execute(scroll: 0, renderer: renderer)
             }
         }
         renderer.restoreState()
     }
 
-    func clone(child: any PaintItem) -> Transform {
+    func clone(child: any DisplayItem) -> Transform {
         return Transform(translation: translation, rect: rect, node: node, children: [child])
     }
 

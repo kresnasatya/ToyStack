@@ -1,14 +1,14 @@
 import CoreGraphics
 
-func paintTree(_ obj: any LayoutObject, into displayList: inout [any PaintItem]) {
-    var items: [any PaintItem] = []
+func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem]) {
+    var items: [any DisplayItem] = []
 
     if obj.shouldPaint() {
         items.append(contentsOf: obj.paint())
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
-        var childItems: [any PaintItem] = []
+        var childItems: [any DisplayItem] = []
         let visibleTop: CGFloat = block.y + block.scrollOffset
         let visibleBottom: CGFloat = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []

@@ -17,7 +17,7 @@ class CompositedLayer {
         let bounds: Rect
     }
 
-    var displayItems: [PaintCommand] = []
+    var displayItems: [DisplayCommand] = []
     var tiles: [TileIndex: CGImage] = [:]
     var effectImage: CGImage?
     var effectImageKey: EffectImageKey?
@@ -35,18 +35,18 @@ class CompositedLayer {
         }
     }
 
-    init(displayItem: PaintCommand) {
+    init(displayItem: DisplayCommand) {
         self.displayItems = [displayItem]
     }
 
-    func canMerge(_ displayItem: PaintCommand) -> Bool {
+    func canMerge(_ displayItem: DisplayCommand) -> Bool {
         guard displayItem.parentEffect === displayItems[0].parentEffect else {
             return false
         }
         return true
     }
 
-    func add(_ displayItem: PaintCommand) {
+    func add(_ displayItem: DisplayCommand) {
         displayItems.append(displayItem)
         tiles = [:]
         effectImage = nil
@@ -89,7 +89,7 @@ class CompositedLayer {
         let width: CGFloat = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return [] }
 
-        let items: [any PaintCommand] = displayItems
+        let items: [any DisplayCommand] = displayItems
         let left: CGFloat = bounds.left
         let t: CGFloat = Self.tileSize
         let firstCol: Int = max(0, Int(left / t), Int(window.hint.left / t))
@@ -104,7 +104,7 @@ class CompositedLayer {
             keyCacheScale = scaleInt
         }
 
-        var rowItems: [Int: [PaintCommand]] = [:]
+        var rowItems: [Int: [DisplayCommand]] = [:]
         for item in items {
             let first: Int = max(firstRow, Int(item.rect.top / t))
             let last: Int = min(lastRow, Int((item.rect.bottom - 1) / t))
@@ -126,12 +126,12 @@ class CompositedLayer {
         var strips: [TileStrip] = []
         for row in sortedRows {
             let rowTop: CGFloat = CGFloat(row) * t
-            let strip: [any PaintCommand] = rowItems[row] ?? []
+            let strip: [any DisplayCommand] = rowItems[row] ?? []
             var missing: [TileKey] = []
             for col in firstCol...lastCol {
                 let colLeft: CGFloat = CGFloat(col) * t
                 let colRight: CGFloat = colLeft + t
-                let inside: [any PaintCommand] = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
+                let inside: [any DisplayCommand] = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
                 let index: TileIndex = TileIndex(row: row, col: col)
                 let key: TileKey
                 if let cached = keyCache[index] {
@@ -174,7 +174,7 @@ class CompositedLayer {
         return strips
     }
 
-    private func tileHash(_ inside: [PaintCommand]) -> Int {
+    private func tileHash(_ inside: [DisplayCommand]) -> Int {
         var hasher: Hasher = Hasher()
         for item in inside {
             hasher.combine(item.contentHash)

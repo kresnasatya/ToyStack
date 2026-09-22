@@ -32,7 +32,7 @@ class DocumentLayout: LayoutObject {
         height = child.height
     }
 
-    func paint() -> [any PaintItem] { [] }
+    func paint() -> [any DisplayItem] { [] }
     func shouldPaint() -> Bool {
         true
     }

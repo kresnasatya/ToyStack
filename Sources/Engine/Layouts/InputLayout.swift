@@ -55,11 +55,11 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [any PaintItem] {
+    func paint() -> [any DisplayItem] {
         guard let element = node as? Element else {
             return []
         }
-        var cmds: [any PaintCommand] = []
+        var cmds: [any DisplayCommand] = []
 
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         let radiusStr: String = (element.style["border-radius"] ?? "0px").replacingOccurrences(

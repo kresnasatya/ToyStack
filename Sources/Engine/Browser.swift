@@ -28,7 +28,7 @@ public class Browser: ObservableObject {
     private var liveRegionTexts: [ObjectIdentifier: String] = [:]
 
     struct FramePaint {
-        var displayList: [any PaintItem] = []
+        var displayList: [any DisplayItem] = []
         var compositedUpdates: [ObjectIdentifier: Engine.VisualEffect] = [:]
         var paintEpoch: UInt = 0
         var effectUpdateEpoch: UInt = 0
@@ -36,7 +36,7 @@ public class Browser: ObservableObject {
 
     struct FrameRender {
         var layers: [CompositedLayer] = []
-        var drawList: [any PaintItem] = []
+        var drawList: [any DisplayItem] = []
         var content: RenderedContent = RenderedContent()
         var signature: FrameSignature?
     }
@@ -52,7 +52,7 @@ public class Browser: ObservableObject {
     private var activeFrameID: ObjectIdentifier?
     private var activeFrame: TabFrame = TabFrame()
 
-    public var drawList: [any PaintItem] { activeFrame.render.drawList }
+    public var drawList: [any DisplayItem] { activeFrame.render.drawList }
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
     public var contentImage: CGImage? { activeFrame.render.content.image }
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
@@ -442,7 +442,7 @@ public class Browser: ObservableObject {
                         measure.stop("raster.effect")
                     }
 
-                    let drawList: [any PaintItem] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
+                    let drawList: [any DisplayItem] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
                     let regionTop: CGFloat = inputs.scrollState.scroll
                     var contentImage: CGImage? = nil
 
@@ -463,7 +463,7 @@ public class Browser: ObservableObject {
                                 r.saveState()
                                 r.translateBy(x: 0, y: inputs.settings.viewport.topInset - regionTop)
                                 for item in drawList {
-                                    if let cmd = item as? any PaintCommand {
+                                    if let cmd = item as? any DisplayCommand {
                                         cmd.execute(scroll: 0, renderer: r)
                                     } else if let ve = item as? Engine.VisualEffect {
                                         ve.execute(renderer: r)
@@ -493,7 +493,7 @@ public class Browser: ObservableObject {
                     if let ownerID {
                         if ownerID == self.activeFrameID {
                             self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
-                            if let drawList: [any PaintItem] = output.drawList { self.activeFrame.render.drawList = drawList }
+                            if let drawList: [any DisplayItem] = output.drawList { self.activeFrame.render.drawList = drawList }
                             if inputs.settings.flags.needsDraw || output.content.usesSublayers {
                                 self.activeFrame.render.content = output.content
                                 self.dispatchPresent()
@@ -541,16 +541,16 @@ public class Browser: ObservableObject {
     }
 
     nonisolated static func computeComposite(_ inputs: RasterInput) -> [CompositedLayer] {
-        var displayList: [any PaintItem] = inputs.scene.displayList
+        var displayList: [any DisplayItem] = inputs.scene.displayList
         addParentPointers(&displayList)
 
-        var allItems: [any PaintItem] = []
+        var allItems: [any DisplayItem] = []
         for item in displayList {
             treeToList(item, into: &allItems)
         }
 
-        let nonComposited: [any PaintCommand] = allItems.compactMap({ item -> (any PaintCommand)? in
-            if let pc = item as? (any PaintCommand) { return pc }
+        let nonComposited: [any DisplayCommand] = allItems.compactMap({ item -> (any DisplayCommand)? in
+            if let pc = item as? (any DisplayCommand) { return pc }
             if let ve = item as? VisualEffect, !ve.needsCompositing {
                 if ve.parent == nil || ve.parent!.needsCompositing { return nil }
             }
@@ -687,12 +687,12 @@ public class Browser: ObservableObject {
     nonisolated static func computePaintDrawList(
         layers: [CompositedLayer],
         inputs: RasterInput
-    ) -> [any PaintItem] {
+    ) -> [any DisplayItem] {
         var newEffects: [ObjectIdentifier: VisualEffect] = [:]
-        var drawList: [any PaintItem] = []
+        var drawList: [any DisplayItem] = []
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
-            var currentEffect: any PaintItem = DrawCompositedLayer(
+            var currentEffect: any DisplayItem = DrawCompositedLayer(
                 layer: layer,
                 visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
                 visibleBottom: inputs.scrollState.scroll + (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) + 2 * CompositedLayer.tileSize

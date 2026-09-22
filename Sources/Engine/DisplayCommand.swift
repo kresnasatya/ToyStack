@@ -1,13 +1,13 @@
 import CoreGraphics
 import CoreText
 
-// MARK: - PaintCommand
-public protocol PaintCommand: PaintItem {
+// MARK: - DisplayCommand
+public protocol DisplayCommand: DisplayItem {
     var parentEffect: VisualEffect? { get set }
     func execute(scroll: CGFloat, renderer: any Renderer)
 }
 
-extension PaintCommand {
+extension DisplayCommand {
     var contentHash: Int {
         var hasher: Hasher = Hasher()
         hasher.combine(String(describing: type(of: self)))
@@ -37,7 +37,7 @@ extension PaintCommand {
 }
 
 // MARK: - DrawRect
-public struct DrawRect: PaintCommand {
+public struct DrawRect: DisplayCommand {
     public let rect: Rect
     public let color: String
     public var parentEffect: VisualEffect? = nil
@@ -59,7 +59,7 @@ public struct DrawRect: PaintCommand {
 }
 
 // MARK: - DrawLine
-public struct DrawLine: PaintCommand {
+public struct DrawLine: DisplayCommand {
     public let rect: Rect
     public let color: String
     public let thickness: CGFloat
@@ -87,7 +87,7 @@ public struct DrawLine: PaintCommand {
 }
 
 // MARK: - DrawText
-public struct DrawText: PaintCommand {
+public struct DrawText: DisplayCommand {
     public let rect: Rect
     public let text: String
     public let font: BrowserFont
@@ -114,7 +114,7 @@ public struct DrawText: PaintCommand {
 }
 
 // MARK: - DrawOutline
-public struct DrawOutline: PaintCommand {
+public struct DrawOutline: DisplayCommand {
     public let rect: Rect
     public let color: String
     public let thickness: CGFloat
@@ -135,7 +135,7 @@ public struct DrawOutline: PaintCommand {
 }
 
 // MARK: - DrawCompositedLayer
-struct DrawCompositedLayer: PaintCommand {
+struct DrawCompositedLayer: DisplayCommand {
     var rect: Rect
     var parentEffect: VisualEffect?
     let layer: CompositedLayer
@@ -170,7 +170,7 @@ struct DrawCompositedLayer: PaintCommand {
 }
 
 // MARK: - DrawRRect
-struct DrawRRect: PaintCommand {
+struct DrawRRect: DisplayCommand {
     var rect: Rect
     var parentEffect: VisualEffect?
     let radius: CGFloat

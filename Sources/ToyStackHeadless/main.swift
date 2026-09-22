@@ -56,9 +56,9 @@ MainActor.assumeIsolated {
     browser.displayScale = scale
     browser.newTab(WebURL(urlString))
 
-    func signature(_ list: [any PaintItem]) -> String {
+    func signature(_ list: [any DisplayItem]) -> String {
         list.map { item -> String in
-            if let cmd = item as? any PaintCommand { return "\(type(of: cmd)) \(cmd.rect)" }
+            if let cmd = item as? any DisplayCommand { return "\(type(of: cmd)) \(cmd.rect)" }
             return "\(type(of: item))"
         }.joined(separator: "|")
     }
@@ -86,7 +86,7 @@ MainActor.assumeIsolated {
             r.saveState()
             r.translateBy(x: 0, y: -browser.activeTabScroll)
             for item in browser.drawList {
-                if let cmd = item as? any PaintCommand {
+                if let cmd = item as? any DisplayCommand {
                     cmd.execute(scroll: 0, renderer: r)
                 } else if let ve = item as? Engine.VisualEffect {
                     ve.execute(renderer: r)

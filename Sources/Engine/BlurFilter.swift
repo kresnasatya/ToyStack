@@ -3,15 +3,15 @@ import CoreGraphics
 public class BlurFilter: Engine.VisualEffect {
     let radius: CGFloat
 
-    init(radius: CGFloat, node: DOMNode?, children: [any PaintItem]) {
+    init(radius: CGFloat, node: DOMNode?, children: [any DisplayItem]) {
         self.radius = radius
 
         var combinedRect: Rect = Rect(left: 0, top: 0, right: 0, bottom: 0)
         for child in children {
             if let ve = child as? Engine.VisualEffect {
                 combinedRect = combinedRect.union(ve.rect)
-            } else if let pc = child as? PaintCommand {
-                combinedRect = combinedRect.union(pc.rect)
+            } else if let dc = child as? DisplayCommand {
+                combinedRect = combinedRect.union(dc.rect)
             }
         }
 
@@ -20,7 +20,7 @@ public class BlurFilter: Engine.VisualEffect {
         self.needsCompositing = radius > 0 || self.needsCompositing
     }
 
-    func clone(child: any PaintItem) -> BlurFilter {
+    func clone(child: any DisplayItem) -> BlurFilter {
         return BlurFilter(radius: radius, node: node, children: [child])
     }
 
@@ -29,8 +29,8 @@ public class BlurFilter: Engine.VisualEffect {
             for child in self.children {
                 if let ve = child as? Engine.VisualEffect {
                     ve.execute(renderer: r)
-                } else if let pc = child as? PaintCommand {
-                    pc.execute(scroll: 0, renderer: r)
+                } else if let dc = child as? DisplayCommand {
+                    dc.execute(scroll: 0, renderer: r)
                 }
             }
         }

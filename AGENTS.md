@@ -56,4 +56,4 @@ For profiling conventions (Profiler, metric names, `--no-profile`, how to to rea
 
 ## Additional Information
 
-If you're using any colors that are not exist in this browser engine (@Sources/Engine/PaintCommand.swift) then put those colors into the markdown file.
+If you're using any colors that are not exist in this browser engine (BrowserColor.swift) then put those colors into the markdown file.

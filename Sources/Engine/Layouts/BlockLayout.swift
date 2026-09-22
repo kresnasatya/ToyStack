@@ -385,8 +385,8 @@ class BlockLayout: LayoutObject {
         Rect(left: x, top: y, right: x + width, bottom: y + height)
     }
 
-    func paint() -> [any PaintItem] {
-        var cmds: [any PaintCommand] = []
+    func paint() -> [any DisplayItem] {
+        var cmds: [any DisplayCommand] = []
         let bgcolor: String = node.style["background-color"] ?? "transparent"
         let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(
             of: "px", with: "")
@@ -447,7 +447,7 @@ class BlockLayout: LayoutObject {
         return cmds
     }
 
-    func paintScrollbar() -> [any PaintItem] {
+    func paintScrollbar() -> [any DisplayItem] {
         guard node.style["overflow"] == "scroll", contentHeight > height else { return [] }
         let barWidth: CGFloat = 8
         let ratio: CGFloat = height / contentHeight

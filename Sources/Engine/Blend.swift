@@ -4,7 +4,7 @@ public class Blend: VisualEffect {
     let opacity: Double
     let blendMode: BrowserBlendMode?
 
-    init(opacity: Double, blendMode: BrowserBlendMode?, node: DOMNode?, children: [any PaintItem]) {
+    init(opacity: Double, blendMode: BrowserBlendMode?, node: DOMNode?, children: [any DisplayItem]) {
         self.opacity = opacity
         self.blendMode = blendMode
 
@@ -12,8 +12,8 @@ public class Blend: VisualEffect {
         for child in children {
             if let ve = child as? VisualEffect {
                 combinedRect = combinedRect.union(ve.rect)
-            } else if let pc = child as? PaintCommand {
-                combinedRect = combinedRect.union(pc.rect)
+            } else if let dc = child as? DisplayCommand {
+                combinedRect = combinedRect.union(dc.rect)
             }
         }
 
@@ -27,8 +27,8 @@ public class Blend: VisualEffect {
             for child in children {
                 if let ve = child as? VisualEffect {
                     ve.execute(renderer: renderer)
-                } else if let pc = child as? PaintCommand {
-                    pc.execute(scroll: 0, renderer: renderer)
+                } else if let dc = child as? DisplayCommand {
+                    dc.execute(scroll: 0, renderer: renderer)
                 }
             }
             return
@@ -38,14 +38,14 @@ public class Blend: VisualEffect {
             for child in self.children {
                 if let ve = child as? VisualEffect {
                     ve.execute(renderer: r)
-                } else if let pc = child as? PaintCommand {
-                    pc.execute(scroll: 0, renderer: r)
+                } else if let dc = child as? DisplayCommand {
+                    dc.execute(scroll: 0, renderer: r)
                 }
             }
         }
     }
 
-    func clone(child: any PaintItem) -> Blend {
+    func clone(child: any DisplayItem) -> Blend {
         return Blend(opacity: opacity, blendMode: blendMode, node: node, children: [child])
     }
 }

@@ -1,13 +1,13 @@
 import CoreGraphics
 
-public class VisualEffect: PaintItem {
+public class VisualEffect: DisplayItem {
     public var rect: Rect
-    var children: [any PaintItem]
+    var children: [any DisplayItem]
     weak var node: DOMNode?
     var needsCompositing: Bool
     weak var parent: VisualEffect?
 
-    init(rect: Rect, children: [any PaintItem], node: DOMNode? = nil) {
+    init(rect: Rect, children: [any DisplayItem], node: DOMNode? = nil) {
         self.rect = rect
         self.children = children
         self.node = node
@@ -26,7 +26,7 @@ public class VisualEffect: PaintItem {
     func unmap(rect: Rect) -> Rect { return rect }
 }
 
-func paintVisualEffects(node: DOMNode, items: [any PaintItem], rect: Rect) -> [any PaintItem] {
+func paintVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
     let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendModeStr: String? = node.style["mix-blend-mode"]
     let translation: CGPoint? = parseTransform(node.style["transform"] ?? "")
@@ -48,28 +48,28 @@ func paintVisualEffects(node: DOMNode, items: [any PaintItem], rect: Rect) -> [a
         || translation != nil || animated
     else { return items }
 
-    var paintItems: [any PaintItem] = items
+    var displayItems: [any DisplayItem] = items
     if borderRadius > 0 {
         let clip: Blend = Blend(
             opacity: 1.0, blendMode: .normal, node: node,
             children: [
                 DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: "transparent")
             ])
-        paintItems = [clip] + paintItems
+        displayItems = [clip] + displayItems
     }
 
     if blurRadius > 0 {
-        paintItems = [BlurFilter(radius: blurRadius, node: node, children: paintItems)]
+        displayItems = [BlurFilter(radius: blurRadius, node: node, children: displayItems)]
     }
 
-    let blend: Blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: paintItems)
+    let blend: Blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: displayItems)
     let transform: Transform = Transform(translation: translation, rect: rect, node: node, children: [blend])
     return [transform]
 }
 
-func addParentPointers(_ items: inout [any PaintItem], parent: VisualEffect? = nil) {
+func addParentPointers(_ items: inout [any DisplayItem], parent: VisualEffect? = nil) {
     var visited: Set<ObjectIdentifier> = Set<ObjectIdentifier>()
-    var stack: [([any PaintItem], VisualEffect?)] = [(items, parent)]
+    var stack: [([any DisplayItem], VisualEffect?)] = [(items, parent)]
 
     while !stack.isEmpty {
         let (currentNodes, currentParent) = stack.removeLast()
@@ -80,7 +80,7 @@ func addParentPointers(_ items: inout [any PaintItem], parent: VisualEffect? = n
                 visited.insert(id)
                 ve.parent = currentParent
                 for i in 0..<ve.children.count {
-                    if var pc = ve.children[i] as? (any PaintCommand) {
+                    if var pc = ve.children[i] as? (any DisplayCommand) {
                         pc.parentEffect = ve
                         ve.children[i] = pc
                     }

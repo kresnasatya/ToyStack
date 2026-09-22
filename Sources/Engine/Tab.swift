@@ -21,7 +21,7 @@ public class Tab {
     private nonisolated(unsafe) var visitedURL: Set<String> = []
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
-    private(set) var displayList: [any PaintItem] = []
+    private(set) var displayList: [any DisplayItem] = []
     private var paintEpoch: UInt = 0
     public private(set) var title: String = "New Tab"
     public private(set) var isSecure: Bool = false
@@ -539,7 +539,7 @@ public class Tab {
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
             defer { browser?.measure.stop("tab.paint") }
             guard let doc = document else { return }
-            var list: [any PaintItem] = []
+            var list: [any DisplayItem] = []
             paintTree(doc, into: &list)
             displayList = list
             paintedBottom = maxRectBottom(list)
@@ -664,7 +664,7 @@ public class Tab {
         return url?.resolve(href)
     }
 
-    public func scrollbarCommands() -> [any PaintCommand] {
+    public func scrollbarCommands() -> [any DisplayCommand] {
         guard let doc = document else { return [] }
         guard let bar = scrollbarBarRect(
             ScrollbarGeometry(
@@ -1041,10 +1041,10 @@ private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = 
     return CSSParser(source).parse().rules
 }()
 
-private func maxRectBottom(_ items: [any PaintItem]) -> CGFloat {
+private func maxRectBottom(_ items: [any DisplayItem]) -> CGFloat {
     var result: CGFloat = 0
     for item in items {
-        if let cmd = item as? any PaintCommand {
+        if let cmd = item as? any DisplayCommand {
             result = max(result, cmd.rect.bottom)
         } else if let ve = item as? Engine.VisualEffect {
             result = max(result, ve.rect.bottom)

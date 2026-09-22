@@ -113,9 +113,9 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [any PaintItem] {
+    func paint() -> [any DisplayItem] {
         guard let element = node as? Element else { return [] }
-        var cmds: [any PaintCommand] = []
+        var cmds: [any DisplayCommand] = []
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         let displayColor: String = bgcolor == "transparent" ? (isForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
         cmds.append(DrawRect(rect: selfRect(), color: displayColor))

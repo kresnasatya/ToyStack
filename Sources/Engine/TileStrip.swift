@@ -3,10 +3,10 @@ import CoreGraphics
 struct TileStrip: @unchecked Sendable {
     let layer: CompositedLayer
     let bounds: Rect
-    let items: [PaintCommand]
+    let items: [DisplayCommand]
     let tiles: [TileKey]
 
-    init(layer: CompositedLayer, bounds: Rect, items: [PaintCommand], tiles: [TileKey]) {
+    init(layer: CompositedLayer, bounds: Rect, items: [DisplayCommand], tiles: [TileKey]) {
         self.layer = layer
         self.bounds = bounds
         self.items = items

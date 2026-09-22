@@ -90,8 +90,8 @@ public class Chrome {
         currentWidth = width
     }
 
-    public func paint() -> [any PaintCommand] {
-        var cmds: [any PaintCommand] = []
+    public func paint() -> [any DisplayCommand] {
+        var cmds: [any DisplayCommand] = []
 
         let forced = tabManager?.forcedColors ?? false
         let darkMode = tabManager?.prefersDark ?? false

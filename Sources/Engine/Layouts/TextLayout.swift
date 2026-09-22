@@ -58,7 +58,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         })
     }
 
-    func paint() -> [any PaintItem] {
+    func paint() -> [any DisplayItem] {
         let color: String = node.style["color"] ?? "black"
         return [
             DrawText(

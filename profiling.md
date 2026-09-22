@@ -45,7 +45,7 @@ Emission writes **one** `C` event named `profile.<phase>`.
 | `profile.load` | `Tab.swift:114-117` (around `parseHTML`) | `load.*`, `jsc.*` |
 | `profile.style` | the `needsStyle` block | `style.*` |
 | `profile.layout` | the `needsLayout` block | `layout.*`, `text.*` |
-| `profile.paint` | the `needsPaint` block | `text.*` (from `PaintCommand`) |
+| `profile.paint` | the `needsPaint` block | `text.*` (from `DisplayCommand`) |
 
 Because there is one global with a reset per window, measuring outside any window
 is discarded when the next window resets.
@@ -121,7 +121,7 @@ three `layout.*` phases ≈ `tab.layout`.
 |---|---|
 | `text.measureCalls`, `text.measureMisses`, `text.measure` | count/duration |
 
-Holds `font.measure` calls from `PaintCommand.swift:112` while building the
+Holds `font.measure` calls from `DisplayCommand.swift:112` while building the
 display list. Compare with `profile.layout` to see the paint share.
 
 ## How to read `browser.trace`

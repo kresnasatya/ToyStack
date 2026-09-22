@@ -12,7 +12,7 @@ protocol LayoutObject: AnyObject {
     var zoom: CGFloat { get set }
 
     func layout()
-    func paint() -> [any PaintItem]
+    func paint() -> [any DisplayItem]
     func shouldPaint() -> Bool
 
 }

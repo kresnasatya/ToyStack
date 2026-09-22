@@ -1,5 +1,5 @@
 struct RasterScene {
-    let displayList: [any PaintItem]
+    let displayList: [any DisplayItem]
     let compositedUpdates: [ObjectIdentifier: VisualEffect]
     let previousLayers: [CompositedLayer]
 }
