@@ -1,14 +1,14 @@
 import CoreGraphics
 
-func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
-    var cmds: [Any] = []
+func paintTree(_ obj: any LayoutObject, into displayList: inout [any PaintItem]) {
+    var cmds: [any PaintItem] = []
 
     if obj.shouldPaint() {
         cmds.append(contentsOf: obj.paint())
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
-        var childCmds: [Any] = []
+        var childCmds: [any PaintItem] = []
         let visibleTop: CGFloat = block.y + block.scrollOffset
         let visibleBottom: CGFloat = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []
@@ -21,8 +21,11 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [Any]) {
             paintTree(child, into: &childCmds)
         }
         let effect: ScrollEffect = ScrollEffect(
-            rect: block.selfRect(), scrollOffset: block.scrollOffset, node: block.node,
-            children: childCmds)
+            rect: block.selfRect(),
+            scrollOffset: block.scrollOffset,
+            node: block.node,
+            children: childCmds
+        )
         cmds.append(effect)
         cmds.append(contentsOf: block.paintScrollbar())
     } else {

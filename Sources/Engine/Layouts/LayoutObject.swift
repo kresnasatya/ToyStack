@@ -12,7 +12,7 @@ protocol LayoutObject: AnyObject {
     var zoom: CGFloat { get set }
 
     func layout()
-    func paint() -> [Any]
+    func paint() -> [any PaintItem]
     func shouldPaint() -> Bool
 
 }
@@ -50,8 +50,4 @@ extension LayoutObject {
         }
         return nil
     }
-}
-
-protocol InlineLayoutItem: LayoutObject {
-    var font: BrowserFont { get }
 }

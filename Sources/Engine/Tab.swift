@@ -21,7 +21,7 @@ public class Tab {
     private nonisolated(unsafe) var visitedURL: Set<String> = []
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
-    private(set) var displayList: [Any] = []
+    private(set) var displayList: [any PaintItem] = []
     private var paintEpoch: UInt = 0
     public private(set) var title: String = "New Tab"
     public private(set) var isSecure: Bool = false
@@ -539,7 +539,7 @@ public class Tab {
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
             defer { browser?.measure.stop("tab.paint") }
             guard let doc = document else { return }
-            var list: [Any] = []
+            var list: [any PaintItem] = []
             paintTree(doc, into: &list)
             displayList = list
             paintedBottom = maxRectBottom(list)
@@ -664,7 +664,7 @@ public class Tab {
         return url?.resolve(href)
     }
 
-    public func visibleCommands(offset: CGFloat) -> [(command: Any, scroll: CGFloat)] {
+    public func visibleCommands(offset: CGFloat) -> [(command: any PaintItem, scroll: CGFloat)] {
         displayList.compactMap({ item in
             let rect: Rect?
             if let cmd = item as? any PaintCommand {
@@ -679,7 +679,7 @@ public class Tab {
         })
     }
 
-    public func scrollbarCommands() -> [Any] {
+    public func scrollbarCommands() -> [any PaintCommand] {
         guard let doc = document else { return [] }
         guard let bar = scrollbarBarRect(
             ScrollbarGeometry(
@@ -1063,7 +1063,7 @@ private let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = 
     return CSSParser(source).parse().rules
 }()
 
-private func maxRectBottom(_ items: [Any]) -> CGFloat {
+private func maxRectBottom(_ items: [any PaintItem]) -> CGFloat {
     var result: CGFloat = 0
     for item in items {
         if let cmd = item as? any PaintCommand {

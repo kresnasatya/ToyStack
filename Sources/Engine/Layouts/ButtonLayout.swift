@@ -113,7 +113,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [Any] {
+    func paint() -> [any PaintItem] {
         guard let element = node as? Element else { return [] }
         var cmds: [any PaintCommand] = []
         let bgcolor: String = element.style["background-color"] ?? "transparent"

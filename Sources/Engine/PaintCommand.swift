@@ -2,8 +2,7 @@ import CoreGraphics
 import CoreText
 
 // MARK: - PaintCommand
-public protocol PaintCommand {
-    var rect: Rect { get }
+public protocol PaintCommand: PaintItem {
     var parentEffect: VisualEffect? { get set }
     func execute(scroll: CGFloat, renderer: any Renderer)
 }

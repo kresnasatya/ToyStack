@@ -55,7 +55,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [Any] {
+    func paint() -> [any PaintItem] {
         guard let element = node as? Element else {
             return []
         }

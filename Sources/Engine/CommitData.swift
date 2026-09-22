@@ -1,7 +1,7 @@
 import CoreGraphics
 
 struct PaintResult {
-    let displayList: [Any]
+    let displayList: [any PaintItem]
     let compositedUpdates: [ObjectIdentifier: Engine.VisualEffect]?
     let paintEpoch: UInt
 }

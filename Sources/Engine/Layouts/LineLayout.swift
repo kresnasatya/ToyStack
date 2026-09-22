@@ -80,7 +80,7 @@ class LineLayout: LayoutObject {
         })
     }
 
-    func paint() -> [Any] {
+    func paint() -> [any PaintItem] {
         var cmds: [any PaintCommand] = []
         var outlineRect: Rect? = nil
         var focused: (any DOMNode)? = nil

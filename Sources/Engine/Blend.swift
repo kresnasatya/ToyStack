@@ -4,7 +4,7 @@ public class Blend: VisualEffect {
     let opacity: Double
     let blendMode: BrowserBlendMode?
 
-    init(opacity: Double, blendMode: BrowserBlendMode?, node: DOMNode?, children: [Any]) {
+    init(opacity: Double, blendMode: BrowserBlendMode?, node: DOMNode?, children: [any PaintItem]) {
         self.opacity = opacity
         self.blendMode = blendMode
 
@@ -45,7 +45,7 @@ public class Blend: VisualEffect {
         }
     }
 
-    func clone(child: Any) -> Blend {
+    func clone(child: any PaintItem) -> Blend {
         return Blend(opacity: opacity, blendMode: blendMode, node: node, children: [child])
     }
 }

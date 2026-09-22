@@ -4,7 +4,7 @@ public class ScrollEffect: Engine.VisualEffect {
     let clipRect: Rect
     var scrollOffset: CGFloat
 
-    init(rect: Rect, scrollOffset: CGFloat, node: DOMNode?, children: [Any]) {
+    init(rect: Rect, scrollOffset: CGFloat, node: DOMNode?, children: [any PaintItem]) {
         self.clipRect = rect
         self.scrollOffset = scrollOffset
         super.init(rect: rect, children: children, node: node)
@@ -30,7 +30,7 @@ public class ScrollEffect: Engine.VisualEffect {
         renderer.restoreState()
     }
 
-    func clone(child: Any) -> ScrollEffect {
+    func clone(child: any PaintItem) -> ScrollEffect {
         ScrollEffect(rect: clipRect, scrollOffset: scrollOffset, node: node, children: [child])
     }
 }

@@ -3,7 +3,7 @@ import CoreGraphics
 public class BlurFilter: Engine.VisualEffect {
     let radius: CGFloat
 
-    init(radius: CGFloat, node: DOMNode?, children: [Any]) {
+    init(radius: CGFloat, node: DOMNode?, children: [any PaintItem]) {
         self.radius = radius
 
         var combinedRect: Rect = Rect(left: 0, top: 0, right: 0, bottom: 0)
@@ -20,7 +20,7 @@ public class BlurFilter: Engine.VisualEffect {
         self.needsCompositing = radius > 0 || self.needsCompositing
     }
 
-    func clone(child: Any) -> BlurFilter {
+    func clone(child: any PaintItem) -> BlurFilter {
         return BlurFilter(radius: radius, node: node, children: [child])
     }
 

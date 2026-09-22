@@ -15,7 +15,7 @@ func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
     return result
 }
 
-func treeToList(_ item: Any, into list: inout [Any]) {
+func treeToList(_ item: any PaintItem, into list: inout [any PaintItem]) {
     list.append(item)
     if let ve = item as? VisualEffect {
         for child in ve.children {
