@@ -54,10 +54,7 @@ public class Browser: ObservableObject {
 
     public var drawList: [any PaintItem] { activeFrame.render.drawList }
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
-    public var activeTabInterestTop: CGFloat { activeFrame.scroll.interestTop }
     public var contentImage: CGImage? { activeFrame.render.content.image }
-    public var contentRegionTop: CGFloat { activeFrame.render.content.regionTop }
-    public var activePlacements: [PlacedLayer] { activeFrame.render.content.placements }
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
     public var presentedFrame: PresentedFrame {
         PresentedFrame(
@@ -806,11 +803,6 @@ public class Browser: ObservableObject {
     func setNeedsComposite() {
         lastTileScroll = .nan
         needsComposite = true
-        needsRaster = true
-        needsDraw = true
-    }
-
-    func setNeedsRaster() {
         needsRaster = true
         needsDraw = true
     }

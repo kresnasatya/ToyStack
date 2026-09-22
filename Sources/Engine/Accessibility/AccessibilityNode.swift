@@ -104,17 +104,6 @@ class AccessibilityNode {
         }
     }
 
-    private func computeText() -> String {
-        if let t = node as? TextNode { return t.text }
-        if let el = node as? Element {
-            if role == "textbox" { return el.attributes["value"] ?? "" }
-            if role == "checked" || role == "unchecked" {
-                return el.attributes["label"] ?? ""
-            }
-        }
-        return children.compactMap({ $0.text.isEmpty ? nil : $0.text }).joined(separator: " ")
-    }
-
     func hitTest(x: CGFloat, y: CGFloat) -> AccessibilityNode? {
         var result: AccessibilityNode? = nil
         if bounds.containsPoint(x, y) { result = self }

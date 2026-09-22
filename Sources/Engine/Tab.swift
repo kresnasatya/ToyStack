@@ -664,21 +664,6 @@ public class Tab {
         return url?.resolve(href)
     }
 
-    public func visibleItems(offset: CGFloat) -> [(items: any PaintItem, scroll: CGFloat)] {
-        displayList.compactMap({ item in
-            let rect: Rect?
-            if let cmd = item as? any PaintCommand {
-                rect = cmd.rect
-            } else if let ve = item as? VisualEffect {
-                rect = ve.rect
-            } else {
-                rect = nil
-            }
-            guard let r = rect, r.top <= scroll + tabHeight, r.bottom >= scroll else { return nil }
-            return (item, scroll)
-        })
-    }
-
     public func scrollbarCommands() -> [any PaintCommand] {
         guard let doc = document else { return [] }
         guard let bar = scrollbarBarRect(
@@ -698,13 +683,6 @@ public class Tab {
         tabHeight = height
 
         setNeedsRender()
-    }
-
-    private var scrollBehaviorIsSmooth: Bool {
-        let body: Element? = treeToList(nodes)
-            .compactMap({ $0 as? Element })
-            .first(where: { $0.tag == "body" })
-        return body?.style["scroll-behavior"] == "smooth"
     }
 
     public func scrollDown() {

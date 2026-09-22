@@ -19,21 +19,6 @@ class TaskRunner {
         }
     }
 
-    func clearPendingTasks() {
-        DispatchQueue.main.async {
-            self.highQueue.removeAll()
-            self.lowQueue.removeAll()
-        }
-    }
-
-    func setNeedsQuit() {
-        DispatchQueue.main.async {
-            self.needsQuit = true
-            self.highQueue.removeAll()
-            self.lowQueue.removeAll()
-        }
-    }
-
     private func runNext() {
         guard !needsQuit else { return }
 

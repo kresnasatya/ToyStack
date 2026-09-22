@@ -36,9 +36,6 @@ final class TileStore: @unchecked Sendable {
     // For temporary debug print
     private(set) var hits: Int = 0
     private(set) var misses: Int = 0
-    var populationDebug: String {
-        return "store: \(entries.count) entries, \(totalPixels)/\(pixelBudget) px"
-    }
 
     init(tileSize: CGFloat) {
         self.tileSize = tileSize

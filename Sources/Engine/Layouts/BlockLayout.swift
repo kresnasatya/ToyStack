@@ -5,7 +5,6 @@ class BlockLayout: LayoutObject {
     static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
 
     static let inputWidthPx: CGFloat = 200
-    static let paragraphSpacing: CGFloat = 18.0
     static let liIndent: CGFloat = 20.0
     static let bulletSize: CGFloat = 8.0
 
