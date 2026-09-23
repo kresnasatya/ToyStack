@@ -32,19 +32,19 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        zoom = computeZoom(node, parentZoom: parent!.zoom)
+        zoom = resolvedZoom()
         guard let element = node as? Element else { return }
 
         let weight: String = element.style["font-weight"] ?? "normal"
         var styleStr: String = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
+        let sizeInt: Int = Int(scaled(sizePx * 0.75))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
 
-        width = dpx(InputLayout.inputWidthPx, zoom: zoom)
+        width = scaled(InputLayout.inputWidthPx)
         if let prev = previous as? InlineLayoutItem {
             x = prev.x + prev.font.spaceWidth + prev.width
         } else {
@@ -86,10 +86,11 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         var style: String = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
         let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
+        let sizeInt: Int = Int(scaled(sizePx * 0.75))
         let font: BrowserFont = getFont(
             size: sizeInt, weight: weight, style: style,
-            family: node.style["font-family"] ?? "serif")
+            family: node.style["font-family"] ?? "serif"
+        )
         let w: CGFloat = font.measure(word)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
@@ -101,7 +102,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
 
     private func addInput(_ node: Element) {
-        let w: CGFloat = dpx(InputLayout.inputWidthPx, zoom: zoom)
+        let w: CGFloat = scaled(InputLayout.inputWidthPx)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
         let prev: (any LayoutObject)? = line.children.last

@@ -24,9 +24,9 @@ class DocumentLayout: LayoutObject {
         let child: BlockLayout = BlockLayout(node: node, parent: self, previous: nil)
         children.append(child)
 
-        width = availableWidth - 2 * dpx(HSTEP, zoom: zoom)
-        x = dpx(HSTEP, zoom: zoom)
-        y = dpx(VSTEP, zoom: zoom)
+        width = availableWidth - 2 * scaled(HSTEP)
+        x = scaled(HSTEP)
+        y = scaled(VSTEP)
 
         child.layout()
         height = child.height

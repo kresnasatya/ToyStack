@@ -25,19 +25,20 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        zoom = computeZoom(node, parentZoom: parent!.zoom)
+        zoom = resolvedZoom()
         guard let element = node as? Element else { return }
 
         let weight: String = element.style["font-weight"] ?? "normal"
         var styleStr: String = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
+        let sizeInt: Int = Int(scaled(sizePx * 0.75))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
-            family: element.style["font-family"] ?? "serif")
+            family: element.style["font-family"] ?? "serif"
+        )
 
-        width = dpx(InputLayout.inputWidthPx, zoom: zoom)
+        width = scaled(InputLayout.inputWidthPx)
         if (node as? Element)?.attributes["type"] == "checkbox" {
             width = font.linespace
         }

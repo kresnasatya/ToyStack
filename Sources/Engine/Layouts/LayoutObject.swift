@@ -54,4 +54,22 @@ extension LayoutObject {
         }
         return nil
     }
+
+    func resolvedZoom() -> CGFloat {
+        guard let zoomStr = node.style["zoom"] else { return parent?.zoom ?? 1.0 }
+        let trimmed: String = zoomStr.trimmingCharacters(in: .whitespaces)
+        let factor: CGFloat
+        if trimmed.hasSuffix("%"), let pct = Double(trimmed.dropLast()) {
+            factor = CGFloat(pct / 100.0)
+        } else if let val = Double(trimmed) {
+            factor = CGFloat(val)
+        } else {
+            return parent?.zoom ?? 1.0
+        }
+        return (parent?.zoom ?? 1.0) * factor
+    }
+
+    func scaled(_ cssPx: CGFloat) -> CGFloat {
+        return cssPx * zoom
+    }
 }

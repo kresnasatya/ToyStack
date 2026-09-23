@@ -42,7 +42,7 @@ class BlockLayout: LayoutObject {
 
     func layout() {
         profiler.measure("layout.block.build") {
-            zoom = computeZoom(node, parentZoom: parent!.zoom)
+            zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
             if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
@@ -185,7 +185,7 @@ class BlockLayout: LayoutObject {
 
     private func marginPx(_ n: any DOMNode, _ prop: String) -> CGFloat {
         guard let s = n.style[prop], s.hasSuffix("px"), let v = Double(s.dropLast(2)) else { return 0 }
-        return dpx(CGFloat(v), zoom: zoom)
+        return scaled(CGFloat(v))
     }
 
     private func recurse(_ n: any DOMNode) {
@@ -239,7 +239,7 @@ class BlockLayout: LayoutObject {
             var style: String = node.style["font-style"] ?? "normal"
             if style == "normal" { style = "roman" }
             let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-            let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
+            let sizeInt: Int = Int(scaled(sizePx * 0.75))
             font = getFont(
                 size: sizeInt, weight: weight, style: style,
                 family: node.style["font-family"] ?? "serif")
@@ -319,7 +319,7 @@ class BlockLayout: LayoutObject {
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
         cursorX += w + font.spaceWidth
-        width = dpx(BlockLayout.inputWidthPx, zoom: zoom)
+        width = scaled(BlockLayout.inputWidthPx)
     }
 
     private func addButton(_ node: Element) {

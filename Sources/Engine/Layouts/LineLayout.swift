@@ -21,7 +21,7 @@ class LineLayout: LayoutObject {
     }
 
     func layout() {
-        zoom = computeZoom(node, parentZoom: parent!.zoom)
+        zoom = resolvedZoom()
         width = parent!.width
         x = parent!.x
         y = previous.map { $0.y + $0.height } ?? parent!.y

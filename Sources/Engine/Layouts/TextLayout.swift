@@ -31,12 +31,12 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             if let override = fontOverride {
                 resolvedFont = override
             } else {
-                zoom = computeZoom(node, parentZoom: parent!.zoom)
+                zoom = resolvedZoom()
                 let weight: String = node.style["font-weight"] ?? "normal"
                 var styleStr: String = node.style["font-style"] ?? "normal"
                 if styleStr == "normal" { styleStr = "roman" }
                 let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-                let sizeInt: Int = Int(dpx(sizePx * 0.75, zoom: zoom))
+                let sizeInt: Int = Int(scaled(sizePx * 0.75))
                 resolvedFont = getFont(
                         size: sizeInt,
                         weight: weight,
