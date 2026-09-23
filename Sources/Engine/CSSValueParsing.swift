@@ -34,3 +34,10 @@ func parseTransform(_ value: String) -> CGPoint? {
     else { return nil }
     return CGPoint(x: x, y: y)
 }
+
+func parseBlur(_ value: String) -> CGFloat {
+    guard value.hasPrefix("blur("), value.hasSuffix(")") else { return 0 }
+    let inner: Substring.SubSequence = value.dropFirst(5).dropLast()
+    let digits: Substring.SubSequence = inner.hasSuffix("px") ? inner.dropLast(2) : inner
+    return CGFloat(Double(digits) ?? 0)
+}
