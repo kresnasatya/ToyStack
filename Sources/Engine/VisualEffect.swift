@@ -90,3 +90,16 @@ func addParentPointers(_ items: inout [any DisplayItem], parent: VisualEffect? =
         }
     }
 }
+
+func maxRectBottom(_ items: [any DisplayItem]) -> CGFloat {
+    var result: CGFloat = 0
+    for item in items {
+        if let cmd = item as? any DisplayCommand {
+            result = max(result, cmd.rect.bottom)
+        } else if let ve = item as? Engine.VisualEffect {
+            result = max(result, ve.rect.bottom)
+            result = max(result, maxRectBottom(ve.children))
+        }
+    }
+    return result
+}
