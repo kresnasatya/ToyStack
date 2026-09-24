@@ -9,7 +9,7 @@ struct KeyframePlayback {
 extension KeyframePlayback {
     static func parse(_ value: String) -> KeyframePlayback? {
         let normalized: String = value.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-        let tokens: [String] = splitOutsiteParentheses(normalized, separator: " ").filter({ !$0.isEmpty })
+        let tokens: [String] = CSSValueParser.splitOutsiteParentheses(normalized, separator: " ").filter({ !$0.isEmpty })
         guard !tokens.isEmpty else { return nil }
 
         var name: String?

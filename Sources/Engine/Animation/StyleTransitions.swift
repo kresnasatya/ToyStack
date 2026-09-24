@@ -21,8 +21,8 @@ enum StyleTransitions {
         newValue: String,
         timing: FrameTiming
     ) -> Animation? {
-        if property == "transform", let oldPoint = parseTransform(oldValue),
-            let newPoint = parseTransform(newValue)
+        if property == "transform", let oldPoint = CSSValueParser.transform(oldValue),
+            let newPoint = CSSValueParser.transform(newValue)
         {
             return TransformAnimation(
                 animatedProperty: property,

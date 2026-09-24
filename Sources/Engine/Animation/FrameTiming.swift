@@ -7,10 +7,10 @@ extension FrameTiming {
     static func parse(_ value: String) -> [String: FrameTiming] {
         var properties: [String: FrameTiming] = [:]
         guard !value.isEmpty else { return properties }
-        for item in splitOutsiteParentheses(value, separator: ",") {
+        for item in CSSValueParser.splitOutsiteParentheses(value, separator: ",") {
             let normalized: String = item.split(whereSeparator: { $0.isWhitespace })
                 .joined(separator: " ")
-            let tokens: [String] = splitOutsiteParentheses(normalized, separator: " ").filter({
+            let tokens: [String] = CSSValueParser.splitOutsiteParentheses(normalized, separator: " ").filter({
                 !$0.isEmpty
             })
             guard tokens.count >= 2 else { continue }

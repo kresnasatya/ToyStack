@@ -29,10 +29,10 @@ public class VisualEffect: DisplayItem {
 func paintVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
     let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendModeStr: String? = node.style["mix-blend-mode"]
-    let translation: CGPoint? = parseTransform(node.style["transform"] ?? "")
+    let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")
     let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
     let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
-    let blurRadius: CGFloat = parseBlur(node.style["filter"] ?? "")
+    let blurRadius: CGFloat = CSSValueParser.blur(node.style["filter"] ?? "")
 
     let blendMode: BrowserBlendMode? = {
         switch blendModeStr {

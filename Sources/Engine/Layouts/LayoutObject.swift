@@ -26,7 +26,7 @@ extension LayoutObject {
         var x: CGFloat = x
         var y: CGFloat = y
 
-        if let t = parseTransform(node.style["transform"] ?? "") {
+        if let t = CSSValueParser.transform(node.style["transform"] ?? "") {
             x -= t.x
             y -= t.y
         }
