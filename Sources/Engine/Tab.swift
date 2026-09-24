@@ -114,7 +114,7 @@ public class Tab {
 
             self.browser?.measure.start("tab.load.parseHTML")
             profiler.reset()
-            let parsedPage: PageResources? = self.parseHTML(url: url, result: result)
+            let parsedPage: ResourceLoads? = self.parseHTML(url: url, result: result)
             self.browser?.measure.stop("tab.load.parseHTML")
             profiler.emitProfile(into: self.browser?.measure, named: "profile.load")
             guard let resources = parsedPage else { return }
@@ -153,7 +153,7 @@ public class Tab {
 
     private func parseHTML(
         url: WebURL, result: Result<(status: Int, headers: [String: String], content: String), Error>
-    ) -> PageResources? {
+    ) -> ResourceLoads? {
         let certErrorCodes: [URLError.Code] = [
             .serverCertificateUntrusted, .serverCertificateHasBadDate,
             .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot,
@@ -211,17 +211,17 @@ public class Tab {
 
             rules = profiler.measure("load.defaultCss") { defaultStyleSheet }
 
-            let (styleURLs, scriptURLs): ([ResourceURL], [ResourceURL]) =
+            let (styleURLs, scriptURLs): ([ResourceLoad], [ResourceLoad]) =
             profiler.measure("load.resources", {
                 let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
-                let styles: [ResourceURL] = elements
+                let styles: [ResourceLoad] = elements
                     .filter({ $0.tag == "link" && $0.attributes["rel"] == "stylesheet" && $0.attributes["href"] != nil })
                     .enumerated()
                     .map({ (i, link) in
                         let styleURL: WebURL = url.resolve(link.attributes["href"]!)
                         return (i, styleURL, self.effectiveReferrer(for: styleURL))
                     })
-                let scripts: [ResourceURL] = elements
+                let scripts: [ResourceLoad] = elements
                     .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
                     .enumerated()
                     .map({ (i, node) in
@@ -231,7 +231,7 @@ public class Tab {
                 return (styles, scripts)
             })
 
-            return PageResources(styleURLs: styleURLs, scriptURLs: scriptURLs)
+            return ResourceLoads(styleURLs: styleURLs, scriptURLs: scriptURLs)
         }
     }
 
@@ -240,7 +240,7 @@ public class Tab {
     ) async -> [(index: Int, body: String)] {
         typealias Response = (status: Int, headers: [String: String], content: String)
         var result: [(index: Int, body: String)] = []
-        var allowed: [ResourceURL] = []
+        var allowed: [ResourceLoad] = []
         for entry in urls {
             guard allowedRequest(entry.url) else {
                 print("Blocked style", entry.url.toString(), "due to CSP")
@@ -286,7 +286,7 @@ public class Tab {
     ) async -> [(index: Int, url: WebURL, body: String)] {
         typealias Response = (status: Int, headers: [String: String], content: String)
         var result: [(index: Int, url: WebURL, body: String)] = []
-        var allowed: [ResourceURL] = []
+        var allowed: [ResourceLoad] = []
         for entry in urls {
             guard allowedRequest(entry.url) else {
                 print("Blocked script", entry.url.toString(), "due to CSP")
