@@ -90,7 +90,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                     )
                 )
             }
-            let outline: DrawOutline? = cssOutline(node, rect: selfRect())
+            let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 2))
                 cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 4))
@@ -130,7 +130,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 )
             )
         }
-        let outline: DrawOutline? = cssOutline(node, rect: selfRect())
+        let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))

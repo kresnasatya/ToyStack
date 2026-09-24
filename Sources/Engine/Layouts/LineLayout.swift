@@ -93,7 +93,7 @@ class LineLayout: LayoutObject {
                 outlineRect = outlineRect?.union(childRect) ?? childRect
         }
         if let rect = outlineRect, let focused = focused {
-            if let outline = cssOutline(focused, rect: rect) {
+            if let outline = DrawOutline.fromStyle(focused, rect: rect) {
                 cmds.append(outline)
             } else {
                 cmds.append(DrawOutline(rect: rect, color: ringColors(node).outer, thickness: 4))

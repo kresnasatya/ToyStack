@@ -20,3 +20,15 @@ public struct DrawOutline: DisplayCommand {
         renderer.strokeRect(r, color: BrowserColor(cssName: color), lineWidth: thickness)
     }
 }
+
+extension DrawOutline {
+    static func fromStyle(_ node: any DOMNode, rect: Rect) -> DrawOutline? {
+        let style: String = node.style["outline-style"] ?? "none"
+        guard style != "none", style != "hidden" else { return nil }
+        guard let thickness = parseOutlineWidth(node.style["outline-width"] ?? "medium"),
+            thickness > 0
+        else { return nil }
+        let color: String = node.style["outline-color"] ?? node.style["color"] ?? "black"
+        return DrawOutline(rect: rect, color: color, thickness: thickness)
+    }
+}
