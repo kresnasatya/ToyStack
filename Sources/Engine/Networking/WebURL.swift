@@ -101,7 +101,7 @@ public class WebURL: @unchecked Sendable {
     ) async throws -> (
         status: Int, headers: [String: String], content: String
     ) {
-        if let source = Tab.pageSource, let page = await source(scheme, path) {
+        if let source = BrowserTab.pageSource, let page = await source(scheme, path) {
             return page
         }
         if scheme == "about" {

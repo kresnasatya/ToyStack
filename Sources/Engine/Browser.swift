@@ -4,8 +4,8 @@ import Foundation
 
 @MainActor
 public class Browser: ObservableObject {
-    @Published public var tabs: [Engine.Tab] = []
-    @Published public private(set) var activeTab: Engine.Tab?
+    @Published public var tabs: [BrowserTab] = []
+    @Published public private(set) var activeTab: BrowserTab?
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
@@ -117,7 +117,7 @@ public class Browser: ObservableObject {
     }
 
     public func newTab(_ url: WebURL) {
-        let tab: Tab = Engine.Tab(
+        let tab: BrowserTab = BrowserTab(
             tabHeight: windowSize.height - topInset,
             tabWidth: windowSize.width
         )
@@ -177,7 +177,7 @@ public class Browser: ObservableObject {
         activeTab?.runAnimationFrame()
     }
 
-    func commit(tab: Engine.Tab, data: CommitData) {
+    func commit(tab: BrowserTab, data: CommitData) {
         guard tab === activeTab else { return }
         let paintChanged: Bool = data.paint.paintEpoch != activeFrame.paint.paintEpoch
         activeFrame.paint.displayList = data.paint.displayList
@@ -811,7 +811,7 @@ public class Browser: ObservableObject {
         needsDraw = true
     }
 
-    func setNeedsAnimationFrame(_ tab: Engine.Tab) {
+    func setNeedsAnimationFrame(_ tab: BrowserTab) {
         if tab === activeTab {
             needsAnimationFrame = true
         }
@@ -878,7 +878,7 @@ public class Browser: ObservableObject {
         selectTab(tabs[nextIdx])
     }
 
-    public func selectTab(_ tab: Tab) {
+    public func selectTab(_ tab: BrowserTab) {
         guard tab !== activeTab else { return }
         if let oldID = activeFrameID {
             frames[oldID] = activeFrame

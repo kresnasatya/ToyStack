@@ -42,7 +42,7 @@ Emission writes **one** `C` event named `profile.<phase>`.
 
 | Event | Window | Contains |
 |---|---|---|
-| `profile.load` | `Tab.swift:114-117` (around `parseHTML`) | `load.*`, `jsc.*` |
+| `profile.load` | `BrowserTab.swift:114-117` (around `parseHTML`) | `load.*`, `jsc.*` |
 | `profile.style` | the `needsStyle` block | `style.*` |
 | `profile.layout` | the `needsLayout` block | `layout.*`, `text.*` |
 | `profile.paint` | the `needsPaint` block | `text.*` (from `DisplayCommand`) |

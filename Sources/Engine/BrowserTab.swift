@@ -6,7 +6,7 @@ private struct HistoryEntry {
 }
 
 @MainActor
-public class Tab {
+public class BrowserTab {
     public nonisolated(unsafe) static var showAlert: (String, String) -> Void = { title, message in
         print("[alert] \(title): \(message)")
     }
@@ -103,41 +103,41 @@ public class Tab {
         let referrer: WebURL? = effectiveReferrer(for: url)
 
         Task {
-            self.browser?.measure.start("tab.load")
-            defer { self.browser?.measure.stop("tab.load") }
+            self.browser?.measure.start("BrowserTab.load")
+            defer { self.browser?.measure.stop("BrowserTab.load") }
 
-            self.browser?.measure.start("tab.load.page")
+            self.browser?.measure.start("BrowserTab.load.page")
             let result: Result<(status: Int, headers: [String : String], content: String), any Error> = await networkTaskRunner.schedule(name: "load\(url.toString())") {
                 await self.fetchPage(url: url, referrer: referrer, payload: payload)
             }
-            self.browser?.measure.stop("tab.load.page")
+            self.browser?.measure.stop("BrowserTab.load.page")
 
-            self.browser?.measure.start("tab.load.parseHTML")
+            self.browser?.measure.start("BrowserTab.load.parseHTML")
             profiler.reset()
             let parsedPage: ResourceLoads? = self.parseHTML(url: url, result: result)
-            self.browser?.measure.stop("tab.load.parseHTML")
+            self.browser?.measure.stop("BrowserTab.load.parseHTML")
             profiler.emitProfile(into: self.browser?.measure, named: "profile.load")
             guard let resources = parsedPage else { return }
 
-            self.browser?.measure.start("tab.load.styles")
+            self.browser?.measure.start("BrowserTab.load.styles")
             let styleBodies: [(index: Int, body: String)] = await networkTaskRunner.schedule(name: "fetch-styles") {
                 await self.fetchStyles(urls: resources.styleURLs)
             }
-            self.browser?.measure.stop("tab.load.styles")
+            self.browser?.measure.stop("BrowserTab.load.styles")
 
-            self.browser?.measure.start("tab.load.applyStyles")
+            self.browser?.measure.start("BrowserTab.load.applyStyles")
             self.applyStyles(bodies: styleBodies)
-            self.browser?.measure.stop("tab.load.applyStyles")
+            self.browser?.measure.stop("BrowserTab.load.applyStyles")
 
-            self.browser?.measure.start("tab.load.scripts")
+            self.browser?.measure.start("BrowserTab.load.scripts")
             let scriptBodies: [(index: Int, url: WebURL, body: String)] = await networkTaskRunner.schedule(name: "fetch-scripts") {
                 await self.fetchScripts(urls: resources.scriptURLs)
             }
-            self.browser?.measure.stop("tab.load.scripts")
+            self.browser?.measure.stop("BrowserTab.load.scripts")
 
-            self.browser?.measure.start("tab.load.exec")
+            self.browser?.measure.start("BrowserTab.load.exec")
             self.execScripts(url: url, bodies: scriptBodies)
-            self.browser?.measure.stop("tab.load.exec")
+            self.browser?.measure.stop("BrowserTab.load.exec")
         }
     }
 
@@ -162,7 +162,7 @@ public class Tab {
         switch result {
         case .failure(let error):
             if let urlError = error as? URLError, certErrorCodes.contains(urlError.code) {
-                Tab.showAlert("Certificate Error", "The certificate for \(url.host) is invalid. " + "Your connection may not be private.")
+                BrowserTab.showAlert("Certificate Error", "The certificate for \(url.host) is invalid. " + "Your connection may not be private.")
             }
             return nil
 
@@ -256,7 +256,7 @@ public class Tab {
             }
             for await (i, styleURL, response) in group {
                 guard let response,
-                    Tab.isUsableStylesheet(status: response.status, headers: response.headers, url: styleURL)
+                    BrowserTab.isUsableStylesheet(status: response.status, headers: response.headers, url: styleURL)
                 else { continue }
                 result.append((i, response.content))
             }
@@ -302,7 +302,7 @@ public class Tab {
             }
             for await (i, scriptURL, response) in group {
                 guard let response,
-                    Tab.isExecutableScript(status: response.status, headers: response.headers, url: scriptURL)
+                    BrowserTab.isExecutableScript(status: response.status, headers: response.headers, url: scriptURL)
                 else { continue }
                 result.append((i, scriptURL, response.content))
             }
@@ -399,7 +399,7 @@ public class Tab {
             let urlStr: String = scriptURL.toString()
             guard !loadedScriptURLs.contains(urlStr) else { continue }
             guard let (status, headers, body) = scriptURL.requestSync() else { continue }
-            guard Tab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
+            guard BrowserTab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
             loadedScriptURLs.insert(urlStr)
             js.run(script: urlStr, code: body)
         }
@@ -415,7 +415,7 @@ public class Tab {
                 let styleURL: WebURL = url.resolve(href)
                 guard allowedRequest(styleURL) else { continue }
                 guard let (status, headers, body) = styleURL.requestSync() else { continue }
-                guard Tab.isUsableStylesheet(status: status, headers: headers, url: styleURL) else { continue }
+                guard BrowserTab.isUsableStylesheet(status: status, headers: headers, url: styleURL) else { continue }
                 let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
                 rules.append(contentsOf: parsed.rules)
                 keyframes.merge(parsed.keyframes) { _, new in new }
@@ -431,30 +431,30 @@ public class Tab {
 
     func render() {
         if needsStyle {
-            browser?.measure.start("tab.style")
+            browser?.measure.start("BrowserTab.style")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.style") }
-            defer { browser?.measure.stop("tab.style") }
+            defer { browser?.measure.stop("BrowserTab.style") }
 
-            browser?.measure.start("tab.style.rules")
+            browser?.measure.start("BrowserTab.style.rules")
             let sortedRules: [(String?, any CSSSelector, [String : String])] = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             let ruleIndex: RuleIndex = RuleIndex(rules: sortedRules)
             profiler.count("style.rules", by: sortedRules.count)
-            browser?.measure.stop("tab.style.rules")
+            browser?.measure.stop("BrowserTab.style.rules")
 
-            browser?.measure.start("tab.style.has")
+            browser?.measure.start("BrowserTab.style.has")
             precomputeHas(node: nodes, rules: sortedRules)
-            browser?.measure.stop("tab.style.has")
+            browser?.measure.stop("BrowserTab.style.has")
 
-            browser?.measure.start("tab.style.snapshot")
+            browser?.measure.start("BrowserTab.style.snapshot")
             var oldStyles: [ObjectIdentifier: [String: String]] = [:]
             for node in treeToList(nodes) {
                 oldStyles[ObjectIdentifier(node)] = node.style
             }
-            browser?.measure.stop("tab.style.snapshot")
+            browser?.measure.stop("BrowserTab.style.snapshot")
 
             inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
-            browser?.measure.start("tab.style.apply")
+            browser?.measure.start("BrowserTab.style.apply")
             let context: StyleContext = StyleContext(
                 rules: ruleIndex,
                 theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
@@ -465,9 +465,9 @@ public class Tab {
                 context: context,
                 ancestors: AncestorScope()
             )
-            browser?.measure.stop("tab.style.apply")
+            browser?.measure.stop("BrowserTab.style.apply")
 
-            browser?.measure.start("tab.style.diff")
+            browser?.measure.start("BrowserTab.style.diff")
             for node in treeToList(nodes) {
                 let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
                 let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style)
@@ -475,9 +475,9 @@ public class Tab {
                     node.animations[property] = animation
                 }
             }
-            browser?.measure.stop("tab.style.diff")
+            browser?.measure.stop("BrowserTab.style.diff")
 
-            browser?.measure.start("tab.style.keyframes")
+            browser?.measure.start("BrowserTab.style.keyframes")
             for node in treeToList(nodes) {
                 guard let animDecl = node.style["animation"],
                     let playback = KeyframePlayback.parse(animDecl),
@@ -490,9 +490,9 @@ public class Tab {
                     node.animations[key] = anim
                 }
             }
-            browser?.measure.stop("tab.style.keyframes")
+            browser?.measure.stop("BrowserTab.style.keyframes")
 
-            browser?.measure.start("tab.style.visited")
+            browser?.measure.start("BrowserTab.style.visited")
             for node in treeToList(nodes) {
                 guard let el = node as? Element, el.tag == "a",
                     let href = el.attributes["href"]
@@ -503,17 +503,17 @@ public class Tab {
                     el.style["color"] = forcedColors ? ForcedColor.visitedText : "purple"
                 }
             }
-            browser?.measure.stop("tab.style.visited")
+            browser?.measure.stop("BrowserTab.style.visited")
 
             needsStyle = false
             needsLayout = true
         }
 
         if needsLayout {
-            browser?.measure.start("tab.layout")
+            browser?.measure.start("BrowserTab.layout")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
-            defer { browser?.measure.stop("tab.layout") }
+            defer { browser?.measure.stop("BrowserTab.layout") }
             let doc: DocumentLayout = DocumentLayout(node: nodes)
             doc.layout(availableWidth: tabWidth, zoom: zoom)
             document = doc
@@ -524,8 +524,8 @@ public class Tab {
         }
 
         if needsAccessibility {
-            browser?.measure.start("tab.a11y")
-            defer { browser?.measure.stop("tab.a11y") }
+            browser?.measure.start("BrowserTab.a11y")
+            defer { browser?.measure.stop("BrowserTab.a11y") }
             let a11yTree: AccessibilityNode = AccessibilityNode(node: nodes)
             a11yTree.build()
             accessibilityTree = a11yTree
@@ -534,10 +534,10 @@ public class Tab {
         }
 
         if needsPaint {
-            browser?.measure.start("tab.paint")
+            browser?.measure.start("BrowserTab.paint")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
-            defer { browser?.measure.stop("tab.paint") }
+            defer { browser?.measure.stop("BrowserTab.paint") }
             guard let doc = document else { return }
             var list: [any DisplayItem] = []
             paintTree(doc, into: &list)
@@ -552,16 +552,16 @@ public class Tab {
 
     func runAnimationFrame() {
         guard js != nil else { return }
-        browser?.measure.start("tab.animFrame")
-        defer { browser?.measure.stop("tab.animFrame") }
-        browser?.measure.start("tab.raf")
+        browser?.measure.start("BrowserTab.animFrame")
+        defer { browser?.measure.stop("BrowserTab.animFrame") }
+        browser?.measure.start("BrowserTab.raf")
         js.run(script: "raf", code: "__runRAFHandlers()")
-        browser?.measure.stop("tab.raf")
+        browser?.measure.stop("BrowserTab.raf")
         var needsAnotherFrame: Bool = false
         let needsComposite: Bool = needsStyle || needsLayout || needsPaint
         var needsPaint: Bool = false
         var needsLayoutUpdate: Bool = false
-        browser?.measure.start("tab.animScan")
+        browser?.measure.start("BrowserTab.animScan")
         for node in treeToList(nodes) {
             for (key, animation) in node.animations {
                 let property: String = animation.animatedProperty
@@ -591,7 +591,7 @@ public class Tab {
                 }
             }
         }
-        browser?.measure.stop("tab.animScan")
+        browser?.measure.stop("BrowserTab.animScan")
 
         if needsPaint {
             setNeedsPaint()
@@ -798,7 +798,7 @@ public class Tab {
         historyIndex -= 1
         let entry: HistoryEntry = history[historyIndex]
         if let payload = entry.payload {
-            if Tab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
+            if BrowserTab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
                 performLoad(entry.url, payload: payload)
             } else {
                 historyIndex += 1

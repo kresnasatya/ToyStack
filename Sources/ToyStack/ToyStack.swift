@@ -7,14 +7,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        Tab.showAlert = { title, message in
+        BrowserTab.showAlert = { title, message in
             let alert = NSAlert()
             alert.messageText = title
             alert.informativeText = message
             alert.addButton(withTitle: "OK")
             alert.runModal()
         }
-        Tab.showConfirm = { title, message in
+        BrowserTab.showConfirm = { title, message in
             let alert = NSAlert()
             alert.messageText = title
             alert.informativeText = message
@@ -266,7 +266,7 @@ public struct BrowserView: View {
             chrome.bookmarks = bookmarks
             chrome.resize(width: app.windowSize.width)
             app.topInset = chrome.bottom
-            Tab.pageSource = { scheme, path in
+            BrowserTab.pageSource = { scheme, path in
                 guard scheme == "about", path == "bookmarks" else { return nil }
                 let items = await MainActor.run {
                     bookmarks.urls.map { url in

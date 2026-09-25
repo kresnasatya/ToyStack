@@ -3,10 +3,10 @@ import CoreGraphics
 
 @MainActor
 public protocol TabManager: AnyObject {
-    var tabs: [Tab] { get }
-    var activeTab: Tab? { get }
+    var tabs: [BrowserTab] { get }
+    var activeTab: BrowserTab? { get }
     func newTab(_ url: WebURL)
-    func selectTab(_ tab: Tab)
+    func selectTab(_ tab: BrowserTab)
     var prefersDark: Bool { get }
     var forcedColors: Bool { get }
 }
@@ -119,7 +119,7 @@ public class Chrome {
             )
         )
 
-        let tabs: [Engine.Tab] = tabManager?.tabs ?? []
+        let tabs: [BrowserTab] = tabManager?.tabs ?? []
         for (i, tab) in tabs.enumerated() {
             let bounds = tabRect(i)
             cmds.append(
@@ -270,7 +270,7 @@ public class Chrome {
         } else if addressRect.containsPoint(x, y) {
             focusAddressBar()
         } else {
-            let tabs: [Engine.Tab] = tabManager?.tabs ?? []
+            let tabs: [BrowserTab] = tabManager?.tabs ?? []
             for (i, tab) in tabs.enumerated() {
                 if tabRect(i).containsPoint(x, y) {
                     tabManager?.selectTab(tab)

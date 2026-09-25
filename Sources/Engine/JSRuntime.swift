@@ -6,11 +6,11 @@ class JSRuntime: @unchecked Sendable {
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]
     private var intervalTimes: [Int: DispatchSourceTimer] = [:]
-    private weak var tab: Engine.Tab?
+    private weak var tab: BrowserTab?
 
     private static let eventDispatchJS: String = "new Node(__handle).dispatchEvent(new Event(__type))"
 
-    init(tab: Engine.Tab) {
+    init(tab: BrowserTab) {
         self.tab = tab
         self.jsContext = profiler.measure("jsc.context", { JSContext()! })
         profiler.measure("jsc.callbacks", { registerCallbacks() })
