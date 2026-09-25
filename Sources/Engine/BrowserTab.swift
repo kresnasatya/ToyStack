@@ -453,16 +453,15 @@ public class BrowserTab {
             }
             browser?.measure.stop("BrowserTab.style.snapshot")
 
-            inheritedProperties["color"] = forcedColors ? ForcedColor.canvasText : (prefersDark ? "white" : "black")
             browser?.measure.start("BrowserTab.style.apply")
-            let context: StyleContext = StyleContext(
-                rules: ruleIndex,
+            let media: MediaFeatures = MediaFeatures(
                 preferences: ColorPreferences(prefersDark: prefersDark, usesForcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
             )
             applyStyle(
                 node: nodes,
-                context: context,
+                rules: ruleIndex,
+                media: media,
                 ancestors: AncestorScope()
             )
             browser?.measure.stop("BrowserTab.style.apply")

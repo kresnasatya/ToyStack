@@ -1,7 +1,5 @@
-import CoreGraphics
-
 // MARK: - Inherited CSS Properties
-nonisolated(unsafe) var inheritedProperties: [String: String] = [
+let inheritedPropertyDefaults: [String: String] = [
     "font-family": "serif",
     "font-size": "16px",
     "font-style": "normal",
@@ -14,7 +12,8 @@ nonisolated(unsafe) var inheritedProperties: [String: String] = [
 // MARK: - CSS Cascade (style function)
 func applyStyle(
     node: any DOMNode,
-    context: StyleContext,
+    rules: RuleIndex,
+    media: MediaFeatures,
     ancestors: AncestorScope
 ) {
 
@@ -22,8 +21,8 @@ func applyStyle(
     let parentStyle: [String: String]? = node.parent?.style
     profiler.measure("style.apply.reset") {
         var newStyle: [String: String] = [:]
-        newStyle.reserveCapacity(inheritedProperties.count)
-        for (property, defaultValue) in inheritedProperties {
+        newStyle.reserveCapacity(inheritedPropertyDefaults.count)
+        for (property, defaultValue) in inheritedPropertyDefaults {
             newStyle[property] = parentStyle?[property] ?? defaultValue
         }
         node.style = newStyle
@@ -35,20 +34,19 @@ func applyStyle(
             node.style["direction"] = direction.rawValue
         }
         let flags: [Bool] = profiler.measure("style.apply.flags", {
-            context.rules.candidateFlags(for: element, ancestors: ancestors)
+            rules.candidateFlags(for: element, ancestors: ancestors)
         })
 
         var candidates: [Int] = []
         profiler.measure("style.apply.scan", {
             candidates.reserveCapacity(8)
-            for index in 0..<context.rules.rules.count where flags[index] {
+            for index in 0..<rules.rules.count where flags[index] {
                 candidates.append(index)
             }
         })
 
         profiler.count("style.candidates", by: candidates.count)
-        profiler.count("style.universalCandidates", by: context.rules.universalCount)
-
+        profiler.count("style.universalCandidates", by: rules.universalCount)
 
         var descendantCandidates: Int = 0
         var matchesTrue: Int = 0
@@ -56,10 +54,10 @@ func applyStyle(
         var bodyWrites: Int = 0
         profiler.measure("style.apply.test", {
             for index in candidates {
-                let (media, selector, body) = context.rules.rules[index]
+                let (mediaQuery, selector, body) = rules.rules[index]
                 let isDescendant: Bool = isDescendantRule(selector)
                 if isDescendant { descendantCandidates += 1 }
-                guard mediaMatches(media, preferences: context.preferences, frameWidth: context.frameWidth), selector.matches(node) else { continue }
+                guard media.matches(mediaQuery), selector.matches(node) else { continue }
                 matchesTrue += 1
                 if isDescendant { descendantTrue += 1 }
                 for (property, value) in body {
@@ -85,7 +83,7 @@ func applyStyle(
     })
 
     profiler.measure("style.apply.post", {
-        if context.preferences.usesForcedColors { applyForcedColors(node: node) }
+        if media.preferences.usesForcedColors { applyForcedColors(node: node) }
 
         if node.style["overflow"] == nil {
             if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {
@@ -94,7 +92,7 @@ func applyStyle(
         }
 
         if let fontSize = node.style["font-size"], fontSize.hasSuffix("%") {
-            let parentFontSize: String = node.parent?.style["font-size"] ?? inheritedProperties["font-size"]!
+            let parentFontSize: String = node.parent?.style["font-size"] ?? inheritedPropertyDefaults["font-size"]!
             let percentage: Double = Double(fontSize.dropLast()) ?? 100.0
             let parentPx: Double = Double(parentFontSize.dropLast(2)) ?? 16.0
             node.style["font-size"] = "\(percentage / 100.0 * parentPx)px"
@@ -113,23 +111,7 @@ func applyStyle(
     }
 
     for child in node.children {
-        applyStyle(node: child, context: context, ancestors: ancestors)
-    }
-}
-
-func mediaMatches(_ media: String?, preferences: ColorPreferences, frameWidth: CGFloat) -> Bool {
-    guard let m = media else { return true }
-    switch m {
-        case "dark": return preferences.prefersDark
-        case "light": return !preferences.prefersDark
-        case "forced-colors:active": return preferences.usesForcedColors
-        case "forced-colors:none": return !preferences.usesForcedColors
-        default:
-            if m.hasPrefix("max-width:") {
-                let limit: Double = Double(m.dropFirst("max-width:".count)) ?? 0
-                return frameWidth <= CGFloat(limit)
-            }
-            return false
+        applyStyle(node: child, rules: rules, media: media, ancestors: ancestors)
     }
 }
 
