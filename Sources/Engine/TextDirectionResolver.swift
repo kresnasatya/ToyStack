@@ -1,9 +1,9 @@
-// MARK: - DirectionResolver
+// MARK: - TextDirectionResolver
 
-enum DirectionResolver {
+enum TextDirectionResolver {
     private static let skippedTags: Set<String> = ["script", "style", "textarea", "bdi"]
 
-    static func resolve(_ element: Element) -> Direction? {
+    static func resolve(_ element: Element) -> TextDirection? {
         let declared: String? = element.attributes["dir"]?.lowercased() ?? (element.tag == "bdi" ? "auto" : nil)
         switch declared {
             case "ltr": return .ltr
@@ -13,14 +13,14 @@ enum DirectionResolver {
         }
     }
 
-    private static func autoDirection(of node: any DOMNode) -> Direction? {
+    private static func autoDirection(of node: any DOMNode) -> TextDirection? {
         for child in node.children {
             if let direction = autoDirection(descendant: child) { return direction }
         }
         return nil
     }
 
-    private static func autoDirection(descendant node: any DOMNode) -> Direction? {
+    private static func autoDirection(descendant node: any DOMNode) -> TextDirection? {
         if let text = node as? TextNode {
             return firstStrongDirection(in: text.text)
         }
@@ -34,7 +34,7 @@ enum DirectionResolver {
         return nil
     }
 
-    private static func firstStrongDirection(in text: String) -> Direction? {
+    private static func firstStrongDirection(in text: String) -> TextDirection? {
         for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
             return isRightToLeft(scalar) ? .rtl : .ltr
         }

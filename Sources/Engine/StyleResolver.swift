@@ -31,7 +31,7 @@ func applyStyle(
 
     if let element = node as? Element {
         profiler.count("style.elements")
-        if let direction = DirectionResolver.resolve(element) {
+        if let direction = TextDirectionResolver.resolve(element) {
             node.style["direction"] = direction.rawValue
         }
         let flags: [Bool] = profiler.measure("style.apply.flags", {
