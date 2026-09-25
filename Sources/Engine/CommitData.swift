@@ -9,15 +9,15 @@ struct PaintResult {
 class CommitData {
     let scrollState: ScrollState
     let paint: PaintResult
-    let theme: ThemeState
+    let preferences: ColorPreferences
 
     init(
         scrollState: ScrollState,
         paint: PaintResult,
-        theme: ThemeState
+        preferences: ColorPreferences
     ) {
         self.scrollState = scrollState
         self.paint = paint
-        self.theme = theme
+        self.preferences = preferences
     }
 }

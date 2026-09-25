@@ -457,7 +457,7 @@ public class BrowserTab {
             browser?.measure.start("BrowserTab.style.apply")
             let context: StyleContext = StyleContext(
                 rules: ruleIndex,
-                theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors),
+                preferences: ColorPreferences(prefersDark: prefersDark, usesForcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
             )
             applyStyle(
@@ -631,7 +631,7 @@ public class BrowserTab {
         let data: CommitData = CommitData(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
             paint: PaintResult(displayList: displayList, compositedUpdates: updates, paintEpoch: paintEpoch),
-            theme: ThemeState(prefersDark: prefersDark, forcedColors: forcedColors)
+            preferences: ColorPreferences(prefersDark: prefersDark, usesForcedColors: forcedColors)
         )
         compositedUpdates = [:]
         needsCompositeForPaint = false

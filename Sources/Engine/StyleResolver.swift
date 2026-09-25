@@ -59,7 +59,7 @@ func applyStyle(
                 let (media, selector, body) = context.rules.rules[index]
                 let isDescendant: Bool = isDescendantRule(selector)
                 if isDescendant { descendantCandidates += 1 }
-                guard mediaMatches(media, theme: context.theme, frameWidth: context.frameWidth), selector.matches(node) else { continue }
+                guard mediaMatches(media, preferences: context.preferences, frameWidth: context.frameWidth), selector.matches(node) else { continue }
                 matchesTrue += 1
                 if isDescendant { descendantTrue += 1 }
                 for (property, value) in body {
@@ -85,7 +85,7 @@ func applyStyle(
     })
 
     profiler.measure("style.apply.post", {
-        if context.theme.forcedColors { applyForcedColors(node: node) }
+        if context.preferences.usesForcedColors { applyForcedColors(node: node) }
 
         if node.style["overflow"] == nil {
             if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {
@@ -117,13 +117,13 @@ func applyStyle(
     }
 }
 
-func mediaMatches(_ media: String?, theme: ThemeState, frameWidth: CGFloat) -> Bool {
+func mediaMatches(_ media: String?, preferences: ColorPreferences, frameWidth: CGFloat) -> Bool {
     guard let m = media else { return true }
     switch m {
-        case "dark": return theme.prefersDark
-        case "light": return !theme.prefersDark
-        case "forced-colors:active": return theme.forcedColors
-        case "forced-colors:none": return !theme.forcedColors
+        case "dark": return preferences.prefersDark
+        case "light": return !preferences.prefersDark
+        case "forced-colors:active": return preferences.usesForcedColors
+        case "forced-colors:none": return !preferences.usesForcedColors
         default:
             if m.hasPrefix("max-width:") {
                 let limit: Double = Double(m.dropFirst("max-width:".count)) ?? 0

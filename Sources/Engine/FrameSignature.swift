@@ -14,6 +14,6 @@ struct FrameEpoch: Equatable {
 struct FrameSignature: Equatable {
     let geometry: FrameGeometry
     let epochs: FrameEpoch
-    let theme: ThemeState
+    let preferences: ColorPreferences
     let accessibility: AccessibilityBounds
 }

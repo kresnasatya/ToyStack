@@ -45,7 +45,7 @@ public class Browser: ObservableObject {
         var paint: FramePaint = FramePaint()
         var scroll: ScrollState = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
         var render: FrameRender = FrameRender()
-        var theme: ThemeState = ThemeState(prefersDark: false, forcedColors: false)
+        var preferences: ColorPreferences = ColorPreferences(prefersDark: false, usesForcedColors: false)
     }
 
     private var frames: [ObjectIdentifier: TabFrame] = [:]
@@ -71,7 +71,7 @@ public class Browser: ObservableObject {
     private var lastTileScroll: CGFloat = .nan
 
     public var canvasColor: CGColor {
-        let name: String = activeFrame.theme.forcedColors ? ForcedColor.canvas : (activeFrame.theme.prefersDark ? "black" : "white")
+        let name: String = activeFrame.preferences.usesForcedColors ? ForcedColor.canvas : (activeFrame.preferences.prefersDark ? "black" : "white")
         return BrowserColor(cssName: name).cgColor
     }
 
@@ -85,11 +85,11 @@ public class Browser: ObservableObject {
                     contentWidth: windowSize.width,
                     scroll: activeFrame.scroll.scroll
                 ),
-                forcedColors: activeFrame.theme.forcedColors,
+                forcedColors: activeFrame.preferences.usesForcedColors,
                 topInset: topInset
             )
         else { return nil }
-        let color: BrowserColor = BrowserColor(cssName: activeFrame.theme.forcedColors ? ForcedColor.canvasText : "blue")
+        let color: BrowserColor = BrowserColor(cssName: activeFrame.preferences.usesForcedColors ? ForcedColor.canvasText : "blue")
         return (bar.rect.cgRect, color.cgColor)
     }
 
@@ -185,8 +185,8 @@ public class Browser: ObservableObject {
         activeFrame.scroll.interestTop = data.scrollState.interestTop
         activeFrame.scroll.interestBottom = data.scrollState.interestBottom
         activeFrame.scroll.maxScroll = data.scrollState.maxScroll
-        activeFrame.theme.prefersDark = data.theme.prefersDark
-        activeFrame.theme.forcedColors = data.theme.forcedColors
+        activeFrame.preferences.prefersDark = data.preferences.prefersDark
+        activeFrame.preferences.usesForcedColors = data.preferences.usesForcedColors
         activeFrame.paint.paintEpoch = data.paint.paintEpoch
         activeFrame.paint.compositedUpdates = data.paint.compositedUpdates ?? [:]
 
@@ -275,7 +275,7 @@ public class Browser: ObservableObject {
             ),
             settings: RasterSettings(
                 viewport: ViewportInfo(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
-                theme: ThemeState(prefersDark: activeFrame.theme.prefersDark, forcedColors: activeFrame.theme.forcedColors),
+                preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
                 flags: RasterFlags(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
             ),
@@ -292,7 +292,7 @@ public class Browser: ObservableObject {
                 paintEpoch: activeFrame.paint.paintEpoch,
                 effectUpdates: activeFrame.paint.effectUpdateEpoch
             ),
-            theme: ThemeState(prefersDark: activeFrame.theme.prefersDark, forcedColors: activeFrame.theme.forcedColors),
+            preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
         )
         if signature == activeFrame.render.signature && !needsTileContinuation {
@@ -456,9 +456,9 @@ public class Browser: ObservableObject {
                                     height: regionHeight
                                 ),
                                 scale: inputs.settings.viewport.displayScale,
-                                backgroundColor: inputs.settings.theme.forcedColors
+                                backgroundColor: inputs.settings.preferences.usesForcedColors
                                     ? BrowserColor(cssName: ForcedColor.canvas)
-                                    : (inputs.settings.theme.prefersDark ? BrowserColor(cssName: "black") : BrowserColor(cssName: "white"))
+                                    : (inputs.settings.preferences.prefersDark ? BrowserColor(cssName: "black") : BrowserColor(cssName: "white"))
                             ) { r in
                                 r.saveState()
                                 r.translateBy(x: 0, y: inputs.settings.viewport.topInset - regionTop)
@@ -505,11 +505,11 @@ public class Browser: ObservableObject {
                                 self.needsTileContinuation = true
                                 self.needsRaster = true
                             }
-                            if self.commitedPrefersDark != inputs.settings.theme.prefersDark {
-                                self.commitedPrefersDark = inputs.settings.theme.prefersDark
+                            if self.commitedPrefersDark != inputs.settings.preferences.prefersDark {
+                                self.commitedPrefersDark = inputs.settings.preferences.prefersDark
                             }
-                            if self.commitedForcedColors != inputs.settings.theme.forcedColors {
-                                self.commitedForcedColors = inputs.settings.theme.forcedColors
+                            if self.commitedForcedColors != inputs.settings.preferences.usesForcedColors {
+                                self.commitedForcedColors = inputs.settings.preferences.usesForcedColors
                             }
                         } else if var stale = self.frames[ownerID] {
                             stale.render.layers = output.compositedLayers ?? stale.render.layers
@@ -728,7 +728,7 @@ public class Browser: ObservableObject {
         }
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
-            drawList.append(DrawOutline(rect: bounds, color: inputs.settings.theme.forcedColors ? ForcedColor.highlight : "white", thickness: 4))
+            drawList.append(DrawOutline(rect: bounds, color: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white", thickness: 4))
             drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
         }
 
