@@ -92,8 +92,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
             let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
-                cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 2))
-                cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 4))
+                cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 2))
+                cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 4))
             }
             if let outline = outline { cmds.append(outline) }
             return cmds
@@ -132,8 +132,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).outer, thickness: 4))
-            cmds.append(DrawOutline(rect: selfRect(), color: ringColors(node).inner, thickness: 2))
+            cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
+            cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
         }
         if let outline = outline { cmds.append(outline) }
 

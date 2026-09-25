@@ -85,7 +85,7 @@ func applyStyle(
     })
 
     profiler.measure("style.apply.post", {
-        if context.theme.forcedColors { forceColors(node: node) }
+        if context.theme.forcedColors { applyForcedColors(node: node) }
 
         if node.style["overflow"] == nil {
             if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {

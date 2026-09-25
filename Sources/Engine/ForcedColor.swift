@@ -12,20 +12,14 @@ public enum ForcedColor {
     public static let highlight: String = "gold"
 }
 
-let forcedColorsMarker: String = "-forced-colors"
+let forcedColorsAppliedKey: String = "-forced-colors"
 
 func isForcedColors(_ node: any DOMNode) -> Bool {
-    node.style[forcedColorsMarker] == "active"
+    node.style[forcedColorsAppliedKey] == "active"
 }
 
-func ringColors(_ node: any DOMNode) -> (outer: String, inner: String) {
-    isForcedColors(node)
-        ? (ForcedColor.highlight, ForcedColor.canvas)
-        : ("white", "black")
-}
-
-func forceColors(node: any DOMNode) {
-    node.style[forcedColorsMarker] = "active"
+func applyForcedColors(node: any DOMNode) {
+    node.style[forcedColorsAppliedKey] = "active"
 
     guard let element = node as? Element else { return }
 

@@ -414,7 +414,7 @@ class BlockLayout: LayoutObject {
 
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if node.isFocusVisible && outline == nil {
-            let ring: (outer: String, inner: String) = ringColors(node)
+            let ring: (outer: String, inner: String) = focusRingColors(node)
             cmds.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
             cmds.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
         }

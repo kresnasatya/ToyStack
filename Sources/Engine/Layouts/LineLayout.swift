@@ -96,8 +96,8 @@ class LineLayout: LayoutObject {
             if let outline = DrawOutline.fromStyle(focused, rect: rect) {
                 cmds.append(outline)
             } else {
-                cmds.append(DrawOutline(rect: rect, color: ringColors(node).outer, thickness: 4))
-                cmds.append(DrawOutline(rect: rect, color: ringColors(node).inner, thickness: 2))
+                cmds.append(DrawOutline(rect: rect, color: focusRingColors(node).outer, thickness: 4))
+                cmds.append(DrawOutline(rect: rect, color: focusRingColors(node).inner, thickness: 2))
             }
 
         }
