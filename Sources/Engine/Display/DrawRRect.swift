@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - DrawRRect
 struct DrawRRect: DisplayCommand {
     var rect: Rect
-    var parentEffect: VisualEffect?
+    var parentEffect: BrowserVisualEffect?
     let radius: CGFloat
     let color: String
 

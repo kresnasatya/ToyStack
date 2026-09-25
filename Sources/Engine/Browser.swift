@@ -29,7 +29,7 @@ public class Browser: ObservableObject {
 
     struct FramePaint {
         var displayList: [any DisplayItem] = []
-        var compositedUpdates: [ObjectIdentifier: Engine.VisualEffect] = [:]
+        var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
         var paintEpoch: UInt = 0
         var effectUpdateEpoch: UInt = 0
     }
@@ -218,7 +218,7 @@ public class Browser: ObservableObject {
         scheduleRasterAndDraw()
     }
 
-    private func applyEffectFastPath(_ updates: [ObjectIdentifier: Engine.VisualEffect]) -> Bool {
+    private func applyEffectFastPath(_ updates: [ObjectIdentifier: BrowserVisualEffect]) -> Bool {
         let layers: [CompositedLayer] = activeFrame.render.layers
         let infos: [LayerEffectInfo] = layers.map({ Browser.layerEffectInfo($0, updates: updates) })
         let keys: Set<ObjectIdentifier> = Set(infos.compactMap({ $0.effect?.key }))
@@ -465,7 +465,7 @@ public class Browser: ObservableObject {
                                 for item in drawList {
                                     if let cmd = item as? any DisplayCommand {
                                         cmd.execute(scroll: 0, renderer: r)
-                                    } else if let ve = item as? Engine.VisualEffect {
+                                    } else if let ve = item as? BrowserVisualEffect {
                                         ve.execute(renderer: r)
                                     }
                                 }
@@ -551,7 +551,7 @@ public class Browser: ObservableObject {
 
         let nonComposited: [any DisplayCommand] = allItems.compactMap({ item -> (any DisplayCommand)? in
             if let pc = item as? (any DisplayCommand) { return pc }
-            if let ve = item as? VisualEffect, !ve.needsCompositing {
+            if let ve = item as? BrowserVisualEffect, !ve.needsCompositing {
                 if ve.parent == nil || ve.parent!.needsCompositing { return nil }
             }
             return nil
@@ -561,7 +561,7 @@ public class Browser: ObservableObject {
         var assumeOverlap: Bool = false
         for cmd in nonComposited {
             let underAnimated: Bool = sequence(
-                first: cmd.parentEffect, next: { $0?.parent as? VisualEffect }
+                first: cmd.parentEffect, next: { $0?.parent as? BrowserVisualEffect }
             ).contains(where: { ($0 as? Transform)?.isAnimated == true })
             if underAnimated { assumeOverlap = true }
             var merged: Bool = false
@@ -582,8 +582,8 @@ public class Browser: ObservableObject {
         }
 
         for layer in compositedLayers {
-            var chain: [VisualEffect] = []
-            var effect: VisualEffect? = layer.displayItems.first?.parentEffect
+            var chain: [BrowserVisualEffect] = []
+            var effect: BrowserVisualEffect? = layer.displayItems.first?.parentEffect
             while let e = effect {
                 chain.append(e)
                 effect = e.parent
@@ -595,22 +595,22 @@ public class Browser: ObservableObject {
     }
 
     nonisolated private static func getLatest(
-        _ effect: Engine.VisualEffect,
-        in compositedUpdates: [ObjectIdentifier: Engine.VisualEffect]
-    ) -> Engine.VisualEffect {
+        _ effect: BrowserVisualEffect,
+        in compositedUpdates: [ObjectIdentifier: BrowserVisualEffect]
+    ) -> BrowserVisualEffect {
         guard let node = effect.node else { return effect }
         let key: ObjectIdentifier = ObjectIdentifier(node)
         guard let updated = compositedUpdates[key] else { return effect }
         if type(of: effect) == type(of: updated) {
             return updated
         }
-        var stack: [VisualEffect] = [updated]
+        var stack: [BrowserVisualEffect] = [updated]
         while let candidate = stack.popLast() {
             if type(of: candidate) == type(of: effect) {
                 return candidate
             }
             for child in candidate.children {
-                if let ve = child as? VisualEffect {
+                if let ve = child as? BrowserVisualEffect {
                     stack.append(ve)
                 }
             }
@@ -618,7 +618,7 @@ public class Browser: ObservableObject {
         return effect
     }
 
-    nonisolated static func layerEffectInfo(_ layer: CompositedLayer, updates: [ObjectIdentifier: Engine.VisualEffect]) -> LayerEffectInfo {
+    nonisolated static func layerEffectInfo(_ layer: CompositedLayer, updates: [ObjectIdentifier: BrowserVisualEffect]) -> LayerEffectInfo {
         var kind: LayerEffectInfo.Kind = LayerEffectInfo.Kind.flat
         var opacity: Double = 1
         var translation: CGPoint = CGPoint.zero
@@ -626,7 +626,7 @@ public class Browser: ObservableObject {
         var key: ObjectIdentifier?
         var blendMode: BrowserBlendMode?
         for effect in layer.ancestorChain {
-            let latest: VisualEffect = getLatest(effect, in: updates)
+            let latest: BrowserVisualEffect = getLatest(effect, in: updates)
             if latest is ScrollEffect {
                 kind = max(kind, .scrollFallback)
             } else if let blend = latest as? Blend {
@@ -667,11 +667,11 @@ public class Browser: ObservableObject {
         return LayerEffectInfo(kind: kind, effect: effect, blur: blur)
     }
 
-    nonisolated static func updatesAreCA(_ updates: [ObjectIdentifier: Engine.VisualEffect]) -> Bool {
+    nonisolated static func updatesAreCA(_ updates: [ObjectIdentifier: BrowserVisualEffect]) -> Bool {
         updates.values.allSatisfy({ isCAEffect($0) })
     }
 
-    nonisolated private static func isCAEffect(_ effect: Engine.VisualEffect) -> Bool {
+    nonisolated private static func isCAEffect(_ effect: BrowserVisualEffect) -> Bool {
         if effect is ScrollEffect { return false }
         if let blend = effect as? Blend,
             let mode = blend.blendMode, mode != .normal, mode.compositingFilterName == nil {
@@ -679,7 +679,7 @@ public class Browser: ObservableObject {
         }
         if let blur = effect as? BlurFilter, blur.radius > 0 { return false }
         for child in effect.children {
-            if let nested = child as? VisualEffect, isCAEffect(nested) { return false }
+            if let nested = child as? BrowserVisualEffect, isCAEffect(nested) { return false }
         }
         return true
     }
@@ -688,7 +688,7 @@ public class Browser: ObservableObject {
         layers: [CompositedLayer],
         inputs: RasterInput
     ) -> [any DisplayItem] {
-        var newEffects: [ObjectIdentifier: VisualEffect] = [:]
+        var newEffects: [ObjectIdentifier: BrowserVisualEffect] = [:]
         var drawList: [any DisplayItem] = []
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
@@ -699,14 +699,14 @@ public class Browser: ObservableObject {
             )
             var mergedIntoExisting: Bool = false
             for p in layer.ancestorChain {
-                let newParent: VisualEffect = getLatest(p, in: inputs.scene.compositedUpdates)
+                let newParent: BrowserVisualEffect = getLatest(p, in: inputs.scene.compositedUpdates)
                 let newParentKey: ObjectIdentifier = ObjectIdentifier(newParent)
                 if let existing = newEffects[newParentKey] {
                     existing.children.append(currentEffect)
                     mergedIntoExisting = true
                     break
                 } else {
-                    let cloned: Engine.VisualEffect
+                    let cloned: BrowserVisualEffect
                     if let blend = newParent as? Blend {
                         cloned = blend.clone(child: currentEffect)
                     } else if let transform = newParent as? Transform {

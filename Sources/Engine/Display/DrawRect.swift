@@ -4,7 +4,7 @@ import CoreGraphics
 public struct DrawRect: DisplayCommand {
     public let rect: Rect
     public let color: String
-    public var parentEffect: VisualEffect? = nil
+    public var parentEffect: BrowserVisualEffect? = nil
 
     public init(rect: Rect, color: String) {
         self.rect = rect

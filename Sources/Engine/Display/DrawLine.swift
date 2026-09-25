@@ -5,7 +5,7 @@ public struct DrawLine: DisplayCommand {
     public let rect: Rect
     public let color: String
     public let thickness: CGFloat
-    public var parentEffect: VisualEffect? = nil
+    public var parentEffect: BrowserVisualEffect? = nil
 
     public init(
         from: CGPoint,

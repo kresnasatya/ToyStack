@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public class Transform: VisualEffect {
+public class Transform: BrowserVisualEffect {
     let translation: CGPoint?
     var isAnimated: Bool {
         guard let node = node else { return false }
@@ -19,7 +19,7 @@ public class Transform: VisualEffect {
         }
 
         for child in children {
-            if let ve = child as? VisualEffect {
+            if let ve = child as? BrowserVisualEffect {
                 ve.execute(renderer: renderer)
             } else if let dc = child as? DisplayCommand {
                 dc.execute(scroll: 0, renderer: renderer)

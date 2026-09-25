@@ -5,7 +5,7 @@ public struct DrawOutline: DisplayCommand {
     public let rect: Rect
     public let color: String
     public let thickness: CGFloat
-    public var parentEffect: VisualEffect? = nil
+    public var parentEffect: BrowserVisualEffect? = nil
 
     public init(rect: Rect, color: String, thickness: CGFloat) {
         self.rect = rect

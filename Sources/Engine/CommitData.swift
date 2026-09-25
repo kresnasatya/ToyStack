@@ -2,7 +2,7 @@ import CoreGraphics
 
 struct PaintResult {
     let displayList: [any DisplayItem]
-    let compositedUpdates: [ObjectIdentifier: Engine.VisualEffect]?
+    let compositedUpdates: [ObjectIdentifier: BrowserVisualEffect]?
     let paintEpoch: UInt
 }
 

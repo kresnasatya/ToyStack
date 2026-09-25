@@ -46,7 +46,7 @@ public class Tab {
     private(set) var taskRunner: TaskRunner = TaskRunner()
     var networkTaskRunner: NetworkTaskRunner?
     private(set) var accessibilityTree: AccessibilityNode? = nil
-    private var compositedUpdates: [ObjectIdentifier: VisualEffect] = [:]
+    private var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
 
     private var needsRender: Bool = false
     private var needsStyle: Bool = false
@@ -571,8 +571,8 @@ public class Tab {
                     {
                         node.style[property] = value
                         if let rect = (node.layoutObject as? BlockLayout)?.selfRect(),
-                            let effect = paintVisualEffects(node: node, items: [], rect: rect).first
-                                as? VisualEffect
+                            let effect = paintBrowserVisualEffects(node: node, items: [], rect: rect).first
+                                as? BrowserVisualEffect
                         {
                             compositedUpdates[ObjectIdentifier(node)] = effect
                         }
@@ -626,7 +626,7 @@ public class Tab {
             browser?.setNeedsAnimationFrame(self)
         }
 
-        let updates: [ObjectIdentifier: VisualEffect]? =
+        let updates: [ObjectIdentifier: BrowserVisualEffect]? =
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: CommitData = CommitData(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),

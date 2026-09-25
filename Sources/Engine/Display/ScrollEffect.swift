@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public class ScrollEffect: Engine.VisualEffect {
+public class ScrollEffect: BrowserVisualEffect {
     let clipRect: Rect
     var scrollOffset: CGFloat
 
@@ -21,7 +21,7 @@ public class ScrollEffect: Engine.VisualEffect {
         renderer.clip(to: cgRect)
         renderer.translateBy(x: 0, y: -scrollOffset)
         for child in children {
-            if let ve = child as? Engine.VisualEffect {
+            if let ve = child as? BrowserVisualEffect {
                 ve.execute(renderer: renderer)
             } else if let dc = child as? DisplayCommand {
                 dc.execute(scroll: 0, renderer: renderer)

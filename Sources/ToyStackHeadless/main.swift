@@ -88,7 +88,7 @@ MainActor.assumeIsolated {
             for item in browser.drawList {
                 if let cmd = item as? any DisplayCommand {
                     cmd.execute(scroll: 0, renderer: r)
-                } else if let ve = item as? Engine.VisualEffect {
+                } else if let ve = item as? BrowserVisualEffect {
                     ve.execute(renderer: r)
                 }
             }

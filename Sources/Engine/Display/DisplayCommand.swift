@@ -3,7 +3,7 @@ import CoreText
 
 // MARK: - DisplayCommand
 public protocol DisplayCommand: DisplayItem {
-    var parentEffect: VisualEffect? { get set }
+    var parentEffect: BrowserVisualEffect? { get set }
     func execute(scroll: CGFloat, renderer: any Renderer)
 }
 

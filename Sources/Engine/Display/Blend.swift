@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public class Blend: VisualEffect {
+public class Blend: BrowserVisualEffect {
     let opacity: Double
     let blendMode: BrowserBlendMode?
 
@@ -10,7 +10,7 @@ public class Blend: VisualEffect {
 
         var combinedRect: Rect = Rect(left: 0, top: 0, right: 0, bottom: 0)
         for child in children {
-            if let ve = child as? VisualEffect {
+            if let ve = child as? BrowserVisualEffect {
                 combinedRect = combinedRect.union(ve.rect)
             } else if let dc = child as? DisplayCommand {
                 combinedRect = combinedRect.union(dc.rect)
@@ -25,7 +25,7 @@ public class Blend: VisualEffect {
     public override func execute(renderer: any Renderer) {
         guard opacity < 1.0 || blendMode != nil else {
             for child in children {
-                if let ve = child as? VisualEffect {
+                if let ve = child as? BrowserVisualEffect {
                     ve.execute(renderer: renderer)
                 } else if let dc = child as? DisplayCommand {
                     dc.execute(scroll: 0, renderer: renderer)
@@ -36,7 +36,7 @@ public class Blend: VisualEffect {
 
         renderer.drawLayer(LayerOptions(opacity: opacity, blendMode: blendMode)) { r in
             for child in self.children {
-                if let ve = child as? VisualEffect {
+                if let ve = child as? BrowserVisualEffect {
                     ve.execute(renderer: r)
                 } else if let dc = child as? DisplayCommand {
                     dc.execute(scroll: 0, renderer: r)

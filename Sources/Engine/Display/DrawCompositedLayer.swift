@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - DrawCompositedLayer
 struct DrawCompositedLayer: DisplayCommand {
     var rect: Rect
-    var parentEffect: VisualEffect?
+    var parentEffect: BrowserVisualEffect?
     let layer: CompositedLayer
     var visibleTop: CGFloat = -.infinity
     var visibleBottom: CGFloat = .infinity

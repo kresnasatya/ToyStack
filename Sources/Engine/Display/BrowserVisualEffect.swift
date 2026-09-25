@@ -1,18 +1,18 @@
 import CoreGraphics
 
-public class VisualEffect: DisplayItem {
+public class BrowserVisualEffect: DisplayItem {
     public var rect: Rect
     var children: [any DisplayItem]
     weak var node: DOMNode?
     var needsCompositing: Bool
-    weak var parent: VisualEffect?
+    weak var parent: BrowserVisualEffect?
 
     init(rect: Rect, children: [any DisplayItem], node: DOMNode? = nil) {
         self.rect = rect
         self.children = children
         self.node = node
         self.needsCompositing = children.compactMap({
-            $0 as? VisualEffect
+            $0 as? BrowserVisualEffect
         })
         .contains(where: {
             $0.needsCompositing
@@ -26,7 +26,7 @@ public class VisualEffect: DisplayItem {
     func unmap(rect: Rect) -> Rect { return rect }
 }
 
-func paintVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
+func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
     let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendModeStr: String? = node.style["mix-blend-mode"]
     let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")
@@ -67,14 +67,14 @@ func paintVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> 
     return [transform]
 }
 
-func addParentPointers(_ items: inout [any DisplayItem], parent: VisualEffect? = nil) {
+func addParentPointers(_ items: inout [any DisplayItem], parent: BrowserVisualEffect? = nil) {
     var visited: Set<ObjectIdentifier> = Set<ObjectIdentifier>()
-    var stack: [([any DisplayItem], VisualEffect?)] = [(items, parent)]
+    var stack: [([any DisplayItem], BrowserVisualEffect?)] = [(items, parent)]
 
     while !stack.isEmpty {
         let (currentNodes, currentParent) = stack.removeLast()
         for node in currentNodes {
-            if let ve = node as? VisualEffect {
+            if let ve = node as? BrowserVisualEffect {
                 let id: ObjectIdentifier = ObjectIdentifier(ve)
                 guard !visited.contains(id) else { continue }
                 visited.insert(id)
@@ -96,7 +96,7 @@ func maxRectBottom(_ items: [any DisplayItem]) -> CGFloat {
     for item in items {
         if let cmd = item as? any DisplayCommand {
             result = max(result, cmd.rect.bottom)
-        } else if let ve = item as? Engine.VisualEffect {
+        } else if let ve = item as? BrowserVisualEffect {
             result = max(result, ve.rect.bottom)
             result = max(result, maxRectBottom(ve.children))
         }

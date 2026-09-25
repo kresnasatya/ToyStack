@@ -6,7 +6,7 @@ public struct DrawText: DisplayCommand {
     public let text: String
     public let font: BrowserFont
     public let color: String
-    public var parentEffect: VisualEffect? = nil
+    public var parentEffect: BrowserVisualEffect? = nil
 
     public init(
         at point: CGPoint, text: String, font: BrowserFont, color: String

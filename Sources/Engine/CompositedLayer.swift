@@ -25,7 +25,7 @@ class CompositedLayer {
     private var keyCacheScale: Int = -1
     static let tileSize: CGFloat = 128
     static let rasterCapPerComposite: UInt = 300
-    var ancestorChain: [Engine.VisualEffect] = []
+    var ancestorChain: [BrowserVisualEffect] = []
 
     func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
         let t: CGFloat = Self.tileSize
@@ -64,7 +64,7 @@ class CompositedLayer {
 
     func absoluteBounds() -> Rect {
         var rect: Rect = compositedBounds()
-        var effect: VisualEffect? = displayItems.first?.parentEffect
+        var effect: BrowserVisualEffect? = displayItems.first?.parentEffect
         while let e = effect {
             rect = e.map(rect: rect)
             effect = e.parent

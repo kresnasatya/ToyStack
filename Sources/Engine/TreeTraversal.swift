@@ -17,7 +17,7 @@ func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
 
 func treeToList(_ item: any DisplayItem, into list: inout [any DisplayItem]) {
     list.append(item)
-    if let ve = item as? VisualEffect {
+    if let ve = item as? BrowserVisualEffect {
         for child in ve.children {
             treeToList(child, into: &list)
         }
