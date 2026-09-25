@@ -205,7 +205,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addTextNode(_ textNode: TextNode) {
-        let mode: WhiteSpace = WhiteSpace.mode(of: textNode)
+        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.style["white-space"])
         if mode.keepsNewlines {
             let segments: [String] = textNode.text.components(separatedBy: "\n")
             for (i, segment) in segments.enumerated() {
@@ -217,7 +217,7 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    private func addSegment(node: any DOMNode, text: String, mode: WhiteSpace) {
+    private func addSegment(node: any DOMNode, text: String, mode: WhiteSpaceMode) {
         if mode.keepSpaces {
             if !text.isEmpty { addWord(node: node, word: text) }
         } else {
@@ -252,7 +252,7 @@ class BlockLayout: LayoutObject {
             return
         }
 
-        let mode: WhiteSpace = WhiteSpace.mode(of: node)
+        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: node.style["white-space"])
         if cursorX + w > width && mode.wraps {
             if word.contains("\u{00AD}") {
                 let parts: [String] = word.components(separatedBy: "\u{00AD}")
