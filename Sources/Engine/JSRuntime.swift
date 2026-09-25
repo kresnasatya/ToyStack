@@ -441,7 +441,7 @@ class JSRuntime: @unchecked Sendable {
                 }
                 Task {
                     @MainActor in
-                    setInlineStyleProperty(elt, property: attr, value: value)
+                    InlineStyle.set(elt, property: attr, value: value)
                     self.tab?.setNeedsRender()
                 }
             } as @convention(block) (Int, String, String) -> Void,
