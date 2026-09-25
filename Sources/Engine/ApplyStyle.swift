@@ -9,7 +9,7 @@ let inheritedPropertyDefaults: [String: String] = [
     "direction": "ltr"
 ]
 
-// MARK: - CSS Cascade (style function)
+// MARK: - applyStyle
 func applyStyle(
     node: any DOMNode,
     rules: RuleIndex,
