@@ -1,5 +1,5 @@
 func focusRingColors(_ node: any DOMNode) -> (outer: String, inner: String) {
-    isForcedColors(node)
+    usesForcedColors(node)
         ? (ForcedColor.highlight, ForcedColor.canvas)
         : ("white", "black")
 }

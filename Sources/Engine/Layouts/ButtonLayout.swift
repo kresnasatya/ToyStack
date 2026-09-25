@@ -118,9 +118,9 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         guard let element = node as? Element else { return [] }
         var cmds: [any DisplayCommand] = []
         let bgcolor: String = element.style["background-color"] ?? "transparent"
-        let displayColor: String = bgcolor == "transparent" ? (isForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
+        let displayColor: String = bgcolor == "transparent" ? (usesForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
         cmds.append(DrawRect(rect: selfRect(), color: displayColor))
-        cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
+        cmds.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
 
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {

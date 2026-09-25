@@ -427,19 +427,19 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            cmds.append(DrawRect(rect: bulletRect, color: isForcedColors(node) ? ForcedColor.canvasText : "black"))
+            cmds.append(DrawRect(rect: bulletRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "black"))
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             let headerRect: Rect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            cmds.append(DrawRect(rect: headerRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray"))
+            cmds.append(DrawRect(rect: headerRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))
             let font: BrowserFont = getFont(size: 12, weight: "bold", style: "roman")
             cmds.append(
                 DrawText(
                     at: CGPoint(x: x, y: y),
                     text: "Table of Contents",
                     font: font,
-                    color: isForcedColors(node) ? ForcedColor.canvas : "white"
+                    color: usesForcedColors(node) ? ForcedColor.canvas : "white"
                 )
             )
         }
@@ -455,7 +455,7 @@ class BlockLayout: LayoutObject {
         let barTop: CGFloat = y + (scrollOffset / contentHeight) * height
         let barRect: Rect = Rect(
             left: x + width - barWidth, top: barTop, right: x + width, bottom: barTop + barHeight)
-        return [DrawRect(rect: barRect, color: isForcedColors(node) ? ForcedColor.canvasText : "gray")]
+        return [DrawRect(rect: barRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "gray")]
     }
 
     func shouldPaint() -> Bool {

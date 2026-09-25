@@ -78,15 +78,15 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
 
         if element.attributes["type"] == "checkbox" {
-            cmds.append(DrawRect(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonFace : "white"))
-            cmds.append(DrawOutline(rect: selfRect(), color: isForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
+            cmds.append(DrawRect(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonFace : "white"))
+            cmds.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
             if element.isChecked {
                 cmds.append(
                     DrawText(
                         at: CGPoint(x: x, y: y),
                         text: "X",
                         font: font,
-                        color: isForcedColors(node) ? ForcedColor.buttonText : "black"
+                        color: usesForcedColors(node) ? ForcedColor.buttonText : "black"
                     )
                 )
             }
@@ -125,7 +125,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                 DrawLine(
                     from: CGPoint(x: cx, y: y),
                     to: CGPoint(x: cx, y: y + height),
-                    color: isForcedColors(node) ? ForcedColor.buttonText : "black",
+                    color: usesForcedColors(node) ? ForcedColor.buttonText : "black",
                     thickness: 1
                 )
             )
