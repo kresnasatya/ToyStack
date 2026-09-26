@@ -39,20 +39,20 @@ struct RuleIndex {
         self.descendantRequirements = descendantRequirements
     }
 
-    func candidateIndices(for element: Element, ancestors: AncestorScope) -> [Int] {
+    func candidateIndices(for element: Element, ancestorKeys: AncestorSelectorKeys) -> [Int] {
         var flags: [Bool] = [Bool](repeating: false, count: orderedRules.count)
-        for index in universal where requirementsMet(index, ancestors) { flags[index] = true }
-        for index in byTag[element.tag] ?? [] where requirementsMet(index, ancestors) {
+        for index in universal where requirementsMet(index, ancestorKeys) { flags[index] = true }
+        for index in byTag[element.tag] ?? [] where requirementsMet(index, ancestorKeys) {
             flags[index] = true
         }
         if let id = element.attributes["id"] {
-            for index in byID[id] ?? [] where requirementsMet(index, ancestors) {
+            for index in byID[id] ?? [] where requirementsMet(index, ancestorKeys) {
                 flags[index] = true
             }
         }
         let classes: [Substring] = element.attributes["class"]?.split(separator: " ") ?? []
         for cls in classes {
-            for index in byClass[String(cls)] ?? [] where requirementsMet(index, ancestors) {
+            for index in byClass[String(cls)] ?? [] where requirementsMet(index, ancestorKeys) {
                 flags[index] = true
             }
         }
@@ -60,9 +60,9 @@ struct RuleIndex {
         return flags.indices.filter { flags[$0] }
     }
 
-    private func requirementsMet(_ index: Int, _ ancestors: AncestorScope) -> Bool {
+    private func requirementsMet(_ index: Int, _ ancestorKeys: AncestorSelectorKeys) -> Bool {
         guard let required = descendantRequirements[index] else { return true }
-        for key in required where !ancestors.contains(key) { return false }
+        for key in required where !ancestorKeys.contains(key) { return false }
         return true
     }
 }

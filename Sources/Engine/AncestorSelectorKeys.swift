@@ -1,6 +1,6 @@
 import Foundation
 
-final class AncestorScope {
+final class AncestorSelectorKeys {
     private var counts: [SelectorKey: Int] = [:]
 
     @discardableResult

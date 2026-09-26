@@ -14,7 +14,7 @@ func applyStyle(
     node: any DOMNode,
     index: RuleIndex,
     media: MediaFeatures,
-    ancestors: AncestorScope
+    ancestorKeys: AncestorSelectorKeys
 ) {
 
     profiler.count("style.nodes")
@@ -35,7 +35,7 @@ func applyStyle(
         }
 
         let candidates: [Int] = profiler.measure("style.apply.flags", {
-            index.candidateIndices(for: element, ancestors: ancestors)
+            index.candidateIndices(for: element, ancestorKeys: ancestorKeys)
         })
         profiler.count("style.candidates", by: candidates.count)
         profiler.count("style.universalCandidates", by: index.universalRuleCount)
@@ -93,16 +93,16 @@ func applyStyle(
 
     let pushedElement: Element? = node as? Element
     let pushedKeys: [SelectorKey]? = pushedElement.map { element in
-        profiler.measure("style.apply.push", { ancestors.push(element) })
+        profiler.measure("style.apply.push", { ancestorKeys.push(element) })
     }
 
     defer {
         if let pushedKeys {
-            profiler.measure("style.apply.pop", { ancestors.pop(pushedKeys) })
+            profiler.measure("style.apply.pop", { ancestorKeys.pop(pushedKeys) })
         }
     }
 
     for child in node.children {
-        applyStyle(node: child, index: index, media: media, ancestors: ancestors)
+        applyStyle(node: child, index: index, media: media, ancestorKeys: ancestorKeys)
     }
 }

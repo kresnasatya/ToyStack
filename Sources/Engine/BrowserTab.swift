@@ -458,12 +458,12 @@ public class BrowserTab {
                 preferences: ColorPreferences(prefersDark: prefersDark, usesForcedColors: forcedColors),
                 frameWidth: tabWidth / zoom
             )
-            let ancestorScope: AncestorScope = AncestorScope()
+            let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
             applyStyle(
                 node: nodes,
                 index: ruleIndex,
                 media: media,
-                ancestors: ancestorScope
+                ancestorKeys: ancestorKeys
             )
             browser?.measure.stop("BrowserTab.style.apply")
 
