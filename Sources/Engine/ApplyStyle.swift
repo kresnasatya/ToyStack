@@ -12,7 +12,7 @@ let inheritedPropertyDefaults: [String: String] = [
 // MARK: - applyStyle
 func applyStyle(
     node: any DOMNode,
-    rules: RuleIndex,
+    index: RuleIndex,
     media: MediaFeatures,
     ancestors: AncestorScope
 ) {
@@ -33,28 +33,20 @@ func applyStyle(
         if let direction = TextDirectionResolver.resolve(element) {
             node.style["direction"] = direction.rawValue
         }
-        let flags: [Bool] = profiler.measure("style.apply.flags", {
-            rules.candidateFlags(for: element, ancestors: ancestors)
-        })
 
-        var candidates: [Int] = []
-        profiler.measure("style.apply.scan", {
-            candidates.reserveCapacity(8)
-            for index in 0..<rules.rules.count where flags[index] {
-                candidates.append(index)
-            }
+        let candidates: [Int] = profiler.measure("style.apply.flags", {
+            index.candidateIndices(for: element, ancestors: ancestors)
         })
-
         profiler.count("style.candidates", by: candidates.count)
-        profiler.count("style.universalCandidates", by: rules.universalCount)
+        profiler.count("style.universalCandidates", by: index.universalRuleCount)
 
         var descendantCandidates: Int = 0
         var matchesTrue: Int = 0
         var descendantTrue: Int = 0
         var bodyWrites: Int = 0
         profiler.measure("style.apply.test", {
-            for index in candidates {
-                let (mediaQuery, selector, body) = rules.rules[index]
+            for candidate in candidates {
+                let (mediaQuery, selector, body) = index.orderedRules[candidate]
                 let isDescendant: Bool = isDescendantRule(selector)
                 if isDescendant { descendantCandidates += 1 }
                 guard media.matches(mediaQuery), selector.matches(node) else { continue }
@@ -111,6 +103,6 @@ func applyStyle(
     }
 
     for child in node.children {
-        applyStyle(node: child, rules: rules, media: media, ancestors: ancestors)
+        applyStyle(node: child, index: index, media: media, ancestors: ancestors)
     }
 }

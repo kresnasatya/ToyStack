@@ -3,16 +3,16 @@ import Foundation
 struct RuleIndex {
     typealias Rule = (String?, any CSSSelector, [String: String])
 
-    let rules: [Rule]
+    let orderedRules: [Rule]
     private let byTag: [String: [Int]]
     private let byClass: [String: [Int]]
     private let byID: [String: [Int]]
     private let universal: [Int]
-    var universalCount: Int { universal.count }
+    var universalRuleCount: Int { universal.count }
     private let descendantRequirements: [Int: Set<SelectorBucketKey>]
 
     init(rules: [Rule]) {
-        self.rules = rules
+        self.orderedRules = rules
         var byTag: [String: [Int]] = [:]
         var byClass: [String: [Int]] = [:]
         var byID: [String: [Int]] = [:]
@@ -39,8 +39,8 @@ struct RuleIndex {
         self.descendantRequirements = descendantRequirements
     }
 
-    func candidateFlags(for element: Element, ancestors: AncestorScope) -> [Bool] {
-        var flags: [Bool] = [Bool](repeating: false, count: rules.count)
+    func candidateIndices(for element: Element, ancestors: AncestorScope) -> [Int] {
+        var flags: [Bool] = [Bool](repeating: false, count: orderedRules.count)
         for index in universal where requirementsMet(index, ancestors) { flags[index] = true }
         for index in byTag[element.tag] ?? [] where requirementsMet(index, ancestors) {
             flags[index] = true
@@ -56,7 +56,8 @@ struct RuleIndex {
                 flags[index] = true
             }
         }
-        return flags
+
+        return flags.indices.filter { flags[$0] }
     }
 
     private func requirementsMet(_ index: Int, _ ancestors: AncestorScope) -> Bool {

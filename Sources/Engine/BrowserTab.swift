@@ -460,7 +460,7 @@ public class BrowserTab {
             )
             applyStyle(
                 node: nodes,
-                rules: ruleIndex,
+                index: ruleIndex,
                 media: media,
                 ancestors: AncestorScope()
             )
