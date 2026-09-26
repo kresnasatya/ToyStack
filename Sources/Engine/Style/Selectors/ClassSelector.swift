@@ -3,7 +3,7 @@ struct ClassSelector: CSSSelector {
     let cls: String
     let priority: Int = 10
     var hasSelectors: [HasSelector] { [] }
-    var bucketKey: SelectorBucketKey { .className(cls) }
+    var key: SelectorKey { .className(cls) }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element else { return false }

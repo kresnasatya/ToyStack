@@ -4,7 +4,7 @@ struct AttributeSelector: CSSSelector {
     let value: String?
     let priority: Int = 10
     var hasSelectors: [HasSelector] { [] }
-    var bucketKey: SelectorBucketKey { .universal }
+    var key: SelectorKey { .universal }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard let element = node as? Element,

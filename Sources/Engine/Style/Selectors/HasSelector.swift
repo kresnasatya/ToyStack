@@ -5,7 +5,7 @@ struct HasSelector: CSSSelector {
     let inner: any CSSSelector
     var priority: Int { inner.priority }
     var hasSelectors: [HasSelector] { [self] }
-    var bucketKey: SelectorBucketKey { .universal }
+    var key: SelectorKey { .universal }
 
     init(inner: any CSSSelector) {
         self.id = HasSelector.counter

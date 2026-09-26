@@ -2,6 +2,6 @@
 protocol CSSSelector: Sendable {
     var priority: Int { get }
     var hasSelectors: [HasSelector] { get }
-    var bucketKey: SelectorBucketKey { get }
+    var key: SelectorKey { get }
     func matches(_ node: any DOMNode) -> Bool
 }

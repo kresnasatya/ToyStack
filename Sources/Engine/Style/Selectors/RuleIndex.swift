@@ -9,7 +9,7 @@ struct RuleIndex {
     private let byID: [String: [Int]]
     private let universal: [Int]
     var universalRuleCount: Int { universal.count }
-    private let descendantRequirements: [Int: Set<SelectorBucketKey>]
+    private let descendantRequirements: [Int: Set<SelectorKey>]
 
     init(rules: [Rule]) {
         self.orderedRules = rules
@@ -17,11 +17,11 @@ struct RuleIndex {
         var byClass: [String: [Int]] = [:]
         var byID: [String: [Int]] = [:]
         var universal: [Int] = []
-        var descendantRequirements: [Int: Set<SelectorBucketKey>] = [:]
+        var descendantRequirements: [Int: Set<SelectorKey>] = [:]
         for (index, rule) in rules.enumerated() {
-            let requirements: Set<SelectorBucketKey> = ancestorRequirements(rule.1)
+            let requirements: Set<SelectorKey> = ancestorRequirements(rule.1)
             if !requirements.isEmpty { descendantRequirements[index] = requirements }
-            switch rule.1.bucketKey {
+            switch rule.1.key {
                 case .tag(let tag):
                     byTag[tag, default: []].append(index)
                 case .className(let cls):
@@ -67,7 +67,7 @@ struct RuleIndex {
     }
 }
 
-private func ancestorRequirements(_ selector: any CSSSelector) -> Set<SelectorBucketKey> {
+private func ancestorRequirements(_ selector: any CSSSelector) -> Set<SelectorKey> {
     if let descendant = selector as? DescendantSelector {
         return descendant.selectors.dropLast().reduce(into: []) {
             $0.formUnion(necessaryKeys($1))
@@ -79,7 +79,7 @@ private func ancestorRequirements(_ selector: any CSSSelector) -> Set<SelectorBu
     return []
 }
 
-private func necessaryKeys(_ selector: any CSSSelector) -> Set<SelectorBucketKey> {
+private func necessaryKeys(_ selector: any CSSSelector) -> Set<SelectorKey> {
     switch selector {
         case let tag as TagSelector: return [.tag(tag.tag)]
         case let cls as ClassSelector: return [.className(cls.cls)]

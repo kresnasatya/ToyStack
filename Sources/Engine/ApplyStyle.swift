@@ -92,7 +92,7 @@ func applyStyle(
     })
 
     let pushedElement: Element? = node as? Element
-    let pushedKeys: [SelectorBucketKey]? = pushedElement.map { element in
+    let pushedKeys: [SelectorKey]? = pushedElement.map { element in
         profiler.measure("style.apply.push", { ancestors.push(element) })
     }
 

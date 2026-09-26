@@ -4,7 +4,7 @@ struct PseudoclassSelector: CSSSelector {
     let base: any CSSSelector
     var priority: Int { base.priority }
     var hasSelectors: [HasSelector] { base.hasSelectors }
-    var bucketKey: SelectorBucketKey { base.bucketKey }
+    var key: SelectorKey { base.key }
 
     func matches(_ node: any DOMNode) -> Bool {
         guard base.matches(node) else { return false }
