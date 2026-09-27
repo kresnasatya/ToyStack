@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct ViewportInfo {
+struct Viewport {
     let windowSize: CGSize
     let topInset: CGFloat
     let displayScale: CGFloat

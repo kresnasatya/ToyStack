@@ -267,7 +267,7 @@ public class Browser: ObservableObject {
                 previousLayers: activeFrame.render.layers,
             ),
             settings: RasterSettings(
-                viewport: ViewportInfo(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
+                viewport: Viewport(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
                 preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
                 flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
