@@ -276,9 +276,9 @@ public class Browser: ObservableObject {
         )
 
         let signature: FrameSignature = FrameSignature(
-            geometry: FrameGeometry(
+            viewport: FrameViewport(
                 scroll: activeFrame.scroll.scroll,
-                viewport: windowSize,
+                size: windowSize,
                 displayScale: displayScale
             ),
             revisions: FrameRevisions(
@@ -891,7 +891,7 @@ public class Browser: ObservableObject {
         if activeFrame.render.content.image == nil && !activeFrame.render.content.usesSublayers {
             setNeedsComposite()
         } else if let sig = activeFrame.render.signature,
-            sig.geometry.viewport != windowSize || sig.geometry.displayScale != displayScale {
+            sig.viewport.size != windowSize || sig.viewport.displayScale != displayScale {
             setNeedsComposite()
         }
         needsAnimationFrame = true
