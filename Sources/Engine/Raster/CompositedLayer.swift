@@ -1,15 +1,5 @@
 import CoreGraphics
 
-struct RasterWindow {
-    let hint: Rect
-    let visible: Rect
-}
-
-final class RasterBudget {
-    var remaining: UInt
-    init(_ n: UInt) { remaining = n }
-}
-
 class CompositedLayer {
     struct EffectImageKey: Equatable {
         let scale: CGFloat
@@ -83,7 +73,7 @@ class CompositedLayer {
         renderer.restoreState()
     }
 
-    func rasterIfNeeded(scale: CGFloat, store: TileStore, window: RasterWindow, budget: RasterBudget) -> [TileStrip] {
+    func rasterIfNeeded(scale: CGFloat, store: TileStore, region: RasterRegion, budget: RasterBudget) -> [TileStrip] {
         guard !displayItems.isEmpty else { return [] }
         let bounds: Rect = compositedBounds()
         let width: CGFloat = bounds.right - bounds.left
@@ -92,10 +82,10 @@ class CompositedLayer {
         let items: [any DisplayCommand] = displayItems
         let left: CGFloat = bounds.left
         let t: CGFloat = Self.tileSize
-        let firstCol: Int = max(0, Int(left / t), Int(window.hint.left / t))
-        let lastCol: Int = min(Int((bounds.right - 1) / t), Int(window.hint.right / t))
-        let firstRow: Int = max(0, Int(bounds.top / t), Int(window.hint.top / t))
-        let lastRow: Int = min(Int((bounds.bottom - 1) / t) , Int(window.hint.bottom / t))
+        let firstCol: Int = max(0, Int(left / t), Int(region.hint.left / t))
+        let lastCol: Int = min(Int((bounds.right - 1) / t), Int(region.hint.right / t))
+        let firstRow: Int = max(0, Int(bounds.top / t), Int(region.hint.top / t))
+        let lastRow: Int = min(Int((bounds.bottom - 1) / t) , Int(region.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
         let scaleInt: Int = Int(scale)
@@ -117,8 +107,8 @@ class CompositedLayer {
         func rowDistance(_ row: Int) -> CGFloat {
             let top: CGFloat = CGFloat(row) * t
             let bottom: CGFloat = top + t
-            if bottom <= window.visible.top { return window.visible.top - bottom }
-            if top >= window.visible.bottom { return top - window.visible.bottom }
+            if bottom <= region.visible.top { return region.visible.top - bottom }
+            if top >= region.visible.bottom { return top - region.visible.bottom }
             return 0
         }
 

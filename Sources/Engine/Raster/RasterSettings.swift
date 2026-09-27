@@ -1,6 +1,6 @@
 struct RasterSettings {
     let viewport: ViewportInfo
     let preferences: ColorPreferences
-    let flags: RasterFlags
+    let flags: RasterInvalidation
     let accessibility: AccessibilityBounds
 }

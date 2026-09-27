@@ -1,6 +1,6 @@
 import CoreGraphics
 
 struct RasterPlan: @unchecked Sendable {
-    let commit: RasterCommit
+    let composition: RasterComposition
     let batch: TileBatch
 }

@@ -1,22 +1,5 @@
 import CoreGraphics
 
-struct TileLayerOrigin: Hashable {
-    let left: Int
-    let width: Int
-}
-
-struct TileIndex: Hashable {
-    let row: Int
-    let col: Int
-}
-
-struct TileKey: Hashable {
-    let origin: TileLayerOrigin
-    let index: TileIndex
-    let contentHash: Int
-    let scale: Int
-}
-
 final class TileStore: @unchecked Sendable {
     private struct Entry {
         let image: CGImage

@@ -220,13 +220,13 @@ public class Browser: ObservableObject {
 
     private func applyEffectFastPath(_ updates: [ObjectIdentifier: BrowserVisualEffect]) -> Bool {
         let layers: [CompositedLayer] = activeFrame.render.layers
-        let infos: [LayerEffectInfo] = layers.map({ Browser.layerEffectInfo($0, updates: updates) })
-        let keys: Set<ObjectIdentifier> = Set(infos.compactMap({ $0.effect?.key }))
+        let effectStrategies: [LayerEffectStrategy] = layers.map({ Browser.layerEffectStrategy($0, updates: updates) })
+        let keys: Set<ObjectIdentifier> = Set(effectStrategies.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
-        for (index, info) in infos.enumerated() where info.kind == .ca {
+        for (index, info) in effectStrategies.enumerated() where info.kind == .ca {
             if layers[index].effectImage == nil { return false }
         }
-        activeFrame.render.content.placements = Browser.layerPlacements(layers, infos: infos)
+        activeFrame.render.content.placements = Browser.layerPlacements(layers, effectStrategies: effectStrategies)
         dispatchPresent()
         return true
     }
@@ -276,7 +276,7 @@ public class Browser: ObservableObject {
             settings: RasterSettings(
                 viewport: ViewportInfo(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
                 preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
-                flags: RasterFlags(needsComposite: wantsComposite, needsDraw: needsDraw),
+                flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
             ),
             scrollState: scrollState
@@ -333,7 +333,7 @@ public class Browser: ObservableObject {
                     let tabHeight: CGFloat = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
                     let prefetch: CGFloat = 2 * CompositedLayer.tileSize
                     let viewportWidth: CGFloat = inputs.settings.viewport.windowSize.width
-                    let window: RasterWindow = RasterWindow(
+                    let region: RasterRegion = RasterRegion(
                         hint: Rect(
                             left: 0,
                             top: inputs.scrollState.scroll - prefetch,
@@ -348,10 +348,10 @@ public class Browser: ObservableObject {
                         )
                     )
 
-                    let infos: [LayerEffectInfo] = layers.map {
-                        Browser.layerEffectInfo($0, updates: inputs.scene.compositedUpdates)
+                    let effectStrategies: [LayerEffectStrategy] = layers.map {
+                        Browser.layerEffectStrategy($0, updates: inputs.scene.compositedUpdates)
                     }
-                    let usesSublayers: Bool = !infos.contains {
+                    let usesSublayers: Bool = !effectStrategies.contains {
                         $0.kind == .blendFallback || $0.kind == .scrollFallback
                     }
 
@@ -365,11 +365,11 @@ public class Browser: ObservableObject {
                         )
                         let budget: RasterBudget = RasterBudget(CompositedLayer.rasterCapPerComposite)
 
-                        for (index, layer) in layers.enumerated() where infos[index].kind == .flat {
+                        for (index, layer) in layers.enumerated() where effectStrategies[index].kind == .flat {
                             strips.append(contentsOf: layer.rasterIfNeeded(
                                 scale: inputs.settings.viewport.displayScale,
                                 store: store,
-                                window: window,
+                                region: region,
                                 budget: budget
                             ))
                             layer.pruneTiles(
@@ -385,10 +385,10 @@ public class Browser: ObservableObject {
                     measure.stop("raster.plan")
 
                     return RasterPlan(
-                        commit: RasterCommit(
+                        composition: RasterComposition(
                             inputs: inputs,
                             layers: layers,
-                            infos: infos,
+                            effectStrategies: effectStrategies,
                             usesSublayers: usesSublayers,
                         ),
                         batch: TileBatch(
@@ -399,12 +399,12 @@ public class Browser: ObservableObject {
                     )
                 },
                 install: { (store: TileStore, plan: RasterPlan, images: [CGImage?]) -> RasterOutput in
-                    let layers: [CompositedLayer] = plan.commit.layers
-                    let infos: [LayerEffectInfo] = plan.commit.infos
-                    let inputs: RasterInput = plan.commit.inputs
+                    let layers: [CompositedLayer] = plan.composition.layers
+                    let effectStrategies: [LayerEffectStrategy] = plan.composition.effectStrategies
+                    let inputs: RasterInput = plan.composition.inputs
 
                     measure.start("raster.install")
-                    if plan.commit.usesSublayers {
+                    if plan.composition.usesSublayers {
                         measure.start("raster.install.tiles")
                         for (i, strip) in plan.batch.strips.enumerated() {
                             guard let stripImage = images[i] else { continue }
@@ -426,17 +426,17 @@ public class Browser: ObservableObject {
                             "hits": store.hits,
                             "misses": store.misses,
                             "layers": layers.count,
-                            "flat": infos.filter({ $0.kind == .flat }).count
+                            "flat": effectStrategies.filter({ $0.kind == .flat }).count
                         ])
                         if plan.batch.deferred {
                             store.markDeferred()
                         }
                         measure.start("raster.effect")
-                        for (index, layer) in layers.enumerated() where infos[index].kind == .ca {
+                        for (index, layer) in layers.enumerated() where effectStrategies[index].kind == .ca {
                             Browser.updateEffectImage(
                                 layer,
                                 scale: inputs.settings.viewport.displayScale,
-                                blur: infos[index].blur
+                                blur: effectStrategies[index].blur
                             )
                         }
                         measure.stop("raster.effect")
@@ -446,7 +446,7 @@ public class Browser: ObservableObject {
                     let regionTop: CGFloat = inputs.scrollState.scroll
                     var contentImage: CGImage? = nil
 
-                    if !plan.commit.usesSublayers && inputs.settings.flags.needsDraw {
+                    if !plan.composition.usesSublayers && inputs.settings.flags.needsDraw {
                         let regionHeight: CGFloat = inputs.settings.viewport.topInset + plan.batch.tabHeight
                         measure.start("raster.bitmap")
                         contentImage = inputs.settings.flags.needsDraw
@@ -480,10 +480,10 @@ public class Browser: ObservableObject {
                         compositedLayers: inputs.settings.flags.needsComposite ? layers : nil,
                         drawList: drawList,
                         content: RenderedContent(
-                            placements: plan.commit.usesSublayers ? Browser.layerPlacements(layers, infos: infos) : [],
+                            placements: plan.composition.usesSublayers ? Browser.layerPlacements(layers, effectStrategies: effectStrategies) : [],
                             image: contentImage,
                             regionTop: regionTop,
-                            usesSublayers: plan.commit.usesSublayers
+                            usesSublayers: plan.composition.usesSublayers
                         ),
                         needsMoreTiles: store.needsMoreTiles
                     )
@@ -618,8 +618,8 @@ public class Browser: ObservableObject {
         return effect
     }
 
-    nonisolated static func layerEffectInfo(_ layer: CompositedLayer, updates: [ObjectIdentifier: BrowserVisualEffect]) -> LayerEffectInfo {
-        var kind: LayerEffectInfo.Kind = LayerEffectInfo.Kind.flat
+    nonisolated static func layerEffectStrategy(_ layer: CompositedLayer, updates: [ObjectIdentifier: BrowserVisualEffect]) -> LayerEffectStrategy {
+        var kind: LayerEffectStrategy.Kind = LayerEffectStrategy.Kind.flat
         var opacity: Double = 1
         var translation: CGPoint = CGPoint.zero
         var blur: CGFloat = 0
@@ -664,7 +664,7 @@ public class Browser: ObservableObject {
                 blendMode: blendMode
             )
             : nil
-        return LayerEffectInfo(kind: kind, effect: effect, blur: blur)
+        return LayerEffectStrategy(kind: kind, effect: effect, blur: blur)
     }
 
     nonisolated static func updatesAreCA(_ updates: [ObjectIdentifier: BrowserVisualEffect]) -> Bool {
@@ -740,11 +740,11 @@ public class Browser: ObservableObject {
         return drawList
     }
 
-    nonisolated static func layerPlacements(_ layers: [CompositedLayer], infos: [LayerEffectInfo]) -> [PlacedLayer] {
+    nonisolated static func layerPlacements(_ layers: [CompositedLayer], effectStrategies: [LayerEffectStrategy]) -> [PlacedLayer] {
         let t: CGFloat = CompositedLayer.tileSize
         var placements: [PlacedLayer] = []
         for (z, layer) in layers.enumerated() {
-            switch infos[z].kind {
+            switch effectStrategies[z].kind {
                 case .flat:
                     for (index, image) in layer.tiles {
                         placements.append(
@@ -768,7 +768,7 @@ public class Browser: ObservableObject {
                             key: .composited(zIndex: z),
                             image: image,
                             frame: CGRect(x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top),
-                            effect: infos[z].effect
+                            effect: effectStrategies[z].effect
                         )
                     )
                 case .blendFallback, .scrollFallback:
