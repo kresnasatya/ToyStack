@@ -27,13 +27,6 @@ public class Browser: ObservableObject {
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [ObjectIdentifier: String] = [:]
 
-    struct FramePaint {
-        var displayList: [any DisplayItem] = []
-        var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
-        var paintEpoch: UInt = 0
-        var effectUpdateEpoch: UInt = 0
-    }
-
     struct FrameRender {
         var layers: [CompositedLayer] = []
         var drawList: [any DisplayItem] = []
@@ -42,7 +35,7 @@ public class Browser: ObservableObject {
     }
 
     private struct TabFrame {
-        var paint: FramePaint = FramePaint()
+        var display: FrameDisplay = FrameDisplay()
         var scroll: ScrollState = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
         var render: FrameRender = FrameRender()
         var preferences: ColorPreferences = ColorPreferences(prefersDark: false, usesForcedColors: false)
@@ -179,19 +172,19 @@ public class Browser: ObservableObject {
 
     func commit(tab: BrowserTab, data: FrameCommit) {
         guard tab === activeTab else { return }
-        let paintChanged: Bool = data.display.paintEpoch != activeFrame.paint.paintEpoch
-        activeFrame.paint.displayList = data.display.displayList
+        let paintChanged: Bool = data.display.paintEpoch != activeFrame.display.paintEpoch
+        activeFrame.display.displayList = data.display.displayList
         activeFrame.scroll.scroll = data.scrollState.scroll
         activeFrame.scroll.interestTop = data.scrollState.interestTop
         activeFrame.scroll.interestBottom = data.scrollState.interestBottom
         activeFrame.scroll.maxScroll = data.scrollState.maxScroll
         activeFrame.preferences.prefersDark = data.preferences.prefersDark
         activeFrame.preferences.usesForcedColors = data.preferences.usesForcedColors
-        activeFrame.paint.paintEpoch = data.display.paintEpoch
-        activeFrame.paint.compositedUpdates = data.display.compositedUpdates ?? [:]
+        activeFrame.display.paintEpoch = data.display.paintEpoch
+        activeFrame.display.compositedUpdates = data.display.compositedUpdates ?? [:]
 
         if let updates = data.display.compositedUpdates, !updates.isEmpty {
-            activeFrame.paint.effectUpdateEpoch += 1
+            activeFrame.display.effectUpdateEpoch += 1
         }
 
         if paintChanged {
@@ -269,8 +262,8 @@ public class Browser: ObservableObject {
 
         let inputs: RasterInput = RasterInput(
             scene: RasterScene(
-                displayList: activeFrame.paint.displayList,
-                compositedUpdates: activeFrame.paint.compositedUpdates,
+                displayList: activeFrame.display.displayList,
+                compositedUpdates: activeFrame.display.compositedUpdates,
                 previousLayers: activeFrame.render.layers,
             ),
             settings: RasterSettings(
@@ -289,8 +282,8 @@ public class Browser: ObservableObject {
                 displayScale: displayScale
             ),
             epochs: FrameEpoch(
-                paintEpoch: activeFrame.paint.paintEpoch,
-                effectUpdates: activeFrame.paint.effectUpdateEpoch
+                paintEpoch: activeFrame.display.paintEpoch,
+                effectUpdates: activeFrame.display.effectUpdateEpoch
             ),
             preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
