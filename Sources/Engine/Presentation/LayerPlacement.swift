@@ -1,12 +1,12 @@
 import CoreGraphics
 
-public struct PlacedLayer {
-    public let key: PlacedLayerKey
+public struct LayerPlacement {
+    public let key: LayerPlacementKey
     public let image: CGImage
     public let frame: CGRect
     public let effect: LayerEffect?
 
-    public init(key: PlacedLayerKey, image: CGImage, frame: CGRect, effect: LayerEffect? = nil) {
+    public init(key: LayerPlacementKey, image: CGImage, frame: CGRect, effect: LayerEffect? = nil) {
         self.key = key
         self.image = image
         self.frame = frame

@@ -9,7 +9,7 @@ final class ContentPresenter: @unchecked Sendable {
     private let contentLayer: CALayer
     private let scrollbarLayer: CALayer
     private var lastImage: CGImage?
-    private var layersByPlacement: [PlacedLayerKey: CALayer] = [:]
+    private var layersByPlacement: [LayerPlacementKey: CALayer] = [:]
 
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
@@ -95,7 +95,7 @@ final class ContentPresenter: @unchecked Sendable {
         )
         let placements = frame.content.placements
         measure.start("view.updateSublayers")
-        var seen: Set<PlacedLayerKey> = []
+        var seen: Set<LayerPlacementKey> = []
         seen.reserveCapacity(placements.count)
         var added = 0
         for placed in placements {
@@ -132,7 +132,7 @@ final class ContentPresenter: @unchecked Sendable {
         return layer
     }
 
-    private func updateSublayer(_ layer: CALayer, with placed: PlacedLayer) {
+    private func updateSublayer(_ layer: CALayer, with placed: LayerPlacement) {
         if (layer.contents as AnyObject?) !== placed.image {
             layer.contents = placed.image
         }

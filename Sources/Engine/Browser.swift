@@ -740,15 +740,15 @@ public class Browser: ObservableObject {
         return drawList
     }
 
-    nonisolated static func layerPlacements(_ layers: [CompositedLayer], effectStrategies: [LayerEffectStrategy]) -> [PlacedLayer] {
+    nonisolated static func layerPlacements(_ layers: [CompositedLayer], effectStrategies: [LayerEffectStrategy]) -> [LayerPlacement] {
         let t: CGFloat = CompositedLayer.tileSize
-        var placements: [PlacedLayer] = []
+        var placements: [LayerPlacement] = []
         for (z, layer) in layers.enumerated() {
             switch effectStrategies[z].kind {
                 case .flat:
                     for (index, image) in layer.tiles {
                         placements.append(
-                            PlacedLayer(
+                            LayerPlacement(
                                 key: .tile(zIndex: z, col: index.col, row: index.row),
                                 image: image,
                                 frame: CGRect(
@@ -764,7 +764,7 @@ public class Browser: ObservableObject {
                     guard let image = layer.effectImage else { break }
                     let bounds: Rect = layer.compositedBounds()
                     placements.append(
-                        PlacedLayer(
+                        LayerPlacement(
                             key: .composited(zIndex: z),
                             image: image,
                             frame: CGRect(x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top),
