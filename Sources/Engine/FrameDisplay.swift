@@ -1,6 +1,6 @@
 struct FrameDisplay {
     var displayList: [any DisplayItem] = []
     var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
-    var paintEpoch: UInt = 0
-    var effectUpdateEpoch: UInt = 0
+    var paintRevision: UInt = 0
+    var effectRevision: UInt = 0
 }

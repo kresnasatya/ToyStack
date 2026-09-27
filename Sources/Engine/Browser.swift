@@ -172,7 +172,7 @@ public class Browser: ObservableObject {
 
     func commit(tab: BrowserTab, data: FrameCommit) {
         guard tab === activeTab else { return }
-        let paintChanged: Bool = data.display.paintEpoch != activeFrame.display.paintEpoch
+        let paintChanged: Bool = data.display.paintRevision != activeFrame.display.paintRevision
         activeFrame.display.displayList = data.display.displayList
         activeFrame.scroll.scroll = data.scrollState.scroll
         activeFrame.scroll.interestTop = data.scrollState.interestTop
@@ -180,11 +180,11 @@ public class Browser: ObservableObject {
         activeFrame.scroll.maxScroll = data.scrollState.maxScroll
         activeFrame.preferences.prefersDark = data.preferences.prefersDark
         activeFrame.preferences.usesForcedColors = data.preferences.usesForcedColors
-        activeFrame.display.paintEpoch = data.display.paintEpoch
+        activeFrame.display.paintRevision = data.display.paintRevision
         activeFrame.display.compositedUpdates = data.display.compositedUpdates ?? [:]
 
         if let updates = data.display.compositedUpdates, !updates.isEmpty {
-            activeFrame.display.effectUpdateEpoch += 1
+            activeFrame.display.effectRevision += 1
         }
 
         if paintChanged {
@@ -281,9 +281,9 @@ public class Browser: ObservableObject {
                 viewport: windowSize,
                 displayScale: displayScale
             ),
-            epochs: FrameEpoch(
-                paintEpoch: activeFrame.display.paintEpoch,
-                effectUpdates: activeFrame.display.effectUpdateEpoch
+            revisions: FrameRevisions(
+                paint: activeFrame.display.paintRevision,
+                effects: activeFrame.display.effectRevision
             ),
             preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)

@@ -22,7 +22,7 @@ public class BrowserTab {
     private(set) var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
     private(set) var document: DocumentLayout?
     private(set) var displayList: [any DisplayItem] = []
-    private var paintEpoch: UInt = 0
+    private var paintRevision: UInt = 0
     public private(set) var title: String = "New Tab"
     public private(set) var isSecure: Bool = false
 
@@ -543,7 +543,7 @@ public class BrowserTab {
             paintTree(doc, into: &list)
             displayList = list
             paintedBottom = maxRectBottom(list)
-            paintEpoch += 1
+            paintRevision += 1
             needsPaint = false
         }
 
@@ -630,7 +630,7 @@ public class BrowserTab {
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
-            display: DisplayOutput(displayList: displayList, compositedUpdates: updates, paintEpoch: paintEpoch),
+            display: DisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),
             preferences: ColorPreferences(prefersDark: prefersDark, usesForcedColors: forcedColors)
         )
         compositedUpdates = [:]

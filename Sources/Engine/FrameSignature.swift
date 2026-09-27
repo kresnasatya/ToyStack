@@ -6,14 +6,9 @@ struct FrameGeometry: Equatable {
     let displayScale: CGFloat
 }
 
-struct FrameEpoch: Equatable {
-    let paintEpoch: UInt
-    let effectUpdates: UInt
-}
-
 struct FrameSignature: Equatable {
     let geometry: FrameGeometry
-    let epochs: FrameEpoch
+    let revisions: FrameRevisions
     let preferences: ColorPreferences
     let accessibility: AccessibilityBounds
 }
