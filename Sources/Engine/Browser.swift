@@ -179,18 +179,18 @@ public class Browser: ObservableObject {
 
     func commit(tab: BrowserTab, data: FrameCommit) {
         guard tab === activeTab else { return }
-        let paintChanged: Bool = data.paint.paintEpoch != activeFrame.paint.paintEpoch
-        activeFrame.paint.displayList = data.paint.displayList
+        let paintChanged: Bool = data.display.paintEpoch != activeFrame.paint.paintEpoch
+        activeFrame.paint.displayList = data.display.displayList
         activeFrame.scroll.scroll = data.scrollState.scroll
         activeFrame.scroll.interestTop = data.scrollState.interestTop
         activeFrame.scroll.interestBottom = data.scrollState.interestBottom
         activeFrame.scroll.maxScroll = data.scrollState.maxScroll
         activeFrame.preferences.prefersDark = data.preferences.prefersDark
         activeFrame.preferences.usesForcedColors = data.preferences.usesForcedColors
-        activeFrame.paint.paintEpoch = data.paint.paintEpoch
-        activeFrame.paint.compositedUpdates = data.paint.compositedUpdates ?? [:]
+        activeFrame.paint.paintEpoch = data.display.paintEpoch
+        activeFrame.paint.compositedUpdates = data.display.compositedUpdates ?? [:]
 
-        if let updates = data.paint.compositedUpdates, !updates.isEmpty {
+        if let updates = data.display.compositedUpdates, !updates.isEmpty {
             activeFrame.paint.effectUpdateEpoch += 1
         }
 
@@ -198,7 +198,7 @@ public class Browser: ObservableObject {
             objectWillChange.send()
         }
 
-        if let updates = data.paint.compositedUpdates, !updates.isEmpty,
+        if let updates = data.display.compositedUpdates, !updates.isEmpty,
             activeFrame.render.content.usesSublayers,
             !needsComposite, !needsRaster, !needsDraw, !compositeInFlight,
             Browser.updatesAreCA(updates),
@@ -208,7 +208,7 @@ public class Browser: ObservableObject {
             return
         }
 
-        if data.paint.compositedUpdates == nil {
+        if data.display.compositedUpdates == nil {
             setNeedsComposite()
         } else {
             setNeedsDrawOnly()
