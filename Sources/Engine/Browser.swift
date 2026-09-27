@@ -177,7 +177,7 @@ public class Browser: ObservableObject {
         activeTab?.runAnimationFrame()
     }
 
-    func commit(tab: BrowserTab, data: CommitData) {
+    func commit(tab: BrowserTab, data: FrameCommit) {
         guard tab === activeTab else { return }
         let paintChanged: Bool = data.paint.paintEpoch != activeFrame.paint.paintEpoch
         activeFrame.paint.displayList = data.paint.displayList
