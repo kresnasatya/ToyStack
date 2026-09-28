@@ -27,13 +27,6 @@ public class Browser: ObservableObject {
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [ObjectIdentifier: String] = [:]
 
-    struct FrameRender {
-        var layers: [CompositedLayer] = []
-        var drawList: [any DisplayItem] = []
-        var content: RenderedContent = RenderedContent()
-        var signature: FrameSignature?
-    }
-
     private struct TabFrame {
         var display: FrameDisplay = FrameDisplay()
         var scroll: ScrollState = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
