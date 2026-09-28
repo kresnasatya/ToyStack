@@ -20,6 +20,8 @@ This project is intended to be used as learning purpose to understand how to mak
 
 2. Each time I give a prompt, act as a guide and show me the code changes I need to make. **When modifying existing code, always show the changes as a unified diff (+/-) rather than separate Old/New code blocks.**
 
+3. The proposed new file should follow the **Domain Architecture** as defined in [./README.md](README.md).
+
 3. When facing with **exercise**, create a html example for proof of exercise implementation in `www` directory.
  
 4. You're **NOT ALLOWED** to edit the code. I will do it by myself to get better understanding.

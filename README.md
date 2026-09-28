@@ -32,6 +32,26 @@ The process divided into 4 chapters:
 
 - [ ] ch16 - It covers Chapter 16 (Reusing Previous Computation)
 
+## Domain Architecture
+
+- **Core**: App facing controllers + frame bookkeeping + shared primitives.
+- **Parsing**: Turns text into trees.
+- **Style**: Cascade + compute style, media features, inline style, text direction, whitespace, forced colors.
+- **Style/Selectors**: It holds the matching machinery (tag/class/id/descendant/has/RuleIndex).
+- **Layouts**: Geometry/layout: block, inline, line, text, input, button layout + LayoutObject/LayoutMetrics.
+- **Display**: Paint list construction, the `Draw*` commands, colors, Blend/Transform/BlurFilter/ScrollEffect, PaintTree, scrollbar, focus ring.
+- **Raster**: Turning display list into pixels: compositing layers, tiles/tile store, raster scheduler + worker pool, budgets, invalidation.
+- **Presentation**: The public hand-off of a finished frame to the UI.
+- **Animation**: Time-based interpolation, keyframe/numeric/color/transform animations, style transitions, frame timing.
+- **Accessibility**: A11y tree, highlight bounds, and the speech thread.
+- **Networking**: Fetching from network.
+- **Platform**: OS/renderer abstraction: `Renderer` protocol + `CGRenderer` Core Graphics implementation, `BrowserFont`, `LayerOptions`, `JSRuntime`.
+- **Scheduling**: Work execution.
+- **Diagnostic**: Instrumentation: `MeasureTime` (trace spans), `Profiler`
+- **Resources** Bundle assets
+
+Rough flow: **Networking** -> **Parsing** -> **Style** -> **Layouts** -> **Display** -> **Raster** -> **Presentation**, with **Core** orchestrating, **Animation/Accessibility** feeding in, and **Platform/Scheduling/Diagnostic** supporting.
+
 ## How to Run?
 
 To run this project, build with command `swift build` then use command `swift run ToyStack` to launch ToyStack browser.
