@@ -1,5 +1,5 @@
 struct FrameCommit {
     let scrollState: ScrollState
-    let display: DisplayOutput
+    let display: FrameDisplayOutput
     let preferences: ColorPreferences
 }

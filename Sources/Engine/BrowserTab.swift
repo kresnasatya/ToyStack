@@ -630,7 +630,7 @@ public class BrowserTab {
             (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
-            display: DisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),
+            display: FrameDisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),
             preferences: ColorPreferences(prefersDark: prefersDark, usesForcedColors: forcedColors)
         )
         compositedUpdates = [:]
