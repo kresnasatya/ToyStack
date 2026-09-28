@@ -113,20 +113,3 @@ public final class CGRenderer: Renderer {
         }
     }
 }
-
-extension BrowserColor {
-    var cgColor: CGColor {
-        CGColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
-    }
-}
-
-extension BrowserBlendMode {
-    var toCG: CGBlendMode {
-        switch self {
-            case .normal: return .normal
-            case .multiply: return .multiply
-            case.difference: return .difference
-            case .destinationIn: return .destinationIn
-        }
-    }
-}

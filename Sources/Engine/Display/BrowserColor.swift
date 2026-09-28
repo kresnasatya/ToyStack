@@ -1,3 +1,5 @@
+import CoreGraphics
+
 typealias RGBColor = (r: Double, g: Double, b: Double)
 
 public struct BrowserColor {
@@ -68,4 +70,10 @@ func cssColorToRGB(_ cssName: String) -> RGBColor? {
 func rgbToHex(_ r: Double, _ g: Double, _ b: Double) -> String {
     func clamp(_ v: Double) -> Int { max(0, min(255, Int(v.rounded()))) }
     return String(format: "#%02x%02x%02x", clamp(r), clamp(g), clamp(b))
+}
+
+extension BrowserColor {
+    var cgColor: CGColor {
+        CGColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
+    }
 }
