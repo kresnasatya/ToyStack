@@ -231,7 +231,7 @@ public class WebURL: @unchecked Sendable {
             {
                 await ResponseCache.shared.set(
                     cacheKey,
-                    response: HttpResponse(
+                    response: CacheResponse(
                         status: httpResponse.statusCode,
                         headers: headers,
                         content: content
@@ -241,7 +241,7 @@ public class WebURL: @unchecked Sendable {
             } else if cacheControl.isEmpty {
                 await ResponseCache.shared.set(
                     cacheKey,
-                    response: HttpResponse(
+                    response: CacheResponse(
                         status: httpResponse.statusCode,
                         headers: headers,
                         content: content

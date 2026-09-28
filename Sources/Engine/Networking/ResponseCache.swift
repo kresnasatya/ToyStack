@@ -1,6 +1,6 @@
 import Foundation
 
-struct HttpResponse {
+struct CacheResponse {
     let status: Int
     let headers: [String: String]
     let content: String
@@ -9,11 +9,11 @@ struct HttpResponse {
 // MARK: - CacheEntry
 
 struct CacheEntry {
-    let response: HttpResponse
+    let response: CacheResponse
     let timestamp: Date
     let maxAge: Int
 
-    init(_ response: HttpResponse, maxAge: Int, now: Date = Date()) {
+    init(_ response: CacheResponse, maxAge: Int, now: Date = Date()) {
         self.response = response
         self.timestamp = now
         self.maxAge = maxAge
@@ -27,7 +27,7 @@ actor ResponseCache {
 
     private var storage: [String: CacheEntry] = [:]
 
-    func get(_ url: String) -> HttpResponse? {
+    func get(_ url: String) -> CacheResponse? {
         guard let entry = storage[url] else { return nil }
         if entry.maxAge >= 0 {
             let age: TimeInterval = Date().timeIntervalSince(entry.timestamp)
@@ -37,16 +37,16 @@ actor ResponseCache {
             }
         }
 
-        return HttpResponse(
+        return CacheResponse(
             status: entry.response.status,
             headers: entry.response.headers,
             content: entry.response.content
         )
     }
 
-    func set(_ url: String, response: HttpResponse, maxAge: Int) {
+    func set(_ url: String, response: CacheResponse, maxAge: Int) {
         storage[url] = CacheEntry(
-            HttpResponse(status: response.status, headers: response.headers, content: response.content),
+            CacheResponse(status: response.status, headers: response.headers, content: response.content),
             maxAge: maxAge
         )
     }
