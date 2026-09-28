@@ -8,8 +8,8 @@ public struct DrawLine: DisplayCommand {
     public var parentEffect: BrowserVisualEffect? = nil
 
     public init(
-        from: CGPoint,
-        to: CGPoint,
+        from: Point,
+        to: Point,
         color: String,
         thickness: CGFloat
     ) {
@@ -20,8 +20,8 @@ public struct DrawLine: DisplayCommand {
 
     public func execute(scroll: CGFloat, renderer: any Renderer) {
         renderer.strokeSegment(
-            from: CGPoint(x: rect.left, y: rect.top - scroll),
-            to: CGPoint(x: rect.right, y: rect.bottom - scroll),
+            from: Point(x: rect.left, y: rect.top - scroll),
+            to: Point(x: rect.right, y: rect.bottom - scroll),
             color: BrowserColor(cssName: color),
             lineWidth: thickness
         )

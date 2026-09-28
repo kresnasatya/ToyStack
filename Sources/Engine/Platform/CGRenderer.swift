@@ -26,7 +26,7 @@ public final class CGRenderer: Renderer {
 
         let r: CGRenderer = CGRenderer(cg: ctx, canvasSize: CGSize(width: size.width, height: size.height), scale: scale)
         if let bg = backgroundColor {
-            r.fillRect(CGRect(x: 0, y: 0, width: size.width, height: size.height), color: bg)
+            r.fillRect(Rect(left: 0, top: 0, right: size.width, bottom: size.height), color: bg)
         }
         context(r)
         return ctx.makeImage()
@@ -35,42 +35,42 @@ public final class CGRenderer: Renderer {
     public func saveState() { cg.saveGState() }
     public func restoreState() { cg.restoreGState() }
     public func translateBy(x: CGFloat, y: CGFloat) { cg.translateBy(x: x, y: y) }
-    public func clip(to rect: CGRect) { cg.clip(to: rect) }
+    public func clip(to rect: Rect) { cg.clip(to: rect.cgRect) }
 
-    public func fillRect(_ rect: CGRect, color: BrowserColor) {
+    public func fillRect(_ rect: Rect, color: BrowserColor) {
         cg.setFillColor(color.cgColor)
-        cg.fill(rect)
+        cg.fill(rect.cgRect)
     }
 
-    public func fillRRect(_ rect: CGRect, radius: CGFloat, color: BrowserColor) {
-        let path: CGPath = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    public func fillRRect(_ rect: Rect, radius: CGFloat, color: BrowserColor) {
+        let path: CGPath = CGPath(roundedRect: rect.cgRect, cornerWidth: radius, cornerHeight: radius, transform: nil)
         cg.setFillColor(color.cgColor)
         cg.addPath(path)
         cg.fillPath()
     }
 
-    public func strokeSegment(from: CGPoint, to: CGPoint, color: BrowserColor, lineWidth: CGFloat) {
+    public func strokeSegment(from: Point, to: Point, color: BrowserColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
-        cg.move(to: from)
-        cg.addLine(to: to)
+        cg.move(to: from.cgPoint)
+        cg.addLine(to: to.cgPoint)
         cg.strokePath()
     }
 
-    public func strokeRect(_ rect: CGRect, color: BrowserColor, lineWidth: CGFloat) {
+    public func strokeRect(_ rect: Rect, color: BrowserColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
-        cg.stroke(rect)
+        cg.stroke(rect.cgRect)
     }
 
-    public func drawText(_ text: String, font: CTFont, color: BrowserColor, at point: CGPoint) {
+    public func drawText(_ text: String, font: BrowserFont, color: BrowserColor, at point: Point) {
         let attrs: NSAttributedString = NSAttributedString(string: text, attributes: [
-            NSAttributedString.Key(kCTFontAttributeName as String): font,
+            NSAttributedString.Key(kCTFontAttributeName as String): font.ctFont,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
         ])
         let line: CTLine = CTLineCreateWithAttributedString(attrs)
         cg.saveGState()
-        cg.translateBy(x: point.x, y: point.y + CTFontGetAscent(font))
+        cg.translateBy(x: point.x, y: point.y + CTFontGetAscent(font.ctFont))
         cg.scaleBy(x: 1, y: -1)
         cg.textMatrix = .identity
         cg.textPosition = .zero
@@ -79,11 +79,11 @@ public final class CGRenderer: Renderer {
         cg.restoreGState()
     }
 
-    public func drawImage(_ image: CGImage, in rect: CGRect) {
+    public func drawImage(_ image: CGImage, in rect: Rect) {
         cg.saveGState()
-        cg.translateBy(x: rect.minX, y: rect.maxY)
+        cg.translateBy(x: rect.left, y: rect.bottom)
         cg.scaleBy(x: 1, y: -1)
-        cg.draw(image, in: CGRect(x: 0, y:0, width: rect.width, height: rect.height))
+        cg.draw(image, in: CGRect(x: 0, y:0, width: rect.right - rect.left, height: rect.bottom - rect.top))
         cg.restoreGState()
     }
 
@@ -101,7 +101,7 @@ public final class CGRenderer: Renderer {
             ci = ci.applyingGaussianBlur(sigma: blur / 2)
             ci = ci.cropped(to: extent)
             guard let blurred = Self.ciContext.createCGImage(ci, from: extent) else { return }
-            drawImage(blurred, in: CGRect(x: 0, y: 0, width: canvasSize.width, height: canvasSize.height))
+            drawImage(blurred, in: Rect(left: 0, top: 0, right: canvasSize.width, bottom: canvasSize.height))
         } else {
             cg.saveGState()
             if let o = options.opacity { cg.setAlpha(CGFloat(o)) }

@@ -14,10 +14,11 @@ public struct DrawOutline: DisplayCommand {
     }
 
     public func execute(scroll: CGFloat, renderer: any Renderer) {
-        let r: CGRect = CGRect(
-            x: rect.left, y: rect.top - scroll, width: rect.right - rect.left,
-            height: rect.bottom - rect.top)
-        renderer.strokeRect(r, color: BrowserColor(cssName: color), lineWidth: thickness)
+        renderer.strokeRect(
+            Rect(left: rect.left, top: rect.top - scroll, right: rect.right, bottom: rect.bottom - scroll),
+            color: BrowserColor(cssName: color),
+            lineWidth: thickness
+        )
     }
 }
 

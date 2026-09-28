@@ -23,41 +23,41 @@ final class SwiftUIRenderer: Renderer {
         context.translateBy(x: x, y: y)
     }
 
-    func clip(to rect: CGRect) {
-        context.clip(to: Path(rect))
+    func clip(to rect: Rect) {
+        context.clip(to: Path(rect.cgRect))
     }
 
-    func fillRect(_ rect: CGRect, color: BrowserColor) {
-        context.fill(Path(rect), with: .color(Color(engine: color)))
+    func fillRect(_ rect: Rect, color: BrowserColor) {
+        context.fill(Path(rect.cgRect), with: .color(Color(engine: color)))
     }
 
-    func fillRRect(_ rect: CGRect, radius: CGFloat, color: BrowserColor) {
+    func fillRRect(_ rect: Rect, radius: CGFloat, color: BrowserColor) {
         context.fill(
-            Path(roundedRect: rect, cornerRadius: radius),
+            Path(roundedRect: rect.cgRect, cornerRadius: radius),
             with: .color(Color(engine: color))
         )
     }
 
-    func strokeSegment(from: CGPoint, to: CGPoint, color: BrowserColor, lineWidth: CGFloat) {
+    func strokeSegment(from: Point, to: Point, color: BrowserColor, lineWidth: CGFloat) {
         var path = Path()
-        path.move(to: from)
-        path.addLine(to: to)
+        path.move(to: from.cgPoint)
+        path.addLine(to: to.cgPoint)
         context.stroke(path, with: .color(Color(engine: color)), lineWidth: lineWidth)
     }
 
-    func strokeRect(_ rect: CGRect, color: BrowserColor, lineWidth: CGFloat) {
-        context.stroke(Path(rect), with: .color(Color(engine: color)), lineWidth: lineWidth)
+    func strokeRect(_ rect: Rect, color: BrowserColor, lineWidth: CGFloat) {
+        context.stroke(Path(rect.cgRect), with: .color(Color(engine: color)), lineWidth: lineWidth)
     }
 
-    func drawText(_ text: String, font: CTFont, color: BrowserColor, at point: CGPoint) {
+    func drawText(_ text: String, font: BrowserFont, color: BrowserColor, at point: Point) {
         let swiftText = Text(text)
-            .font(Font(font))
+            .font(Font(font.ctFont))
             .foregroundColor(Color(engine: color))
-        context.draw(swiftText, at: point, anchor: .topLeading)
+        context.draw(swiftText, at: point.cgPoint, anchor: .topLeading)
     }
 
-    func drawImage(_ image: CGImage, in rect: CGRect) {
-        context.draw(Image(decorative: image, scale: 1), in: rect)
+    func drawImage(_ image: CGImage, in rect: Rect) {
+        context.draw(Image(decorative: image, scale: 1), in: rect.cgRect)
     }
 
     func drawLayer(_ options: LayerOptions, content: (any Renderer) -> Void) {

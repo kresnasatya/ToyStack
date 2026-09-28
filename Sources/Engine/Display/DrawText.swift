@@ -9,7 +9,7 @@ public struct DrawText: DisplayCommand {
     public var parentEffect: BrowserVisualEffect? = nil
 
     public init(
-        at point: CGPoint, text: String, font: BrowserFont, color: String
+        at point: Point, text: String, font: BrowserFont, color: String
     ) {
         self.rect = Rect(
             left: point.x,
@@ -23,6 +23,6 @@ public struct DrawText: DisplayCommand {
     }
 
     public func execute(scroll: CGFloat, renderer: any Renderer) {
-        renderer.drawText(text, font: font.ctFont, color: BrowserColor(cssName: color), at: CGPoint(x: rect.left, y: rect.top - scroll))
+        renderer.drawText(text, font: font, color: BrowserColor(cssName: color), at: Point(x: rect.left, y: rect.top - scroll))
     }
 }

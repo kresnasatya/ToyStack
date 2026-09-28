@@ -436,7 +436,7 @@ class BlockLayout: LayoutObject {
             let font: BrowserFont = getFont(size: 12, weight: "bold", style: "roman")
             cmds.append(
                 DrawText(
-                    at: CGPoint(x: x, y: y),
+                    at: Point(x: x, y: y),
                     text: "Table of Contents",
                     font: font,
                     color: usesForcedColors(node) ? ForcedColor.canvas : "white"

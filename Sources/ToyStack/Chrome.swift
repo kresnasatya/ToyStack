@@ -103,8 +103,8 @@ public class Chrome {
                 rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: bgColor))
         cmds.append(
             DrawLine(
-                from: CGPoint(x: 0, y: bottom),
-                to: CGPoint(x: currentWidth, y: bottom),
+                from: Point(x: 0, y: bottom),
+                to: Point(x: currentWidth, y: bottom),
                 color: color,
                 thickness: 1
             )
@@ -113,7 +113,7 @@ public class Chrome {
         cmds.append(DrawOutline(rect: newtabRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
-                at: CGPoint(x: newtabRect.left + padding, y: newtabRect.top),
+                at: Point(x: newtabRect.left + padding, y: newtabRect.top),
                 text: "+", font: font,
                 color: color
             )
@@ -124,23 +124,23 @@ public class Chrome {
             let bounds = tabRect(i)
             cmds.append(
                 DrawLine(
-                    from: CGPoint(x: bounds.left, y: 0),
-                    to: CGPoint(x: bounds.left, y: bounds.bottom),
+                    from: Point(x: bounds.left, y: 0),
+                    to: Point(x: bounds.left, y: bounds.bottom),
                     color: color,
                     thickness: 1
                 )
             )
             cmds.append(
                 DrawLine(
-                    from: CGPoint(x: bounds.right, y: 0),
-                    to: CGPoint(x: bounds.right, y: bounds.bottom),
+                    from: Point(x: bounds.right, y: 0),
+                    to: Point(x: bounds.right, y: bounds.bottom),
                     color: color,
                     thickness: 1
                 )
             )
             cmds.append(
                 DrawText(
-                    at: CGPoint(x: bounds.left + padding, y: bounds.top + padding),
+                    at: Point(x: bounds.left + padding, y: bounds.top + padding),
                     text: "Tab \(i)",
                     font: font, color: color
                 )
@@ -148,16 +148,16 @@ public class Chrome {
             if tab === tabManager?.activeTab {
                 cmds.append(
                     DrawLine(
-                        from: CGPoint(x: 0, y: bounds.bottom),
-                        to: CGPoint(x: bounds.left, y: bounds.bottom),
+                        from: Point(x: 0, y: bounds.bottom),
+                        to: Point(x: bounds.left, y: bounds.bottom),
                         color: color,
                         thickness: 1
                     )
                 )
                 cmds.append(
                     DrawLine(
-                        from: CGPoint(x: bounds.right, y: bounds.bottom),
-                        to: CGPoint(x: currentWidth, y: bounds.bottom),
+                        from: Point(x: bounds.right, y: bounds.bottom),
+                        to: Point(x: currentWidth, y: bounds.bottom),
                         color: color,
                         thickness: 1
                     )
@@ -169,7 +169,7 @@ public class Chrome {
         cmds.append(DrawOutline(rect: backRect, color: backColor, thickness: 1))
         cmds.append(
             DrawText(
-                at: CGPoint(x: backRect.left + padding, y: backRect.top),
+                at: Point(x: backRect.left + padding, y: backRect.top),
                 text: "<",
                 font: font,
                 color: backColor
@@ -180,7 +180,7 @@ public class Chrome {
         cmds.append(DrawOutline(rect: forwardRect, color: fwdColor, thickness: 1))
         cmds.append(
             DrawText(
-                at: CGPoint(x: forwardRect.left + padding, y: forwardRect.top),
+                at: Point(x: forwardRect.left + padding, y: forwardRect.top),
                 text: ">",
                 font: font,
                 color: fwdColor
@@ -195,7 +195,7 @@ public class Chrome {
         cmds.append(DrawOutline(rect: bookmarkRect, color: color, thickness: 1))
         cmds.append(
             DrawText(
-                at: CGPoint(x: bookmarkRect.left + padding, y: bookmarkRect.top),
+                at: Point(x: bookmarkRect.left + padding, y: bookmarkRect.top),
                 text: "*",
                 font: font,
                 color: color
@@ -212,7 +212,7 @@ public class Chrome {
                 cmds.append(DrawRect(rect: selRect, color: "lightblue"))
                 cmds.append(
                     DrawText(
-                        at: CGPoint(x: addressRect.left + padding, y: addressRect.top),
+                        at: Point(x: addressRect.left + padding, y: addressRect.top),
                         text: addressBar,
                         font: font,
                         color: color
@@ -221,7 +221,7 @@ public class Chrome {
             } else {
                 cmds.append(
                     DrawText(
-                        at: CGPoint(x: addressRect.left + padding, y: addressRect.top),
+                        at: Point(x: addressRect.left + padding, y: addressRect.top),
                         text: addressBar,
                         font: font,
                         color: color
@@ -231,8 +231,8 @@ public class Chrome {
                 let w = font.measure(textBeforeCursor)
                 cmds.append(
                     DrawLine(
-                        from: CGPoint(x: addressRect.left + padding + w, y: addressRect.top),
-                        to: CGPoint(x: addressRect.left + padding + w, y: addressRect.bottom),
+                        from: Point(x: addressRect.left + padding + w, y: addressRect.top),
+                        to: Point(x: addressRect.left + padding + w, y: addressRect.bottom),
                         color: "red",
                         thickness: 1
                     )
@@ -244,7 +244,7 @@ public class Chrome {
             let displayText = isSecure ? "\u{1F512} \(url.toString())" : url.toString()
             cmds.append(
                 DrawText(
-                    at: CGPoint(x: addressRect.left + padding, y: addressRect.top),
+                    at: Point(x: addressRect.left + padding, y: addressRect.top),
                     text: displayText,
                     font: font,
                     color: color

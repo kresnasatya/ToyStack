@@ -83,7 +83,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             if element.isChecked {
                 cmds.append(
                     DrawText(
-                        at: CGPoint(x: x, y: y),
+                        at: Point(x: x, y: y),
                         text: "X",
                         font: font,
                         color: usesForcedColors(node) ? ForcedColor.buttonText : "black"
@@ -115,7 +115,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
         }
         let color: String = element.style["color"] ?? "black"
-        cmds.append(DrawText(at: CGPoint(x: x, y: y), text: text, font: font, color: color))
+        cmds.append(DrawText(at: Point(x: x, y: y), text: text, font: font, color: color))
 
         if element.isFocused {
             // NOTE: cx = caret X
@@ -123,8 +123,8 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             let cx: CGFloat = x + font.measure(text)
             cmds.append(
                 DrawLine(
-                    from: CGPoint(x: cx, y: y),
-                    to: CGPoint(x: cx, y: y + height),
+                    from: Point(x: cx, y: y),
+                    to: Point(x: cx, y: y + height),
                     color: usesForcedColors(node) ? ForcedColor.buttonText : "black",
                     thickness: 1
                 )

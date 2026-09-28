@@ -13,12 +13,7 @@ public class ScrollEffect: BrowserVisualEffect {
 
     public override func execute(renderer: any Renderer) {
         renderer.saveState()
-        let cgRect: CGRect = CGRect(
-            x: clipRect.left, y: clipRect.top,
-            width: clipRect.right - clipRect.left,
-            height: clipRect.bottom - clipRect.top
-        )
-        renderer.clip(to: cgRect)
+        renderer.clip(to: clipRect)
         renderer.translateBy(x: 0, y: -scrollOffset)
         for child in children {
             if let ve = child as? BrowserVisualEffect {

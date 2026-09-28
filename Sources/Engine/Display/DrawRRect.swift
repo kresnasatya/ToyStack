@@ -8,6 +8,6 @@ struct DrawRRect: DisplayCommand {
     let color: String
 
     func execute(scroll: CGFloat, renderer: any Renderer) {
-        renderer.fillRRect(rect.cgRect, radius: radius, color: BrowserColor(cssName: color))
+        renderer.fillRRect(rect, radius: radius, color: BrowserColor(cssName: color))
     }
 }

@@ -18,7 +18,7 @@ public struct Rect: Equatable {
         return x >= left && x < right && y >= top && y < bottom
     }
 
-    var cgRect: CGRect {
+    public var cgRect: CGRect {
         CGRect(x: left, y: top, width: right - left, height: bottom - top)
     }
 
