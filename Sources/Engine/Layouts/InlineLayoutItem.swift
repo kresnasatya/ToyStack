@@ -8,5 +8,5 @@ protocol InlineLayoutItem: LayoutObject {
 
 extension InlineLayoutItem {
     var inlineAscent: CGFloat { font.ascent }
-    var inlineDescent: CGFloat { font.ascent }
+    var inlineDescent: CGFloat { font.descent }
 }
