@@ -145,16 +145,16 @@ public class BrowserTab {
             }
             self.browser?.measure.stop("BrowserTab.load.scripts")
 
-            self.browser?.measure.start("BrowserTab.load.exec")
-            self.execScripts(url: url, bodies: scriptBodies)
-            self.browser?.measure.stop("BrowserTab.load.exec")
-
             self.browser?.measure.start("BrowserTab.load.images")
             let images: [(index: Int, image: CGImage)] = await networkTaskRunner.schedule(name: "fetch-images") {
                 await self.fetchImages(urls: resources.imageURLs)
             }
             self.applyImages(images)
             self.browser?.measure.stop("BrowserTab.load.images")
+
+            self.browser?.measure.start("BrowserTab.load.exec")
+            self.execScripts(url: url, bodies: scriptBodies)
+            self.browser?.measure.stop("BrowserTab.load.exec")
         }
     }
 
@@ -401,7 +401,6 @@ public class BrowserTab {
         for (i, image) in images where i < imgs.count {
             imgs[i].image = image
         }
-        if !images.isEmpty { setNeedsLayout() }
     }
 
     private func effectiveReferrer(for targetURL: WebURL) -> WebURL? {
