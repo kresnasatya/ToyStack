@@ -34,7 +34,9 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         }
     }
 
-    items = paintBrowserVisualEffects(node: obj.node, items: items, rect: obj.selfRect())
+    if !(obj is LineLayout) {
+        items = paintBrowserVisualEffects(node: obj.node, items: items, rect: obj.selfRect())
+    }
 
     displayList.append(contentsOf: items)
 }
