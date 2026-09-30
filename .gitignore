@@ -9,4 +9,5 @@ DerivedData/
 brownie
 browser.trace
 *.png
+!Sources/Engine/**/*.png
 *.mov

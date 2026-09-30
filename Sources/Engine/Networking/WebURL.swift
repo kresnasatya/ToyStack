@@ -87,9 +87,9 @@ public class WebURL: @unchecked Sendable {
 
         var defaultPort: Int = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
         if hostPart.contains(":") {
-            let parts: [String.SubSequence] = hostPart.split(separator: ":", maxSplits: 1)
+            let parts: [String.SubSequence] = hostPart.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             hostPart = String(parts[0])
-            defaultPort = Int(parts[1])!
+            defaultPort = Int(parts[1]) ?? defaultPort
         }
         host = hostPart
         port = defaultPort
@@ -133,6 +133,54 @@ public class WebURL: @unchecked Sendable {
             }
         }
 
+        let urlRequest: URLRequest = await makeHTTPRequest(method: method, referrer: referrer, payload: payload, extraHeaders: extraHeaders)
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            fatalError("Invalid response type")
+        }
+
+        let headers: [String: String] = await parseHeaders(httpResponse)
+
+        let content: String = String(data: data, encoding: .utf8) ?? ""
+
+        if method == "GET" && httpResponse.statusCode == 200 {
+            let cacheControl: String = headers["cache-control"] ?? ""
+            if cacheControl.contains("no-store") {
+
+            } else if cacheControl.contains("max-age="),
+                let range = cacheControl.range(of: "max-age="),
+                let maxAge = Int(
+                    cacheControl[range.upperBound...].prefix(while: { $0.isNumber })
+                )
+            {
+                await ResponseCache.shared.set(
+                    cacheKey,
+                    response: CacheResponse(
+                        status: httpResponse.statusCode,
+                        headers: headers,
+                        content: content
+                    ),
+                    maxAge: maxAge
+                )
+            } else if cacheControl.isEmpty {
+                await ResponseCache.shared.set(
+                    cacheKey,
+                    response: CacheResponse(
+                        status: httpResponse.statusCode,
+                        headers: headers,
+                        content: content
+                    ),
+                    maxAge: -1
+                )
+            }
+        }
+
+        return (httpResponse.statusCode, headers, content)
+    }
+
+    private func makeHTTPRequest(method: String, referrer: WebURL?, payload: String?, extraHeaders: [String: String]) async -> URLRequest {
         var components: URLComponents = Foundation.URLComponents()
         components.scheme = scheme
         components.host = host
@@ -181,12 +229,10 @@ public class WebURL: @unchecked Sendable {
             urlRequest.setValue("\(body.utf8.count)", forHTTPHeaderField: "Content-Length")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        return urlRequest
+    }
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            fatalError("Invalid response type")
-        }
-
+    private func parseHeaders(_ httpResponse: HTTPURLResponse) async -> [String: String] {
         var headers: [String: String] = [:]
         for (key, value) in httpResponse.allHeaderFields {
             if let k = key as? String, let v = value as? String {
@@ -217,41 +263,30 @@ public class WebURL: @unchecked Sendable {
             await CookieJar.shared.set(self.host, cookie: cookieStr, params: cookieParams)
         }
 
-        let content: String = String(data: data, encoding: .utf8) ?? ""
+        return headers
+    }
 
-        if method == "GET" && httpResponse.statusCode == 200 {
-            let cacheControl: String = headers["cache-control"] ?? ""
-            if cacheControl.contains("no-store") {
-
-            } else if cacheControl.contains("max-age="),
-                let range = cacheControl.range(of: "max-age="),
-                let maxAge = Int(
-                    cacheControl[range.upperBound...].prefix(while: { $0.isNumber })
-                )
-            {
-                await ResponseCache.shared.set(
-                    cacheKey,
-                    response: CacheResponse(
-                        status: httpResponse.statusCode,
-                        headers: headers,
-                        content: content
-                    ),
-                    maxAge: maxAge
-                )
-            } else if cacheControl.isEmpty {
-                await ResponseCache.shared.set(
-                    cacheKey,
-                    response: CacheResponse(
-                        status: httpResponse.statusCode,
-                        headers: headers,
-                        content: content
-                    ),
-                    maxAge: -1
-                )
+    func requestRawBytes(referrer: WebURL? = nil) async throws -> (status: Int, headers: [String: String], data: Data) {
+        if scheme == "file" {
+            let data: Data = try Data(contentsOf: URL(fileURLWithPath: path))
+            return (status: 200, headers: [:], data: data)
+        }
+        if scheme == "about" { return (status: 200, headers: [:], data: Data()) }
+        if scheme == "data" {
+            if mimeType.hasSuffix(";base64") {
+                let type: String = String(mimeType.dropLast(";base64".count))
+                return (status: 200, headers: ["content-type": type], data: Data(base64Encoded: path) ?? Data())
             }
+            return (status: 200, headers: ["content-type": mimeType], data: Data(path.utf8))
         }
 
-        return (httpResponse.statusCode, headers, content)
+        let urlRequest: URLRequest = await makeHTTPRequest(method: "GET", referrer: referrer, payload: nil, extraHeaders: [:])
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            fatalError("Invalid response type")
+        }
+        let headers: [String: String] = await parseHeaders(httpResponse)
+        return (httpResponse.statusCode, headers, data)
     }
 
     func requestSync(payload: String? = nil, extraHeaders: [String: String] = [:]) -> (

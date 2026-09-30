@@ -81,3 +81,12 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
         return font
     })
 }
+
+func fontForElement(_ node: any DOMNode, zoom: CGFloat) -> BrowserFont {
+    let weight: String = node.style["font-weight"] ?? "normal"
+    var style: String = node.style["font-style"] ?? "normal"
+    if style == "normal" { style = "roman" }
+    let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+    let sizeInt: Int = Int(sizePx * 0.75 * zoom)
+    return getFont(size: sizeInt, weight: weight, style: style, family: node.style["font-family"] ?? "serif")
+}

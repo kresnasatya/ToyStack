@@ -178,7 +178,7 @@ class BlockLayout: LayoutObject {
         })
         if hasBlockChild { return "block" }
         if let el = node as? Element {
-            return (el.children.isEmpty && el.tag != "input") ? "block" : "inline"
+            return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe") ? "block" : "inline"
         }
         return "inline"
     }
@@ -198,6 +198,10 @@ class BlockLayout: LayoutObject {
                 addInput(el)
             } else if el.tag == "button" {
                 addButton(el)
+            } else if el.tag == "img" {
+                addImage(el)
+            } else if el.tag == "iframe" {
+                addIframe(el)
             } else {
                 for child in el.children { recurse(child) }
             }
@@ -333,6 +337,22 @@ class BlockLayout: LayoutObject {
         cursorX += w + font.spaceWidth
     }
 
+    private func addImage(_ node: Element) {
+        let w: CGFloat = scaled(CGFloat(ImageLayout.displaySize(for: node).width))
+        if cursorX + w > width { newLine() }
+        let line: any LayoutObject = children.last!
+        let prevItem: (any LayoutObject)? = line.children.last
+        let image: ImageLayout = ImageLayout(node: node, parent: line, previous: prevItem)
+        line.children.append(image)
+
+        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        cursorX += w + font.spaceWidth
+    }
+
+    private func addIframe(_ node: Element) {
+        // TODO: Phase 3
+    }
+
     private func isInsideAbbr(_ node: any DOMNode) -> Bool {
         var current: (any DOMNode)? = node.parent
         while let c = current {
@@ -461,6 +481,6 @@ class BlockLayout: LayoutObject {
     func shouldPaint() -> Bool {
         if node is TextNode { return true }
         guard let el = node as? Element else { return true }
-        return el.tag != "input" && el.tag != "button"
+        return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe"
     }
 }

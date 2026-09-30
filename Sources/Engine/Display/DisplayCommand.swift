@@ -31,6 +31,9 @@ extension DisplayCommand {
         } else if let cmd = self as? DrawRRect {
             hasher.combine(cmd.color)
             hasher.combine(cmd.radius)
+        } else if let cmd = self as? DrawImage {
+            hasher.combine(ObjectIdentifier(cmd.image))
+            hasher.combine(cmd.rendering.rawValue)
         }
         return hasher.finalize()
     }

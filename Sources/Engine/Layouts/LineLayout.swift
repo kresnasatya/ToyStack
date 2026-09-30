@@ -44,14 +44,14 @@ class LineLayout: LayoutObject {
                 return
             }
 
-            let maxAscent: CGFloat = inlineChildren.map(\.font.ascent).max() ?? 0
+            let maxAscent: CGFloat = inlineChildren.map(\.inlineAscent).max() ?? 0
             let baseline: CGFloat = y + 1.25 * maxAscent
 
             for child in inlineChildren {
                 if let el = child.node as? Element, el.tag == "sup" {
                     child.y = baseline - maxAscent
                 } else {
-                    child.y = baseline - child.font.ascent
+                    child.y = baseline - child.inlineAscent
                 }
             }
 
@@ -75,7 +75,7 @@ class LineLayout: LayoutObject {
                 }
             }
 
-            let maxDescent: CGFloat = inlineChildren.map(\.font.descent).max() ?? 0
+            let maxDescent: CGFloat = inlineChildren.map(\.inlineDescent).max() ?? 0
             height = 1.25 * (maxAscent + maxDescent)
         })
     }

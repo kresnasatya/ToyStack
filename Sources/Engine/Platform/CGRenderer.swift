@@ -87,6 +87,17 @@ public final class CGRenderer: Renderer {
         cg.restoreGState()
     }
 
+    public func drawImage(_ image: CGImage, in rect: Rect, rendering: ImageRendering) {
+        cg.saveGState()
+        switch rendering {
+            case .crispEdges: cg.interpolationQuality = .none
+            case .highQuality: cg.interpolationQuality = .high
+            case .auto: break
+        }
+        drawImage(image, in: rect)
+        cg.restoreGState()
+    }
+
     public func drawLayer(_ options: LayerOptions, content: (any Renderer) -> Void) {
         if let blur = options.blur, blur > 0 {
             guard let layerImage = Self.renderBitmap(

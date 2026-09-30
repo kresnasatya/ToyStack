@@ -30,6 +30,7 @@ let package = Package(
             resources: [
                 .process("Resources/runtime.js"),
                 .process("Resources/browser.css"),
+                .process("Resources/Broken_Image.png"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)

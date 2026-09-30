@@ -1,10 +1,13 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 
 typealias ResourceLoad = (index: Int, url: WebURL, ref: WebURL?)
 
 struct ResourceLoads {
     let styleURLs: [ResourceLoad]
     let scriptURLs: [ResourceLoad]
+    let imageURLs: [ResourceLoad]
 }
 
 private struct HistoryEntry {
@@ -145,6 +148,13 @@ public class BrowserTab {
             self.browser?.measure.start("BrowserTab.load.exec")
             self.execScripts(url: url, bodies: scriptBodies)
             self.browser?.measure.stop("BrowserTab.load.exec")
+
+            self.browser?.measure.start("BrowserTab.load.images")
+            let images: [(index: Int, image: CGImage)] = await networkTaskRunner.schedule(name: "fetch-images") {
+                await self.fetchImages(urls: resources.imageURLs)
+            }
+            self.applyImages(images)
+            self.browser?.measure.stop("BrowserTab.load.images")
         }
     }
 
@@ -218,7 +228,7 @@ public class BrowserTab {
 
             rules = profiler.measure("load.defaultCss") { defaultStyleSheet }
 
-            let (styleURLs, scriptURLs): ([ResourceLoad], [ResourceLoad]) =
+            let (styleURLs, scriptURLs, imageURLs): ([ResourceLoad], [ResourceLoad], [ResourceLoad]) =
             profiler.measure("load.resources", {
                 let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
                 let styles: [ResourceLoad] = elements
@@ -235,10 +245,18 @@ public class BrowserTab {
                         let scriptURL: WebURL = url.resolve(node.attributes["src"]!)
                         return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
                     })
-                return (styles, scripts)
+                let images: [ResourceLoad] = elements
+                    .filter({ $0.tag == "img" })
+                    .enumerated()
+                    .map({ (i, img) in
+                        let src: String = img.attributes["src"] ?? ""
+                        let imageURL: WebURL = src.isEmpty ? url : url.resolve(src)
+                        return (i, imageURL, self.effectiveReferrer(for: imageURL))
+                    })
+                return (styles, scripts, images)
             })
 
-            return ResourceLoads(styleURLs: styleURLs, scriptURLs: scriptURLs)
+            return ResourceLoads(styleURLs: styleURLs, scriptURLs: scriptURLs, imageURLs: imageURLs)
         }
     }
 
@@ -340,6 +358,50 @@ public class BrowserTab {
         if let fragment = url.fragment {
             scrollToFragment(fragment)
         }
+    }
+
+    private func fetchImages(
+        urls: [(index: Int, url: WebURL, ref: WebURL?)]
+    ) async -> [(index: Int, image: CGImage)] {
+        var result: [(index: Int, image: CGImage)] = []
+        var allowed: [ResourceLoad] = []
+        for entry in urls {
+            guard allowedRequest(entry.url) else {
+                print("Blocked image", entry.url.toString(), "due to CSP")
+                continue
+            }
+            allowed.append(entry)
+        }
+        await withTaskGroup(of: (Int, CGImage).self) { group in
+            for (i, imageURL, ref) in allowed {
+                group.addTask(operation: {
+                    return await (i, self.decodeImage(url: imageURL, referrer: ref))
+                })
+            }
+            for await (i, image) in group {
+                result.append((index: i, image: image))
+            }
+        }
+        return result
+    }
+
+    private nonisolated func decodeImage(url: WebURL, referrer: WebURL?) async -> CGImage {
+        guard let (_, _, data) = try? await url.requestRawBytes(referrer: referrer),
+            let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            else {
+            return BrokenImage.image
+        }
+        return decoded
+    }
+
+    private func applyImages(_ images: [(index: Int, image: CGImage)]) {
+        let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
+        let imgs: [Element] = elements.filter({ $0.tag == "img" })
+        for (i, image) in images where i < imgs.count {
+            imgs[i].image = image
+        }
+        if !images.isEmpty { setNeedsLayout() }
     }
 
     private func effectiveReferrer(for targetURL: WebURL) -> WebURL? {

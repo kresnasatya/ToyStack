@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // MARK: - DOMNode
@@ -26,6 +27,7 @@ class Element: DOMNode {
     var layoutObject: LayoutObject? = nil
     var animations: [String: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
+    var image: CGImage? = nil
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
         self.tag = tag
