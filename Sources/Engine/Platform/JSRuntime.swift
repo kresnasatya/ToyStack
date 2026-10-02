@@ -6,12 +6,12 @@ class JSRuntime: @unchecked Sendable {
     private var nodeToHandle: [ObjectIdentifier: Int] = [:]
     private var handleToNode: [Int: any DOMNode] = [:]
     private var intervalTimes: [Int: DispatchSourceTimer] = [:]
-    private weak var tab: BrowserTab?
+    private weak var frame: Frame?
 
     private static let eventDispatchJS: String = "new Node(__handle).dispatchEvent(new Event(__type))"
 
-    init(tab: BrowserTab) {
-        self.tab = tab
+    init(frame: Frame) {
+        self.frame = frame
         self.jsContext = profiler.measure("jsc.context", { JSContext()! })
         profiler.measure("jsc.callbacks", { registerCallbacks() })
         profiler.measure("jsc.runtime", { loadRuntime() })
@@ -66,10 +66,10 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] (selectorText: String) -> [Int] in
-                guard let self, let tab = self.tab else { return [] }
+                guard let self, let frame = self.frame else { return [] }
                 return MainActor.assumeIsolated({
                     let selector: any CSSSelector = CSSParser(selectorText).selector()
-                    let nodes: [any DOMNode] = treeToList(tab.nodes).filter { selector.matches($0) }
+                    let nodes: [any DOMNode] = treeToList(frame.nodes).filter { selector.matches($0) }
                     return nodes.map { self.getHandle($0) }
                 })
             } as @convention(block) (String) -> [Int],
@@ -79,10 +79,10 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] () -> [String: Int] in
-                guard let self, let tab = self.tab else { return [:] }
+                guard let self, let frame = self.frame else { return [:] }
                 return MainActor.assumeIsolated({
                     var result: [String: Int] = [:]
-                    for node in treeToList(tab.nodes) {
+                    for node in treeToList(frame.nodes) {
                         guard let elt = node as? Element,
                             let id = elt.attributes["id"]
                         else { continue }
@@ -107,7 +107,7 @@ class JSRuntime: @unchecked Sendable {
                 MainActor.assumeIsolated({
                     guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                     elt.attributes[attr] = value
-                    self.tab?.setNeedsRender()
+                    self.frame?.setNeedsRender()
                 })
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "_setAttribute" as NSString)
@@ -115,8 +115,8 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] () -> String in
-                guard let self, let tab = self.tab else { return "" }
-                let host: String = MainActor.assumeIsolated({ tab.url?.host ?? "" })
+                guard let self, let frame = self.frame else { return "" }
+                let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
                 guard !host.isEmpty else { return "" }
                 var result: String = ""
                 let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
@@ -136,8 +136,8 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] (cookieStr: String) in
-                guard let self, let tab = self.tab else { return }
-                let host: String = MainActor.assumeIsolated({ tab.url?.host ?? "" })
+                guard let self, let frame = self.frame else { return }
+                let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
                 guard !host.isEmpty else { return }
                 let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
                 Task {
@@ -212,7 +212,7 @@ class JSRuntime: @unchecked Sendable {
             MainActor.assumeIsolated({
                 guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                 elt.children = [TextNode(text: value, parent: elt)]
-                self.tab?.setNeedsRender()
+                self.frame?.setNeedsRender()
             })
         } as @convention(block) (Int, String) -> Void,
         forKeyedSubscript: "_setTextContent" as NSString)
@@ -221,16 +221,16 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (handle: Int, s: String) in
                 MainActor.assumeIsolated({
-                    guard let self, let tab = self.tab,
+                    guard let self, let frame = self.frame,
                         let elt = self.handleToNode[handle] as? Element
                     else { return }
                     let doc: any DOMNode = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
                     let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
                     elt.children = newNodes ?? []
                     for child in elt.children { child.parent = elt }
-                    tab.runNewScripts(in: elt)
-                    tab.reloadStylesheets()
-                    tab.setNeedsRender()
+                    frame.runNewScripts(in: elt)
+                    frame.reloadStylesheets()
+                    frame.setNeedsRender()
                 })
             } as @convention(block) (Int, String) -> Void,
             forKeyedSubscript: "_innerHTML" as NSString)
@@ -258,15 +258,15 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (parentHandle: Int, childHandle: Int) in
                 MainActor.assumeIsolated({
-                    guard let self, let tab = self.tab,
+                    guard let self, let frame = self.frame,
                         let parent = self.handleToNode[parentHandle],
                         let child = self.handleToNode[childHandle]
                     else { return }
                     child.parent = parent
                     parent.children.append(child)
-                    tab.runNewScripts(in: child)
-                    tab.reloadStylesheets()
-                    tab.setNeedsRender()
+                    frame.runNewScripts(in: child)
+                    frame.reloadStylesheets()
+                    frame.setNeedsRender()
                 })
             } as @convention(block) (Int, Int) -> Void,
             forKeyedSubscript: "_appendChild" as NSString)
@@ -275,14 +275,14 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (parentHandle: Int, childHandle: Int) -> Int in
                 return MainActor.assumeIsolated({
-                    guard let self, let tab = self.tab,
+                    guard let self, let frame = self.frame,
                         let parent = self.handleToNode[parentHandle],
                         let child = self.handleToNode[childHandle]
                     else { return -1 }
                     parent.children.removeAll { $0 === child }
                     child.parent = nil
-                    tab.reloadStylesheets()
-                    tab.setNeedsRender()
+                    frame.reloadStylesheets()
+                    frame.setNeedsRender()
                     return childHandle
                 })
             } as @convention(block) (Int, Int) -> Int,
@@ -292,7 +292,7 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
                 MainActor.assumeIsolated({
-                    guard let self, let tab = self.tab,
+                    guard let self, let frame = self.frame,
                         let parent = self.handleToNode[parentHandle],
                         let child = self.handleToNode[childHandle],
                         let ref = self.handleToNode[refHandle],
@@ -300,9 +300,9 @@ class JSRuntime: @unchecked Sendable {
                     else { return }
                     child.parent = parent
                     parent.children.insert(child, at: idx)
-                    tab.runNewScripts(in: child)
-                    tab.reloadStylesheets()
-                    tab.render()
+                    frame.runNewScripts(in: child)
+                    frame.reloadStylesheets()
+                    frame.render()
                 })
             } as @convention(block) (Int, Int, Int) -> Void,
             forKeyedSubscript: "_insertBefore" as NSString)
@@ -311,20 +311,20 @@ class JSRuntime: @unchecked Sendable {
             {
                 [weak self] (method: String, url: String, body: String?) -> String in
                 return MainActor.assumeIsolated({
-                    guard let self, let tab = self.tab else { return "" }
-                    let fullURL: WebURL = tab.url.resolve(url)
+                    guard let self, let frame = self.frame else { return "" }
+                    let fullURL: WebURL = frame.url.resolve(url)
 
-                    guard tab.allowedRequest(fullURL) else {
+                    guard frame.allowedRequest(fullURL) else {
                         print("Cross-origin XHR blocked by CSP")
                         return ""
                     }
 
-                    if fullURL.origin() == tab.url.origin() {
+                    if fullURL.origin() == frame.url.origin() {
                         guard let (_, _, out) = fullURL.requestSync(payload: body) else { return "" }
                         return out
                     }
 
-                    let origin: String = tab.url.origin()
+                    let origin: String = frame.url.origin()
                     guard
                         let (_, headers, out) = fullURL.requestSync(
                             payload: body,
@@ -344,12 +344,12 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] in
-                guard let tab = self?.tab else { return }
+                guard let frame = self?.frame else { return }
                 Task { @MainActor in
-                    guard tab.browser?.activeTab === tab else { return }
+                    guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
                     let task: BrowserTask = BrowserTask(name: "runAnimationFrame", measure: tab.browser?.measure)
                     {
-                        tab.runAnimationFrame()
+                        frame.runAnimationFrame()
                     }
                     tab.taskRunner.scheduleTask(task)
                 }
@@ -359,14 +359,15 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] (handle: Int, time: Double) in
-                guard let tab = self?.tab else { return }
+                guard let frame = self?.frame else { return }
                 let delay: Double = time / 1000.0
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     Task { @MainActor in
+                        guard let tab = frame.tab else { return }
                         let task: BrowserTask = BrowserTask(
                             name: "runSetTimeout", priority: .low, measure: tab.browser?.measure
                         ) {
-                            tab.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
+                            frame.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
                         }
                         tab.taskRunner.scheduleTask(task)
                     }
@@ -377,17 +378,17 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject(
             {
                 [weak self] (handle: Int, time: Double) in
-                guard let tab = self?.tab else { return }
+                guard let frame = self?.frame else { return }
                 let interval: Double = time / 1000.0
                 let timer: any DispatchSourceTimer = DispatchSource.makeTimerSource(queue: .main)
                 timer.schedule(deadline: .now() + interval, repeating: interval)
                 timer.setEventHandler(handler: {
                     Task { @MainActor in
-                        guard tab.browser?.activeTab === tab else { return }
+                        guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
                         let task: BrowserTask = BrowserTask(
                             name: "runSetInterval", priority: .low, measure: tab.browser?.measure
                         ) {
-                            tab.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
+                            frame.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
                         }
                         tab.taskRunner.scheduleTask(task)
                     }
@@ -413,10 +414,10 @@ class JSRuntime: @unchecked Sendable {
                 [weak self] (handle: Int, value: Double) in
                 MainActor.assumeIsolated({
                     guard let self, let elt = self.handleToNode[handle] as? Element,
-                        let tab = self.tab
+                        let frame = self.frame
                     else { return }
                     elt.scrollOffsetY = CGFloat(value)
-                    tab.setNeedsPaint()
+                    frame.setNeedsPaint()
                 })
             } as @convention(block) (Int, Double) -> Void,
             forKeyedSubscript: "_setScrollTop" as NSString)
@@ -424,11 +425,11 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject({
             [weak self] (handle: Int) in
             MainActor.assumeIsolated({
-                guard let self, let tab = self.tab,
+                guard let self, let frame = self.frame,
                 let elt = self.handleToNode[handle] as? Element,
                 isFocusable(elt)
                 else { return }
-                tab.focusElement(elt)
+                frame.focusElement(elt)
             })
         } as @convention(block) (Int) -> Void,
         forKeyedSubscript: "_focusElement" as NSString)
@@ -442,7 +443,7 @@ class JSRuntime: @unchecked Sendable {
                 Task {
                     @MainActor in
                     InlineStyle.set(elt, property: attr, value: value)
-                    self.tab?.setNeedsRender()
+                    self.frame?.setNeedsRender()
                 }
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "__styleSet__" as NSString)
