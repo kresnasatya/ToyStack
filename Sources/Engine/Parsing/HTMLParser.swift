@@ -285,8 +285,9 @@ class HTMLParser {
 
     private func isScriptClose(at i: String.Index) -> Bool {
         let marker: String = "</script"
-        guard body.distance(from: i, to: body.endIndex) >= marker.count else { return false }
-        let end: String.Index = body.index(i, offsetBy: marker.count)
+        guard body[i] == "<" else { return false }
+        guard let end: String.Index = body.index(i, offsetBy: marker.count, limitedBy: body.endIndex)
+            else { return false }
         guard String(body[i..<end]).lowercased() == marker else { return false }
         if end >= body.endIndex { return true }
         return " \t\r\u{000B}/>".contains(body[end])
