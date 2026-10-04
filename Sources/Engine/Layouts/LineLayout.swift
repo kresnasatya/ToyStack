@@ -1,6 +1,7 @@
 import CoreGraphics
 
 // MARK: - LineLayout
+@MainActor
 class LineLayout: LayoutObject {
     let node: any DOMNode
     let parent: (any LayoutObject)?

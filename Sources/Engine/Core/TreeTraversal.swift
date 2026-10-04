@@ -7,6 +7,7 @@ func treeToList(_ node: any DOMNode) -> [any DOMNode] {
     return result
 }
 
+@MainActor
 func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
     var result: [any LayoutObject] = [obj]
     for child in obj.children {
@@ -24,6 +25,7 @@ func treeToList(_ item: any DisplayItem, into list: inout [any DisplayItem]) {
     }
 }
 
+@MainActor
 func treeToList(_ node: AccessibilityNode) -> [AccessibilityNode] {
     var result: [AccessibilityNode] = [node]
     for child in node.children {

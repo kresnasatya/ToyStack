@@ -1,5 +1,6 @@
 import CoreGraphics
 
+@MainActor
 class EmbedLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let parent: (any LayoutObject)?

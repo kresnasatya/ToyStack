@@ -1,6 +1,7 @@
 import CoreGraphics
 
 // MARK: - LayoutObject
+@MainActor
 protocol LayoutObject: AnyObject {
     var node: any DOMNode { get }
     var parent: (any LayoutObject)? { get }

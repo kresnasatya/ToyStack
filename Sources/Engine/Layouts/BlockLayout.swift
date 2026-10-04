@@ -1,6 +1,7 @@
 import CoreGraphics
 
 // MARK: - BlockLayout
+@MainActor
 class BlockLayout: LayoutObject {
     static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
 

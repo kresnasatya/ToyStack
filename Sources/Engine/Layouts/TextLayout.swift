@@ -1,6 +1,7 @@
 import CoreGraphics
 
 // MARK: - TextLayout
+@MainActor
 class TextLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let word: String

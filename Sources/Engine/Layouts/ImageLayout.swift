@@ -1,5 +1,6 @@
 import CoreGraphics
 
+@MainActor
 final class ImageLayout: EmbedLayout {
     var imgHeight: CGFloat = 0
     override var inlineAscent: CGFloat { height }

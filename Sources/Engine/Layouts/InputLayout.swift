@@ -1,6 +1,7 @@
 import CoreGraphics
 
 // MARK: - InputLayout
+@MainActor
 class InputLayout: LayoutObject, InlineLayoutItem {
 
     static let inputWidthPx: CGFloat = 200

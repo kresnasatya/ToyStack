@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 class ButtonLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let parent: (any LayoutObject)?

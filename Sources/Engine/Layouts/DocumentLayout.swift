@@ -1,6 +1,7 @@
 import CoreGraphics
 
 // MARK: DocumentLayout
+@MainActor
 class DocumentLayout: LayoutObject {
     let node: any DOMNode
     let parent: (any LayoutObject)? = nil

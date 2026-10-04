@@ -1,5 +1,6 @@
 import CoreGraphics
 
+@MainActor
 class AccessibilityNode {
     let node: DOMNode
     weak var parent: AccessibilityNode?

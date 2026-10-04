@@ -1,5 +1,6 @@
 import CoreGraphics
 
+@MainActor
 func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem]) {
     var items: [any DisplayItem] = []
 
@@ -41,11 +42,13 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
     displayList.append(contentsOf: items)
 }
 
+@MainActor
 func effectiveZIndex(_ node: any DOMNode) -> Int {
     guard (node.style["position"] ?? "static") != "static" else { return 0 }
     return Int(node.style["z-index"] ?? "0") ?? 0
 }
 
+@MainActor
 func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
     return children.enumerated()
         .sorted { a, b in
