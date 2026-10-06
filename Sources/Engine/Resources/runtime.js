@@ -205,7 +205,60 @@ function __runRAFHandlers() {
   }
 }
 
-window = {};
+function Window(id) {
+  this._id = id;
+}
+
+var WINDOWS = {};
+
+window = new Window(_getWindowID());
+WINDOWS[window._id] = window;
+
+window.console = console;
+window.document = document;
+window.Node = Node;
+window.Event = Event;
+window.XMLHttpRequest = XMLHttpRequest;
+window.MessageEvent = MessageEvent;
+
+window.WINDOW_LISTENERS = {};
+
+Window.prototype.addEventListener = function (type, listener) {
+  if (!window.WINDOW_LISTENERS[this._id]) window.WINDOW_LISTENERS[this._id] = {};
+  var dict = window.WINDOW_LISTENERS[this._id];
+  if (!dict[type]) dict[type] = [];
+  dict[type].push(listener);
+}
+
+Window.prototype.dispatchEvent = function (event) {
+  var dict = window.WINDOW_LISTENERS[this._id];
+  var list = (dict && dict[event.type]) || [];
+  for (var i = 0; i < list.length; i++) {
+    list[i].call(this, event);
+  }
+  return event.do_default;
+}
+
+Window.prototype.postMessage = function (message, origin) {
+  _postMessage(this._id, message.toString(), origin.toString());
+}
+
+Object.defineProperty(Window.prototype, "parent", {
+  configurable: true,
+  get: function () {
+    var parentID = _parent(this._id);
+    if (parentID === -1) return undefined;
+    var parent = WINDOWS[parentID];
+    if (parent === undefined) parent = new Window(parentID);
+    return parent;
+  },
+});
+
+function MessageEvent(data) {
+  this.type = "message";
+  this.data = data;
+  this.do_default = true;
+}
 
 function requestAnimationFrame(callback) {
   __RAFHandlers.push(callback);

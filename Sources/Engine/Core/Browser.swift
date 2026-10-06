@@ -98,6 +98,14 @@ public class Browser: ObservableObject {
     let networkTaskRunner: NetworkTaskRunner = NetworkTaskRunner()
     let rasterScheduler: RasterScheduler = RasterScheduler()
 
+    private struct LayerRasterKey: Hashable {
+        let left: CGFloat
+        let top: CGFloat
+        let right: CGFloat
+        let bottom: CGFloat
+        let content: [Int]
+    }
+
     public init() {
         rasterScheduler.measure = measure
     }
@@ -263,7 +271,7 @@ public class Browser: ObservableObject {
                 viewport: Viewport(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
                 preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
                 flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
-                accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
+                accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
             ),
             scrollState: scrollState
         )
@@ -279,7 +287,7 @@ public class Browser: ObservableObject {
                 effects: activeFrame.display.effectRevision
             ),
             preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
-            accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.bounds, readBounds: accessibilityFocusNode?.bounds)
+            accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
         )
         if signature == activeFrame.render.signature && !needsTileContinuation {
             needsDraw = false
@@ -577,7 +585,38 @@ public class Browser: ObservableObject {
             layer.ancestorChain = chain
         }
 
+        reuseRasterization(from: inputs.scene.previousLayers, into: compositedLayers)
         return compositedLayers
+    }
+
+    nonisolated private static func reuseRasterization(
+        from previous: [CompositedLayer],
+        into layers: [CompositedLayer]
+    ) {
+        guard !previous.isEmpty else { return }
+        var pool: [LayerRasterKey: [CompositedLayer]] = [:]
+        for layer in previous {
+            pool[rasterKey(layer), default: []].append(layer)
+        }
+        for layer in layers {
+            let key: LayerRasterKey = rasterKey(layer)
+            guard var candidates = pool[key], let source = candidates.popLast() else { continue }
+            pool[key] = candidates
+            layer.tiles = source.tiles
+            layer.effectImage = source.effectImage
+            layer.effectImageKey = source.effectImageKey
+        }
+    }
+
+    nonisolated private static func rasterKey(_ layer: CompositedLayer) -> LayerRasterKey {
+        let b: Rect = layer.compositedBounds()
+        return LayerRasterKey(
+            left: b.left,
+            top: b.top,
+            right: b.right,
+            bottom: b.bottom,
+            content: layer.displayItems.map({ $0.contentHash })
+        )
     }
 
     nonisolated private static func getLatest(
@@ -611,6 +650,7 @@ public class Browser: ObservableObject {
         var blur: CGFloat = 0
         var key: ObjectIdentifier?
         var blendMode: BrowserBlendMode?
+        var clipRect: Rect?
         for effect in layer.ancestorChain {
             let latest: BrowserVisualEffect = getLatest(effect, in: updates)
             if latest is ScrollEffect {
@@ -640,6 +680,14 @@ public class Browser: ObservableObject {
                 blur = max(blur, filter.radius)
                 kind = max(kind, .ca)
                 if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
+            } else if let clip = latest as? Clip {
+                let local: Rect = Rect(
+                    left: clip.clipRect.left - translation.x,
+                    top: clip.clipRect.top - translation.y,
+                    right: clip.clipRect.right - translation.x,
+                    bottom: clip.clipRect.bottom - translation.y
+                )
+                clipRect = clipRect.map({ $0.intersect(local) }) ?? local
             }
         }
         let effect: LayerEffect? = kind == .ca
@@ -647,7 +695,8 @@ public class Browser: ObservableObject {
                 key: key,
                 opacity: opacity,
                 translation: translation,
-                blendMode: blendMode
+                blendMode: blendMode,
+                clipRect: clipRect
             )
             : nil
         return LayerEffectStrategy(kind: kind, effect: effect, blur: blur)

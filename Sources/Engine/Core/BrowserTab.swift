@@ -26,6 +26,7 @@ public class BrowserTab {
     private var nextWindowID: Int = 0
     var windowIDToFrame: [Int: Frame] = [:]
     private(set) var rootFrame: Frame!
+    private(set) var focusedFrame: Frame!
 
     public private(set) var tabHeight: CGFloat
     private var tabWidth: CGFloat
@@ -55,22 +56,22 @@ public class BrowserTab {
     var displayList: [any DisplayItem] { rootFrame.displayList }
     public var title: String { rootFrame.title }
     public var isSecure: Bool { rootFrame.isSecure }
-    var focus: Element? { rootFrame.focus }
-    var accessibilityTree: AccessibilityNode? { rootFrame.accessibilityTree }
-    public var hasScrollElement: Bool { rootFrame.hasScrollElement }
+    var focus: Element? { focusedFrame.focus }
+    private(set) var accessibilityTree: AccessibilityNode? = nil
+    var needsAccessibility: Bool = false
+    public var hasScrollElement: Bool { focusedFrame.hasScrollElement }
 
     init(tabHeight: CGFloat, tabWidth: CGFloat) {
         self.tabHeight = tabHeight
         self.tabWidth = tabWidth
         let frame: Frame = Frame(
-            windowID: 0,
             tab: self,
+            parent: nil,
             frameWidth: tabWidth,
             frameHeight: tabHeight
         )
         rootFrame = frame
-        windowIDToFrame[0] = frame
-        nextWindowID = 1
+        focusedFrame = frame
     }
 
     func markVisited(_ url: String) {
@@ -79,6 +80,12 @@ public class BrowserTab {
 
     func hasVisited(_ url: String) -> Bool {
         visitedURL.contains(url)
+    }
+
+    func reserveWindowID() -> Int {
+        let id: Int = nextWindowID
+        nextWindowID += 1
+        return id
     }
 
     public func load(_ url: WebURL, payload: String? = nil) {
@@ -144,7 +151,23 @@ public class BrowserTab {
     }
 
     func runAnimationFrame() {
-        rootFrame.runAnimationFrame()
+        let frames: [Frame] = windowIDToFrame.values.sorted(by: { $0.windowID < $1.windowID })
+        for frame in frames where frame.loaded {
+            frame.runAnimationFrame()
+        }
+        if needsAccessibility {
+            browser?.measure.start("BrowserTab.a11y")
+            let tree: AccessibilityNode = AccessibilityNode(node: rootFrame.nodes)
+            tree.build()
+            accessibilityTree = tree
+            browser?.measure.stop("BrowserTab.a11y")
+            needsAccessibility = false
+        }
+        rootFrame.paint()
+        for frame in frames {
+            frame.needsPaint = false
+        }
+        rootFrame.commitFrame()
     }
 
     public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
@@ -164,11 +187,11 @@ public class BrowserTab {
     }
 
     public func scrollDown() {
-        rootFrame.scrollDown()
+        focusedFrame.scrollDown()
     }
 
     public func scrollUp() {
-        rootFrame.scrollUp()
+        focusedFrame.scrollUp()
     }
 
     public func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
@@ -180,11 +203,11 @@ public class BrowserTab {
     }
 
     public func scrollElementDown() {
-        rootFrame.scrollElementDown()
+        focusedFrame.scrollElementDown()
     }
 
     public func scrollElementUp() {
-        rootFrame.scrollElementUp()
+        focusedFrame.scrollElementUp()
     }
 
     public func goBack() {
@@ -218,20 +241,32 @@ public class BrowserTab {
     }
 
     public func keypress(_ char: String) {
-        rootFrame.keypress(char)
+        focusedFrame.keypress(char)
     }
 
     public func blur() {
-        rootFrame.blur()
+        focusedFrame.blur()
     }
 
     func focusElement(_ node: Element?, showRing: Bool = true) {
-        rootFrame.focusElement(node, showRing: showRing)
+        focusedFrame.focusElement(node, showRing: showRing)
+    }
+
+    func setFocusedFrame(_ frame: Frame) {
+        guard focusedFrame !== frame else { return }
+        let previous: Frame? = focusedFrame
+        focusedFrame = frame
+        previous?.clearFocus()
+    }
+
+    func postMessage(message: String, targetWindowID: Int) {
+        guard let target = windowIDToFrame[targetWindowID] else { return }
+        target.js.dispatchPostMessage(message: message)
     }
 
     @discardableResult
     public func advanceTab() -> Bool {
-        rootFrame.advanceTab()
+        focusedFrame.advanceTab()
     }
 
     public func click(x: CGFloat, y: CGFloat) {
@@ -239,7 +274,7 @@ public class BrowserTab {
     }
 
     public func enterKey() {
-        rootFrame.enterKey()
+        focusedFrame.enterKey()
     }
 
     func zoomBy(_ increment: Bool) {

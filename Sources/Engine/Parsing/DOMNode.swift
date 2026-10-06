@@ -28,6 +28,7 @@ class Element: DOMNode {
     var animations: [String: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
+    var frame: Frame? = nil
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
         self.tag = tag

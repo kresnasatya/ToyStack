@@ -40,15 +40,14 @@ class Frame {
     private var loadedScriptURLs: Set<String> = []
     var js: JSRuntime!
 
-    private(set) var accessibilityTree: AccessibilityNode? = nil
     private var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
 
     var needsRender: Bool = false
     var needsStyle: Bool = false
     var needsLayout: Bool = false
-    var needsAccessibility: Bool = false
     var needsPaint: Bool = false
     var needsCompositeForPaint: Bool = false
+    private var needsComposite: Bool = false
     var needsFocusScroll: Bool = false
 
     private(set) var interestTop: CGFloat = 0
@@ -67,11 +66,14 @@ class Frame {
 
     private var browser: Browser? { tab?.browser }
 
-    init(windowID: Int, tab: BrowserTab, frameWidth: CGFloat, frameHeight: CGFloat) {
-        self.windowID = windowID
+    init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
         self.tab = tab
+        self.parentFrame = parent?.frame
+        self.frameElement = parent?.element
         self.frameWidth = frameWidth
         self.frameHeight = frameHeight
+        self.windowID = tab.reserveWindowID()
+        tab.windowIDToFrame[self.windowID] = self
     }
 
     private func requestAnimationFrame() {
@@ -125,6 +127,10 @@ class Frame {
             self.applyImages(images)
             self.browser?.measure.stop("BrowserTab.load.images")
 
+            self.browser?.measure.start("BrowserTab.load.iframes")
+            self.loadIframes()
+            self.browser?.measure.stop("BrowserTab.load.iframes")
+
             self.browser?.measure.start("BrowserTab.load.exec")
             self.execScripts(url: url, bodies: scriptBodies)
             self.browser?.measure.stop("BrowserTab.load.exec")
@@ -165,6 +171,7 @@ class Frame {
             interestTop = 0
             self.url = url
             tab?.markVisited(url.toString())
+            discardChildFrames()
             nodes = profiler.measure("load.parse", {
                 HTMLParser(body: body).parse()
             })
@@ -378,6 +385,38 @@ class Frame {
         }
     }
 
+    private func loadIframes() {
+        guard let tab else { return }
+        let iframes: [Element] = treeToList(nodes)
+            .compactMap({ $0 as? Element })
+            .filter({ $0.tag == "iframe" && $0.attributes["src"] != nil })
+
+        for iframe in iframes {
+            let documentURL: WebURL = url.resolve(iframe.attributes["src"]!)
+            guard allowedRequest(documentURL) else {
+                print("Blocked iframe", documentURL.toString(), "due to CSP")
+                iframe.frame = nil
+                continue
+            }
+            let parent: FrameParent = FrameParent(frame: self, element: iframe)
+            let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
+            iframe.frame = child
+            child.load(documentURL)
+        }
+    }
+
+    private func discardChildFrames() {
+        guard let tab else { return }
+        let children: [Frame] = tab.windowIDToFrame.values.filter({ $0.parentFrame === self })
+        for child in children {
+            child.discardChildFrames()
+            tab.windowIDToFrame.removeValue(forKey: child.windowID)
+        }
+        if let focused = tab.focusedFrame, tab.windowIDToFrame[focused.windowID] == nil {
+            tab.setFocusedFrame(self)
+        }
+    }
+
     private func effectiveReferrer(for targetURL: WebURL) -> WebURL? {
         switch referrerPolicy {
         case "no-referrer":
@@ -531,35 +570,26 @@ class Frame {
             document = doc
 
             needsLayout = false
-            needsAccessibility = true
+            tab?.needsAccessibility = true
             needsPaint = true
         }
 
-        if needsAccessibility {
-            browser?.measure.start("BrowserTab.a11y")
-            defer { browser?.measure.stop("BrowserTab.a11y") }
-            let a11yTree: AccessibilityNode = AccessibilityNode(node: nodes)
-            a11yTree.build()
-            accessibilityTree = a11yTree
-
-            needsAccessibility = false
-        }
-
-        if needsPaint {
-            browser?.measure.start("BrowserTab.paint")
-            profiler.reset()
-            defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
-            defer { browser?.measure.stop("BrowserTab.paint") }
-            guard let doc = document else { return }
-            var list: [any DisplayItem] = []
-            paintTree(doc, into: &list)
-            displayList = list
-            paintedBottom = maxRectBottom(list)
-            paintRevision += 1
-            needsPaint = false
-        }
-
         requestAnimationFrame()
+    }
+
+    func paint() {
+        guard needsPaint else { return }
+        browser?.measure.start("BrowserTab.paint")
+        profiler.reset()
+        defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
+        defer { browser?.measure.stop("BrowserTab.paint") }
+        guard let doc = document else { return }
+        var list: [any DisplayItem] = []
+        paintTree(doc, into: &list)
+        displayList = list
+        paintedBottom = maxRectBottom(list)
+        paintRevision += 1
+        needsPaint = false
     }
 
     func runAnimationFrame() {
@@ -570,8 +600,7 @@ class Frame {
         js.run(script: "raf", code: "__runRAFHandlers()")
         browser?.measure.stop("BrowserTab.raf")
         var needsAnotherFrame: Bool = false
-        let needsComposite: Bool = needsStyle || needsLayout || needsPaint
-        var needsPaint: Bool = false
+        needsComposite = needsStyle || needsLayout || needsPaint
         var needsLayoutUpdate: Bool = false
         browser?.measure.start("BrowserTab.animScan")
         for node in treeToList(nodes) {
@@ -637,20 +666,22 @@ class Frame {
         if needsAnotherFrame {
             requestAnimationFrame()
         }
+    }
 
-        let updates: [ObjectIdentifier: BrowserVisualEffect]? =
-            (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
+    func commitFrame() {
+        guard let tab else { return }
+        let updates: [ObjectIdentifier: BrowserVisualEffect]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
             display: FrameDisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),
             preferences: ColorPreferences(
-                prefersDark: tab?.prefersDark ?? false,
-                usesForcedColors: tab?.forcedColors ?? false
+                prefersDark: tab.prefersDark,
+                usesForcedColors: tab.forcedColors
             )
         )
         compositedUpdates = [:]
         needsCompositeForPaint = false
-        if let tab { browser?.commit(tab: tab, data: data) }
+        browser?.commit(tab: tab, data: data)
     }
 
     // MARK: - Scroll
@@ -724,9 +755,26 @@ class Frame {
         requestAnimationFrame()
     }
 
-    func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
+    @discardableResult
+    func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) -> Bool {
         let adjustedY: CGFloat = y + scroll
-        guard let doc = document else { return }
+        guard let doc = document else { return false }
+
+        if let hit = doc.hitTest(x: x, y: adjustedY),
+            let iframe = hit as? IframeLayout,
+            let el = iframe.node as? Element,
+            let child = el.frame, child.loaded {
+            let bounds: Rect = iframe.absoluteBounds()
+            let border: CGFloat = iframe.scaled(1)
+            if child.scrollAt(
+                x: x - bounds.left,
+                y: adjustedY - bounds.top - border,
+                deltaY: deltaY
+            ) {
+                return true
+            }
+        }
+
         let scrollBlock: BlockLayout? = treeToList(doc)
             .compactMap({ $0 as? BlockLayout })
             .first(where: { block in
@@ -737,13 +785,18 @@ class Frame {
         if let block = scrollBlock, let el = block.node as? Element {
             let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
-            el.scrollOffsetY = max(0, min(current - deltaY, maxScroll))
-            block.scrollOffset = el.scrollOffsetY
+            let next: CGFloat = max(0, min(current - deltaY, maxScroll))
+            guard next != current else { return maxScroll > 0 }
+            el.scrollOffsetY = next
+            block.scrollOffset = next
             scrollFocusNode = el
             setNeedsPaint()
-        } else {
-            scrollBy(deltaY: deltaY)
+            return true
         }
+
+        let before: CGFloat = scroll
+        scrollBy(deltaY: deltaY)
+        return scroll != before || maxScroll > 0
     }
 
     func scrollBy(deltaY: CGFloat) {
@@ -798,6 +851,10 @@ class Frame {
 
     @discardableResult
     private func checkInterestRegion() -> Bool {
+        guard parentFrame == nil else {
+            setNeedsPaint()
+            return true
+        }
         if scroll < interestTop || scroll + frameHeight > interestBottom {
             interestTop = max(0, scroll - frameHeight)
             browser?.applyScrollAndUpdateInterest(
@@ -821,7 +878,17 @@ class Frame {
         focusElement(nil)
     }
 
+    func clearFocus() {
+        guard let previous = focus else { return }
+        previous.isFocused = false
+        previous.isFocusVisible = false
+        _ = js?.dispatchEvent(type: "blur", elt: previous)
+        focus = nil
+        setNeedsRender()
+    }
+
     func focusElement(_ node: Element?, showRing: Bool = true) {
+        tab?.setFocusedFrame(self)
         if node === focus { return }
         if let previous = focus {
             previous.isFocused = false
@@ -865,8 +932,9 @@ class Frame {
 
     func click(x: CGFloat, y: CGFloat) {
         focusElement(nil)
+        let clickY: CGFloat = y + scroll
 
-        guard let source = document?.hitTest(x: x, y: y + scroll) else {
+        guard let source = document?.hitTest(x: x, y: clickY) else {
             setNeedsRender()
             return
         }
@@ -880,12 +948,25 @@ class Frame {
             while let node = elt {
                 if node is TextNode {
 
+                } else if let el = node as? Element, el.tag == "iframe" {
+                    guard let layout = el.layoutObject, let child = el.frame, child.loaded else {
+                        return
+                    }
+                    let bounds: Rect = layout.absoluteBounds()
+                    let border: CGFloat = layout.scaled(1)
+                    child.click(x: x - bounds.left, y: clickY - bounds.top - border)
+                    return
                 } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"]
                 {
-                    if href.hasPrefix("#") {
-                        tab?.navigateToFragment(url.resolve(href))
+                    let resolved: WebURL = url.resolve(href)
+                    if parentFrame == nil {
+                        if href.hasPrefix("#") {
+                            tab?.navigateToFragment(url.resolve(href))
+                        } else {
+                            tab?.load(url.resolve(href))
+                        }
                     } else {
-                        tab?.load(url.resolve(href))
+                        load(resolved)
                     }
                     return
                 } else if let el = node as? Element, el.tag == "input" {
@@ -970,18 +1051,21 @@ class Frame {
     func setNeedsRender() {
         needsStyle = true
         needsRender = true
+        parentFrame?.setNeedsLayout()
         requestAnimationFrame()
     }
 
     func setNeedsLayout() {
         needsLayout = true
         needsRender = true
+        parentFrame?.setNeedsLayout()
         requestAnimationFrame()
     }
 
     func setNeedsPaint() {
         needsPaint = true
         needsRender = true
+        parentFrame?.setNeedsPaint()
         requestAnimationFrame()
     }
 

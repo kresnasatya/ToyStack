@@ -351,7 +351,15 @@ class BlockLayout: LayoutObject {
     }
 
     private func addIframe(_ node: Element) {
-        // TODO: Phase 3
+        let w: CGFloat = scaled(IframeLayout.displayWidth(for: node))
+        if cursorX + w > width { newLine() }
+        let line: any LayoutObject = children.last!
+        let prevItem: (any LayoutObject)? = line.children.last
+        let iframe: IframeLayout = IframeLayout(node: node, parent: line, previous: prevItem)
+        line.children.append(iframe)
+
+        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        cursorX += w + font.spaceWidth
     }
 
     private func isInsideAbbr(_ node: any DOMNode) -> Bool {

@@ -137,8 +137,9 @@ final class ContentPresenter: @unchecked Sendable {
             layer.contents = placed.image
         }
         layer.transform = CATransform3DIdentity
-        if layer.frame != placed.frame {
-            layer.frame = placed.frame
+        let frame: CGRect = clipFrame(for: placed, on: layer)
+        if layer.frame != frame {
+            layer.frame = frame
         }
         let z = CGFloat(placed.zIndex)
         if layer.zPosition != z {
@@ -149,6 +150,27 @@ final class ContentPresenter: @unchecked Sendable {
         if layer.compositingFilter == nil {
             applyBlend(effect, to: layer)
         }
+    }
+
+    private func clipFrame(for placed: LayerPlacement, on layer: CALayer) -> CGRect {
+        guard let clip = placed.effect?.clipRect else {
+            layer.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+            layer.masksToBounds = false
+            return placed.frame
+        }
+        let bounds: CGRect = placed.frame
+        let visible: CGRect = bounds.intersection(clip.cgRect)
+        guard bounds.width > 0, bounds.height > 0,
+            visible.width > 0, visible.height > 0
+        else { return .zero }
+        layer.contentsRect = CGRect(
+            x: (visible.minX - bounds.minX) / bounds.width,
+            y: (visible.minY - bounds.minY) / bounds.height,
+            width: visible.width / bounds.width,
+            height: visible.height / bounds.height
+        )
+        layer.masksToBounds = true
+        return visible
     }
 
     private func applyEffect(_ effect: LayerEffect, to layer: CALayer) {

@@ -32,6 +32,11 @@ class JSRuntime: @unchecked Sendable {
         return !(result?.toBool() ?? true)
     }
 
+    func dispatchPostMessage(message: String) {
+        jsContext.setObject(message, forKeyedSubscript: "__data" as NSString)
+        jsContext.evaluateScript("window.dispatchEvent(new window.MessageEvent(__data))")
+    }
+
     private func getHandle(_ elt: any DOMNode) -> Int {
         let id: ObjectIdentifier = ObjectIdentifier(elt)
         if let handle = nodeToHandle[id] { return handle }
@@ -347,11 +352,7 @@ class JSRuntime: @unchecked Sendable {
                 guard let frame = self?.frame else { return }
                 Task { @MainActor in
                     guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
-                    let task: BrowserTask = BrowserTask(name: "runAnimationFrame", measure: tab.browser?.measure)
-                    {
-                        frame.runAnimationFrame()
-                    }
-                    tab.taskRunner.scheduleTask(task)
+                    tab.browser?.setNeedsAnimationFrame(tab)
                 }
             } as @convention(block) () -> Void,
             forKeyedSubscript: "_requestAnimationFrame" as NSString)
@@ -447,6 +448,29 @@ class JSRuntime: @unchecked Sendable {
                 }
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "__styleSet__" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] () -> Int in
+                return MainActor.assumeIsolated { self?.frame?.windowID ?? -1 }
+            } as @convention(block) () -> Int,
+            forKeyedSubscript: "_getWindowID" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (_: Int) -> Int in
+                return MainActor.assumeIsolated { self?.frame?.parentFrame?.windowID ?? -1 }
+            } as @convention(block) (Int) -> Int,
+            forKeyedSubscript: "_parent" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] (targetID: Int, message: String, _: String) in
+                MainActor.assumeIsolated {
+                    self?.frame?.tab?.postMessage(message: message, targetWindowID: targetID)
+                }
+            } as @convention(block) (Int, String, String) -> Void,
+            forKeyedSubscript: "_postMessage" as NSString)
     }
 
     deinit {

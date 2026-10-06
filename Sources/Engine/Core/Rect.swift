@@ -36,4 +36,13 @@ public struct Rect: Equatable {
             left: min(self.left, other.left), top: min(self.top, other.top),
             right: max(self.right, other.right), bottom: max(self.bottom, other.bottom))
     }
+
+    func intersect(_ other: Rect) -> Rect {
+        return Rect(
+            left: max(self.left, other.left),
+            top: max(self.top, other.top),
+            right: max(self.right, other.right),
+            bottom: max(self.bottom, other.bottom)
+        )
+    }
 }

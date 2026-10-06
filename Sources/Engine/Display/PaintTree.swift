@@ -29,15 +29,17 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         )
         items.append(effect)
         items.append(contentsOf: block.paintScrollbar())
+    } else if let iframe = obj as? IframeLayout,
+        let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
+        let childDoc = childFrame.document {
+        paintTree(childDoc, into: &items)
     } else {
         for child in inPaintOrder(obj.children) {
             paintTree(child, into: &items)
         }
     }
 
-    if !(obj is LineLayout) {
-        items = paintBrowserVisualEffects(node: obj.node, items: items, rect: obj.selfRect())
-    }
+    items = obj.paintEffects(items)
 
     displayList.append(contentsOf: items)
 }

@@ -15,10 +15,16 @@ protocol LayoutObject: AnyObject {
     func layout()
     func paint() -> [any DisplayItem]
     func shouldPaint() -> Bool
+    func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem]
 
 }
 
 extension LayoutObject {
+    func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem] {
+        if self is LineLayout { return items }
+        return paintBrowserVisualEffects(node: node, items: items, rect: selfRect())
+    }
+
     func selfRect() -> Rect {
         Rect(left: x, top: y, right: x + width, bottom: y + height)
     }
@@ -54,6 +60,23 @@ extension LayoutObject {
             node = current.parent
         }
         return nil
+    }
+
+    func absoluteBounds() -> Rect {
+        var rect: Rect = selfRect()
+        var node: (any DOMNode)? = self.node
+        while let current = node {
+            if let t = CSSValueParser.transform(current.style["transform"] ?? "") {
+                rect = Rect(
+                    left: rect.left + t.x,
+                    top: rect.top + t.y,
+                    right: rect.right + t.x,
+                    bottom: rect.bottom + t.y
+                )
+            }
+            node = current.parent
+        }
+        return rect
     }
 
     func resolvedZoom() -> CGFloat {

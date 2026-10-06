@@ -36,7 +36,7 @@ class AccessibilityNode {
             }
             if let r = result { return r }
         }
-        return Rect(left: lo.x, top: lo.y, right: lo.x + lo.width, bottom: lo.y + lo.height)
+        return lo.absoluteBounds()
     }
 
     private static func union(_ a: Rect, _ b: Rect) -> Rect {
@@ -61,6 +61,7 @@ class AccessibilityNode {
         case "a": return "link"
         case "button": return "button"
         case "html": return "document"
+        case "iframe": return "iframe"
         default:
             if el.attributes["tabindex"] != nil { return "focusable" }
             if el.attributes["role"] == "alert" { return "alert" }
@@ -87,14 +88,20 @@ class AccessibilityNode {
         }
     }
 
-    private func buildInternal(_ childNode: DOMNode) {
+    func buildInternal(_ childNode: DOMNode) {
         if let text = childNode as? TextNode, text.text.allSatisfy({ $0.isWhitespace }) {
             return
         }
         if let el = childNode as? Element, el.tag == "style" || el.tag == "script" {
             return
         }
-        let child: AccessibilityNode = AccessibilityNode(node: childNode, parent: self)
+        let child: AccessibilityNode
+        if let el = childNode as? Element, el.tag == "iframe",
+            let frame = el.frame, frame.loaded, el.layoutObject != nil {
+            child = FrameAccessibilityNode(node: el, parent: self)
+        } else {
+            child = AccessibilityNode(node: childNode, parent: self)
+        }
         if child.role != "none" || child.live != "off" {
             children.append(child)
             child.build()
@@ -112,5 +119,17 @@ class AccessibilityNode {
             if let hit = child.hitTest(x: x, y: y) { result = hit }
         }
         return result
+    }
+
+    func mapToParent(_ rect: inout Rect) {}
+
+    func absoluteBounds() -> Rect {
+        var rect: Rect = bounds
+        var current: AccessibilityNode? = (self is FrameAccessibilityNode) ? parent : self
+        while let node = current {
+            node.mapToParent(&rect)
+            current = node.parent
+        }
+        return rect
     }
 }

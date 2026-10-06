@@ -170,6 +170,9 @@ big {
 sup {
     font-size: 50%;
 }
+iframe {
+    border: 2px solid black;
+}
 input {
     font-size: 16px;
     font-weight: normal;
