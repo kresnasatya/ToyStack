@@ -41,8 +41,8 @@ public struct Rect: Equatable {
         return Rect(
             left: max(self.left, other.left),
             top: max(self.top, other.top),
-            right: max(self.right, other.right),
-            bottom: max(self.bottom, other.bottom)
+            right: min(self.right, other.right),
+            bottom: min(self.bottom, other.bottom)
         )
     }
 }
