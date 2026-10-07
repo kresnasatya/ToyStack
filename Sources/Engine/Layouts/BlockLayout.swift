@@ -431,14 +431,8 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        let borderStyle: String = node.style["border-style"] ?? "none"
-        if borderStyle != "none",
-            let widthStr = node.style["border-width"],
-            let borderPx = Double(widthStr.dropLast(2))
-        {
-            let color: String = node.style["border-color"] ?? "black"
-            cmds.append(
-                DrawOutline(rect: selfRect(), color: color, thickness: CGFloat(borderPx)))
+        if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: selfRect()) {
+            cmds.append(border)
         }
 
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())

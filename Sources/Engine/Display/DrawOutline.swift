@@ -32,4 +32,12 @@ extension DrawOutline {
         let color: String = node.style["outline-color"] ?? node.style["color"] ?? "black"
         return DrawOutline(rect: rect, color: color, thickness: thickness)
     }
+
+    static func fromBorderStyle(_ node: any DOMNode, rect: Rect) -> DrawOutline? {
+        let style: String = node.style["border-style"] ?? "none"
+        guard style != "none", style != "hidden" else { return nil }
+        guard let thickness = CSSValueParser.outlineWidth(node.style["border-width"] ?? "medium"), thickness > 0 else { return nil }
+        let color: String = node.style["border-color"] ?? "black"
+        return DrawOutline(rect: rect, color: color, thickness: thickness)
+    }
 }

@@ -87,6 +87,9 @@ final class IframeLayout: EmbedLayout {
         )
 
         var cmds: [any DisplayItem] = [clipped]
+        if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: rect) {
+            cmds.append(border)
+        }
         if let outline: DrawOutline = DrawOutline.fromStyle(node, rect: rect) {
             cmds.append(outline)
         }
