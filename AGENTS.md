@@ -49,10 +49,11 @@ For multi-file changes, group the diffs by file and include the file path before
 
 ## Debugging
 
-There are two options to debugging the browser engine:
+There are three options to debugging the browser engine:
 
-1. Use `browser.trace` in the root directory. 
-2. Use `ffmpeg` for read the video file  in order to debug visual like animation or transition.
+1. Use `browser.trace` in the root directory.
+2. Use `ToyStackHeadless` to debug visual appearance. 
+2. Use `ffmpeg` for read the video file in order to debug visual animation or transition.
 
 For profiling conventions (Profiler, metric names, `--no-profile`, how to to read the trace) are documented in [profiling.md](./profiling.md).
 
