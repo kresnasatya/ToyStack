@@ -158,6 +158,11 @@ final class ContentPresenter: @unchecked Sendable {
             layer.masksToBounds = false
             return placed.frame
         }
+        guard !clip.isEmpty else {
+            layer.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+            layer.masksToBounds = false
+            return .zero
+        }
         let bounds: CGRect = placed.frame
         let visible: CGRect = bounds.intersection(clip.cgRect)
         guard bounds.width > 0, bounds.height > 0,

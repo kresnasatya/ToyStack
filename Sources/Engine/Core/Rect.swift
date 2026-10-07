@@ -45,4 +45,6 @@ public struct Rect: Equatable {
             bottom: min(self.bottom, other.bottom)
         )
     }
+
+    public var isEmpty: Bool { right <= left || bottom <= top }
 }

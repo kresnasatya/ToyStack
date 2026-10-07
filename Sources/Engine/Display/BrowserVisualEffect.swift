@@ -98,6 +98,9 @@ func maxRectBottom(_ items: [any DisplayItem]) -> CGFloat {
             result = max(result, cmd.rect.bottom)
         } else if let ve = item as? BrowserVisualEffect {
             result = max(result, ve.rect.bottom)
+            if ve is Clip || ve is ScrollEffect {
+                continue
+            }
             result = max(result, maxRectBottom(ve.children))
         }
     }

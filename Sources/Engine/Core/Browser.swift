@@ -750,6 +750,8 @@ public class Browser: ObservableObject {
                         cloned = blur.clone(child: currentEffect)
                     } else if let se = newParent as? ScrollEffect {
                         cloned = se.clone(child: currentEffect)
+                    } else if let clip = newParent as? Clip {
+                        cloned = clip.clone(child: currentEffect)
                     } else {
                         cloned = newParent
                     }
