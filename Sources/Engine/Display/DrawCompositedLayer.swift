@@ -23,7 +23,15 @@ struct DrawCompositedLayer: DisplayCommand {
                 let tileLeft: CGFloat = CGFloat(index.col) * t
                 let tileTop: CGFloat = CGFloat(index.row) * t
                 if tileTop + t <= visibleTop || tileTop >= visibleBottom { continue }
-                renderer.drawImage(image, in: Rect(left: tileLeft, top: tileTop, right: t, bottom: t))
+                renderer.drawImage(
+                    image,
+                    in: Rect(
+                        left: tileLeft,
+                        top: tileTop,
+                        right: tileLeft + t,
+                        bottom: tileTop + t
+                    )
+                )
             }
         } else {
             renderer.saveState()
