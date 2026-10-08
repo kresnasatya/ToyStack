@@ -117,7 +117,8 @@ final class IframeLayout: EmbedLayout {
                 right: innerRect.left + bar.rect.right,
                 bottom: innerRect.top + bar.rect.bottom
             ),
-            color: bar.color
+            color: bar.color,
+            radius: ScrollbarStyle.thumbRadius
         )
     }
 }
