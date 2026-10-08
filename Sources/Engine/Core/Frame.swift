@@ -786,7 +786,7 @@ class Frame {
             let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
-            guard next != current else { return maxScroll > 0 }
+            guard next != current else { return false }
             el.scrollOffsetY = next
             block.scrollOffset = next
             scrollFocusNode = el
@@ -796,7 +796,7 @@ class Frame {
 
         let before: CGFloat = scroll
         scrollBy(deltaY: deltaY)
-        return scroll != before || maxScroll > 0
+        return scroll != before
     }
 
     func scrollBy(deltaY: CGFloat) {
