@@ -741,20 +741,7 @@ public class Browser: ObservableObject {
                     mergedIntoExisting = true
                     break
                 } else {
-                    let cloned: BrowserVisualEffect
-                    if let blend = newParent as? Blend {
-                        cloned = blend.clone(child: currentEffect)
-                    } else if let transform = newParent as? Transform {
-                        cloned = transform.clone(child: currentEffect)
-                    } else if let blur = newParent as? BlurFilter {
-                        cloned = blur.clone(child: currentEffect)
-                    } else if let se = newParent as? ScrollEffect {
-                        cloned = se.clone(child: currentEffect)
-                    } else if let clip = newParent as? Clip {
-                        cloned = clip.clone(child: currentEffect)
-                    } else {
-                        cloned = newParent
-                    }
+                    let cloned: BrowserVisualEffect = newParent.clone(children: [currentEffect])
                     newEffects[newParentKey] = cloned
                     currentEffect = cloned
                 }

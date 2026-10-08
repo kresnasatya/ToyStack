@@ -45,7 +45,7 @@ public class Blend: BrowserVisualEffect {
         }
     }
 
-    func clone(child: any DisplayItem) -> Blend {
-        return Blend(opacity: opacity, blendMode: blendMode, node: node, children: [child])
+    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+        return Blend(opacity: opacity, blendMode: blendMode, node: node, children: children)
     }
 }

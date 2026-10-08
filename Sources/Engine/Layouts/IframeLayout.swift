@@ -96,7 +96,7 @@ final class IframeLayout: EmbedLayout {
         return paintBrowserVisualEffects(node: node, items: cmds, rect: rect)
     }
 
-    private func childScrollbar(innerRect: Rect) -> DrawRect? {
+    private func childScrollbar(innerRect: Rect) -> ScrollbarBar? {
         guard let frame, frame.loaded, let doc = frame.document else { return nil }
         let contentWidth: CGFloat = innerRect.right - innerRect.left
         let contentHeight: CGFloat = innerRect.bottom - innerRect.top
@@ -110,7 +110,7 @@ final class IframeLayout: EmbedLayout {
             forcedColors: frame.tab?.forcedColors ?? false
         )
         else { return nil }
-        return DrawRect(
+        return ScrollbarBar(
             rect: Rect(
                 left: innerRect.left + bar.rect.left,
                 top: innerRect.top + bar.rect.top,

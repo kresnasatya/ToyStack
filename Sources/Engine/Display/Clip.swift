@@ -22,7 +22,7 @@ public class Clip: BrowserVisualEffect {
         renderer.restoreState()
     }
 
-    func clone(child: any DisplayItem) -> Clip {
-        Clip(rect: rect, clipRect: clipRect, node: node, children: [child])
+    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+        Clip(rect: rect, clipRect: clipRect, node: node, children: children)
     }
 }

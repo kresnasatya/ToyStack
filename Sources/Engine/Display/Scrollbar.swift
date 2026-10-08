@@ -26,3 +26,27 @@ func scrollbarBarRect(
         color: forcedColors ? ForcedColor.canvasText : "blue"
     )
 }
+
+func splitScrollbars(_ items: [any DisplayItem]) -> (content: [any DisplayItem], bars: [any DisplayItem]) {
+    var content: [any DisplayItem] = []
+    var bars: [any DisplayItem] = []
+    for item in items {
+        if item is ScrollbarBar {
+            bars.append(item)
+            continue
+        }
+        guard let effect = item as? BrowserVisualEffect else {
+            content.append(item)
+            continue
+        }
+        let (childContent, childBars) = splitScrollbars(effect.children)
+        effect.children = childContent
+        if !childBars.isEmpty {
+            bars.append(effect.clone(children: childBars))
+        }
+        if !childContent.isEmpty || effect is Clip {
+            content.append(effect)
+        }
+    }
+    return (content, bars)
+}

@@ -24,6 +24,10 @@ public class BrowserVisualEffect: DisplayItem {
     func map(rect: Rect) -> Rect { return rect }
 
     func unmap(rect: Rect) -> Rect { return rect }
+
+    func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+        fatalError("\(type(of: self)) must be implement clone(children:)")
+    }
 }
 
 func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {

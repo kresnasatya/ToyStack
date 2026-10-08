@@ -28,8 +28,8 @@ public class Transform: BrowserVisualEffect {
         renderer.restoreState()
     }
 
-    func clone(child: any DisplayItem) -> Transform {
-        return Transform(translation: translation, rect: rect, node: node, children: [child])
+    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+        return Transform(translation: translation, rect: rect, node: node, children: children)
     }
 
     override func map(rect: Rect) -> Rect {

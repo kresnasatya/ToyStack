@@ -20,8 +20,8 @@ public class BlurFilter: BrowserVisualEffect {
         self.needsCompositing = radius > 0 || self.needsCompositing
     }
 
-    func clone(child: any DisplayItem) -> BlurFilter {
-        return BlurFilter(radius: radius, node: node, children: [child])
+    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+        return BlurFilter(radius: radius, node: node, children: children)
     }
 
     public override func execute(renderer: any Renderer) {

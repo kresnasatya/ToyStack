@@ -25,7 +25,7 @@ public class ScrollEffect: BrowserVisualEffect {
         renderer.restoreState()
     }
 
-    func clone(child: any DisplayItem) -> ScrollEffect {
-        ScrollEffect(rect: clipRect, scrollOffset: scrollOffset, node: node, children: [child])
+    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+        ScrollEffect(rect: clipRect, scrollOffset: scrollOffset, node: node, children: children)
     }
 }
