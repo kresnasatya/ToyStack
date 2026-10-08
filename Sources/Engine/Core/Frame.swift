@@ -734,7 +734,7 @@ class Frame {
             ),
             forcedColors: tab?.forcedColors ?? false
         ) else { return [] }
-        return [bar]
+        return [ScrollbarBar(rect: bar.rect, color: bar.color, radius: ScrollbarStyle.thumbRadius)]
     }
 
     func scrollDown() {

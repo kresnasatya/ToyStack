@@ -75,7 +75,7 @@ public class Browser: ObservableObject {
                 topInset: topInset
             )
         else { return nil }
-        let color: BrowserColor = BrowserColor(cssName: activeFrame.preferences.usesForcedColors ? ForcedColor.canvasText : "blue")
+        let color: BrowserColor = BrowserColor(cssName: bar.color)
         return (bar.rect.cgRect, color.cgColor)
     }
 
