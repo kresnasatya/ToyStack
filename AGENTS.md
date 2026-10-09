@@ -47,6 +47,38 @@ For multi-file changes, group the diffs by file and include the file path before
 
 10. Save it in markdown file in the `plans` directory.
 
+## Commit Style
+
+Write the message for someone who forgot this code, not for the compiler. Lead with the
+effect; keep the mechanism in the body.
+
+1. Subject = what a user or developer feels, not how you built it. Prefer "make long
+   pages scroll smoothly" over "cache scroll targets per layout".
+2. Body = three beats: what was wrong -> why -> what changed. The "why" is what makes it
+   understandable; the "what" alone is not enough.
+3. Use plain words. No function names, file names, or metric/span names in the subject.
+   They are fine in the body.
+4. One idea per commit. If the subject needs "and", split the commit.
+5. Conventional type (`fix` / `perf` / `feat` / `refactor` / `docs`) is just a category;
+   it does not excuse a technical description.
+
+Before (mechanism-first):
+
+```
+perf(scroll): cache scroll targets per layout
+scrollAt ran a full-tree hitTest plus a treeToList allocation scan...
+```
+
+After (effect-first):
+
+```
+perf: smooth scrolling on long pages
+
+Scrolling a long page stuttered (4-60fps) because each wheel event
+rescanned the whole layout tree. Remember the scrollable targets at
+layout time instead, so a scroll just looks them up.
+```
+
 ## Debugging
 
 There are three options to debugging the browser engine:
