@@ -57,6 +57,20 @@ class Frame {
     private var paintedBottom: CGFloat = 0
     private var zoom: CGFloat = 1.0
 
+    private struct IframeTarget {
+        let rect: Rect
+        let iframe: IframeLayout
+    }
+
+    private struct ScrollBlockTarget {
+        let rect: Rect
+        let element: Element
+        let block: BlockLayout
+    }
+
+    private var iframeTargets: [IframeTarget] = []
+    private var scrollBlockTargets: [ScrollBlockTarget] = []
+
     var hasScrollElement: Bool { scrollFocusNode != nil }
 
     var maxScroll: CGFloat {
@@ -568,6 +582,7 @@ class Frame {
             let doc: DocumentLayout = DocumentLayout(node: nodes)
             doc.layout(availableWidth: frameWidth, zoom: zoom)
             document = doc
+            rebuildScrollTargets(doc)
 
             needsLayout = false
             tab?.needsAccessibility = true
@@ -684,6 +699,32 @@ class Frame {
         browser?.commit(tab: tab, data: data)
     }
 
+    private func rebuildScrollTargets(_ doc: DocumentLayout) {
+        var iframes: [IframeTarget] = []
+        var blocks: [ScrollBlockTarget] = []
+        for object in treeToList(doc) {
+            if let iframe = object as? IframeLayout {
+                iframes.append(
+                    IframeTarget(rect: iframe.absoluteBounds(), iframe: iframe)
+                )
+            }
+            if let block = object as? BlockLayout,
+                block.node.style["overflow"] == "scroll",
+                let element = block.node as? Element
+            {
+                blocks.append(
+                    ScrollBlockTarget(
+                        rect: block.selfRect(),
+                        element: element,
+                        block: block
+                    )
+                )
+            }
+        }
+        iframeTargets = iframes
+        scrollBlockTargets = blocks
+    }
+
     // MARK: - Scroll
 
     private func scrollTo(_ elt: Element) {
@@ -758,14 +799,16 @@ class Frame {
     @discardableResult
     func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) -> Bool {
         let adjustedY: CGFloat = y + scroll
-        guard let doc = document else { return false }
+        guard document != nil else { return false }
 
-        if let hit = doc.hitTest(x: x, y: adjustedY),
-            let iframe = hit as? IframeLayout,
-            let el = iframe.node as? Element,
-            let child = el.frame, child.loaded {
-            let bounds: Rect = iframe.absoluteBounds()
-            let border: CGFloat = iframe.scaled(1)
+        if let target = iframeTargets.last(where: {
+            $0.rect.containsPoint(x, adjustedY)
+        }),
+            let el = target.iframe.node as? Element,
+            let child = el.frame, child.loaded
+        {
+            let bounds: Rect = target.iframe.absoluteBounds()
+            let border: CGFloat = target.iframe.scaled(1)
             if child.scrollAt(
                 x: x - bounds.left,
                 y: adjustedY - bounds.top - border,
@@ -775,14 +818,11 @@ class Frame {
             }
         }
 
-        let scrollBlock: BlockLayout? = treeToList(doc)
-            .compactMap({ $0 as? BlockLayout })
-            .first(where: { block in
-                guard block.node.style["overflow"] == "scroll" else { return false }
-                let r: Rect = block.selfRect()
-                return r.left <= x && x < r.right && r.top <= adjustedY && adjustedY < r.bottom
-            })
-        if let block = scrollBlock, let el = block.node as? Element {
+        if let target = scrollBlockTargets.first(where: {
+            $0.rect.containsPoint(x, adjustedY)
+        }) {
+            let block: BlockLayout = target.block
+            let el: Element = target.element
             let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
