@@ -475,7 +475,8 @@ class JSRuntime: @unchecked Sendable {
         CanvasBridge(
             jsContext: jsContext,
             nodeForHandle: { [weak self] handle in self?.handleToNode[handle] },
-            requestPaint: { [weak self] in self?.frame?.setNeedsPaint() }
+            requestPaint: { [weak self] in self?.frame?.setNeedsPaint() },
+            displayScale: { [weak self] in self?.frame?.tab?.browser?.displayScale ?? 1 }
         ).register()
     }
 

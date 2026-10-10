@@ -6,26 +6,33 @@ final class CanvasBridge {
     private let jsContext: JSContext
     private let nodeForHandle: (Int) -> (any DOMNode)?
     private let requestPaint: @MainActor () -> Void
+    private let displayScale: @MainActor () -> CGFloat
 
     init(
         jsContext: JSContext,
         nodeForHandle: @escaping (Int) -> (any DOMNode)?,
-        requestPaint: @escaping @MainActor () -> Void
+        requestPaint: @escaping @MainActor () -> Void,
+        displayScale: @escaping @MainActor () -> CGFloat
     ) {
         self.jsContext = jsContext
         self.nodeForHandle = nodeForHandle
         self.requestPaint = requestPaint
+        self.displayScale = displayScale
     }
 
     func register() {
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, type: String) -> Bool in
+            [nodeForHandle, displayScale] (handle: Int, type: String) -> Bool in
             guard type == "2d" else { return false }
             return MainActor.assumeIsolated({
                 guard let el = nodeForHandle(handle) as? Element else { return false }
                 if el.canvasContext == nil {
                     let size: (width: CGFloat, height: CGFloat) = CanvasLayout.contentSize(for: el)
-                    el.canvasContext = CanvasRenderingContext2D(width: size.width, height: size.height)
+                    el.canvasContext = CanvasRenderingContext2D(
+                        width: size.width,
+                        height: size.height,
+                        scale: displayScale()
+                    )
                 }
                 return el.canvasContext != nil
             })

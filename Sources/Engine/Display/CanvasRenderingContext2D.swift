@@ -14,9 +14,9 @@ final class CanvasRenderingContext2D {
     private var font: String = "16px serif"
     private var lineWidth: CGFloat = 1
 
-    init?(width: CGFloat, height: CGFloat) {
-        let pxWidth: Int = Int(width.rounded())
-        let pxHeight: Int = Int(height.rounded())
+    init?(width: CGFloat, height: CGFloat, scale: CGFloat) {
+        let pxWidth: Int = Int((width * scale).rounded())
+        let pxHeight: Int = Int((height * scale).rounded())
         guard pxWidth > 0, pxHeight > 0,
             let cg: CGContext = CGContext(
                 data: nil,
@@ -29,13 +29,14 @@ final class CanvasRenderingContext2D {
             )
         else { return nil }
 
-        cg.translateBy(x: 0, y: CGFloat(pxHeight))
+        cg.scaleBy(x: scale, y: scale)
+        cg.translateBy(x: 0, y: height)
         cg.scaleBy(x: 1, y: -1)
 
-        self.width = CGFloat(pxWidth)
-        self.height = CGFloat(pxHeight)
+        self.width = width
+        self.height = height
         self.cg = cg
-        self.renderer = CGRenderer(cg: cg, canvasSize: CGSize(width: pxWidth, height: pxHeight))
+        self.renderer = CGRenderer(cg: cg, canvasSize: CGSize(width: width, height: height), scale: scale)
     }
 
     func image() -> CGImage? {
