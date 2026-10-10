@@ -179,7 +179,7 @@ class BlockLayout: LayoutObject {
         })
         if hasBlockChild { return "block" }
         if let el = node as? Element {
-            return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe") ? "block" : "inline"
+            return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
         }
         return "inline"
     }
@@ -203,6 +203,8 @@ class BlockLayout: LayoutObject {
                 addImage(el)
             } else if el.tag == "iframe" {
                 addIframe(el)
+            } else if el.tag == "canvas" {
+                addCanvas(el)
             } else {
                 for child in el.children { recurse(child) }
             }
@@ -362,6 +364,18 @@ class BlockLayout: LayoutObject {
         cursorX += w + font.spaceWidth
     }
 
+    private func addCanvas(_ node: Element) {
+        let w: CGFloat = scaled(CanvasLayout.contentSize(for: node).width)
+        if cursorX + w > width { newLine() }
+        let line: any LayoutObject = children.last!
+        let prevItem: (any LayoutObject)? = line.children.last
+        let canvas: CanvasLayout = CanvasLayout(node: node, parent: line, previous: prevItem)
+        line.children.append(canvas)
+
+        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        cursorX += w + font.spaceWidth
+    }
+
     private func isInsideAbbr(_ node: any DOMNode) -> Bool {
         var current: (any DOMNode)? = node.parent
         while let c = current {
@@ -484,6 +498,6 @@ class BlockLayout: LayoutObject {
     func shouldPaint() -> Bool {
         if node is TextNode { return true }
         guard let el = node as? Element else { return true }
-        return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe"
+        return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
     }
 }

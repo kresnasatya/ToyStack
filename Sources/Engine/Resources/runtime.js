@@ -195,6 +195,88 @@ Node.prototype.focus = function () {
   _focusElement(this.handle);
 };
 
+Node.prototype.getContext = function (type) {
+  if (type !== "2d") return null;
+  if (!_canvasContext(this.handle, type)) return null;
+  return new CanvasRenderingContext2D(this.handle);
+};
+
+function CanvasRenderingContext2D(handle) {
+  this.handle = handle;
+}
+
+Object.defineProperty(CanvasRenderingContext2D.prototype, "fillStyle", {
+  get: function () {
+    return _canvasStyleGet(this.handle, "fillStyle")
+  },
+  set: function (value) {
+    _canvasStyleSet(this.handle, "fillStyle", value.toString());
+  }
+});
+
+Object.defineProperty(CanvasRenderingContext2D.prototype, "strokeStyle", {
+  get: function () {
+    return _canvasStyleGet(this.handle, "strokeStyle");
+  },
+  set: function (value) {
+    _canvasStyleSet(this.handle, "strokeStyle", value.toString());
+  }
+});
+
+Object.defineProperty(CanvasRenderingContext2D.prototype, "lineWidth", {
+  get: function () {
+    return parseFloat(_canvasStyleGet(this.handle, "lineWidth"));
+  },
+  set: function (value) {
+    _canvasStyleSet(this.handle, "lineWidth", value.toString());
+  }
+});
+
+Object.defineProperty(CanvasRenderingContext2D.prototype, "font", {
+  get: function () {
+    return _canvasStyleGet(this.handle, "font");
+  },
+  set: function (value) {
+    _canvasStyleSet(this.handle, "font", value.toString());
+  }
+});
+
+CanvasRenderingContext2D.prototype.fillRect = function (x, y, w, h) {
+  _canvasRect(this.handle, "fill", [x, y, w, h]);
+}
+
+CanvasRenderingContext2D.prototype.clearRect = function (x, y, w, h) {
+  _canvasRect(this.handle, "clear", [x, y, w, h]);
+}
+
+CanvasRenderingContext2D.prototype.strokeRect = function (x, y, w, h) {
+  _canvasRect(this.handle, "stroke", [x, y, w, h]);
+}
+
+CanvasRenderingContext2D.prototype.beginPath = function () {
+  _canvasPath(this.handle, "begin", []);
+}
+
+CanvasRenderingContext2D.prototype.moveTo = function (x, y) {
+  _canvasPath(this.handle, "move", [x, y]);
+}
+
+CanvasRenderingContext2D.prototype.lineTo = function (x, y) {
+  _canvasPath(this.handle, "line", [x, y]);
+}
+
+CanvasRenderingContext2D.prototype.stroke = function () {
+  _canvasPaint(this.handle, "stroke");
+}
+
+CanvasRenderingContext2D.prototype.fill = function () {
+  _canvasPaint(this.handle, "fill");
+}
+
+CanvasRenderingContext2D.prototype.fillText = function (text, x, y) {
+  _canvasText(this.handle, text.toString(), [x, y]);
+}
+
 var __RAFHandlers = [];
 
 function __runRAFHandlers() {

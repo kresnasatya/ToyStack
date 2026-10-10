@@ -29,6 +29,7 @@ class Element: DOMNode {
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
     var frame: Frame? = nil
+    var canvasContext: CanvasRenderingContext2D? = nil
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {
         self.tag = tag

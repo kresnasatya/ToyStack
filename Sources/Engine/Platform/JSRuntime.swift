@@ -471,6 +471,12 @@ class JSRuntime: @unchecked Sendable {
                 }
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "_postMessage" as NSString)
+
+        CanvasBridge(
+            jsContext: jsContext,
+            nodeForHandle: { [weak self] handle in self?.handleToNode[handle] },
+            requestPaint: { [weak self] in self?.frame?.setNeedsPaint() }
+        ).register()
     }
 
     deinit {
