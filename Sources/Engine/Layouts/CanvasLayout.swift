@@ -35,7 +35,17 @@ final class CanvasLayout: EmbedLayout {
     }
 
     override func paint() -> [any DisplayItem] {
-        guard let image: CGImage = (node as? Element)?.canvasContext?.image() else { return [] }
-        return [DrawImage(image: image, rendering: .auto, rect: selfRect(), parentEffect: nil)]
+        guard let ctx = (node as? Element)?.canvasContext,
+            let image: CGImage = ctx.image()
+        else { return [] }
+        return [
+            DrawImage(
+                image: image,
+                rendering: .auto,
+                rect: selfRect(),
+                parentEffect: nil,
+                contentVersion: ctx.revision
+            )
+        ]
     }
 }

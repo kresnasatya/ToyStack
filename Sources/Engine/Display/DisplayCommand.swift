@@ -34,6 +34,7 @@ extension DisplayCommand {
         } else if let cmd = self as? DrawImage {
             hasher.combine(ObjectIdentifier(cmd.image))
             hasher.combine(cmd.rendering.rawValue)
+            hasher.combine(cmd.contentVersion)
         }
         return hasher.finalize()
     }

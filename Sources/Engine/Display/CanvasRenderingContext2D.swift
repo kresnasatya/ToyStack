@@ -9,6 +9,7 @@ final class CanvasRenderingContext2D {
     private var renderer: CGRenderer
     private(set) var scale: CGFloat
     private var commands: [CanvasCommand] = []
+    private(set) var revision: UInt64 = 0
     private var path: CGMutablePath = CGMutablePath()
 
     private var fillStyle: String = "black"
@@ -53,6 +54,7 @@ final class CanvasRenderingContext2D {
         scale = newScale
         cg = next
         renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), scale: newScale)
+        revision += 1
         for command in commands {
             command.draw(cg: cg, renderer: renderer)
         }
@@ -63,6 +65,7 @@ final class CanvasRenderingContext2D {
     }
 
     func fillRect(_ rect: Rect) {
+        revision += 1
         if coversWholeCanvas(rect) && fillStyle != "transparent" {
             commands.removeAll()
         }
@@ -72,6 +75,7 @@ final class CanvasRenderingContext2D {
     }
 
     func clearRect(_ rect: Rect) {
+        revision += 1
         if coversWholeCanvas(rect) {
             commands.removeAll()
         }
@@ -81,12 +85,14 @@ final class CanvasRenderingContext2D {
     }
 
     func strokeRect(_ rect: Rect) {
+        revision += 1
         let command: CanvasCommand = .strokeRect(rect, strokeStyle, lineWidth)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func fillText(_ text: String, at point: Point) {
+        revision += 1
         let command: CanvasCommand = .fillText(text, point, fillStyle, canvasFont())
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
@@ -105,12 +111,14 @@ final class CanvasRenderingContext2D {
     }
 
     func stroke() {
+        revision += 1
         let command: CanvasCommand = .strokePath(path.copy() ?? path, strokeStyle, lineWidth)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func fill() {
+        revision += 1
         let command: CanvasCommand = .fillPath(path.copy() ?? path, fillStyle)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
