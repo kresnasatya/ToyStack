@@ -5,8 +5,10 @@ final class CanvasRenderingContext2D {
     let width: CGFloat
     let height: CGFloat
 
-    private let cg: CGContext
-    private let renderer: CGRenderer
+    private var cg: CGContext
+    private var renderer: CGRenderer
+    private(set) var scale: CGFloat
+    private var commands: [CanvasCommand] = []
     private var path: CGMutablePath = CGMutablePath()
 
     private var fillStyle: String = "black"
@@ -15,6 +17,16 @@ final class CanvasRenderingContext2D {
     private var lineWidth: CGFloat = 1
 
     init?(width: CGFloat, height: CGFloat, scale: CGFloat) {
+        guard let cg: CGContext = Self.makeContext(width: width, height: height, scale: scale) else { return nil }
+
+        self.width = width
+        self.height = height
+        self.scale = scale
+        self.cg = cg
+        self.renderer = CGRenderer(cg: cg, canvasSize: CGSize(width: width, height: height), scale: scale)
+    }
+
+    private static func makeContext(width: CGFloat, height: CGFloat, scale: CGFloat) -> CGContext? {
         let pxWidth: Int = Int((width * scale).rounded())
         let pxHeight: Int = Int((height * scale).rounded())
         guard pxWidth > 0, pxHeight > 0,
@@ -32,11 +44,18 @@ final class CanvasRenderingContext2D {
         cg.scaleBy(x: scale, y: scale)
         cg.translateBy(x: 0, y: height)
         cg.scaleBy(x: 1, y: -1)
+        return cg
+    }
 
-        self.width = width
-        self.height = height
-        self.cg = cg
-        self.renderer = CGRenderer(cg: cg, canvasSize: CGSize(width: width, height: height), scale: scale)
+    func setScale(_ newScale: CGFloat) {
+        guard abs(newScale - scale) > 0.001 else { return }
+        guard let next: CGContext = Self.makeContext(width: width, height: height, scale: newScale) else { return }
+        scale = newScale
+        cg = next
+        renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), scale: newScale)
+        for command in commands {
+            command.draw(cg: cg, renderer: renderer)
+        }
     }
 
     func image() -> CGImage? {
@@ -44,20 +63,27 @@ final class CanvasRenderingContext2D {
     }
 
     func fillRect(_ rect: Rect) {
-        renderer.fillRect(rect, color: BrowserColor(cssName: fillStyle))
+        let command: CanvasCommand = .fillRect(rect, fillStyle)
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
     }
 
     func clearRect(_ rect: Rect) {
-        cg.clear(rect.cgRect)
+        let command: CanvasCommand = .clearRect(rect)
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
     }
 
     func strokeRect(_ rect: Rect) {
-        renderer.strokeRect(rect, color: BrowserColor(cssName: strokeStyle), lineWidth: lineWidth)
+        let command: CanvasCommand = .strokeRect(rect, strokeStyle, lineWidth)
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
     }
 
     func fillText(_ text: String, at point: Point) {
-        let font: BrowserFont = canvasFont()
-        renderer.drawText(text, font: font, color: BrowserColor(cssName: fillStyle), at: Point(x: point.x, y: point.y - font.ascent))
+        let command: CanvasCommand = .fillText(text, point, fillStyle, canvasFont())
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
     }
 
     func beginPath() {
@@ -73,20 +99,15 @@ final class CanvasRenderingContext2D {
     }
 
     func stroke() {
-        cg.saveGState()
-        cg.setStrokeColor(BrowserColor(cssName: strokeStyle).cgColor)
-        cg.setLineWidth(lineWidth)
-        cg.addPath(path)
-        cg.strokePath()
-        cg.restoreGState()
+        let command: CanvasCommand = .strokePath(path.copy() ?? path, strokeStyle, lineWidth)
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
     }
 
     func fill() {
-        cg.saveGState()
-        cg.setFillColor(BrowserColor(cssName: fillStyle).cgColor)
-        cg.addPath(path)
-        cg.fillPath()
-        cg.restoreGState()
+        let command: CanvasCommand = .fillPath(path.copy() ?? path, fillStyle)
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
     }
 
     func style(_ key: String) -> String {

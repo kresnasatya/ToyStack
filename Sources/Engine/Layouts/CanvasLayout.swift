@@ -20,6 +20,10 @@ final class CanvasLayout: EmbedLayout {
         return (CanvasLayout.displayWidth(for: el), CanvasLayout.displayHeight(for: el))
     }
 
+    private var displayScale: CGFloat {
+        (node as? Element)?.frame?.tab?.browser?.displayScale ?? 1
+    }
+
     override func layout() {
         super.layout()
         guard let el = node as? Element else { return }
@@ -27,6 +31,7 @@ final class CanvasLayout: EmbedLayout {
 
         self.width = scaled(size.width)
         self.height = scaled(size.height)
+        el.canvasContext?.setScale(displayScale * zoom)
     }
 
     override func paint() -> [any DisplayItem] {
