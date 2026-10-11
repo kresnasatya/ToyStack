@@ -884,12 +884,18 @@ public class Browser: ObservableObject {
         activeTab?.forcedColors = forcedColors
     }
 
+    // MARK: - Zoom
+
     public func incrementZoom(_ increment: Bool) {
         activeTab?.zoomBy(increment)
     }
 
     public func resetZoom() {
         activeTab?.resetZoom()
+    }
+
+    public func setZoom(_ newZoom: CGFloat) {
+        activeTab?.setZoom(newZoom)
     }
 
     public func cycleTabs() {

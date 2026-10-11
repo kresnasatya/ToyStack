@@ -1127,6 +1127,13 @@ class Frame {
         zoom = 1.0
         setNeedsRender()
     }
+
+    func setZoom(_ newZoom: CGFloat) {
+        guard newZoom > 0, abs(newZoom - zoom) > 0.001 else { return }
+        scroll *= newZoom / zoom
+        zoom = newZoom
+        setNeedsRender()
+    }
 }
 
 let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = {

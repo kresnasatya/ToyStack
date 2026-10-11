@@ -8,6 +8,7 @@ var screenshotPath: String? = nil
 var width: CGFloat = 800
 var height: CGFloat = 600
 var scale: CGFloat = 2.0
+var zoom: CGFloat = 1.0
 
 var args = Array(CommandLine.arguments.dropFirst())
 while let arg = args.first {
@@ -21,6 +22,8 @@ while let arg = args.first {
             height = CGFloat(Double(args.removeFirst()) ?? 600)
         case "--scale":
             scale = CGFloat(Double(args.removeFirst()) ?? 2.0)
+        case "--zoom":
+            zoom = CGFloat(Double(args.removeFirst()) ?? 1.0)
         default:
             urlString = arg
     }
@@ -29,7 +32,7 @@ while let arg = args.first {
 func usage() -> Never {
     print("""
         Usage: swift run ToyStackHeadless <url> --screenshot output.png \
-        [--width 800] [--height 600] [--scale 2]
+        [--width 800] [--height 600] [--scale 2] [--zoom 1]
         Example:
             swift run ToyStackHeadless https://browser.engineering --screenshot output.png
             swift run ToyStackHeadless file://$PWD/www/ui-free/effects.html --screenshot effects.png
@@ -55,6 +58,7 @@ MainActor.assumeIsolated {
     browser.resize(to: CGSize(width: width, height: height))
     browser.displayScale = scale
     browser.newTab(WebURL(urlString))
+    browser.setZoom(zoom)
 
     func signature(_ list: [any DisplayItem]) -> String {
         list.map { item -> String in

@@ -288,4 +288,8 @@ public class BrowserTab {
     func resetZoom() {
         rootFrame.resetZoom()
     }
+
+    public func setZoom(_ newZoom: CGFloat) {
+        rootFrame.setZoom(newZoom)
+    }
 }
