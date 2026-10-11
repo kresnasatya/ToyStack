@@ -136,8 +136,14 @@ final class CanvasRenderingContext2D {
 
     func setStyle(_ key: String, _ value: String) {
         switch key {
-            case "fillStyle": fillStyle = value
-            case "strokeStyle": strokeStyle = value
+            case "fillStyle":
+                if BrowserColor.parse(value) != nil {
+                    fillStyle = value
+                }
+            case "strokeStyle":
+                if BrowserColor.parse(value) != nil {
+                    strokeStyle = value
+                }
             case "font": font = value
             case "lineWidth": lineWidth = CGFloat(Double(value) ?? Double(lineWidth))
             default: break
