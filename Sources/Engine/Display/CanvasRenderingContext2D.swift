@@ -63,12 +63,18 @@ final class CanvasRenderingContext2D {
     }
 
     func fillRect(_ rect: Rect) {
+        if coversWholeCanvas(rect) && fillStyle != "transparent" {
+            commands.removeAll()
+        }
         let command: CanvasCommand = .fillRect(rect, fillStyle)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func clearRect(_ rect: Rect) {
+        if coversWholeCanvas(rect) {
+            commands.removeAll()
+        }
         let command: CanvasCommand = .clearRect(rect)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
@@ -129,6 +135,12 @@ final class CanvasRenderingContext2D {
             default: break
 
         }
+    }
+
+    private func coversWholeCanvas(_ rect: Rect) -> Bool {
+        let epsilon: CGFloat = 0.5
+        return rect.left <= epsilon && rect.top <= epsilon
+            && rect.right >= width - epsilon && rect.bottom >= height - epsilon
     }
 
     private func canvasFont() -> BrowserFont {
