@@ -12,10 +12,13 @@ final class CanvasRenderingContext2D {
     private(set) var revision: UInt64 = 0
     private var path: CGMutablePath = CGMutablePath()
 
-    private var fillStyle: String = "black"
-    private var strokeStyle: String = "black"
-    private var font: String = "16px serif"
-    private var lineWidth: CGFloat = 1
+    private var state: CanvasState = CanvasState(
+        fillStyle: "black",
+        strokeStyle: "black",
+        font: "16px serif",
+        lineWidth: 1
+    )
+    private var stateStack: [CanvasState] = []
 
     init?(width: CGFloat, height: CGFloat, scale: CGFloat) {
         guard let cg: CGContext = Self.makeContext(width: width, height: height, scale: scale) else { return nil }
@@ -66,10 +69,10 @@ final class CanvasRenderingContext2D {
 
     func fillRect(_ rect: Rect) {
         revision += 1
-        if coversWholeCanvas(rect) && fillStyle != "transparent" {
+        if coversWholeCanvas(rect) && state.fillStyle != "transparent" {
             commands.removeAll()
         }
-        let command: CanvasCommand = .fillRect(rect, fillStyle)
+        let command: CanvasCommand = .fillRect(rect, state.fillStyle)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
@@ -86,14 +89,14 @@ final class CanvasRenderingContext2D {
 
     func strokeRect(_ rect: Rect) {
         revision += 1
-        let command: CanvasCommand = .strokeRect(rect, strokeStyle, lineWidth)
+        let command: CanvasCommand = .strokeRect(rect, state.strokeStyle, state.lineWidth)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func fillText(_ text: String, at point: Point) {
         revision += 1
-        let command: CanvasCommand = .fillText(text, point, fillStyle, canvasFont())
+        let command: CanvasCommand = .fillText(text, point, state.fillStyle, canvasFont())
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
@@ -112,24 +115,33 @@ final class CanvasRenderingContext2D {
 
     func stroke() {
         revision += 1
-        let command: CanvasCommand = .strokePath(path.copy() ?? path, strokeStyle, lineWidth)
+        let command: CanvasCommand = .strokePath(path.copy() ?? path, state.strokeStyle, state.lineWidth)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func fill() {
         revision += 1
-        let command: CanvasCommand = .fillPath(path.copy() ?? path, fillStyle)
+        let command: CanvasCommand = .fillPath(path.copy() ?? path, state.fillStyle)
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
+    func save() {
+        stateStack.append(state)
+    }
+
+    func restore() {
+        guard let previous: CanvasState = stateStack.popLast() else { return }
+        state = previous
+    }
+
     func style(_ key: String) -> String {
         switch key {
-            case "fillStyle": return fillStyle
-            case "strokeStyle": return strokeStyle
-            case "font": return font
-            case "lineWidth": return String(Double(lineWidth))
+            case "fillStyle": return state.fillStyle
+            case "strokeStyle": return state.strokeStyle
+            case "font": return state.font
+            case "lineWidth": return String(Double(state.lineWidth))
             default: return ""
         }
     }
@@ -138,14 +150,14 @@ final class CanvasRenderingContext2D {
         switch key {
             case "fillStyle":
                 if BrowserColor.parse(value) != nil {
-                    fillStyle = value
+                    state.fillStyle = value
                 }
             case "strokeStyle":
                 if BrowserColor.parse(value) != nil {
-                    strokeStyle = value
+                    state.strokeStyle = value
                 }
-            case "font": font = value
-            case "lineWidth": lineWidth = CGFloat(Double(value) ?? Double(lineWidth))
+            case "font": state.font = value
+            case "lineWidth": state.lineWidth = CGFloat(Double(value) ?? Double(state.lineWidth))
             default: break
 
         }
@@ -158,7 +170,7 @@ final class CanvasRenderingContext2D {
     }
 
     private func canvasFont() -> BrowserFont {
-        let size: Double = Double(font.prefix(while: { $0.isNumber })) ?? 10
+        let size: Double = Double(state.font.prefix(while: { $0.isNumber })) ?? 10
         return getFont(size: Int(size * 0.75), weight: "normal", style: "roman", family: "serif")
     }
 }

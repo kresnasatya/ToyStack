@@ -277,6 +277,14 @@ CanvasRenderingContext2D.prototype.fillText = function (text, x, y) {
   _canvasText(this.handle, text.toString(), [x, y]);
 }
 
+CanvasRenderingContext2D.prototype.save = function () {
+  _canvasState(this.handle, "save");
+}
+
+CanvasRenderingContext2D.prototype.restore() = function () {
+  _canvasState(this.handle, "restore");
+}
+
 var __RAFHandlers = [];
 
 function __runRAFHandlers() {

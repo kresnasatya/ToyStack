@@ -112,5 +112,14 @@ final class CanvasBridge {
             })
         } as @convention(block) (Int, String, [Double]) -> Void,
         forKeyedSubscript: "_canvasText" as NSString)
+
+        jsContext.setObject({
+            [nodeForHandle] (handle: Int, op: String) in
+            MainActor.assumeIsolated({
+                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                if op == "save" { ctx.save() } else { ctx.restore() }
+            })
+        } as @convention(block) (Int, String) -> Void,
+        forKeyedSubscript: "_canvasState" as NSString)
     }
 }
