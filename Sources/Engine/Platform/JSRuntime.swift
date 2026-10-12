@@ -498,5 +498,8 @@ class JSRuntime: @unchecked Sendable {
         })
         guard let source else { fatalError("runtime.js not found in bundle") }
         profiler.measure("jsc.runtimeEval", { jsContext.evaluateScript(source) })
+        if let exception = jsContext.exception {
+            fatalError("runtime.js failed to evaluate: \(exception)")
+        }
     }
 }
