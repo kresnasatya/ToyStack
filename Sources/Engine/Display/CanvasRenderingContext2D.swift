@@ -148,6 +148,24 @@ final class CanvasRenderingContext2D {
         command.draw(cg: cg, renderer: renderer)
     }
 
+    func drawImage(_ image: CGImage, source: Rect?, dest: Rect) {
+        let cropped: CGImage?
+        if let source: Rect = source {
+            cropped = image.cropping(to: source.cgRect)
+        } else {
+            cropped = image
+        }
+        guard let cropped: CGImage = cropped else { return }
+
+        revision += 1
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .drawImage(cropped, dest)
+        )
+        commands.append(command)
+        command.draw(cg: cg, renderer: renderer)
+    }
+
     func save() {
         stateStack.append(state)
     }

@@ -8,6 +8,7 @@ enum CanvasOp {
     case fillPath(CGPath, String)
     case strokePath(CGPath, String, CGFloat)
     case fillText(String, Point, String, BrowserFont)
+    case drawImage(CGImage, Rect)
 
     func draw(cg: CGContext, renderer: CGRenderer) {
         switch self {
@@ -32,6 +33,8 @@ enum CanvasOp {
                 cg.restoreGState()
             case .fillText(let text, let point, let color, let font):
                 renderer.drawText(text, font: font, color: BrowserColor(cssName: color), at: Point(x: point.x, y: point.y - font.ascent))
+            case .drawImage(let image, let rect):
+                renderer.drawImage(image, in: rect)
         }
     }
 }

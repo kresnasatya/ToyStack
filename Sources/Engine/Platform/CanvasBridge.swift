@@ -139,6 +139,54 @@ final class CanvasBridge {
             })
         } as @convention(block) (Int, String, [Double]) -> Void,
         forKeyedSubscript: "_canvasTransform" as NSString)
+
+        jsContext.setObject({
+            [nodeForHandle, requestPaint] (handle: Int, source: Int, mode: String, nums: [Double]) in
+            MainActor.assumeIsolated({
+                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext,
+                    let img = (nodeForHandle(source) as? Element)?.image
+                else { return }
+                let width: CGFloat = CGFloat(img.width)
+                let height: CGFloat = CGFloat(img.height)
+                let sourceRect: Rect?
+                let dest: Rect
+                switch mode {
+                    case "at":
+                        sourceRect = nil
+                        dest = Rect(
+                            left: CGFloat(nums[0]),
+                            top: CGFloat(nums[1]),
+                            right: CGFloat(nums[0]) + width,
+                            bottom: CGFloat(nums[1]) + height
+                        )
+                    case "scale":
+                        sourceRect = nil
+                        dest = Rect(
+                            left: CGFloat(nums[0]),
+                            top: CGFloat(nums[1]),
+                            right: CGFloat(nums[0] + nums[2]),
+                            bottom: CGFloat(nums[1] + nums[3])
+                        )
+                    case "crop":
+                        sourceRect = Rect(
+                            left: CGFloat(nums[0]),
+                            top: CGFloat(nums[1]),
+                            right: CGFloat(nums[0] + nums[2]),
+                            bottom: CGFloat(nums[1] + nums[3])
+                        )
+                        dest = Rect(
+                            left: CGFloat(nums[4]),
+                            top: CGFloat(nums[5]),
+                            right: CGFloat(nums[4] + nums[6]),
+                            bottom: CGFloat(nums[5] + nums[7])
+                        )
+                    default: return
+                }
+                ctx.drawImage(img, source: sourceRect, dest: dest)
+                requestPaint()
+            })
+        } as @convention(block) (Int, Int, String, [Double]) -> Void,
+        forKeyedSubscript: "_canvasDrawImage" as NSString)
     }
 
     private static func affine(_ nums: [Double]) -> CGAffineTransform {

@@ -309,6 +309,22 @@ CanvasRenderingContext2D.prototype.resetTransform = function () {
   _canvasTransform(this.handle, "reset", []);
 }
 
+CanvasRenderingContext2D.prototype.drawImage = function (image) {
+  var source = image && image.handle;
+  if (source === undefined || source === null) return;
+  var nums = Array.prototype.slice.call(arguments, 1).map(Number);
+  var mode = null;
+  if (nums.length === 2) {
+    mode = "at";
+  } else if (nums.length === 4) {
+    mode = "scale";
+  } else if (nums.length === 8) {
+    mode = "crop";
+  }
+  if (mode === null) return;
+  _canvasDrawImage(this.handle, source, mode, nums);
+}
+
 var __RAFHandlers = [];
 
 function __runRAFHandlers() {
