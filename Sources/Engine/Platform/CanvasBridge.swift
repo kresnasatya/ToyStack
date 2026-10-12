@@ -1,5 +1,6 @@
 import Foundation
 import JavaScriptCore
+import CoreGraphics
 
 // MARK: - CanvasBridge
 final class CanvasBridge {
@@ -121,5 +122,33 @@ final class CanvasBridge {
             })
         } as @convention(block) (Int, String) -> Void,
         forKeyedSubscript: "_canvasState" as NSString)
+
+        jsContext.setObject({
+            [nodeForHandle] (handle: Int, op: String, nums: [Double]) in
+            MainActor.assumeIsolated({
+                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                switch op {
+                    case "translate": ctx.translate(x: CGFloat(nums[0]), y: CGFloat(nums[1]))
+                    case "scale": ctx.scale(x: CGFloat(nums[0]), y: CGFloat(nums[1]))
+                    case "rotate": ctx.rotate(radians: CGFloat(nums[0]))
+                    case "transform": ctx.transform(CanvasBridge.affine(nums))
+                    case "setTransform": ctx.setTransform(CanvasBridge.affine(nums))
+                    case "reset": ctx.resetTransform()
+                    default: break
+                }
+            })
+        } as @convention(block) (Int, String, [Double]) -> Void,
+        forKeyedSubscript: "_canvasTransform" as NSString)
+    }
+
+    private static func affine(_ nums: [Double]) -> CGAffineTransform {
+        CGAffineTransform(
+            a: CGFloat(nums[0]),
+            b: CGFloat(nums[1]),
+            c: CGFloat(nums[2]),
+            d: CGFloat(nums[3]),
+            tx: CGFloat(nums[4]),
+            ty: CGFloat(nums[5])
+        )
     }
 }

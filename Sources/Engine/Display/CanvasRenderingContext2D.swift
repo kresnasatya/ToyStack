@@ -13,10 +13,13 @@ final class CanvasRenderingContext2D {
     private var path: CGMutablePath = CGMutablePath()
 
     private var state: CanvasState = CanvasState(
-        fillStyle: "black",
-        strokeStyle: "black",
-        font: "16px serif",
-        lineWidth: 1
+        style: CanvasStyle(
+            fillStyle: "black",
+            strokeStyle: "black",
+            font: "16px serif",
+            lineWidth: 1
+        ),
+        transform: .identity
     )
     private var stateStack: [CanvasState] = []
 
@@ -69,34 +72,46 @@ final class CanvasRenderingContext2D {
 
     func fillRect(_ rect: Rect) {
         revision += 1
-        if coversWholeCanvas(rect) && state.fillStyle != "transparent" {
+        if state.transform.isIdentity, coversWholeCanvas(rect) && state.style.fillStyle != "transparent" {
             commands.removeAll()
         }
-        let command: CanvasCommand = .fillRect(rect, state.fillStyle)
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .fillRect(rect, state.style.fillStyle)
+        )
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func clearRect(_ rect: Rect) {
         revision += 1
-        if coversWholeCanvas(rect) {
+        if state.transform.isIdentity, coversWholeCanvas(rect) {
             commands.removeAll()
         }
-        let command: CanvasCommand = .clearRect(rect)
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .clearRect(rect)
+        )
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func strokeRect(_ rect: Rect) {
         revision += 1
-        let command: CanvasCommand = .strokeRect(rect, state.strokeStyle, state.lineWidth)
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .strokeRect(rect, state.style.strokeStyle, state.style.lineWidth)
+        )
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func fillText(_ text: String, at point: Point) {
         revision += 1
-        let command: CanvasCommand = .fillText(text, point, state.fillStyle, canvasFont())
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .fillText(text, point, state.style.fillStyle, canvasFont())
+        )
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
@@ -115,14 +130,20 @@ final class CanvasRenderingContext2D {
 
     func stroke() {
         revision += 1
-        let command: CanvasCommand = .strokePath(path.copy() ?? path, state.strokeStyle, state.lineWidth)
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .strokePath(path.copy() ?? path, state.style.strokeStyle, state.style.lineWidth)
+        )
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
 
     func fill() {
         revision += 1
-        let command: CanvasCommand = .fillPath(path.copy() ?? path, state.fillStyle)
+        let command: CanvasCommand = CanvasCommand(
+            transform: state.transform,
+            op: .fillPath(path.copy() ?? path, state.style.fillStyle)
+        )
         commands.append(command)
         command.draw(cg: cg, renderer: renderer)
     }
@@ -136,12 +157,36 @@ final class CanvasRenderingContext2D {
         state = previous
     }
 
+    func translate(x: CGFloat, y: CGFloat) {
+        state.transform = state.transform.translated(x: x, y: y)
+    }
+
+    func scale(x: CGFloat, y: CGFloat) {
+        state.transform = state.transform.scaled(x: x, y: y)
+    }
+
+    func rotate(radians: CGFloat) {
+        state.transform = state.transform.rotated(by: radians)
+    }
+
+    func transform(_ matrix: CGAffineTransform) {
+        state.transform = CanvasTransform(matrix: matrix).concatenating(state.transform)
+    }
+
+    func setTransform(_ matrix: CGAffineTransform) {
+        state.transform = CanvasTransform(matrix: matrix)
+    }
+
+    func resetTransform() {
+        state.transform = .identity
+    }
+
     func style(_ key: String) -> String {
         switch key {
-            case "fillStyle": return state.fillStyle
-            case "strokeStyle": return state.strokeStyle
-            case "font": return state.font
-            case "lineWidth": return String(Double(state.lineWidth))
+            case "fillStyle": return state.style.fillStyle
+            case "strokeStyle": return state.style.strokeStyle
+            case "font": return state.style.font
+            case "lineWidth": return String(Double(state.style.lineWidth))
             default: return ""
         }
     }
@@ -150,14 +195,14 @@ final class CanvasRenderingContext2D {
         switch key {
             case "fillStyle":
                 if BrowserColor.parse(value) != nil {
-                    state.fillStyle = value
+                    state.style.fillStyle = value
                 }
             case "strokeStyle":
                 if BrowserColor.parse(value) != nil {
-                    state.strokeStyle = value
+                    state.style.strokeStyle = value
                 }
-            case "font": state.font = value
-            case "lineWidth": state.lineWidth = CGFloat(Double(value) ?? Double(state.lineWidth))
+            case "font": state.style.font = value
+            case "lineWidth": state.style.lineWidth = CGFloat(Double(value) ?? Double(state.style.lineWidth))
             default: break
 
         }
@@ -170,7 +215,7 @@ final class CanvasRenderingContext2D {
     }
 
     private func canvasFont() -> BrowserFont {
-        let size: Double = Double(state.font.prefix(while: { $0.isNumber })) ?? 10
+        let size: Double = Double(state.style.font.prefix(while: { $0.isNumber })) ?? 10
         return getFont(size: Int(size * 0.75), weight: "normal", style: "roman", family: "serif")
     }
 }

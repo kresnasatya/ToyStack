@@ -281,8 +281,32 @@ CanvasRenderingContext2D.prototype.save = function () {
   _canvasState(this.handle, "save");
 }
 
-CanvasRenderingContext2D.prototype.restore() = function () {
+CanvasRenderingContext2D.prototype.restore = function () {
   _canvasState(this.handle, "restore");
+}
+
+CanvasRenderingContext2D.prototype.translate = function (x, y) {
+  _canvasTransform(this.handle, "translate", [x, y]);
+}
+
+CanvasRenderingContext2D.prototype.scale = function (x, y) {
+  _canvasTransform(this.handle, "scale", [x, y]);
+}
+
+CanvasRenderingContext2D.prototype.rotate = function (angle) {
+  _canvasTransform(this.handle, "rotate", [angle]);
+}
+
+CanvasRenderingContext2D.prototype.transform = function (a, b, c, d, e, f) {
+  _canvasTransform(this.handle, "transform", [a, b, c, d, e, f]);
+}
+
+CanvasRenderingContext2D.prototype.setTransform = function(a, b, c, d, e, f) {
+  _canvasTransform(this.handle, "setTransform", [a, b, c, d, e, f]);
+}
+
+CanvasRenderingContext2D.prototype.resetTransform = function () {
+  _canvasTransform(this.handle, "reset", []);
 }
 
 var __RAFHandlers = [];
