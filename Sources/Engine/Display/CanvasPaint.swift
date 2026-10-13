@@ -18,8 +18,11 @@ extension CanvasPaint {
 
     var isOpaque: Bool {
         switch self {
-            case .color(let value): return value != "transparent"
-            case .gradient: return true
+            case .color(let value):
+                return (BrowserColor.parse(value)?.alpha ?? 0) >= 1
+            case .gradient(let gradient):
+                guard gradient.stops.count >= 2 else { return false }
+                return gradient.stops.allSatisfy({ (BrowserColor.parse($0.color)?.alpha ?? 0) >= 1 })
         }
     }
 

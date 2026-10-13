@@ -2,8 +2,8 @@ import CoreGraphics
 
 // MARK: - CanvasRenderingContext2D
 final class CanvasRenderingContext2D {
-    let width: CGFloat
-    let height: CGFloat
+    private(set) var width: CGFloat
+    private(set) var height: CGFloat
 
     private var cg: CGContext
     private var renderer: CGRenderer
@@ -12,15 +12,7 @@ final class CanvasRenderingContext2D {
     private(set) var revision: UInt64 = 0
     private var path: CGMutablePath = CGMutablePath()
 
-    private var state: CanvasState = CanvasState(
-        style: CanvasStyle(
-            fillStyle: CanvasPaint.color("black"),
-            strokeStyle: CanvasPaint.color("black"),
-            font: "16px serif",
-            lineWidth: 1
-        ),
-        transform: .identity
-    )
+    private var state: CanvasState = CanvasRenderingContext2D.defaultState()
     private var stateStack: [CanvasState] = []
     private var gradients: [Int: CanvasGradient] = [:]
     private var nextGradientID: Int = 1
@@ -56,6 +48,18 @@ final class CanvasRenderingContext2D {
         return cg
     }
 
+    private static func defaultState() -> CanvasState {
+        CanvasState(
+            style: CanvasStyle(
+                fillStyle: CanvasPaint.color("black"),
+                strokeStyle: CanvasPaint.color("black"),
+                font: "16px serif",
+                lineWidth: 1
+            ),
+            transform: .identity
+        )
+    }
+
     func setScale(_ newScale: CGFloat) {
         guard abs(newScale - scale) > 0.001 else { return }
         guard let next: CGContext = Self.makeContext(width: width, height: height, scale: newScale) else { return }
@@ -66,6 +70,20 @@ final class CanvasRenderingContext2D {
         for command in commands {
             command.draw(cg: cg, renderer: renderer)
         }
+    }
+
+    func resize(width: CGFloat, height: CGFloat) {
+        guard width != self.width || height != self.height else { return }
+        guard let next: CGContext = Self.makeContext(width: width, height: height, scale: scale) else { return }
+        self.width = width
+        self.height = height
+        cg = next
+        renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), scale: scale)
+        commands.removeAll()
+        path = CGMutablePath()
+        stateStack.removeAll()
+        state = Self.defaultState()
+        revision += 1
     }
 
     func image() -> CGImage? {
@@ -228,6 +246,7 @@ final class CanvasRenderingContext2D {
     }
 
     func addColorStop(id: Int, offset: Double, color: String) {
+        guard BrowserColor.parse(color) != nil else { return }
         gradients[id]?.addStop(CanvasGradientStop(offset: offset, color: color))
     }
 

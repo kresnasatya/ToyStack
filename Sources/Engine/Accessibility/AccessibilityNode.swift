@@ -62,6 +62,7 @@ class AccessibilityNode {
         case "button": return "button"
         case "html": return "document"
         case "iframe": return "iframe"
+        case "canvas": return "image"
         default:
             if el.attributes["tabindex"] != nil { return "focusable" }
             if el.attributes["role"] == "alert" { return "alert" }
