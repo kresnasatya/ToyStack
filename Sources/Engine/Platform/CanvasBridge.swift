@@ -187,6 +187,24 @@ final class CanvasBridge {
             })
         } as @convention(block) (Int, Int, String, [Double]) -> Void,
         forKeyedSubscript: "_canvasDrawImage" as NSString)
+
+        jsContext.setObject({
+            [nodeForHandle] (handle: Int, kind: String, nums: [Double]) -> Int in
+            MainActor.assumeIsolated({
+                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return -1 }
+                return ctx.createGradient(kind: kind, nums: nums)
+            })
+        } as @convention(block) (Int, String, [Double]) -> Int,
+        forKeyedSubscript: "_canvasCreateGradient" as NSString)
+
+        jsContext.setObject({
+            [nodeForHandle] (handle: Int, id: Int, offset: Double, color: String) in
+            MainActor.assumeIsolated({
+                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                ctx.addColorStop(id: id, offset: offset, color: color)
+            })
+        } as @convention(block) (Int, Int, Double, String) -> Void,
+        forKeyedSubscript: "_canvasGradientStop" as NSString)
     }
 
     private static func affine(_ nums: [Double]) -> CGAffineTransform {

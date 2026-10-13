@@ -14,14 +14,16 @@ final class CanvasRenderingContext2D {
 
     private var state: CanvasState = CanvasState(
         style: CanvasStyle(
-            fillStyle: "black",
-            strokeStyle: "black",
+            fillStyle: CanvasPaint.color("black"),
+            strokeStyle: CanvasPaint.color("black"),
             font: "16px serif",
             lineWidth: 1
         ),
         transform: .identity
     )
     private var stateStack: [CanvasState] = []
+    private var gradients: [Int: CanvasGradient] = [:]
+    private var nextGradientID: Int = 1
 
     init?(width: CGFloat, height: CGFloat, scale: CGFloat) {
         guard let cg: CGContext = Self.makeContext(width: width, height: height, scale: scale) else { return nil }
@@ -72,7 +74,7 @@ final class CanvasRenderingContext2D {
 
     func fillRect(_ rect: Rect) {
         revision += 1
-        if state.transform.isIdentity, coversWholeCanvas(rect) && state.style.fillStyle != "transparent" {
+        if state.transform.isIdentity, coversWholeCanvas(rect) && state.style.fillStyle.isOpaque {
             commands.removeAll()
         }
         let command: CanvasCommand = CanvasCommand(
@@ -199,10 +201,40 @@ final class CanvasRenderingContext2D {
         state.transform = .identity
     }
 
+    func createGradient(kind: String, nums: [Double]) -> Int {
+        let gradientKind: CanvasGradientKind
+        switch kind {
+            case "linear":
+                guard nums.count == 4 else { return -1 }
+                gradientKind = .linear(
+                    start: Point(x: CGFloat(nums[0]), y: CGFloat(nums[1])),
+                    end: Point(x: CGFloat(nums[2]), y: CGFloat(nums[3]))
+                )
+            case "radial":
+                guard nums.count == 6 else { return -1 }
+                gradientKind = .radial(
+                    start: Point(x: CGFloat(nums[0]), y: CGFloat(nums[1])),
+                    startRadius: CGFloat(nums[2]),
+                    end: Point(x: CGFloat(nums[3]), y: CGFloat(nums[4])),
+                    endRadius: CGFloat(nums[5])
+                )
+            default: return -1
+        }
+
+        let id: Int = nextGradientID
+        nextGradientID += 1
+        gradients[id] = CanvasGradient(id: id, kind: gradientKind)
+        return id
+    }
+
+    func addColorStop(id: Int, offset: Double, color: String) {
+        gradients[id]?.addStop(CanvasGradientStop(offset: offset, color: color))
+    }
+
     func style(_ key: String) -> String {
         switch key {
-            case "fillStyle": return state.style.fillStyle
-            case "strokeStyle": return state.style.strokeStyle
+            case "fillStyle": return state.style.fillStyle.serialized
+            case "strokeStyle": return state.style.strokeStyle.serialized
             case "font": return state.style.font
             case "lineWidth": return String(Double(state.style.lineWidth))
             default: return ""
@@ -212,18 +244,25 @@ final class CanvasRenderingContext2D {
     func setStyle(_ key: String, _ value: String) {
         switch key {
             case "fillStyle":
-                if BrowserColor.parse(value) != nil {
-                    state.style.fillStyle = value
-                }
+                if let paint: CanvasPaint = paint(from: value) { state.style.fillStyle = paint }
             case "strokeStyle":
-                if BrowserColor.parse(value) != nil {
-                    state.style.strokeStyle = value
-                }
+                if let paint: CanvasPaint = paint(from: value) { state.style.strokeStyle = paint }
             case "font": state.style.font = value
             case "lineWidth": state.style.lineWidth = CGFloat(Double(value) ?? Double(state.style.lineWidth))
             default: break
 
         }
+    }
+
+    private func paint(from value: String) -> CanvasPaint? {
+        if value.hasPrefix(gradientMarker) {
+            guard let id: Int = Int(value.dropFirst(gradientMarker.count)),
+                let gradient: CanvasGradient = gradients[id]
+            else { return nil }
+            return .gradient(gradient)
+        }
+        if BrowserColor.parse(value) != nil { return .color(value) }
+        return nil
     }
 
     private func coversWholeCanvas(_ rect: Rect) -> Bool {

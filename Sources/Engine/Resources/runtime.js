@@ -207,7 +207,7 @@ function CanvasRenderingContext2D(handle) {
 
 Object.defineProperty(CanvasRenderingContext2D.prototype, "fillStyle", {
   get: function () {
-    return _canvasStyleGet(this.handle, "fillStyle")
+    return paintFromStored(this.handle, _canvasStyleGet(this.handle, "fillStyle"));
   },
   set: function (value) {
     _canvasStyleSet(this.handle, "fillStyle", value.toString());
@@ -216,7 +216,7 @@ Object.defineProperty(CanvasRenderingContext2D.prototype, "fillStyle", {
 
 Object.defineProperty(CanvasRenderingContext2D.prototype, "strokeStyle", {
   get: function () {
-    return _canvasStyleGet(this.handle, "strokeStyle");
+    return paintFromStored(this.handle, _canvasStyleGet(this.handle, "strokeStyle"));
   },
   set: function (value) {
     _canvasStyleSet(this.handle, "strokeStyle", value.toString());
@@ -323,6 +323,36 @@ CanvasRenderingContext2D.prototype.drawImage = function (image) {
   }
   if (mode === null) return;
   _canvasDrawImage(this.handle, source, mode, nums);
+}
+
+function CanvasGradient(handle, id) {
+  this.handle = handle;
+  this.id = id;
+}
+
+CanvasGradient.prototype.addColorStop = function (offset, color) {
+  _canvasGradientStop(this.handle, this.id, offset, color.toString());
+}
+
+CanvasGradient.prototype.toString = function () {
+  return "--gradient--" + this.id;
+}
+
+function paintFromStored(handle, stored) {
+  if (stored.indexOf("--gradient--") === 0) {
+    return new CanvasGradient(handle, parseInt(stored.slice(12), 10));
+  }
+  return stored;
+}
+
+CanvasRenderingContext2D.prototype.createLinearGradient = function (x0, y0, x1, y1) {
+  var id = _canvasCreateGradient(this.handle, "linear", [x0, y0, x1, y1]);
+  return id < 0 ? null : new CanvasGradient(this.handle, id);
+}
+
+CanvasRenderingContext2D.prototype.createRadialGradient = function (x0, y0, r0, x1, y1, r1) {
+  var id = _canvasCreateGradient(this.handle, "radial", [x0, y0, r0, x1, y1, r1]);
+  return id < 0 ? null : new CanvasGradient(this.handle, id);
 }
 
 var __RAFHandlers = [];
