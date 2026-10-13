@@ -16,6 +16,7 @@ class AccessibilityNode {
         self.bounds = AccessibilityNode.computeBounds(for: node)
         self.role = AccessibilityNode.computeRole(for: node)
         self.live = AccessibilityNode.computeLive(for: node)
+        self.text = AccessibilityNode.computeText(for: node)
     }
 
     private static func computeBounds(for node: DOMNode) -> Rect {
@@ -62,7 +63,9 @@ class AccessibilityNode {
         case "button": return "button"
         case "html": return "document"
         case "iframe": return "iframe"
-        case "canvas": return "image"
+        case "canvas", "img":
+            return "image"
+
         default:
             if el.attributes["tabindex"] != nil { return "focusable" }
             if el.attributes["role"] == "alert" { return "alert" }
@@ -75,6 +78,40 @@ class AccessibilityNode {
         let live: String = el.attributes["aria-live"] ?? "off"
         if live == "assertive" || live == "polite" { return live }
         return "off"
+    }
+
+    private static func computeText(for node: DOMNode) -> String {
+        if let text = node as? TextNode {
+            return text.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard let el = node as? Element else { return "" }
+        if let label = el.attributes["aria-label"], !label.isEmpty { return label }
+        if let alt = el.attributes["alt"], !alt.isEmpty { return alt }
+        switch el.tag {
+            case "canvas":
+                let fallback: String = AccessibilityNode.descendantText(el)
+                return fallback.isEmpty ? "Canvas" : fallback
+            case "input":
+                if el.attributes["type"] == "checkbox" {
+                    return el.attributes["label"] ?? ""
+                }
+                return el.attributes["value"] ?? ""
+            default: return ""
+        }
+    }
+
+    private static func descendantText(_ node: DOMNode) -> String {
+        var parts: [String] = []
+        for child in node.children {
+            if let text = child as? TextNode {
+                let trimmed: String = text.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { parts.append(trimmed) }
+            } else {
+                let nested: String = AccessibilityNode.descendantText(child)
+                if !nested.isEmpty { parts.append(nested) }
+            }
+        }
+        return parts.joined(separator: " ")
     }
 
     func build() {
