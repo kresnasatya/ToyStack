@@ -1,12 +1,17 @@
 import CoreGraphics
 
 // MARK: - CanvasGradient
-struct CanvasGradient {
+final class CanvasGradient {
     let id: Int
     let kind: CanvasGradientKind
     private(set) var stops: [CanvasGradientStop] = []
 
-    mutating func addStop(_ stop: CanvasGradientStop) {
+    init(id: Int, kind: CanvasGradientKind) {
+        self.id = id
+        self.kind = kind
+    }
+
+    func addStop(_ stop: CanvasGradientStop) {
         stops.append(stop)
     }
 

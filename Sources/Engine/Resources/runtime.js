@@ -331,7 +331,12 @@ function CanvasGradient(handle, id) {
 }
 
 CanvasGradient.prototype.addColorStop = function (offset, color) {
-  _canvasGradientStop(this.handle, this.id, offset, color.toString());
+  var error = _canvasGradientStop(this.handle, this.id, Number(offset), color.toString());
+  if (error) {
+    var e = new Error(error);
+    e.name = error;
+    throw e;
+  }
 }
 
 CanvasGradient.prototype.toString = function () {

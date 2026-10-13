@@ -198,12 +198,12 @@ final class CanvasBridge {
         forKeyedSubscript: "_canvasCreateGradient" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, id: Int, offset: Double, color: String) in
+            [nodeForHandle] (handle: Int, id: Int, offset: Double, color: String) -> String in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
-                ctx.addColorStop(id: id, offset: offset, color: color)
+                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return "" }
+                return ctx.addColorStop(id: id, offset: offset, color: color)
             })
-        } as @convention(block) (Int, Int, Double, String) -> Void,
+        } as @convention(block) (Int, Int, Double, String) -> String,
         forKeyedSubscript: "_canvasGradientStop" as NSString)
     }
 

@@ -245,9 +245,11 @@ final class CanvasRenderingContext2D {
         return id
     }
 
-    func addColorStop(id: Int, offset: Double, color: String) {
-        guard BrowserColor.parse(color) != nil else { return }
+    func addColorStop(id: Int, offset: Double, color: String) -> String {
+        guard offset.isFinite, offset >= 0, offset <= 1 else { return "IndexSizeError" }
+        guard BrowserColor.parse(color) != nil else { return "SyntaxError"}
         gradients[id]?.addStop(CanvasGradientStop(offset: offset, color: color))
+        return ""
     }
 
     func style(_ key: String) -> String {
