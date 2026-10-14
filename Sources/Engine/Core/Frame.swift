@@ -138,7 +138,7 @@ class Frame {
             self.browser?.measure.stop("BrowserTab.load.scripts")
 
             self.browser?.measure.start("BrowserTab.load.images")
-            let images: [(index: Int, image: CGImage)] = await networkTaskRunner.schedule(name: "fetch-images") {
+            let images: [(index: Int, image: CGImage?)] = await networkTaskRunner.schedule(name: "fetch-images") {
                 await self.fetchImages(urls: resources.imageURLs)
             }
             self.applyImages(images)
@@ -362,8 +362,8 @@ class Frame {
 
     private func fetchImages(
         urls: [(index: Int, url: WebURL, ref: WebURL?)]
-    ) async -> [(index: Int, image: CGImage)] {
-        var result: [(index: Int, image: CGImage)] = []
+    ) async -> [(index: Int, image: CGImage?)] {
+        var result: [(index: Int, image: CGImage?)] = []
         var allowed: [ResourceLoad] = []
         for entry in urls {
             guard allowedRequest(entry.url) else {
@@ -372,7 +372,7 @@ class Frame {
             }
             allowed.append(entry)
         }
-        await withTaskGroup(of: (Int, CGImage).self) { group in
+        await withTaskGroup(of: (Int, CGImage?).self) { group in
             for (i, imageURL, ref) in allowed {
                 group.addTask(operation: {
                     return await (i, self.decodeImage(url: imageURL, referrer: ref))
@@ -385,21 +385,21 @@ class Frame {
         return result
     }
 
-    private nonisolated func decodeImage(url: WebURL, referrer: WebURL?) async -> CGImage {
+    private nonisolated func decodeImage(url: WebURL, referrer: WebURL?) async -> CGImage? {
         guard let (_, _, data) = try? await url.requestRawBytes(referrer: referrer),
             let source = CGImageSourceCreateWithData(data as CFData, nil),
             let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil)
             else {
-            return BrokenImage.image
+            return nil
         }
         return decoded
     }
 
-    private func applyImages(_ images: [(index: Int, image: CGImage)]) {
+    private func applyImages(_ images: [(index: Int, image: CGImage?)]) {
         let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
         let imgs: [Element] = elements.filter({ $0.tag == "img" })
         for (i, image) in images where i < imgs.count {
-            imgs[i].image = image
+            imgs[i].image = image ?? BrokenImage.replacement(for: imgs[i])
         }
     }
 
@@ -424,10 +424,10 @@ class Frame {
             guard allowedRequest(imageURL) else { continue }
             let referrer: WebURL? = effectiveReferrer(for: imageURL)
             Task { @MainActor in
-                let image: CGImage = await runner.schedule(name: "lazy-image", {
+                let image: CGImage? = await runner.schedule(name: "lazy-image", {
                     await self.decodeImage(url: imageURL, referrer: referrer)
                 })
-                el.image = image
+                el.image = image ?? BrokenImage.replacement(for: el)
                 self.setNeedsLayout()
             }
         }
@@ -474,10 +474,10 @@ class Frame {
             requestedBackgroundImages.insert(key)
             let referrer: WebURL? = effectiveReferrer(for: resolved)
             Task { @MainActor in
-                let image: CGImage = await runner.schedule(name: "bg-image", {
+                let image: CGImage? = await runner.schedule(name: "bg-image", {
                     await self.decodeImage(url: resolved, referrer: referrer)
                 })
-                self.backgroundImageCache[key] = image
+                if let image { self.backgroundImageCache[key] = image }
                 self.setNeedsRender()
             }
         }

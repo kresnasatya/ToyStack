@@ -1,0 +1,43 @@
+<style>
+  body { font-family: monospace; margin: 8px; }
+  p { margin: 8px 0 2px; }
+  .frame { border: 1px solid black; background-color: #f5f5f5; }
+  .gap { height: 520px; }
+  .note { color: #666666; }
+</style>
+
+<p>1. Broken, with alt — the broken icon shows (160×160), because alt says the image
+matters:</p>
+<div class="frame"><img src="/im/no-such-01.png" alt="a missing diagram" /></div>
+
+<p>2. Broken, no alt — nothing is drawn, so this frame is just an empty strip:</p>
+<div class="frame"><img src="/im/no-such-02.png" /></div>
+
+<p>3. Broken, empty alt — also nothing:</p>
+<div class="frame"><img src="/im/no-such-03.png" alt="" /></div>
+
+<p>4. Broken, with alt and a reserved box — the icon is stretched into 200×120:</p>
+<div class="frame"><img src="/im/no-such-04.png" alt="missing but sized" width="200" height="120" /></div>
+
+<p>5. Broken, no alt, but a reserved box — the 200×120 box stays, empty:</p>
+<div class="frame"><img src="/im/no-such-05.png" width="200" height="120" /></div>
+
+<p>6. A real image for comparison (≈200×134):</p>
+<div class="frame"><img src="/im/hes.jpg" alt="real" width="200" /></div>
+
+<div class="gap"></div>
+
+<p>7. Lazy, no width/height — it is 0×0 until it loads, so this frame reserves
+nothing:</p>
+<div class="frame"><img loading="lazy" src="/im/lazy-03.png" alt="lazy, unsized" /></div>
+
+<div class="gap"></div>
+
+<p>8. Lazy, with width/height — the 240×160 box is reserved before the bitmap and does
+not change when it arrives:</p>
+<div class="frame"><img loading="lazy" src="/im/lazy-04.png" alt="lazy, sized" width="240" height="160" /></div>
+
+<p class="note">
+  Boxes 1–6 fail to load. Only box 1 and box 4 show the broken icon; the rest are
+  invisible decoration. Scroll down to watch boxes 7 and 8 fill in.
+</p>
