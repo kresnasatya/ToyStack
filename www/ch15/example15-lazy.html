@@ -1,0 +1,49 @@
+<style>
+  body { font-family: monospace; margin: 8px; }
+  p { margin: 6px 0 2px; }
+  .frame { border: 1px solid black; background-color: #f5f5f5; }
+  .gap { height: 520px; }
+  img { vertical-align: top; }
+  .note { color: #666666; }
+</style>
+
+<p>Each image is a distinct file, so you can tell exactly which element loaded.</p>
+
+<p>1. eager — no <code>loading</code> attribute: downloaded during page load, wherever it sits:</p>
+<div class="frame"><img width="240" height="160" src="/im/lazy-01.png" alt="eager 1" /></div>
+
+<p>2. lazy, on screen — not in the page-load batch; downloaded right after the first layout:</p>
+<div class="frame"><img width="240" height="160" loading="lazy" src="/im/lazy-02.png" alt="lazy 2" /></div>
+
+<div class="gap"></div>
+
+<p>3. lazy, about one screen down — downloaded as it approaches, before you see it:</p>
+<div class="frame"><img width="240" height="160" loading="lazy" src="/im/lazy-03.png" alt="lazy 3" /></div>
+
+<div class="gap"></div>
+
+<p>4. lazy — still blank while it is far away:</p>
+<div class="frame"><img width="240" height="160" loading="lazy" src="/im/lazy-04.png" alt="lazy 4" /></div>
+
+<p>5. eager, deep in the page — already downloaded long before you scroll here:</p>
+<div class="frame"><img width="240" height="160" src="/im/lazy-05.png" alt="eager 5" /></div>
+
+<div class="gap"></div>
+
+<p>6. lazy:</p>
+<div class="frame"><img width="240" height="160" loading="lazy" src="/im/lazy-06.png" alt="lazy 6" /></div>
+
+<div class="gap"></div>
+
+<p>7. lazy:</p>
+<div class="frame"><img width="240" height="160" loading="lazy" src="/im/lazy-07.png" alt="lazy 7" /></div>
+
+<div class="gap"></div>
+
+<p>8. lazy at the very bottom:</p>
+<div class="frame"><img width="240" height="160" loading="lazy" src="/im/lazy-08.png" alt="lazy 8" /></div>
+
+<p class="note">
+  Scroll slowly: each lazy box fills in one screenful ahead of the viewport. The deep
+  eager box (5) is already painted the moment it comes into view.
+</p>

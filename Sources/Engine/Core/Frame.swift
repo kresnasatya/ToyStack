@@ -40,6 +40,7 @@ class Frame {
     private var loadedScriptURLs: Set<String> = []
     private var requestedBackgroundImages: Set<String> = []
     private var backgroundImageCache: [String: CGImage] = [:]
+    private var lazyImages: [Element] = []
     var js: JSRuntime!
 
     private var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
@@ -243,9 +244,10 @@ class Frame {
                         let scriptURL: WebURL = url.resolve(node.attributes["src"]!)
                         return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
                     })
-                let images: [ResourceLoad] = elements
-                    .filter({ $0.tag == "img" })
-                    .enumerated()
+                let imgs: [Element] = elements.filter({ $0.tag == "img" })
+                self.lazyImages = imgs.filter({ ImageLoading(element: $0) == .lazy })
+                let images: [ResourceLoad] = imgs.enumerated()
+                    .filter({ ImageLoading(element: $0.element) == .eager })
                     .map({ (i, img) in
                         let src: String = img.attributes["src"] ?? ""
                         let imageURL: WebURL = src.isEmpty ? url : url.resolve(src)
@@ -399,6 +401,37 @@ class Frame {
         for (i, image) in images where i < imgs.count {
             imgs[i].image = image
         }
+    }
+
+    private func loadLazyImages() {
+        guard let tab, let runner = tab.networkTaskRunner, let base = url else { return }
+        let region: ImageLoadingRegion = ImageLoadingRegion(
+            scroll: scroll,
+            viewportHeight: frameHeight,
+            margin: frameHeight
+        )
+        var remaining: [Element] = []
+        for el in lazyImages {
+            guard el.image == nil,
+                let bounds: Rect = el.layoutObject?.absoluteBounds(),
+                region.contains(bounds)
+            else {
+                remaining.append(el)
+                continue
+            }
+            let src: String = el.attributes["src"] ?? ""
+            let imageURL: WebURL = src.isEmpty ? base : base.resolve(src)
+            guard allowedRequest(imageURL) else { continue }
+            let referrer: WebURL? = effectiveReferrer(for: imageURL)
+            Task { @MainActor in
+                let image: CGImage = await runner.schedule(name: "lazy-image", {
+                    await self.decodeImage(url: imageURL, referrer: referrer)
+                })
+                el.image = image
+                self.setNeedsLayout()
+            }
+        }
+        lazyImages = remaining
     }
 
     private func loadBackgroundImages() {
@@ -731,6 +764,10 @@ class Frame {
             }
         }
 
+        if !lazyImages.isEmpty {
+            loadLazyImages()
+        }
+
         if needsAnotherFrame {
             requestAnimationFrame()
         }
@@ -810,6 +847,9 @@ class Frame {
         interestTop = max(0, scroll - frameHeight)
         browser?.applyScrollAndUpdateInterest(
             scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
+        if !lazyImages.isEmpty {
+            requestAnimationFrame()
+        }
     }
 
     func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
@@ -897,6 +937,9 @@ class Frame {
         scroll = max(0, min(scroll - deltaY, maxScroll))
         if !checkInterestRegion() {
             browser?.applyScroll(scroll)
+        }
+        if !lazyImages.isEmpty {
+            requestAnimationFrame()
         }
     }
 

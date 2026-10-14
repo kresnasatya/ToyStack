@@ -10,4 +10,5 @@ brownie
 browser.trace
 *.png
 !Sources/Engine/**/*.png
+!www/**/*.png
 *.mov
