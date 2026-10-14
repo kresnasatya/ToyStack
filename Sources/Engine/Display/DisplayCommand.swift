@@ -35,6 +35,9 @@ extension DisplayCommand {
             hasher.combine(ObjectIdentifier(cmd.image))
             hasher.combine(cmd.rendering.rawValue)
             hasher.combine(cmd.contentVersion)
+        } else if let cmd = self as? DrawBackgroundImage {
+            hasher.combine(ObjectIdentifier(cmd.image))
+            hasher.combine(cmd.rendering.rawValue)
         }
         return hasher.finalize()
     }

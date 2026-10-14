@@ -38,6 +38,8 @@ class Frame {
     private var allowedOrigins: [String]?
     private var referrerPolicy: String = ""
     private var loadedScriptURLs: Set<String> = []
+    private var requestedBackgroundImages: Set<String> = []
+    private var backgroundImageCache: [String: CGImage] = [:]
     var js: JSRuntime!
 
     private var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
@@ -399,6 +401,55 @@ class Frame {
         }
     }
 
+    private func loadBackgroundImages() {
+        guard let tab, let runner = tab.networkTaskRunner, let base = url else { return }
+
+        var order: [String] = []
+        var urlByKey: [String: WebURL] = [:]
+        var elementsByKey: [String: [Element]] = [:]
+
+        for node in treeToList(nodes) {
+            guard let el = node as? Element,
+                let value = el.style["background-image"],
+                let raw = CSSValueParser.backgroundImageURL(value)
+            else { continue }
+
+            if el.backgroundImageSource != value {
+                el.backgroundImage = nil
+                el.backgroundImageSource = value
+            }
+
+            let resolved: WebURL = base.resolve(raw)
+            guard allowedRequest(resolved) else { continue }
+            let key: String = resolved.toString()
+            if urlByKey[key] == nil {
+                order.append(key)
+                urlByKey[key] = resolved
+            }
+            elementsByKey[key, default: []].append(el)
+        }
+
+        for key in order {
+            let elements: [Element] = elementsByKey[key] ?? []
+            if let cached: CGImage = backgroundImageCache[key] {
+                for el in elements { el.backgroundImage = cached }
+                continue
+            }
+            guard !requestedBackgroundImages.contains(key), let resolved = urlByKey[key] else {
+                continue
+            }
+            requestedBackgroundImages.insert(key)
+            let referrer: WebURL? = effectiveReferrer(for: resolved)
+            Task { @MainActor in
+                let image: CGImage = await runner.schedule(name: "bg-image", {
+                    await self.decodeImage(url: resolved, referrer: referrer)
+                })
+                self.backgroundImageCache[key] = image
+                self.setNeedsRender()
+            }
+        }
+    }
+
     private func loadIframes() {
         guard let tab else { return }
         let iframes: [Element] = treeToList(nodes)
@@ -569,6 +620,8 @@ class Frame {
                 }
             }
             browser?.measure.stop("BrowserTab.style.visited")
+
+            loadBackgroundImages()
 
             needsStyle = false
             needsLayout = true

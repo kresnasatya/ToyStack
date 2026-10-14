@@ -141,7 +141,9 @@ class CSSParser {
     private static func expandBackground(_ tokens: [String]) -> [String: String] {
         var props: [String: String] = [:]
         for token in tokens where token != "," {
-            if cssColorToRGB(token) != nil {
+            if token.lowercased().hasPrefix("url(") {
+                props["background-image"] = token
+            } else if cssColorToRGB(token) != nil {
                 props["background-color"] = token
             }
         }

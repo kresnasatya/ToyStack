@@ -28,6 +28,8 @@ class Element: DOMNode {
     var animations: [String: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
+    var backgroundImage: CGImage? = nil
+    var backgroundImageSource: String? = nil
     var frame: Frame? = nil
     var canvasContext: CanvasRenderingContext2D? = nil
 

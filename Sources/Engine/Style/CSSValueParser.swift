@@ -54,4 +54,15 @@ enum CSSValueParser {
         }
     }
 
+    static func backgroundImageURL(_ value: String) -> String? {
+        guard value.lowercased().hasPrefix("url("), value.hasSuffix(")") else { return nil }
+        var inner: String = String(value.dropFirst(4).dropLast())
+            .trimmingCharacters(in: .whitespaces)
+        if inner.count >= 2 {
+            if (inner.hasPrefix("\"") && inner.hasSuffix("\"")) || (inner.hasPrefix("'") && inner.hasSuffix("'")) {
+                inner = String(inner.dropFirst().dropLast())
+            }
+        }
+        return inner.isEmpty ? nil : inner
+    }
 }

@@ -445,6 +445,13 @@ class BlockLayout: LayoutObject {
             }
         }
 
+        if let el = node as? Element, let image = el.backgroundImage,
+            let value = node.style["background-image"], value != "none" {
+            let box: Rect = selfRect()
+            let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom).rect(css: node.style["background-size"])
+            cmds.append(DrawBackgroundImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
+        }
+
         if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: selfRect()) {
             cmds.append(border)
         }

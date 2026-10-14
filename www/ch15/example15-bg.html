@@ -1,0 +1,62 @@
+<style>
+  div.box {
+    border: 2px solid black;
+    margin-top: 8px;
+    font-family: monospace;
+  }
+  .auto {
+    background-image: url("im/hes.jpg");
+    height: 120px;
+  }
+  .cover {
+    background-image: url("/im/hes.jpg");
+    background-size: cover;
+    height: 120px;
+  }
+  .contain {
+    background-image: url("/im/hes.jpg");
+    background-size: contain;
+    height: 120px;
+  }
+  .px {
+    background-image: url("/im/hes.jpg");
+    background-size: 60px 40px;
+    height: 120px;
+  }
+  .shorthand {
+    background: url("/im/hes.jpg") no-repeat;
+    background-size: 80px auto;
+    height: 80px;
+  }
+  .overridden {
+    background-image: url("/im/not-a-real-image.png");
+  }
+  .overridden {
+    background-image: url("/im/hes.jpg");
+    background-size: 40px 40px;
+    height: 60px;
+  }
+  .unused {
+    background-image: url("/im/not-a-real-image.png");
+  }
+</style>
+
+<p>1. auto (intrinsic size, anchored top-left, clipped to the box):</p>
+<div class="box auto">auto</div>
+
+<p>2. cover:</p>
+<div class="box cover">cover</div>
+
+<p>3. contain:</p>
+<div class="box contain">contain</div>
+
+<p>4. background-size: 60px 40px:</p>
+<div class="box px">60px 40px</div>
+
+<p>5. shorthand background + 80px auto:</p>
+<div class="box shorthand">shorthand</div>
+
+<p>6. cascade winner (only hes.jpg should ever be requested):</p>
+<div class="box overridden">overridden</div>
+
+<!-- .unused matches no element: its URL must never be fetched. -->
