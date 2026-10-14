@@ -9,12 +9,12 @@ final class ImageLayout: EmbedLayout {
     static func displaySize(for el: Element) -> (width: Double, height: Double) {
         let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
         let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0
-        let aspect: Double = intrinsicH == 0 ? 1 : intrinsicW / intrinsicH
+        let ratio: AspectRatio? = AspectRatio(css: el.style["aspect-ratio"]) ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
         let wAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
         let hAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
         if let w = wAttr, let h = hAttr { return (w, h) }
-        else if let w = wAttr { return (w, w / aspect) }
-        else if let h = hAttr { return (h * aspect, h) }
+        else if let w = wAttr { return (w, ratio?.height(forWidth: w) ?? w) }
+        else if let h = hAttr { return (ratio?.width(forHeight: h) ?? h, h) }
         return (intrinsicW, intrinsicH)
     }
 

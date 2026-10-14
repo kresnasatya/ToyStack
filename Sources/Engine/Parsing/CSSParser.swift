@@ -87,7 +87,27 @@ class CSSParser {
         if i < chars.count && chars[i] == "(" {
             val += consumeParentheses()
         }
+        if prop.lowercased() == "aspect-ratio" {
+            val = aspectRatioValue(val)
+        }
         return (prop.lowercased(), val)
+    }
+
+    private func aspectRatioValue(_ first: String) -> String {
+        var tokens: [String] = [first]
+        skipWhitespace()
+        while i < chars.count && chars[i] != ";" && chars[i] != "}" {
+            if chars[i] == "/" {
+                tokens.append("/")
+                i += 1
+                skipWhitespace()
+                continue
+            }
+            guard let token = try? word() else { break }
+            tokens.append(token)
+            skipWhitespace()
+        }
+        return tokens.joined(separator: " ")
     }
 
     private func consumeParentheses() -> String {

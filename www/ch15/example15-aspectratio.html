@@ -1,0 +1,47 @@
+<style>
+  body { font-family: monospace; margin: 8px; }
+  p { margin: 8px 0 2px; }
+  .frame { border: 1px solid black; background-color: #f4d0d0; }
+  .via-css { aspect-ratio: 1 / 1; }
+  .note { color: #666666; }
+</style>
+
+<p>1. img, width only, no aspect-ratio — height comes from the bitmap (≈300×201):</p>
+<div class="frame"><img width="300" src="/im/hes.jpg" alt="no ratio" /></div>
+
+<p>2. img, width only, aspect-ratio 1 / 1 — square, bitmap stretched:</p>
+<div class="frame"><img width="300" style="aspect-ratio: 1 / 1" src="/im/hes.jpg" alt="square" /></div>
+
+<p>3. img, height only, aspect-ratio 1 / 1 — square from the height:</p>
+<div class="frame"><img height="150" style="aspect-ratio: 1 / 1" src="/im/hes.jpg" alt="square by height" /></div>
+
+<p>4. img, width only, aspect-ratio 3 / 1 — short and wide (300×100):</p>
+<div class="frame"><img width="300" style="aspect-ratio: 3 / 1" src="/im/hes.jpg" alt="wide" /></div>
+
+<p>5. img, rule from the stylesheet (.via-css → 1 / 1):</p>
+<div class="frame"><img class="via-css" width="200" src="/im/hes.jpg" alt="from css" /></div>
+
+<p>6. inline beats the stylesheet (1 / 1 → 2 / 1):</p>
+<div class="frame"><img class="via-css" width="200" style="aspect-ratio: 2 / 1" src="/im/hes.jpg" alt="override" /></div>
+
+<p>7. never-loads image, width only, aspect-ratio 3 / 1 — box is reserved either way:</p>
+<div class="frame"><img width="300" style="aspect-ratio: 3 / 1" src="non-existent-image" alt="missing" /></div>
+
+<p>8. iframe, width 300, aspect-ratio 16 / 9 — taller than the default 150:</p>
+<div class="frame"><iframe width="300" style="aspect-ratio: 16 / 9" src="leaf.html"></iframe></div>
+
+<p>9. iframe, height 150, aspect-ratio 4 / 3 — wider from the height:</p>
+<div class="frame"><iframe height="150" style="aspect-ratio: 4 / 3" src="leaf.html"></iframe></div>
+
+<p>10. iframe, no attributes, aspect-ratio 1 / 1 — square from the 300px default:</p>
+<div class="frame"><iframe style="aspect-ratio: 1 / 1" src="leaf.html"></iframe></div>
+
+<p>11. iframe, width 300, no aspect-ratio — the control (300×150):</p>
+<div class="frame"><iframe width="300" src="leaf.html"></iframe></div>
+
+<p>12. lazy img (Exercise 15-4), width only, aspect-ratio 1 / 1 — reserved square, then
+the bitmap (300×200) is stretched into it, so the page does not shift when it arrives:</p>
+<div class="frame"><img width="240" loading="lazy" style="aspect-ratio: 1 / 1" src="/im/lazy-01.png" alt="lazy square" /></div>
+
+<p class="note">1 and 11 are the controls; every other element takes its missing
+dimension from <code>aspect-ratio</code>.</p>

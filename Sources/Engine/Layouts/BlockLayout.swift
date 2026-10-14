@@ -353,7 +353,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addIframe(_ node: Element) {
-        let w: CGFloat = scaled(IframeLayout.displayWidth(for: node))
+        let w: CGFloat = scaled(IframeLayout.displaySize(for: node).width)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last

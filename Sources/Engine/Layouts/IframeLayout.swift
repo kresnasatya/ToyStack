@@ -8,22 +8,32 @@ final class IframeLayout: EmbedLayout {
 
     private var frame: Frame? { (node as? Element)?.frame }
 
-    static func displayWidth(for el: Element) -> CGFloat {
-        let attr: CGFloat = el.attributes["width"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? defaultWidthPx
-        return attr + 2
-    }
-
-    static func displayHeight(for el: Element) -> CGFloat {
-        let attr: CGFloat = el.attributes["height"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? defaultHeightPx
-        return attr + 2
+    static func displaySize(for el: Element) -> (width: CGFloat, height: CGFloat) {
+        let ratio: AspectRatio? = AspectRatio(css: el.style["aspect-ratio"])
+        let widthAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
+        let heightAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
+        let content: (width: Double, height: Double)
+        if let w = widthAttr, let h = heightAttr {
+            content = (w, h)
+        } else if let w = widthAttr {
+            content = (w, ratio?.height(forWidth: w) ?? Double(defaultHeightPx))
+        } else if let h = heightAttr {
+            content = (ratio?.width(forHeight: h) ?? Double(defaultWidthPx), h)
+        } else if let ratio {
+            content = (Double(defaultWidthPx), ratio.height(forWidth: Double(defaultWidthPx)))
+        } else {
+            content = (Double(defaultWidthPx), Double(defaultHeightPx))
+        }
+        return (CGFloat(content.width) + 2, CGFloat(content.height) + 2)
     }
 
     override func layout() {
         super.layout()
         guard let el = node as? Element else { return }
 
-        self.width = scaled(IframeLayout.displayWidth(for: el))
-        self.height = scaled(IframeLayout.displayHeight(for: el))
+        let size: (width: CGFloat, height: CGFloat) = IframeLayout.displaySize(for: el)
+        self.width = scaled(size.width)
+        self.height = scaled(size.height)
 
         guard let frame, frame.loaded else { return }
         let innerWidth: CGFloat = self.width - scaled(2)
