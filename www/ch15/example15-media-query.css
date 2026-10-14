@@ -1,0 +1,11 @@
+body {
+  margin: 0;
+  padding: 12px;
+  background-color: tomato;
+}
+@media (max-width: 500px) {
+  body { background-color: lightgreen; }
+}
+@media (min-width: 700px) {
+  body { background-color: lightblue; }
+}

@@ -38,8 +38,11 @@ final class IframeLayout: EmbedLayout {
         guard let frame, frame.loaded else { return }
         let innerWidth: CGFloat = self.width - scaled(2)
         let innerHeight: CGFloat = self.height - scaled(2)
-        if frame.frameWidth != innerWidth || frame.frameHeight != innerHeight {
+        if frame.frameWidth != innerWidth {
             frame.frameWidth = innerWidth
+            frame.frameHeight = innerHeight
+            frame.setNeedsRender()
+        } else if frame.frameHeight != innerHeight {
             frame.frameHeight = innerHeight
             frame.setNeedsLayout()
         }

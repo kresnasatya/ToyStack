@@ -404,11 +404,11 @@ class CSSParser {
         switch prop {
             case "prefers-color-scheme":
                 return val
-            case "max-width":
+            case "max-width", "min-width", "width":
                 guard val.hasSuffix("px"), let px = Double(val.dropLast(2)) else {
                     throw CSSParseError.parseError
                 }
-                return "max-width:\(px)"
+                return "\(prop):\(px)"
             case "forced-colors":
                 guard val == "active" || val == "none" else {
                     throw CSSParseError.parseError

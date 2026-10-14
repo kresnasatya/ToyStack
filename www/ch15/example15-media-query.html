@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { background-color: whitesmoke; }
+  iframe { border: 1px solid black; }
+</style>
+</head>
+<body>
+  <h1>Media queries inside an iframe</h1>
+  <p>The framed page turns <b>lightgreen</b> when its own width is 500px or less,
+     and <b>lightblue</b> when it is 700px or more. The buttons below change the
+     iframe width from the parent; the query lives in the child.</p>
+  <button id="narrow">Narrow (400px)</button>
+  <button id="wide">Wide (800px)</button>
+  <br>
+  <iframe id="frame" src="example15-media-query-child.html" width="400" height="200"></iframe>
+  <script src="example15-media-query.js"></script>
+</body>
+</html>
