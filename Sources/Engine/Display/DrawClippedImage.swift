@@ -1,7 +1,7 @@
 import CoreGraphics
 
-// MARK: - DrawBackgroundImage
-struct DrawBackgroundImage: DisplayCommand {
+// MARK: - DrawClippedImage
+struct DrawClippedImage: DisplayCommand {
     let image: CGImage
     let rendering: ImageRendering
     let rect: Rect

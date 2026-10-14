@@ -29,7 +29,20 @@ final class ImageLayout: EmbedLayout {
 
     override func paint() -> [any DisplayItem] {
         guard let image = (node as? Element)?.image else { return [] }
-        let rect = Rect(left: x, top: y + height - imgHeight, right: x + width, bottom: y + height)
-        return [DrawImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: rect, parentEffect: nil)]
+        let box = Rect(left: x, top: y + height - imgHeight, right: x + width, bottom: y + height)
+        let content: Rect = ObjectFit(
+            box: box,
+            intrinsicWidth: scaled(CGFloat(image.width)),
+            intrinsicHeight: scaled(CGFloat(image.height)),
+            css: node.style["object-fit"]
+        ).contentRect
+        return [
+            DrawClippedImage(
+                image: image,
+                rendering: ImageRendering(css: node.style["image-rendering"]),
+                rect: content,
+                clip: box
+            )
+        ]
     }
 }

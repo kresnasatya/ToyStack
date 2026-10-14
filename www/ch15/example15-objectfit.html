@@ -1,0 +1,40 @@
+<style>
+  body { font-family: monospace; }
+  p { margin-bottom: 4px; }
+  .frame {
+    border: 2px solid black;
+    background-color: #f4d0d0;
+  }
+  .wide { background-color: #d0dcf4; }
+  .via-css { object-fit: cover; }
+</style>
+
+<p>1. fill (default) — 160×160, stretched:</p>
+<div class="frame"><img width="160" height="160" src="/im/hes.jpg" alt="fill" /></div>
+
+<p>2. contain — whole photo, letterboxed top and bottom:</p>
+<div class="frame"><img width="160" height="160" src="/im/hes.jpg" style="object-fit: contain" alt="contain" /></div>
+
+<p>3. cover — fills the square, left and right cropped:</p>
+<div class="frame"><img width="160" height="160" src="/im/hes.jpg" style="object-fit: cover" alt="cover" /></div>
+
+<p>4. none — intrinsic size, middle slice of the box:</p>
+<div class="frame"><img width="160" height="160" src="/im/hes.jpg" style="object-fit: none" alt="none" /></div>
+
+<p>5. scale-down — acts like contain (image is larger than the box):</p>
+<div class="frame"><img width="160" height="160" src="/im/hes.jpg" style="object-fit: scale-down" alt="scale-down" /></div>
+
+<p>6. wide box, contain — bars left and right:</p>
+<div class="frame wide"><img width="320" height="80" src="/im/hes.jpg" style="object-fit: contain" alt="wide contain" /></div>
+
+<p>7. wide box, cover — crops top and bottom:</p>
+<div class="frame wide"><img width="320" height="80" src="/im/hes.jpg" style="object-fit: cover" alt="wide cover" /></div>
+
+<p>8. rule from the stylesheet (.via-css -> cover):</p>
+<div class="frame"><img class="via-css" width="160" height="160" src="/im/hes.jpg" alt="via css" /></div>
+
+<p>9. inline style beats the stylesheet (cover -> contain):</p>
+<div class="frame">
+  <img class="via-css" width="160" height="160" src="/im/hes.jpg"
+       style="object-fit: contain" alt="override" />
+</div>
