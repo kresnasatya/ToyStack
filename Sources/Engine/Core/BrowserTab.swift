@@ -1,9 +1,15 @@
 import CoreGraphics
 import Foundation
 
-private struct HistoryEntry {
+private struct FrameState {
     let url: WebURL
     let payload: String?
+}
+
+private struct HistoryEntry {
+    let state: FrameState
+    let windowID: Int
+    let from: FrameState?
 }
 
 @MainActor
@@ -31,8 +37,8 @@ public class BrowserTab {
     public private(set) var tabHeight: CGFloat
     private var tabWidth: CGFloat
 
-    public var canGoBack: Bool { historyIndex > 0 }
-    public var canGoForward: Bool { historyIndex < history.count - 1 }
+    public var canGoBack: Bool { nearestLiveIndex(from: historyIndex - 1, direction: -1) != nil }
+    public var canGoForward: Bool { nearestLiveIndex(from: historyIndex + 1, direction: 1) != nil }
 
     private(set) var taskRunner: TaskRunner = TaskRunner()
     var networkTaskRunner: NetworkTaskRunner?
@@ -89,10 +95,28 @@ public class BrowserTab {
     }
 
     public func load(_ url: WebURL, payload: String? = nil) {
+        load(url, payload: payload, in: rootFrame)
+    }
+
+    func load(_ url: WebURL, payload: String? = nil, in frame: Frame) {
+        recordNavigation(url: url, payload: payload, frame: frame)
+        frame.load(url, payload: payload)
+    }
+
+    private func recordNavigation(url: WebURL, payload: String?, frame: Frame) {
+        let prior: HistoryEntry? = history.prefix(historyIndex + 1).last(where: { $0.windowID == frame.windowID })
+        let currentURL: WebURL? = frame.url
+        let from: FrameState? = prior?.state ?? currentURL.map({ FrameState(url: $0, payload: nil) })
         history = Array(history.prefix(historyIndex + 1))
-        history.append(HistoryEntry(url: url, payload: payload))
+        history.append(
+            HistoryEntry(
+                state: FrameState(url: url, payload: payload),
+                windowID: frame.windowID,
+                from: from
+            )
+        )
         historyIndex = history.count - 1
-        rootFrame.load(url, payload: payload)
+        browser?.navigationStateChanged()
     }
 
     func isSameDocument(_ a: WebURL, _ b: WebURL) -> Bool {
@@ -102,12 +126,10 @@ public class BrowserTab {
             && a.path == b.path
     }
 
-    func navigateToFragment(_ resolved: WebURL) {
-        history = Array(history.prefix(historyIndex + 1))
-        history.append(HistoryEntry(url: resolved, payload: nil))
-        historyIndex = history.count - 1
-        rootFrame.url = resolved
-        rootFrame.jumpTo(resolved.fragment)
+    func navigateToFragment(_ resolved: WebURL, in frame: Frame) {
+        recordNavigation(url: resolved, payload: nil, frame: frame)
+        frame.url = resolved
+        frame.jumpTo(resolved.fragment)
     }
 
     nonisolated static func isExecutableScript(
@@ -215,32 +237,60 @@ public class BrowserTab {
     }
 
     public func goBack() {
-        guard canGoBack else { return }
-        historyIndex -= 1
-        let entry: HistoryEntry = history[historyIndex]
-        if let payload = entry.payload {
-            if BrowserTab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
-                rootFrame.load(entry.url, payload: payload)
-            } else {
-                historyIndex += 1
-            }
-        } else if let currentURL = rootFrame.url, isSameDocument(currentURL, entry.url) {
-            rootFrame.url = entry.url
-            rootFrame.jumpTo(entry.url.fragment)
-        } else {
-            rootFrame.load(entry.url)
-        }
+        guard let target: Int = nearestLiveIndex(from: historyIndex - 1, direction: -1) else { return }
+        rewindFrames(after: target)
+        historyIndex = target
+        browser?.navigationStateChanged()
     }
 
     public func goForward() {
-        guard canGoForward else { return }
-        historyIndex += 1
-        let entry: HistoryEntry = history[historyIndex]
-        if let currentURL = rootFrame.url, isSameDocument(currentURL, entry.url) {
-            rootFrame.url = entry.url
-            rootFrame.jumpTo(entry.url.fragment)
+        guard let target: Int = nearestLiveIndex(from: historyIndex + 1, direction: 1) else { return }
+        replayFrames(from: historyIndex + 1, through: target)
+        historyIndex = target
+        browser?.navigationStateChanged()
+    }
+
+    private func rewindFrames(after index: Int) {
+        var handled: Set<Int> = []
+        for i in (index + 1)..<history.count {
+            let windowID: Int = history[i].windowID
+            guard handled.insert(windowID).inserted else { continue }
+            guard let frame = windowIDToFrame[windowID], let from = history[i].from else { continue }
+            if from.payload != nil,
+                !BrowserTab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
+                continue
+            }
+            enter(frame, state: from)
+        }
+    }
+
+    private func replayFrames(from start: Int, through end: Int) {
+        var handled: Set<Int> = []
+        for i in stride(from: end, through: start, by: -1) {
+            let windowID: Int = history[i].windowID
+            guard handled.insert(windowID).inserted else { continue }
+            guard let frame = windowIDToFrame[windowID] else { continue }
+            enter(frame, state: history[i].state)
+        }
+    }
+
+    private func nearestLiveIndex(from index: Int, direction: Int) -> Int? {
+        var i: Int = index
+        while i >= 0 && i < history.count {
+            if windowIDToFrame[history[i].windowID] != nil { return i }
+            i += direction
+        }
+        return nil
+    }
+
+    private func enter(_ frame: Frame, state: FrameState) {
+        if let payload = state.payload {
+            frame.load(state.url, payload: payload)
+        } else if let currentURL = frame.url, isSameDocument(currentURL, state.url) {
+            frame.url = state.url
+            frame.jumpTo(state.url.fragment)
         } else {
-            rootFrame.load(entry.url, payload: entry.payload)
+            frame.load(state.url)
         }
     }
 

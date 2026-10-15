@@ -862,9 +862,9 @@ class Frame {
         guard let tab, let current = url else { return }
         let resolved: WebURL = current.resolve(raw)
         if tab.isSameDocument(current, resolved) {
-            tab.navigateToFragment(resolved)
+            tab.navigateToFragment(resolved, in: self)
         } else {
-            load(resolved)
+            tab.load(resolved, in: self)
         }
     }
 
@@ -1086,14 +1086,10 @@ class Frame {
                 } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"]
                 {
                     let resolved: WebURL = url.resolve(href)
-                    if parentFrame == nil {
-                        if href.hasPrefix("#") {
-                            tab?.navigateToFragment(url.resolve(href))
-                        } else {
-                            tab?.load(url.resolve(href))
-                        }
+                    if href.hasPrefix("#") {
+                        tab?.navigateToFragment(resolved, in: self)
                     } else {
-                        load(resolved)
+                        tab?.load(resolved, in: self)
                     }
                     return
                 } else if let el = node as? Element, el.tag == "input" {
@@ -1167,9 +1163,9 @@ class Frame {
         let method: String = elt.attributes["method"]?.lowercased() ?? "get"
 
         if method == "post" {
-            tab?.load(action, payload: body)
+            tab?.load(action, payload: body, in: self)
         } else {
-            tab?.load(WebURL("\(action.toString())?\(body)"))
+            tab?.load(WebURL("\(action.toString())?\(body)"), in: self)
         }
     }
 

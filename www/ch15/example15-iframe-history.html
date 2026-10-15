@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  iframe { border: 1px solid black; vertical-align: top; }
+</style>
+</head>
+<body>
+  <h1>Iframe history</h1>
+  <p>
+    Click a link inside <b>Frame A</b>, then one inside <b>Frame B</b>, then
+    another in Frame A. Press <b>Back</b> repeatedly: each press undoes the
+    last navigation <i>in the frame where it happened</i>, without reloading
+    the host page.
+  </p>
+  <p>
+    The top page shares the same history:
+    <a href="example15-iframe-history.html">reload this page</a>.
+  </p>
+  <p>
+    <iframe src="example15-iframe-history-a1.html" width="360" height="170"></iframe>
+    <iframe src="example15-iframe-history-b1.html" width="360" height="170"></iframe>
+  </p>
+</body>
+</html>
