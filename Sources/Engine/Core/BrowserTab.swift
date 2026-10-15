@@ -277,7 +277,21 @@ public class BrowserTab {
 
     @discardableResult
     public func advanceTab() -> Bool {
-        focusedFrame.advanceTab()
+        let targets: [FocusTarget] = focusOder(of: rootFrame)
+        var start: Int = 0
+        if let focused = focusedFrame.focus,
+            let idx = targets.firstIndex(where: { $0.frame === focusedFrame && $0.element === focused }) {
+            start = idx + 1
+        } else if let idx = targets.firstIndex(where: { $0.frame === focusedFrame }) {
+            start = idx
+        }
+        guard start < targets.count else {
+            focusedFrame.focusElement(nil)
+            return false
+        }
+        let target: FocusTarget = targets[start]
+        target.frame.focusElement(target.element)
+        return true
     }
 
     public func click(x: CGFloat, y: CGFloat) {

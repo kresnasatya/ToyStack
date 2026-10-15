@@ -1041,31 +1041,6 @@ class Frame {
         setNeedsRender()
     }
 
-    @discardableResult
-    func advanceTab() -> Bool {
-        guard document != nil else { return false }
-        let focusableElements: [Element] = treeToList(nodes)
-            .compactMap({ $0 as? Element })
-            .filter({ isFocusable($0) })
-            .enumerated()
-            .sorted{ (getTabIndex($0.element), $0.offset) < (getTabIndex($1.element), $1.offset) }
-            .map(\.element)
-        guard !focusableElements.isEmpty else { return false }
-        if let current = focus, let idx = focusableElements.firstIndex(where: { $0 === current }) {
-            let next: Int = idx + 1
-            if next < focusableElements.count {
-                focusElement(focusableElements[next])
-                return true
-            } else {
-                focusElement(nil)
-                return false
-            }
-        } else {
-            focusElement(focusableElements[0])
-            return true
-        }
-    }
-
     func click(x: CGFloat, y: CGFloat) {
         focusElement(nil)
         let clickY: CGFloat = y + scroll

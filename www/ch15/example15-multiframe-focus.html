@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  iframe { border: 1px solid black; }
+</style>
+</head>
+<body>
+  <h1>Multi-frame focus</h1>
+  <p>
+    Press <b>Tab</b> to move through the focusable elements. The order is:
+    the first input, then the two inputs, the link and the button inside the
+    iframe, then the input after the iframe, and finally the address bar.
+  </p>
+  <input type="text" placeholder="root input before" />
+  <p><iframe src="example15-multiframe-focus-child.html"
+             width="420" height="150"></iframe></p>
+  <input type="text" placeholder="root input after" />
+</body>
+</html>
