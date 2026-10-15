@@ -386,6 +386,12 @@ window.Event = Event;
 window.XMLHttpRequest = XMLHttpRequest;
 window.MessageEvent = MessageEvent;
 
+Object.defineProperty(window, "origin", {
+  get: function () {
+    return _getOrigin();
+  }
+});
+
 window.WINDOW_LISTENERS = {};
 
 Window.prototype.addEventListener = function (type, listener) {
@@ -404,8 +410,8 @@ Window.prototype.dispatchEvent = function (event) {
   return event.do_default;
 }
 
-Window.prototype.postMessage = function (message, origin) {
-  _postMessage(this._id, message.toString(), origin.toString());
+Window.prototype.postMessage = function (message, targetOrigin) {
+  _postMessage(this._id, message.toString(), targetOrigin.toString());
 }
 
 Object.defineProperty(Window.prototype, "parent", {

@@ -463,11 +463,23 @@ class JSRuntime: @unchecked Sendable {
             } as @convention(block) (Int) -> Int,
             forKeyedSubscript: "_parent" as NSString)
 
+        jsContext.setObject({
+            [weak self] () -> String in
+            MainActor.assumeIsolated({
+                self?.frame?.url?.origin() ?? ""
+            })
+        } as @convention(block) () -> String,
+        forKeyedSubscript: "_getOrigin" as NSString)
+
         jsContext.setObject(
             {
-                [weak self] (targetID: Int, message: String, _: String) in
+                [weak self] (targetID: Int, message: String, targetOrigin: String) in
                 MainActor.assumeIsolated {
-                    self?.frame?.tab?.postMessage(message: message, targetWindowID: targetID)
+                    self?.frame?.tab?.postMessage(
+                        message: message,
+                        targetWindowID: targetID,
+                        targetOrigin: targetOrigin
+                    )
                 }
             } as @convention(block) (Int, String, String) -> Void,
             forKeyedSubscript: "_postMessage" as NSString)

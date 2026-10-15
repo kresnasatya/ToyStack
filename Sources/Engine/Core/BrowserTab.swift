@@ -263,9 +263,16 @@ public class BrowserTab {
         previous?.clearFocus()
     }
 
-    func postMessage(message: String, targetWindowID: Int) {
+    func postMessage(message: String, targetWindowID: Int, targetOrigin: String) {
         guard let target = windowIDToFrame[targetWindowID] else { return }
+        guard matchesTargetOrigin(targetOrigin, frame: target) else { return }
         target.js.dispatchPostMessage(message: message)
+    }
+
+    private func matchesTargetOrigin(_ targetOrigin: String, frame: Frame) -> Bool {
+        guard targetOrigin != "*" else { return true }
+        guard let targetURL = frame.url else { return false }
+        return WebURL(targetOrigin).origin() == targetURL.origin()
     }
 
     @discardableResult

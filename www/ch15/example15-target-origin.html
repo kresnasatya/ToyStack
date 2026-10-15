@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  #log p { margin: 4px 0; }
+  iframe { border: 1px solid black; }
+</style>
+</head>
+<body>
+  <h1>postMessage targetOrigin</h1>
+  <p>
+    The iframe sends three messages to this page, each with a different
+    <code>targetOrigin</code>. Only the messages whose target origin matches this
+    page's origin are delivered; the rest are dropped by the browser. The iframe
+    reads the origin at run time, so this works on any port.
+  </p>
+  <p>Received so far:</p>
+  <div id="log"></div>
+  <iframe src="example15-target-origin-child.html" width="320" height="60"></iframe>
+  <script src="example15-target-origin.js"></script>
+</body>
+</html>
