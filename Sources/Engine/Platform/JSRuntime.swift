@@ -37,6 +37,10 @@ class JSRuntime: @unchecked Sendable {
         jsContext.evaluateScript("window.dispatchEvent(new window.MessageEvent(__data))")
     }
 
+    func dispatchWindowLoad() {
+        jsContext.evaluateScript("window.dispatchEvent(new Event(\"load\"))")
+    }
+
     private func getHandle(_ elt: any DOMNode) -> Int {
         let id: ObjectIdentifier = ObjectIdentifier(elt)
         if let handle = nodeToHandle[id] { return handle }
@@ -470,6 +474,19 @@ class JSRuntime: @unchecked Sendable {
             })
         } as @convention(block) () -> String,
         forKeyedSubscript: "_getOrigin" as NSString)
+
+        jsContext.setObject(
+            {
+                [weak self] () -> String in
+                MainActor.assumeIsolated({ self?.frame?.url?.toString() ?? "" })
+            } as @convention(block) () -> String,
+        forKeyedSubscript: "_getLocationHref" as NSString)
+
+        jsContext.setObject({
+            [weak self] (raw: String) in
+            MainActor.assumeIsolated({ self?.frame?.navigateToLocation(raw) })
+        } as @convention(block) (String) -> Void,
+        forKeyedSubscript: "_setLocationHref" as NSString)
 
         jsContext.setObject(
             {

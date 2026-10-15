@@ -835,6 +835,10 @@ public class Browser: ObservableObject {
         needsDraw = true
     }
 
+    func navigationStateChanged() {
+        objectWillChange.send()
+    }
+
     func setNeedsAnimationFrame(_ tab: BrowserTab) {
         if tab === activeTab {
             needsAnimationFrame = true

@@ -95,7 +95,7 @@ public class BrowserTab {
         rootFrame.load(url, payload: payload)
     }
 
-    private func isSameDocument(_ a: WebURL, _ b: WebURL) -> Bool {
+    func isSameDocument(_ a: WebURL, _ b: WebURL) -> Bool {
         return a.scheme == b.scheme
             && a.host == b.host
             && a.port == b.port

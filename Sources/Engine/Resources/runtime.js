@@ -376,6 +376,30 @@ function Window(id) {
 
 var WINDOWS = {};
 
+var location = {};
+
+Object.defineProperty(location, "href", {
+  get: function () {
+    return _getLocationHref();
+  },
+  set: function (value) {
+    _setLocationHref(value.toString());
+  }
+});
+
+Object.defineProperty(location, "hash", {
+  get: function () {
+    var href = _getLocationHref();
+    var index = href.indexOf("#");
+    return index === -1 ? "" : href.slice(index);
+  },
+  set: function (value) {
+    var hash = value.toString();
+    if (hash.charAt(0) !== "#") hash = "#" + hash;
+    _setLocationHref(hash);
+  }
+});
+
 window = new Window(_getWindowID());
 WINDOWS[window._id] = window;
 

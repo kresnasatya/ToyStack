@@ -152,6 +152,8 @@ class Frame {
             self.execScripts(url: url, bodies: scriptBodies)
             self.browser?.measure.stop("BrowserTab.load.exec")
 
+            self.js.dispatchWindowLoad()
+
             self.loaded = true
         }
     }
@@ -846,9 +848,23 @@ class Frame {
         }
         interestTop = max(0, scroll - frameHeight)
         browser?.applyScrollAndUpdateInterest(
-            scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
+            scroll: scroll,
+            interestTop: interestTop,
+            interestBottom: interestBottom
+        )
+        browser?.navigationStateChanged()
         if !lazyImages.isEmpty {
             requestAnimationFrame()
+        }
+    }
+
+    func navigateToLocation(_ raw: String) {
+        guard let tab, let current = url else { return }
+        let resolved: WebURL = current.resolve(raw)
+        if tab.isSameDocument(current, resolved) {
+            tab.navigateToFragment(resolved)
+        } else {
+            load(resolved)
         }
     }
 
