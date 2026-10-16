@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  iframe { border: 1px solid black; vertical-align: top; }
+  .case { margin-bottom: 16px; }
+  .label { font-weight: bold; }
+</style>
+</head>
+<body>
+  <h1>X-Frame-Options</h1>
+  <p>
+    A page can refuse to be shown inside a frame with the
+    <code>X-Frame-Options</code> response header. The frames below are served by
+    <code>www/ch15/xfo-server.ts</code>; two of them send the header.
+  </p>
+
+  <div class="case">
+    <p class="label">DENY — xfo-deny.html (should be blocked)</p>
+    <iframe src="/xfo-deny.html" width="360" height="120"></iframe>
+  </div>
+
+  <div class="case">
+    <p class="label">SAMEORIGIN, cross origin — 127.0.0.1 vs localhost (blocked)</p>
+    <iframe src="http://127.0.0.1:3000/xfo-sameorigin.html"
+            width="360" height="120"></iframe>
+  </div>
+
+  <div class="case">
+    <p class="label">SAMEORIGIN, same origin — served from this host (allowed)</p>
+    <iframe src="/xfo-sameorigin.html" width="360" height="120"></iframe>
+  </div>
+
+  <div class="case">
+    <p class="label">No header — xfo-plain.html (allowed)</p>
+    <iframe src="/xfo-plain.html" width="360" height="120"></iframe>
+  </div>
+</body>
+</html>

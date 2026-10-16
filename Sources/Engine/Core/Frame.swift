@@ -191,6 +191,10 @@ class Frame {
             self.url = url
             tab?.markVisited(url.toString())
             discardChildFrames()
+            if let message = frameBlockMessage(headers: headers) {
+                print("Blocked iframe", url.toString(), "due to X-Frame-Options")
+                return showFrameBlockedPage(message)
+            }
             nodes = profiler.measure("load.parse", {
                 HTMLParser(body: body).parse()
             })
@@ -568,6 +572,37 @@ class Frame {
 
     func allowedRequest(_ url: WebURL) -> Bool {
         allowedOrigins == nil || (allowedOrigins?.contains(url.origin()) ?? false)
+    }
+
+    private func frameBlockMessage(headers: [String: String]) -> String? {
+        guard let parentFrame else { return nil }
+        let options: XFrameOptions = XFrameOptions(header: headers["x-frame-options"])
+
+        var ancestorOrigins: [String] = []
+        var ancestor: Frame? = parentFrame
+        while let frame = ancestor {
+            ancestorOrigins.append(frame.url.origin())
+            ancestor = frame.parentFrame
+        }
+
+        guard !options.allowsEmbedding(documentOrigin: url.origin(), ancestorOrigins: ancestorOrigins)
+            else { return nil }
+
+        return "This content is blocked. Visit \(url.origin()) to view it."
+    }
+
+    private func showFrameBlockedPage(_ message: String) -> ResourceLoads {
+        nodes = HTMLParser(body: """
+            <html>
+            <body><p>\(message)</p></body>
+            </html>
+            """).parse()
+        js = JSRuntime(frame: self)
+        title = "Blocked"
+        allowedOrigins = nil
+        referrerPolicy = ""
+        rules = defaultStyleSheet
+        return ResourceLoads(styleURLs: [], scriptURLs: [], imageURLs: [])
     }
 
     func runNewScripts(in root: any DOMNode) {
