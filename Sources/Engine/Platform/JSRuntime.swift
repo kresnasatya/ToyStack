@@ -116,6 +116,9 @@ class JSRuntime: @unchecked Sendable {
                 MainActor.assumeIsolated({
                     guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                     elt.attributes[attr] = value
+                    if attr == "src", elt.tag == "iframe" {
+                        self.frame?.syncIframes()
+                    }
                     self.frame?.setNeedsRender()
                 })
             } as @convention(block) (Int, String, String) -> Void,
@@ -221,6 +224,7 @@ class JSRuntime: @unchecked Sendable {
             MainActor.assumeIsolated({
                 guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                 elt.children = [TextNode(text: value, parent: elt)]
+                self.frame?.syncIframes()
                 self.frame?.setNeedsRender()
             })
         } as @convention(block) (Int, String) -> Void,
@@ -239,6 +243,7 @@ class JSRuntime: @unchecked Sendable {
                     for child in elt.children { child.parent = elt }
                     frame.runNewScripts(in: elt)
                     frame.reloadStylesheets()
+                    frame.syncIframes()
                     frame.setNeedsRender()
                 })
             } as @convention(block) (Int, String) -> Void,
@@ -275,6 +280,7 @@ class JSRuntime: @unchecked Sendable {
                     parent.children.append(child)
                     frame.runNewScripts(in: child)
                     frame.reloadStylesheets()
+                    frame.syncIframes()
                     frame.setNeedsRender()
                 })
             } as @convention(block) (Int, Int) -> Void,
@@ -291,6 +297,7 @@ class JSRuntime: @unchecked Sendable {
                     parent.children.removeAll { $0 === child }
                     child.parent = nil
                     frame.reloadStylesheets()
+                    frame.syncIframes()
                     frame.setNeedsRender()
                     return childHandle
                 })
@@ -311,6 +318,7 @@ class JSRuntime: @unchecked Sendable {
                     parent.children.insert(child, at: idx)
                     frame.runNewScripts(in: child)
                     frame.reloadStylesheets()
+                    frame.syncIframes()
                     frame.render()
                 })
             } as @convention(block) (Int, Int, Int) -> Void,

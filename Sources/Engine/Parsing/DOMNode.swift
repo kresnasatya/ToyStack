@@ -31,6 +31,7 @@ class Element: DOMNode {
     var backgroundImage: CGImage? = nil
     var backgroundImageSource: String? = nil
     var frame: Frame? = nil
+    var frameSource: String? = nil
     var canvasContext: CanvasRenderingContext2D? = nil
 
     init(tag: String, attributes: [String: String], parent: (any DOMNode)?) {

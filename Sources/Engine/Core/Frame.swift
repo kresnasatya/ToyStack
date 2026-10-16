@@ -145,7 +145,7 @@ class Frame {
             self.browser?.measure.stop("BrowserTab.load.images")
 
             self.browser?.measure.start("BrowserTab.load.iframes")
-            self.loadIframes()
+            self.syncIframes()
             self.browser?.measure.stop("BrowserTab.load.iframes")
 
             self.browser?.measure.start("BrowserTab.load.exec")
@@ -485,23 +485,61 @@ class Frame {
         }
     }
 
-    private func loadIframes() {
+    func syncIframes() {
         guard let tab else { return }
-        let iframes: [Element] = treeToList(nodes)
-            .compactMap({ $0 as? Element })
-            .filter({ $0.tag == "iframe" && $0.attributes["src"] != nil })
 
-        for iframe in iframes {
-            let documentURL: WebURL = url.resolve(iframe.attributes["src"]!)
-            guard allowedRequest(documentURL) else {
-                print("Blocked iframe", documentURL.toString(), "due to CSP")
-                iframe.frame = nil
+        var live: Set<ObjectIdentifier> = []
+        for node in treeToList(nodes) {
+            guard let iframe = node as? Element, iframe.tag == "iframe" else { continue }
+            guard let src = iframe.attributes["src"] else {
+                unloadIframe(iframe)
                 continue
             }
-            let parent: FrameParent = FrameParent(frame: self, element: iframe)
-            let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
-            iframe.frame = child
-            child.load(documentURL)
+            let documentURL: WebURL = url.resolve(src)
+            guard allowedRequest(documentURL) else {
+                print("Blocked iframe", documentURL.toString(), "due to CSP")
+                unloadIframe(iframe)
+                continue
+            }
+            live.insert(ObjectIdentifier(iframe))
+            if iframe.frame != nil, iframe.frameSource != src {
+                unloadIframe(iframe)
+            }
+            if iframe.frame == nil {
+                loadIframe(iframe, documentURL: documentURL, source: src)
+            }
+        }
+
+        let children: [Frame] = tab.windowIDToFrame.values.filter({ $0.parentFrame === self })
+        for child in children {
+            guard let el = child.frameElement, live.contains(ObjectIdentifier(el)) else {
+                unload(child)
+                continue
+            }
+        }
+    }
+
+    private func loadIframe(_ iframe: Element, documentURL: WebURL, source: String) {
+        guard let tab else { return }
+        let parent: FrameParent = FrameParent(frame: self, element: iframe)
+        let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
+        iframe.frame = child
+        iframe.frameSource = source
+        child.load(documentURL)
+    }
+
+    private func unloadIframe(_ iframe: Element) {
+        guard let child = iframe.frame else { return }
+        unload(child)
+    }
+
+    private func unload(_ frame: Frame) {
+        frame.frameElement?.frame = nil
+        frame.frameElement?.frameSource = nil
+        frame.discardChildFrames()
+        tab?.windowIDToFrame.removeValue(forKey: frame.windowID)
+        if let tab, let focused = tab.focusedFrame, tab.windowIDToFrame[focused.windowID] == nil {
+            tab.setFocusedFrame(self)
         }
     }
 

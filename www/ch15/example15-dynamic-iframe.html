@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  button { margin: 0 6px 6px 0; }
+  iframe { border: 1px solid black; vertical-align: top; }
+</style>
+</head>
+<body>
+  <h1>Iframes added or removed by script</h1>
+  <p>
+    These buttons change <code>#host</code> from script. The first two replace
+    it wholesale with <code>innerHTML</code>; the third builds an iframe with
+    <code>createElement</code> and appends it; the fourth flips a live iframe's
+    <code>src</code>; the last empties it and removes the frame.
+  </p>
+  <p>
+    <button type="button" onclick="show(1)">innerHTML = child 1</button>
+    <button type="button" onclick="show(2)">innerHTML = child 2</button>
+    <button type="button" onclick="append(1)">appendChild(child 1)</button>
+    <button type="button" onclick="flipSrc()">change src of first iframe</button>
+    <button type="button" onclick="clearHost()">innerHTML = ""</button>
+  </p>
+  <div id="host"></div>
+  <script>
+    function childSrc(n) {
+      return "example15-dynamic-iframe-child" + n + ".html";
+    }
+    function show(n) {
+      document.getElementById("host").innerHTML =
+        '<iframe src="' + childSrc(n) + '" width="360" height="140"></iframe>';
+    }
+    function append(n) {
+      var el = document.createElement("iframe");
+      el.setAttribute("src", childSrc(n));
+      el.setAttribute("width", "360");
+      el.setAttribute("height", "140");
+      document.getElementById("host").appendChild(el);
+    }
+    function flipSrc() {
+      var first = document.getElementById("host").children[0];
+      if (first) first.setAttribute("src", childSrc(2));
+    }
+    function clearHost() {
+      document.getElementById("host").innerHTML = "";
+    }
+  </script>
+</body>
+</html>
