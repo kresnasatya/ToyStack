@@ -1045,6 +1045,7 @@ public class Browser: ObservableObject {
     public func toggleAccessibility() {
         accessibilityIsOn = !accessibilityIsOn
         if accessibilityIsOn { hasSpokenDocument = false }
+        activeTab?.needsAccessibility = true
         hoveredA11yNode = nil
         accessibilityFocusNode = nil
         needsSpeakHoveredNode = false

@@ -177,7 +177,7 @@ public class BrowserTab {
         for frame in frames where frame.loaded {
             frame.runAnimationFrame()
         }
-        if needsAccessibility {
+        if needsAccessibility, browser?.accessibilityIsOn == true {
             browser?.measure.start("BrowserTab.a11y")
             let tree: AccessibilityNode = AccessibilityNode(node: rootFrame.nodes)
             tree.build()
