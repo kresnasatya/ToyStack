@@ -1,6 +1,11 @@
 import Foundation
 
 enum CSSValueParser {
+
+    private static let translatePattern: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
+    )
+
     static func splitOutsiteParentheses(_ value: String, separator: Character) -> [String] {
         var parts: [String] = []
         var depth: Int = 0
@@ -25,8 +30,7 @@ enum CSSValueParser {
 
     // MARK: - CSS transform parsing
     static func transform(_ value: String) -> CGPoint? {
-        let pattern: String = #"translate\((-?[0-9.]+)px,\s*(-?[0-9.]+)px\)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
+        guard value.contains("translate("), let regex = translatePattern,
             let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
             let xRange = Range(match.range(at: 1), in: value),
             let yRange = Range(match.range(at: 2), in: value),
