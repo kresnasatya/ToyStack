@@ -739,8 +739,15 @@ class Frame {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
-            let reuse: Bool = !styled && document?.node === nodes
-            let doc: DocumentLayout = document ?? DocumentLayout(node: nodes)
+            let doc: DocumentLayout
+            let reuse: Bool
+            if let existing = document, existing.node === nodes {
+                doc = existing
+                reuse = !styled
+            } else {
+                doc = DocumentLayout(node: nodes)
+                reuse = false
+            }
             doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
             document = doc
             rebuildScrollTargets(doc)

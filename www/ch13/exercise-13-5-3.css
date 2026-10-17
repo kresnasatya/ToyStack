@@ -1,0 +1,19 @@
+.a {
+    opacity: 0.999;
+    animation: fade 2s linear infinite alternate;
+}
+
+.b {
+    opacity: 0.999;
+    animation: fade 2s ease-in-out infinite alternate;
+}
+
+@keyframes fade {
+    from {
+        opacity: 0.999;
+    }
+
+    to {
+        opacity: 0.1;
+    }
+}
