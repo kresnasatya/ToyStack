@@ -10,7 +10,7 @@ public protocol DisplayCommand: DisplayItem {
 extension DisplayCommand {
     var contentHash: Int {
         var hasher: Hasher = Hasher()
-        hasher.combine(String(describing: type(of: self)))
+        hasher.combine(ObjectIdentifier(type(of: self)))
         hasher.combine(rect.left)
         hasher.combine(rect.top)
         hasher.combine(rect.right)
@@ -23,8 +23,7 @@ extension DisplayCommand {
         } else if let cmd = self as? DrawText {
             hasher.combine(cmd.text)
             hasher.combine(cmd.color)
-            hasher.combine(CTFontCopyPostScriptName(cmd.font.ctFont) as String)
-            hasher.combine(CTFontGetSize(cmd.font.ctFont))
+            hasher.combine(ObjectIdentifier(cmd.font.ctFont))
         } else if let cmd = self as? DrawOutline {
             hasher.combine(cmd.color)
             hasher.combine(cmd.thickness)
