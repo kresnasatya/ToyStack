@@ -145,15 +145,15 @@ public class Browser: ObservableObject {
 
         nextFrameTime = max(nextFrameTime + FRAME_BUDGET, now)
         let delay: TimeInterval = nextFrameTime.timeIntervalSinceNow
-        animationTimer = Timer.scheduledTimer(
-            withTimeInterval: max(0, delay), repeats: false,
-            block: {
-                [weak self] _ in
-                Task { @MainActor in
-                    self?.animationTick()
-                    self?.scheduleNextFrame()
-                }
-            })
+        let timer: Timer = Timer(timeInterval: max(0, delay), repeats: false) {
+            [weak self] _ in
+            Task { @MainActor in
+                self?.animationTick()
+                self?.scheduleNextFrame()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
     }
 
     public func stopAnimationTimer() {
