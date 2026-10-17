@@ -201,11 +201,12 @@ public class BrowserTab {
     }
 
     public func resize(width: CGFloat, height: CGFloat) {
+        guard width != tabWidth || height != tabHeight else { return }
         tabWidth = width
         tabHeight = height
         rootFrame.frameWidth = width
         rootFrame.frameHeight = height
-        rootFrame.setNeedsRender()
+        rootFrame.setNeedsViewportResize()
     }
 
     public func scrollDown() {

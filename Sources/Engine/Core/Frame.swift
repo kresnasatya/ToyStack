@@ -49,6 +49,8 @@ class Frame {
     var needsStyle: Bool = false
     var needsLayout: Bool = false
     var needsPaint: Bool = false
+    private var mediaQueries: Set<String> = []
+    private var mediaMatches: [String: Bool] = [:]
     var needsCompositeForPaint: Bool = false
     private var needsComposite: Bool = false
     var needsFocusScroll: Bool = false
@@ -660,6 +662,7 @@ class Frame {
             browser?.measure.start("BrowserTab.style.rules")
             let sortedRules: [(String?, any CSSSelector, [String : String])] = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
             let ruleIndex: RuleIndex = RuleIndex(rules: sortedRules)
+            mediaQueries = Set(sortedRules.compactMap({ $0.0 }))
             profiler.count("style.rules", by: sortedRules.count)
             browser?.measure.stop("BrowserTab.style.rules")
 
@@ -675,13 +678,8 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.snapshot")
 
             browser?.measure.start("BrowserTab.style.apply")
-            let media: MediaFeatures = MediaFeatures(
-                preferences: ColorPreferences(
-                    prefersDark: tab?.prefersDark ?? false,
-                    usesForcedColors: tab?.forcedColors ?? false
-                ),
-                frameWidth: frameWidth / zoom
-            )
+            let media: MediaFeatures = currentMedia()
+            recordMediaMatches(media)
             let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
             applyStyle(
                 node: nodes,
@@ -1258,6 +1256,14 @@ class Frame {
         requestAnimationFrame()
     }
 
+    func setNeedsViewportResize() {
+        if mediaMatchesChanged() {
+            setNeedsRender()
+        } else {
+            setNeedsLayout()
+        }
+    }
+
     func setNeedsPaint() {
         needsPaint = true
         needsRender = true
@@ -1289,6 +1295,36 @@ class Frame {
         scroll *= newZoom / zoom
         zoom = newZoom
         setNeedsRender()
+    }
+
+    private func currentMedia() -> MediaFeatures {
+        MediaFeatures(
+            preferences: ColorPreferences(
+                prefersDark: tab?.prefersDark ?? false,
+                usesForcedColors: tab?.forcedColors ?? false
+            ),
+            frameWidth: frameWidth / zoom
+        )
+    }
+
+    private func recordMediaMatches(_ media: MediaFeatures) {
+        mediaMatches = mediaQueries.reduce(into: [:], { verdicts, query in
+            verdicts[query] = media.matches(query)
+        })
+    }
+
+    private func mediaMatchesChanged() -> Bool {
+        guard !mediaQueries.isEmpty else { return false }
+        let media: MediaFeatures = currentMedia()
+        var changed: Bool = false
+        for query in mediaQueries {
+            let now: Bool = media.matches(query)
+            if mediaMatches[query] != now {
+                changed = true
+                mediaMatches[query] = now
+            }
+        }
+        return changed
     }
 }
 
