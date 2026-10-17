@@ -13,6 +13,7 @@ protocol LayoutObject: AnyObject {
     var zoom: CGFloat { get set }
 
     func layout()
+    func layout(reusesChildren: Bool)
     func paint() -> [any DisplayItem]
     func shouldPaint() -> Bool
     func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem]
@@ -20,6 +21,10 @@ protocol LayoutObject: AnyObject {
 }
 
 extension LayoutObject {
+    func layout(reusesChildren: Bool) {
+        layout()
+    }
+
     func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem] {
         if self is LineLayout { return items }
         return paintBrowserVisualEffects(node: node, items: items, rect: selfRect())

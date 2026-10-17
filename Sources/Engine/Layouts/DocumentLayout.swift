@@ -20,16 +20,25 @@ class DocumentLayout: LayoutObject {
         layout(availableWidth: WIDTH)
     }
 
-    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0) {
+    func layout(reusesChildren: Bool) {
+        layout(availableWidth: WIDTH, zoom: zoom, reusesChildren: reusesChildren)
+    }
+
+    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, reusesChildren: Bool = false) {
         self.zoom = zoom
-        let child: BlockLayout = BlockLayout(node: node, parent: self, previous: nil)
-        children.append(child)
+        let child: BlockLayout
+        if reusesChildren, let existing = children.first as? BlockLayout, existing.node === node {
+            child = existing
+        } else {
+            child = BlockLayout(node: node, parent: self, previous: nil)
+        }
+        children = [child]
 
         width = availableWidth - 2 * scaled(HSTEP)
         x = scaled(HSTEP)
         y = scaled(VSTEP)
 
-        child.layout()
+        child.layout(reusesChildren: reusesChildren)
         height = child.height
     }
 

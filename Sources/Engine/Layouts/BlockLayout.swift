@@ -42,6 +42,10 @@ class BlockLayout: LayoutObject {
     }
 
     func layout() {
+        layout(reusesChildren: false)
+    }
+
+    func layout(reusesChildren: Bool) {
         profiler.measure("layout.block.build") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
@@ -82,6 +86,8 @@ class BlockLayout: LayoutObject {
 
             let mode: String = layoutMode()
             if mode == "block" {
+                var pool: ChildReuse = ChildReuse(prior: children, enabled: reusesChildren)
+                children = []
                 var prev: (any LayoutObject)? = nil
                 var inlineRun: [any DOMNode] = []
                 var pendingRunIn: Element? = nil
@@ -94,7 +100,9 @@ class BlockLayout: LayoutObject {
                     if isBlock {
                         if let el = child as? Element, el.tag == "h6" {
                             if !inlineRun.isEmpty {
-                                let anon: BlockLayout = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                let anon: BlockLayout = pool.take({
+                                    BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                })
                                 children.append(anon)
                                 prev = anon
                                 inlineRun = []
@@ -102,19 +110,24 @@ class BlockLayout: LayoutObject {
                             pendingRunIn = el
                         } else {
                             if !inlineRun.isEmpty {
-                                let anon: BlockLayout = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                let anon: BlockLayout = pool.take({
+                                    BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                                })
                                 children.append(anon)
                                 prev = anon
                                 inlineRun = []
                             }
                             if let runIn = pendingRunIn {
-                                let next: BlockLayout = BlockLayout(
-                                    nodes: [runIn, child], parent: self, previous: prev)
+                                let next: BlockLayout = pool.take({
+                                    BlockLayout(nodes: [runIn, child], parent: self, previous: prev)
+                                })
                                 children.append(next)
                                 prev = next
                                 pendingRunIn = nil
                             } else {
-                                let next: BlockLayout = BlockLayout(node: child, parent: self, previous: prev)
+                                let next: BlockLayout = pool.take({
+                                    BlockLayout(node: child, parent: self, previous: prev)
+                                })
                                 children.append(next)
                                 if child.style["position"] != "absolute" { prev = next }
                             }
@@ -124,14 +137,20 @@ class BlockLayout: LayoutObject {
                     }
                 }
                 if !inlineRun.isEmpty {
-                    let anon: BlockLayout = BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                    let anon: BlockLayout = pool.take({
+                        BlockLayout(nodes: inlineRun, parent: self, previous: prev)
+                    })
                     children.append(anon)
                 }
                 if let runIn = pendingRunIn {
-                    let next: BlockLayout = BlockLayout(node: runIn, parent: self, previous: prev)
+                    let next: BlockLayout = pool.take({
+                        BlockLayout(node: runIn, parent: self, previous: prev)
+                    })
                     children.append(next)
                 }
+                assert(!reusesChildren || pool.finished, "block structure changed without a style pass; reuse is unsafe")
             } else {
+                children = []
                 newLine()
                 if !extraNodes.isEmpty {
                     for n in extraNodes { recurse(n) }
@@ -141,7 +160,7 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        for child in children { child.layout() }
+        for child in children { child.layout(reusesChildren: reusesChildren) }
 
         let sumHeight: Double = children.reduce(0) {
             if $1.node.style["position"] == "absolute" { return $0 }
@@ -506,5 +525,26 @@ class BlockLayout: LayoutObject {
         if node is TextNode { return true }
         guard let el = node as? Element else { return true }
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
+    }
+}
+
+// MARK: - ChildReuse
+
+private struct ChildReuse {
+    private let prior: [any LayoutObject]
+    private var index: Int = 0
+
+    init(prior: [any LayoutObject], enabled: Bool) {
+        self.prior = enabled ? prior : []
+    }
+
+    var finished: Bool { index == prior.count }
+
+    mutating func take(_ make: () -> BlockLayout) -> BlockLayout {
+        guard index < prior.count, let existing = prior[index] as? BlockLayout else {
+            return make()
+        }
+        index += 1
+        return existing
     }
 }

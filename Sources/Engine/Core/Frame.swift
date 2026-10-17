@@ -653,6 +653,7 @@ class Frame {
     // MARK: - Render
 
     func render() {
+        let styled: Bool = needsStyle
         if needsStyle {
             browser?.measure.start("BrowserTab.style")
             profiler.reset()
@@ -738,8 +739,9 @@ class Frame {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
-            let doc: DocumentLayout = DocumentLayout(node: nodes)
-            doc.layout(availableWidth: frameWidth, zoom: zoom)
+            let reuse: Bool = !styled && document?.node === nodes
+            let doc: DocumentLayout = document ?? DocumentLayout(node: nodes)
+            doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
             document = doc
             rebuildScrollTargets(doc)
 
