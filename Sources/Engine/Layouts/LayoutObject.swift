@@ -16,7 +16,7 @@ protocol LayoutObject: AnyObject {
     func layout(reusesChildren: Bool)
     func paint() -> [any DisplayItem]
     func shouldPaint() -> Bool
-    func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem]
+    func paintEffects(into items: inout [any DisplayItem], from start: Int)
 
 }
 
@@ -25,9 +25,15 @@ extension LayoutObject {
         layout()
     }
 
-    func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem] {
-        if self is LineLayout { return items }
-        return paintBrowserVisualEffects(node: node, items: items, rect: selfRect())
+    func paintEffects(into items: inout [any DisplayItem], from start: Int) {
+        applyPaintEffects(into: &items, from: start)
+    }
+
+    func applyPaintEffects(into items: inout [any DisplayItem], from start: Int) {
+        if self is LineLayout || paintEffectStyle(node: node) == nil { return }
+        let produced: [any DisplayItem] = Array(items[start...])
+        let wrapped: [any DisplayItem] = paintBrowserVisualEffects(node: node, items: produced, rect: selfRect())
+        items.replaceSubrange(start..<items.count, with: wrapped)
     }
 
     func selfRect() -> Rect {

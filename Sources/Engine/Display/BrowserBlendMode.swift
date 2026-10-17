@@ -7,12 +7,23 @@ public enum BrowserBlendMode: String {
     case destinationIn
 }
 
+// MARK: - CSS Value
+
+func browserBlendMode(_ css: String?) -> BrowserBlendMode? {
+    switch css {
+    case "multiply": return .multiply
+    case "difference": return .difference
+    case "destination-in": return .destinationIn
+    default: return nil
+    }
+}
+
 extension BrowserBlendMode {
     public var compositingFilterName: String? {
         switch self {
-            case .normal, .destinationIn: return nil
-            case .multiply: return "CIMultiplyBlendMode"
-            case .difference: return "CIDifferenceBlendMode"
+        case .normal, .destinationIn: return nil
+        case .multiply: return "CIMultiplyBlendMode"
+        case .difference: return "CIDifferenceBlendMode"
         }
     }
 }

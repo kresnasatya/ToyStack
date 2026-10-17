@@ -2,14 +2,14 @@ import CoreGraphics
 
 @MainActor
 func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem]) {
-    var items: [any DisplayItem] = []
+    let start: Int = displayList.count
 
     if obj.shouldPaint() {
-        items.append(contentsOf: obj.paint())
+        displayList.append(contentsOf: obj.paint())
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
-        var childItems: [any DisplayItem] = []
+        let childStart: Int = displayList.count
         let visibleTop: CGFloat = block.y + block.scrollOffset
         let visibleBottom: CGFloat = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []
@@ -19,29 +19,29 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             visibleChildren.append(child)
         }
         for child in inPaintOrder(visibleChildren) {
-            paintTree(child, into: &childItems)
+            paintTree(child, into: &displayList)
         }
+        let childItems: [any DisplayItem] = Array(displayList[childStart...])
+        displayList.removeSubrange(childStart..<displayList.count)
         let effect: ScrollEffect = ScrollEffect(
             rect: block.selfRect(),
             scrollOffset: block.scrollOffset,
             node: block.node,
             children: childItems
         )
-        items.append(effect)
-        items.append(contentsOf: block.paintScrollbar())
+        displayList.append(effect)
+        displayList.append(contentsOf: block.paintScrollbar())
     } else if let iframe = obj as? IframeLayout,
         let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
         let childDoc = childFrame.document {
-        paintTree(childDoc, into: &items)
+        paintTree(childDoc, into: &displayList)
     } else {
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &items)
+            paintTree(child, into: &displayList)
         }
     }
 
-    items = obj.paintEffects(items)
-
-    displayList.append(contentsOf: items)
+    obj.paintEffects(into: &displayList, from: start)
 }
 
 @MainActor

@@ -31,26 +31,12 @@ public class BrowserVisualEffect: DisplayItem {
 }
 
 func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
-    let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
-    let blendModeStr: String? = node.style["mix-blend-mode"]
-    let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")
-    let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(of: "px", with: "")
-    let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
-    let blurRadius: CGFloat = CSSValueParser.blur(node.style["filter"] ?? "")
-
-    let blendMode: BrowserBlendMode? = {
-        switch blendModeStr {
-        case "multiply": return .multiply
-        case "difference": return .difference
-        case "destination-in": return .destinationIn
-        default: return nil
-        }
-    }()
-    let animated: Bool = node.animations["transform"] != nil || node.animations["opacity"] != nil
-    guard borderRadius > 0 || blurRadius > 0 || opacity < 1
-        || (blendMode != nil && blendMode != .normal)
-        || translation != nil || animated
-    else { return items }
+    guard let style: PaintEffectStyle = paintEffectStyle(node: node) else { return items }
+    let opacity: Double = style.opacity
+    let blendMode: BrowserBlendMode? = style.blendMode
+    let translation: CGPoint? = style.translation
+    let borderRadius: CGFloat = style.borderRadius
+    let blurRadius: CGFloat = style.blurRadius
 
     var displayItems: [any DisplayItem] = items
     if borderRadius > 0 {

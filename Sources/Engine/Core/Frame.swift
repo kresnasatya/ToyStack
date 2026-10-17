@@ -768,6 +768,7 @@ class Frame {
         defer { browser?.measure.stop("BrowserTab.paint") }
         guard let doc = document else { return }
         var list: [any DisplayItem] = []
+        list.reserveCapacity(displayList.count)
         paintTree(doc, into: &list)
         displayList = list
         paintedBottom = maxRectBottom(list)

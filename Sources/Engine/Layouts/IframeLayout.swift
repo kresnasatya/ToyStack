@@ -58,7 +58,7 @@ final class IframeLayout: EmbedLayout {
         return cmds
     }
 
-    override func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem] {
+    override func paintEffects(into items: inout [any DisplayItem], from start: Int) {
         let rect: Rect = selfRect()
         let diff: CGFloat = scaled(1)
         let scroll: CGFloat = (frame?.loaded ?? false) ? (frame?.scroll ?? 0) : 0
@@ -76,11 +76,13 @@ final class IframeLayout: EmbedLayout {
             right: innerRect.right - innerRect.left,
             bottom: scroll + (innerRect.bottom - innerRect.top)
         )
+
+        let produced: [any DisplayItem] = Array(items[start...])
         let clip: Clip = Clip(
             rect: innerRect,
             clipRect: clipRect,
             node: nil,
-            children: items
+            children: produced
         )
 
         let transform: Transform = Transform(
@@ -103,10 +105,13 @@ final class IframeLayout: EmbedLayout {
         if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: rect) {
             cmds.append(border)
         }
+
         if let outline: DrawOutline = DrawOutline.fromStyle(node, rect: rect) {
             cmds.append(outline)
         }
-        return paintBrowserVisualEffects(node: node, items: cmds, rect: rect)
+
+        let wrapped: [any DisplayItem] = paintBrowserVisualEffects(node: node, items: cmds, rect: rect)
+        items.replaceSubrange(start..<items.count, with: wrapped)
     }
 
     private func childScrollbar(innerRect: Rect) -> ScrollbarBar? {

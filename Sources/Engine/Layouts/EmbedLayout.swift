@@ -31,7 +31,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
 
     func shouldPaint() -> Bool { true }
     func paint() -> [any DisplayItem] { [] }
-    func paintEffects(_ items: [any DisplayItem]) -> [any DisplayItem] {
-        paintBrowserVisualEffects(node: node, items: items, rect: selfRect())
+    func paintEffects(into items: inout [any DisplayItem], from start: Int) {
+        applyPaintEffects(into: &items, from: start)
     }
 }
