@@ -18,12 +18,29 @@ final class ImageLayout: EmbedLayout {
         return (intrinsicW, intrinsicH)
     }
 
+    static func usedWidth(for el: Element, available: CGFloat, zoom: CGFloat) -> CGFloat {
+        let intrinsic: CGFloat = CGFloat(displaySize(for: el).width) * zoom
+        guard let limit = lengthPx(el.style["max-width"], available: available, zoom: zoom) else {
+            return intrinsic
+        }
+        return min(intrinsic, limit)
+    }
+
+    static func usedHeight(for el: Element, usedWidth: CGFloat, zoom: CGFloat) -> CGFloat {
+        let size: (width: Double, height: Double) = displaySize(for: el)
+        let ratio: AspectRatio? = AspectRatio(css: el.style["aspect-ratio"]) ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
+        guard let height = ratio?.height(forWidth: Double(usedWidth / zoom)) else {
+            return CGFloat(size.height) * zoom
+        }
+        return CGFloat(height) * zoom
+    }
+
     override func layout() {
         super.layout()
         guard let el = node as? Element else { return }
-        let size: (width: Double, height: Double) = ImageLayout.displaySize(for: el)
-        width = scaled(CGFloat(size.width))
-        imgHeight = scaled(CGFloat(size.height))
+        let usedWidth: CGFloat = ImageLayout.usedWidth(for: el, available: parent!.width, zoom: zoom)
+        width = usedWidth
+        imgHeight = ImageLayout.usedHeight(for: el, usedWidth: usedWidth, zoom: zoom)
         height = max(imgHeight, font.linespace)
     }
 

@@ -341,7 +341,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addImage(_ node: Element) {
-        let w: CGFloat = scaled(CGFloat(ImageLayout.displaySize(for: node).width))
+        let w: CGFloat = ImageLayout.usedWidth(for: node, available: width, zoom: zoom)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
