@@ -16,7 +16,7 @@ func paintEffectStyle(node: DOMNode) -> PaintEffectStyle? {
     let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendMode: BrowserBlendMode? = browserBlendMode(node.style["mix-blend-mode"])
     let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")
-    let cornerRadii: CornerRadii = CSSValueParser.cornerRadii(node.style["border-radius"]) ?? .zero
+    let cornerRadii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
     let blurRadius: CGFloat = CSSValueParser.blur(node.style["filter"] ?? "")
     let animated: Bool = node.animations["transform"] != nil || node.animations["opacity"] != nil
 

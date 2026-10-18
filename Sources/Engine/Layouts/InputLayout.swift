@@ -65,7 +65,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
 
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
-            let radii: CornerRadii = CSSValueParser.cornerRadii(element.style["border-radius"]) ?? .zero
+            let radii: CornerRadii = CSSValueParser.cornerRadii(element.style) ?? .zero
             if !radii.isZero {
                 cmds.append(
                     DrawRRect(

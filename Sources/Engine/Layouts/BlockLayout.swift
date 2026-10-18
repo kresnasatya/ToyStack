@@ -451,7 +451,7 @@ class BlockLayout: LayoutObject {
         var cmds: [any DisplayCommand] = []
         let bgcolor: String = node.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
-            let radii: CornerRadii = CSSValueParser.cornerRadii(node.style["border-radius"]) ?? .zero
+            let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
             if !radii.isZero {
                 cmds.append(
                     DrawRRect(

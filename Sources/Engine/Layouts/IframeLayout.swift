@@ -52,7 +52,7 @@ final class IframeLayout: EmbedLayout {
         var cmds: [any DisplayCommand] = []
         let bgColor: String = node.style["background-color"] ?? "transparent"
         guard bgColor != "transparent" else { return cmds }
-        let radii: CornerRadii = CSSValueParser.cornerRadii(node.style["border-radius"]) ?? .zero
+        let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
         cmds.append(DrawRRect(rect: selfRect(), parentEffect: nil, radii: radii, color: bgColor))
         return cmds
     }

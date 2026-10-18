@@ -47,7 +47,7 @@ enum CSSValueParser {
         return CGFloat(Double(digits) ?? 0)
     }
 
-    static func cornerRadii(_ css: String?) -> CornerRadii? {
+    private static func shorthandCornerRadii(_ css: String?) -> CornerRadii? {
         guard let css else { return nil }
         let halves: [Substring] = css.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
         guard let horizontal = radiusLengths(halves[0]) else { return nil }
@@ -66,6 +66,30 @@ enum CSSValueParser {
         }
         let radii: CornerRadii = CornerRadii(corners: corners)
         return radii.isZero ? nil : radii
+    }
+
+    static func cornerRadii(_ style: [String: String]) -> CornerRadii? {
+        let shorthand: CornerRadii = shorthandCornerRadii(style["border-radius"]) ?? .zero
+        let corners: [CornerRadius] = [
+            cornerRadius(style["border-top-left-radius"]) ?? shorthand.topLeft,
+            cornerRadius(style["border-top-right-radius"]) ?? shorthand.topRight,
+            cornerRadius(style["border-bottom-right-radius"]) ?? shorthand.bottomRight,
+            cornerRadius(style["border-bottom-left-radius"]) ?? shorthand.bottomLeft,
+        ]
+        let radii: CornerRadii = CornerRadii(corners: corners)
+        return radii.isZero ? nil : radii
+    }
+
+    private static func cornerRadius(_ css: String?) -> CornerRadius? {
+        guard let css, let values = radiusLengths(Substring(css)) else { return nil }
+        switch values.count {
+        case 1:
+            return CornerRadius(horizontal: values[0], vertical: values[0])
+        case 2:
+            return CornerRadius(horizontal: values[0], vertical: values[1])
+        default:
+            return nil
+        }
     }
 
     private static func radiusLengths(_ css: Substring) -> [RadiusLength]? {
