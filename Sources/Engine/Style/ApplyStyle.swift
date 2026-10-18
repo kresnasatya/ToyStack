@@ -78,8 +78,12 @@ func applyStyle(
         if media.preferences.usesForcedColors { applyForcedColors(node: node) }
 
         if node.style["overflow"] == nil {
-            if node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll" {
+            let scrolls: Bool = node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll"
+            let hides: Bool = node.style["overflow-y"] == "hidden" || node.style["overflow-x"] == "hidden"
+            if scrolls {
                 node.style["overflow"] = "scroll"
+            } else if hides {
+                node.style["overflow"] = "hidden"
             }
         }
 
