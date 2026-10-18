@@ -29,7 +29,7 @@ extension DisplayCommand {
             hasher.combine(cmd.thickness)
         } else if let cmd = self as? DrawRRect {
             hasher.combine(cmd.color)
-            hasher.combine(cmd.radius)
+            hasher.combine(cmd.radii)
         } else if let cmd = self as? DrawImage {
             hasher.combine(ObjectIdentifier(cmd.image))
             hasher.combine(cmd.rendering.rawValue)

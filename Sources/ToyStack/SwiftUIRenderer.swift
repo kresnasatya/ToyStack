@@ -31,9 +31,9 @@ final class SwiftUIRenderer: Renderer {
         context.fill(Path(rect.cgRect), with: .color(Color(engine: color)))
     }
 
-    func fillRRect(_ rect: Rect, radius: CGFloat, color: BrowserColor) {
+    func fillRRect(_ rect: Rect, radii: CornerRadii, color: BrowserColor) {
         context.fill(
-            Path(roundedRect: rect.cgRect, cornerRadius: radius),
+            Path(roundedRectPath(rect: rect, radii: radii)),
             with: .color(Color(engine: color))
         )
     }

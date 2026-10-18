@@ -64,15 +64,17 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         var cmds: [any DisplayCommand] = []
 
         let bgcolor: String = element.style["background-color"] ?? "transparent"
-        let radiusStr: String = (element.style["border-radius"] ?? "0px").replacingOccurrences(
-            of: "px", with: "")
-        let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" {
-            if borderRadius > 0 {
+            let radii: CornerRadii = CSSValueParser.cornerRadii(element.style["border-radius"]) ?? .zero
+            if !radii.isZero {
                 cmds.append(
                     DrawRRect(
-                        rect: selfRect(), parentEffect: nil, radius: borderRadius,
-                        color: bgcolor))
+                        rect: selfRect(),
+                        parentEffect: nil,
+                        radii: radii,
+                        color: bgcolor
+                    )
+                )
             } else {
                 cmds.append(DrawRect(rect: selfRect(), color: bgcolor))
             }

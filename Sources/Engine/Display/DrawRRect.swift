@@ -4,10 +4,10 @@ import CoreGraphics
 struct DrawRRect: DisplayCommand {
     var rect: Rect
     var parentEffect: BrowserVisualEffect?
-    let radius: CGFloat
+    let radii: CornerRadii
     let color: String
 
     func execute(scroll: CGFloat, renderer: any Renderer) {
-        renderer.fillRRect(rect, radius: radius, color: BrowserColor(cssName: color))
+        renderer.fillRRect(rect, radii: radii, color: BrowserColor(cssName: color))
     }
 }

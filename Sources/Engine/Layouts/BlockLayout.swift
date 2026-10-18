@@ -450,14 +450,16 @@ class BlockLayout: LayoutObject {
     func paint() -> [any DisplayItem] {
         var cmds: [any DisplayCommand] = []
         let bgcolor: String = node.style["background-color"] ?? "transparent"
-        let radiusStr: String = (node.style["border-radius"] ?? "0px").replacingOccurrences(
-            of: "px", with: "")
-        let borderRadius: CGFloat = CGFloat(Double(radiusStr) ?? 0)
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
-            if borderRadius > 0 {
+            let radii: CornerRadii = CSSValueParser.cornerRadii(node.style["border-radius"]) ?? .zero
+            if !radii.isZero {
                 cmds.append(
                     DrawRRect(
-                        rect: selfRect(), parentEffect: nil, radius: borderRadius, color: bgcolor)
+                        rect: selfRect(),
+                        parentEffect: nil,
+                        radii: radii,
+                        color: bgcolor
+                    )
                 )
             } else {
                 cmds.append(DrawRect(rect: selfRect(), color: bgcolor))

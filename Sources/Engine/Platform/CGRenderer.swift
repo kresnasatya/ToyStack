@@ -42,8 +42,8 @@ public final class CGRenderer: Renderer {
         cg.fill(rect.cgRect)
     }
 
-    public func fillRRect(_ rect: Rect, radius: CGFloat, color: BrowserColor) {
-        let path: CGPath = CGPath(roundedRect: rect.cgRect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    public func fillRRect(_ rect: Rect, radii: CornerRadii, color: BrowserColor) {
+        let path: CGPath = roundedRectPath(rect: rect, radii: radii)
         cg.setFillColor(color.cgColor)
         cg.addPath(path)
         cg.fillPath()

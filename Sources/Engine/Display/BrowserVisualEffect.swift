@@ -35,15 +35,15 @@ func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Re
     let opacity: Double = style.opacity
     let blendMode: BrowserBlendMode? = style.blendMode
     let translation: CGPoint? = style.translation
-    let borderRadius: CGFloat = style.borderRadius
+    let cornerRadii: CornerRadii = style.cornerRadii
     let blurRadius: CGFloat = style.blurRadius
 
     var displayItems: [any DisplayItem] = items
-    if borderRadius > 0 {
+    if !cornerRadii.isZero {
         let clip: Blend = Blend(
             opacity: 1.0, blendMode: .normal, node: node,
             children: [
-                DrawRRect(rect: rect, parentEffect: nil, radius: borderRadius, color: "transparent")
+                DrawRRect(rect: rect, parentEffect: nil, radii: cornerRadii, color: "transparent")
             ])
         displayItems = [clip] + displayItems
     }

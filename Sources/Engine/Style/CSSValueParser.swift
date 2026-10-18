@@ -47,6 +47,29 @@ enum CSSValueParser {
         return CGFloat(Double(digits) ?? 0)
     }
 
+    static func cornerRadii(_ css: String?) -> CornerRadii? {
+        guard let css else { return nil }
+        let tokens: [Substring] = css.split(whereSeparator: { $0.isWhitespace })
+        var values: [RadiusLength] = []
+        values.reserveCapacity(tokens.count)
+        for token in tokens {
+            guard let value = radiusLength(token) else { return nil }
+            values.append(value)
+        }
+        guard let radii = CornerRadii.shorthand(values), !radii.isZero else { return nil }
+        return radii
+    }
+
+    private static func radiusLength(_ token: Substring) -> RadiusLength? {
+        if token.hasSuffix("%"), let value = Double(token.dropLast()), value >= 0 {
+            return .percent(CGFloat(value))
+        }
+        if token.hasSuffix("px"), let value = Double(token.dropLast(2)), value >= 0 {
+            return .px(CGFloat(value))
+        }
+        return nil
+    }
+
     static func outlineWidth(_ token: String) -> CGFloat? {
         switch token {
             case "thin": return 1
