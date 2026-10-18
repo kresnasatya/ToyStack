@@ -5,6 +5,7 @@ public protocol Renderer {
     func restoreState()
     func translateBy(x: CGFloat, y: CGFloat)
     func clip(to rect: Rect)
+    func clipRRect(_ rect: Rect, radii: CornerRadii)
     func fillRect(_ rect: Rect, color: BrowserColor)
     func fillRRect(_ rect: Rect, radii: CornerRadii, color: BrowserColor)
     func strokeSegment(from: Point, to: Point, color: BrowserColor, lineWidth: CGFloat)

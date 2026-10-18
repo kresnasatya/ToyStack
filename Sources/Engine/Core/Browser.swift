@@ -682,10 +682,10 @@ public class Browser: ObservableObject {
                 if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
             } else if let clip = latest as? Clip {
                 let local: Rect = Rect(
-                    left: clip.clipRect.left - translation.x,
-                    top: clip.clipRect.top - translation.y,
-                    right: clip.clipRect.right - translation.x,
-                    bottom: clip.clipRect.bottom - translation.y
+                    left: clip.shape.rect.left - translation.x,
+                    top: clip.shape.rect.top - translation.y,
+                    right: clip.shape.rect.right - translation.x,
+                    bottom: clip.shape.rect.bottom - translation.y
                 )
                 clipRect = clipRect.map({ $0.intersect(local) }) ?? local
             }

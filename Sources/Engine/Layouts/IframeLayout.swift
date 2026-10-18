@@ -79,7 +79,7 @@ final class IframeLayout: EmbedLayout {
         let produced: [any DisplayItem] = Array(items[start...])
         let clip: Clip = Clip(
             rect: innerRect,
-            clipRect: clipRect,
+            shape: ClipShape(rect: clipRect, radii: .zero),
             node: nil,
             children: produced
         )

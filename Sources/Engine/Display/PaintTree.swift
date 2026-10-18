@@ -23,8 +23,9 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         }
         let childItems: [any DisplayItem] = Array(displayList[childStart...])
         displayList.removeSubrange(childStart..<displayList.count)
+        let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
         let effect: ScrollEffect = ScrollEffect(
-            rect: block.selfRect(),
+            shape: ClipShape(rect: block.selfRect(), radii: radii),
             scrollOffset: block.scrollOffset,
             node: block.node,
             children: childItems

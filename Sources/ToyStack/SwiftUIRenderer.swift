@@ -27,6 +27,10 @@ final class SwiftUIRenderer: Renderer {
         context.clip(to: Path(rect.cgRect))
     }
 
+    func clipRRect(_ rect: Rect, radii: CornerRadii) {
+        context.clip(to: Path(roundedRectPath(rect: rect, radii: radii)))
+    }
+
     func fillRect(_ rect: Rect, color: BrowserColor) {
         context.fill(Path(rect.cgRect), with: .color(Color(engine: color)))
     }

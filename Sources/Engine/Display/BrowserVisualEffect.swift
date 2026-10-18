@@ -35,18 +35,9 @@ func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Re
     let opacity: Double = style.opacity
     let blendMode: BrowserBlendMode? = style.blendMode
     let translation: CGPoint? = style.translation
-    let cornerRadii: CornerRadii = style.cornerRadii
     let blurRadius: CGFloat = style.blurRadius
 
     var displayItems: [any DisplayItem] = items
-    if !cornerRadii.isZero {
-        let clip: Blend = Blend(
-            opacity: 1.0, blendMode: .normal, node: node,
-            children: [
-                DrawRRect(rect: rect, parentEffect: nil, radii: cornerRadii, color: "transparent")
-            ])
-        displayItems = [clip] + displayItems
-    }
 
     if blurRadius > 0 {
         displayItems = [BlurFilter(radius: blurRadius, node: node, children: displayItems)]

@@ -37,6 +37,11 @@ public final class CGRenderer: Renderer {
     public func translateBy(x: CGFloat, y: CGFloat) { cg.translateBy(x: x, y: y) }
     public func clip(to rect: Rect) { cg.clip(to: rect.cgRect) }
 
+    public func clipRRect(_ rect: Rect, radii: CornerRadii) {
+        cg.addPath(roundedRectPath(rect: rect, radii: radii))
+        cg.clip()
+    }
+
     public func fillRect(_ rect: Rect, color: BrowserColor) {
         cg.setFillColor(color.cgColor)
         cg.fill(rect.cgRect)
