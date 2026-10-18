@@ -32,6 +32,15 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         )
         displayList.append(effect)
         displayList.append(contentsOf: block.paintScrollbar())
+    } else if let block = obj as? BlockLayout, block.node.style["overflow"] == "hidden" || block.node.style["overflow"] == "clip" {
+        let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
+        let clip: Clip = Clip(
+            rect: block.selfRect(),
+            shape: ClipShape(rect: block.selfRect(), radii: radii),
+            node: block.node,
+            children: clippedChildren(of: obj, into: &displayList)
+        )
+        displayList.append(clip)
     } else if let iframe = obj as? IframeLayout,
         let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
         let childDoc = childFrame.document {
@@ -43,6 +52,17 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
     }
 
     obj.paintEffects(into: &displayList, from: start)
+}
+
+@MainActor
+private func clippedChildren(of obj: any LayoutObject, into displayList: inout [any DisplayItem]) -> [any DisplayItem] {
+    let start: Int = displayList.count
+    for child in inPaintOrder(obj.children) {
+        paintTree(child, into: &displayList)
+    }
+    let items: [any DisplayItem] = Array(displayList[start...])
+    displayList.removeSubrange(start..<displayList.count)
+    return items
 }
 
 @MainActor
