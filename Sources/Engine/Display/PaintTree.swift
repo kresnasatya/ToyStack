@@ -52,6 +52,8 @@ func effectiveZIndex(_ node: any DOMNode) -> Int {
 
 @MainActor
 func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
+    guard children.contains(where: { ($0.node.style["position"] ?? "static") != "static" })
+        else { return children }
     return children.enumerated()
         .sorted { a, b in
             let za: Int = effectiveZIndex(a.element.node)
