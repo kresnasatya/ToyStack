@@ -40,24 +40,29 @@ struct RuleIndex {
     }
 
     func candidateIndices(for element: Element, ancestorKeys: AncestorSelectorKeys) -> [Int] {
-        var flags: [Bool] = [Bool](repeating: false, count: orderedRules.count)
-        for index in universal where requirementsMet(index, ancestorKeys) { flags[index] = true }
+        var result: [Int] = []
+        result.reserveCapacity(8)
+        for index in universal where requirementsMet(index, ancestorKeys) {
+            result.append(index)
+        }
         for index in byTag[element.tag] ?? [] where requirementsMet(index, ancestorKeys) {
-            flags[index] = true
+            result.append(index)
         }
         if let id = element.attributes["id"] {
             for index in byID[id] ?? [] where requirementsMet(index, ancestorKeys) {
-                flags[index] = true
+                result.append(index)
             }
         }
-        let classes: [Substring] = element.attributes["class"]?.split(separator: " ") ?? []
-        for cls in classes {
+        for cls in element.attributes["class"]?.split(separator: " ") ?? [] {
             for index in byClass[String(cls)] ?? [] where requirementsMet(index, ancestorKeys) {
-                flags[index] = true
+                result.append(index)
             }
         }
-
-        return flags.indices.filter { flags[$0] }
+        result.sort()
+        var unique: [Int] = []
+        unique.reserveCapacity(result.count)
+        for index in result where unique.last != index { unique.append(index) }
+        return unique
     }
 
     private func requirementsMet(_ index: Int, _ ancestorKeys: AncestorSelectorKeys) -> Bool {

@@ -33,7 +33,10 @@ class Frame {
     var loaded: Bool = false
 
     private(set) var focus: Element?
-    var rules: [(String?, any CSSSelector, [String: String])] = []
+    private var rulesRevision: Int = 0
+    var rules: [(String?, any CSSSelector, [String: String])] = [] {
+        didSet { rulesRevision += 1 }
+    }
     var keyframes: [String: [Keyframe]] = [:]
     private var allowedOrigins: [String]?
     private var referrerPolicy: String = ""
@@ -51,6 +54,9 @@ class Frame {
     var needsPaint: Bool = false
     private var mediaQueries: Set<String> = []
     private var mediaMatches: [String: Bool] = [:]
+    private var sortedRules: [(String?, any CSSSelector, [String: String])] = []
+    private var ruleIndex: RuleIndex = RuleIndex(rules: [])
+    private var indexedRulesRevision: Int = -1
     var needsCompositeForPaint: Bool = false
     private var needsComposite: Bool = false
     var needsFocusScroll: Bool = false
@@ -663,10 +669,13 @@ class Frame {
             defer { browser?.measure.stop("BrowserTab.style") }
 
             browser?.measure.start("BrowserTab.style.rules")
-            let sortedRules: [(String?, any CSSSelector, [String : String])] = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
-            let ruleIndex: RuleIndex = RuleIndex(rules: sortedRules)
-            mediaQueries = Set(sortedRules.compactMap({ $0.0 }))
-            profiler.count("style.rules", by: sortedRules.count)
+            if indexedRulesRevision != rulesRevision {
+                sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+                ruleIndex = RuleIndex(rules: sortedRules)
+                mediaQueries = Set(sortedRules.compactMap({ $0.0 }))
+                indexedRulesRevision = rulesRevision
+                profiler.count("style.rules", by: sortedRules.count)
+            }
             browser?.measure.stop("BrowserTab.style.rules")
 
             browser?.measure.start("BrowserTab.style.has")
