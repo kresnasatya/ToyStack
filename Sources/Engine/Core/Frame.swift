@@ -35,7 +35,10 @@ class Frame {
     private(set) var focus: Element?
     private var rulesRevision: Int = 0
     var rules: [(String?, any CSSSelector, [String: String])] = [] {
-        didSet { rulesRevision += 1 }
+        didSet {
+            rulesRevision += 1
+            needsHasPrecompute = true
+        }
     }
     var keyframes: [String: [Keyframe]] = [:]
     private var allowedOrigins: [String]?
@@ -52,6 +55,7 @@ class Frame {
     var needsStyle: Bool = false
     var needsLayout: Bool = false
     var needsPaint: Bool = false
+    private var needsHasPrecompute: Bool = true
     private var mediaQueries: Set<String> = []
     private var mediaMatches: [String: Bool] = [:]
     private var sortedRules: [(String?, any CSSSelector, [String: String])] = []
@@ -679,7 +683,10 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.rules")
 
             browser?.measure.start("BrowserTab.style.has")
-            precomputeHas(node: nodes, rules: sortedRules)
+            if needsHasPrecompute {
+                precomputeHas(node: nodes, rules: sortedRules)
+                needsHasPrecompute = false
+            }
             browser?.measure.stop("BrowserTab.style.has")
 
             browser?.measure.start("BrowserTab.style.snapshot")
@@ -1267,6 +1274,11 @@ class Frame {
     // MARK: - Invalidation
 
     func setNeedsRender() {
+        needsHasPrecompute = true
+        invalidateStyle()
+    }
+
+    private func invalidateStyle() {
         needsStyle = true
         needsRender = true
         parentFrame?.setNeedsLayout()
@@ -1282,7 +1294,7 @@ class Frame {
 
     func setNeedsViewportResize() {
         if mediaMatchesChanged() {
-            setNeedsRender()
+            invalidateStyle()
         } else {
             setNeedsLayout()
         }
