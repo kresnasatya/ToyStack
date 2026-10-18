@@ -62,6 +62,8 @@ class Frame {
     private var paintedBottom: CGFloat = 0
     private var zoom: CGFloat = 1.0
 
+    private var activeAnimations: Int = 0
+
     private struct IframeTarget {
         let rect: Rect
         let iframe: IframeLayout
@@ -715,6 +717,8 @@ class Frame {
             }
             browser?.measure.stop("BrowserTab.style.keyframes")
 
+            activeAnimations = treeToList(nodes).reduce(0) { $0 + $1.animations.count }
+
             browser?.measure.start("BrowserTab.style.visited")
             for node in treeToList(nodes) {
                 guard let el = node as? Element, el.tag == "a",
@@ -787,7 +791,8 @@ class Frame {
         needsComposite = needsStyle || needsLayout || needsPaint
         var needsLayoutUpdate: Bool = false
         browser?.measure.start("BrowserTab.animScan")
-        for node in treeToList(nodes) {
+        let animated: [any DOMNode] = activeAnimations > 0 ? treeToList(nodes) : []
+        for node in animated {
             for (key, animation) in node.animations {
                 let property: String = animation.animatedProperty
                 if let value = animation.nextValue() {
@@ -810,7 +815,7 @@ class Frame {
                         needsPaint = true
                     }
                 } else {
-                    node.animations.removeValue(forKey: key)
+                    if node.animations.removeValue(forKey: key) != nil { activeAnimations -= 1 }
                     needsCompositeForPaint = true
                     needsPaint = true
                 }
