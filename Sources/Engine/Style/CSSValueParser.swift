@@ -49,15 +49,35 @@ enum CSSValueParser {
 
     static func cornerRadii(_ css: String?) -> CornerRadii? {
         guard let css else { return nil }
+        let halves: [Substring] = css.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let horizontal = radiusLengths(halves[0]) else { return nil }
+        let vertical: [RadiusLength]
+        if halves.count == 2 {
+            guard let parsed = radiusLengths(halves[1]) else { return nil }
+            vertical = parsed
+        } else {
+            vertical = horizontal
+        }
+        guard let h = CornerRadii.expanded(horizontal),
+            let v = CornerRadii.expanded(vertical)
+        else { return nil }
+        let corners: [CornerRadius] = zip(h, v).map {
+            CornerRadius(horizontal: $0, vertical: $1)
+        }
+        let radii: CornerRadii = CornerRadii(corners: corners)
+        return radii.isZero ? nil : radii
+    }
+
+    private static func radiusLengths(_ css: Substring) -> [RadiusLength]? {
         let tokens: [Substring] = css.split(whereSeparator: { $0.isWhitespace })
+        guard !tokens.isEmpty else { return nil }
         var values: [RadiusLength] = []
         values.reserveCapacity(tokens.count)
         for token in tokens {
             guard let value = radiusLength(token) else { return nil }
             values.append(value)
         }
-        guard let radii = CornerRadii.shorthand(values), !radii.isZero else { return nil }
-        return radii
+        return values
     }
 
     private static func radiusLength(_ token: Substring) -> RadiusLength? {

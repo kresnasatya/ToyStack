@@ -46,32 +46,29 @@ public struct CornerRadii: Hashable {
 // MARK: - The shorthand
 
 extension CornerRadii {
-    static func shorthand(_ values: [RadiusLength]) -> CornerRadii? {
-        func corner(_ length: RadiusLength) -> CornerRadius {
-            CornerRadius(horizontal: length, vertical: length)
-        }
-
+    static func expanded(_ values: [RadiusLength]) -> [RadiusLength]? {
         switch values.count {
         case 1:
-            return CornerRadii.uniform(values[0])
+            return [values[0], values[0], values[0], values[0]]
         case 2:
-            return CornerRadii(
-                topLeft: corner(values[0]), topRight: corner(values[1]),
-                bottomRight: corner(values[0]), bottomLeft: corner(values[1])
-            )
+            return [values[0], values[1], values[0], values[1]]
         case 3:
-            return CornerRadii(
-                topLeft: corner(values[0]), topRight: corner(values[1]),
-                bottomRight: corner(values[2]), bottomLeft: corner(values[1])
-            )
+            return [values[0], values[1], values[2], values[1]]
         case 4:
-            return CornerRadii(
-                topLeft: corner(values[0]), topRight: corner(values[1]),
-                bottomRight: corner(values[2]), bottomLeft: corner(values[3])
-            )
+            return values
         default:
             return nil
         }
+    }
+}
+
+extension CornerRadii {
+    init(corners: [CornerRadius]) {
+        precondition(corners.count == 4, "CornerRadii needs exactly four corners")
+        self.init(
+            topLeft: corners[0], topRight: corners[1],
+            bottomRight: corners[2], bottomLeft: corners[3]
+        )
     }
 }
 
