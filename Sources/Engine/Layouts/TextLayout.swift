@@ -17,6 +17,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var font: BrowserFont = inlineDefaultFont
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
+    private(set) var textWidth: CGFloat = 0
 
     init(node: any DOMNode, word: String, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -47,7 +48,8 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             }
 
             font = resolvedFont
-            width = font.measure(displayWord ?? word) + font.spaceWidth
+            textWidth = font.measure(displayWord ?? word)
+            width = textWidth + font.spaceWidth
 
             if let prev = previous as? InlineLayoutItem {
                 x = prev.x + prev.width
@@ -59,16 +61,21 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         })
     }
 
-    func paint() -> [any DisplayItem] {
+    func paint(into items: inout [any DisplayItem]) {
         let color: String = node.style["color"] ?? "black"
-        return [
+        items.append(
             DrawText(
-                at: Point(x: x, y: y),
+                rect: Rect(
+                    left: x,
+                    top: y,
+                    right: x + textWidth,
+                    bottom: y + font.linespace
+                ),
                 text: displayWord ?? word,
                 font: font,
                 color: color
             )
-        ]
+        )
     }
 
     func shouldPaint() -> Bool {

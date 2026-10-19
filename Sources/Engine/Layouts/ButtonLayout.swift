@@ -115,21 +115,19 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [any DisplayItem] {
-        guard let element = node as? Element else { return [] }
-        var cmds: [any DisplayCommand] = []
+    func paint(into items: inout [any DisplayItem]) {
+        guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         let displayColor: String = bgcolor == "transparent" ? (usesForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
-        cmds.append(DrawRect(rect: selfRect(), color: displayColor))
-        cmds.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
+        items.append(DrawRect(rect: selfRect(), color: displayColor))
+        items.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
 
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
-            cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
+            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
+            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
         }
-        if let outline = outline { cmds.append(outline) }
-        return cmds
+        if let outline = outline { items.append(outline) }
     }
 
     func selfRect() -> Rect {

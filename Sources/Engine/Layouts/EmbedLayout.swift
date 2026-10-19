@@ -30,7 +30,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     }
 
     func shouldPaint() -> Bool { true }
-    func paint() -> [any DisplayItem] { [] }
+    func paint(into items: inout [any DisplayItem]) {}
     func paintEffects(into items: inout [any DisplayItem], from start: Int) {
         applyPaintEffects(into: &items, from: start)
     }

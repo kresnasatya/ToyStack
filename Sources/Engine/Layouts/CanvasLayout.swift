@@ -35,18 +35,16 @@ final class CanvasLayout: EmbedLayout {
         el.canvasContext?.setScale(displayScale * zoom)
     }
 
-    override func paint() -> [any DisplayItem] {
+    override func paint(into items: inout [any DisplayItem]) {
         guard let ctx = (node as? Element)?.canvasContext,
             let image: CGImage = ctx.image()
-        else { return [] }
-        return [
-            DrawImage(
-                image: image,
-                rendering: .auto,
-                rect: selfRect(),
-                parentEffect: nil,
-                contentVersion: ctx.revision
-            )
-        ]
+        else { return }
+        items.append(DrawImage(
+            image: image,
+            rendering: .auto,
+            rect: selfRect(),
+            parentEffect: nil,
+            contentVersion: ctx.revision
+        ))
     }
 }

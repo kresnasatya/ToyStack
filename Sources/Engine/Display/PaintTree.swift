@@ -5,7 +5,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
     let start: Int = displayList.count
 
     if obj.shouldPaint() {
-        displayList.append(contentsOf: obj.paint())
+        obj.paint(into: &displayList)
     }
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {

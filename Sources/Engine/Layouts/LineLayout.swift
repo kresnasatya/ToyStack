@@ -85,8 +85,7 @@ class LineLayout: LayoutObject {
         })
     }
 
-    func paint() -> [any DisplayItem] {
-        var cmds: [any DisplayCommand] = []
+    func paint(into items: inout [any DisplayItem]) {
         var outlineRect: Rect? = nil
         var focused: (any DOMNode)? = nil
         for child in children {
@@ -99,14 +98,13 @@ class LineLayout: LayoutObject {
         }
         if let rect = outlineRect, let focused = focused {
             if let outline = DrawOutline.fromStyle(focused, rect: rect) {
-                cmds.append(outline)
+                items.append(outline)
             } else {
-                cmds.append(DrawOutline(rect: rect, color: focusRingColors(node).outer, thickness: 4))
-                cmds.append(DrawOutline(rect: rect, color: focusRingColors(node).inner, thickness: 2))
+                items.append(DrawOutline(rect: rect, color: focusRingColors(node).outer, thickness: 4))
+                items.append(DrawOutline(rect: rect, color: focusRingColors(node).inner, thickness: 2))
             }
 
         }
-        return cmds
     }
 
     private func focusVisibleInlineAncestor(_ start: any DOMNode) -> (any DOMNode)? {

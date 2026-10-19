@@ -14,7 +14,7 @@ protocol LayoutObject: AnyObject {
 
     func layout()
     func layout(reusesChildren: Bool)
-    func paint() -> [any DisplayItem]
+    func paint(into items: inout [any DisplayItem])
     func shouldPaint() -> Bool
     func paintEffects(into items: inout [any DisplayItem], from start: Int)
 

@@ -460,13 +460,12 @@ class BlockLayout: LayoutObject {
         Rect(left: x, top: y, right: x + width, bottom: y + height)
     }
 
-    func paint() -> [any DisplayItem] {
-        var cmds: [any DisplayCommand] = []
+    func paint(into items: inout [any DisplayItem]) {
         let bgcolor: String = node.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
             let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
             if !radii.isZero {
-                cmds.append(
+                items.append(
                     DrawRRect(
                         rect: selfRect(),
                         parentEffect: nil,
@@ -475,7 +474,7 @@ class BlockLayout: LayoutObject {
                     )
                 )
             } else {
-                cmds.append(DrawRect(rect: selfRect(), color: bgcolor))
+                items.append(DrawRect(rect: selfRect(), color: bgcolor))
             }
         }
 
@@ -483,20 +482,20 @@ class BlockLayout: LayoutObject {
             let value = node.style["background-image"], value != "none" {
             let box: Rect = selfRect()
             let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom).rect(css: node.style["background-size"])
-            cmds.append(DrawClippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
+            items.append(DrawClippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
         }
 
         if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: selfRect()) {
-            cmds.append(border)
+            items.append(border)
         }
 
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if node.isFocusVisible && outline == nil {
             let ring: (outer: String, inner: String) = focusRingColors(node)
-            cmds.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
-            cmds.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
+            items.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
+            items.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
         }
-        if let outline = outline { cmds.append(outline) }
+        if let outline = outline { items.append(outline) }
 
         if let el = node as? Element, el.tag == "li" {
             let bulletX: CGFloat = x - BlockLayout.liIndent
@@ -505,14 +504,14 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            cmds.append(DrawRect(rect: bulletRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "black"))
+            items.append(DrawRect(rect: bulletRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "black"))
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {
             let headerRect: Rect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            cmds.append(DrawRect(rect: headerRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))
+            items.append(DrawRect(rect: headerRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))
             let font: BrowserFont = getFont(size: 12, weight: "bold", style: "roman")
-            cmds.append(
+            items.append(
                 DrawText(
                     at: Point(x: x, y: y),
                     text: "Table of Contents",
@@ -521,8 +520,6 @@ class BlockLayout: LayoutObject {
                 )
             )
         }
-
-        return cmds
     }
 
     func paintScrollbar() -> [any DisplayItem] {

@@ -48,13 +48,11 @@ final class IframeLayout: EmbedLayout {
         }
     }
 
-    override func paint() -> [any DisplayItem] {
-        var cmds: [any DisplayCommand] = []
+    override func paint(into items: inout [any DisplayItem]) {
         let bgColor: String = node.style["background-color"] ?? "transparent"
-        guard bgColor != "transparent" else { return cmds }
+        guard bgColor != "transparent" else { return }
         let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
-        cmds.append(DrawRRect(rect: selfRect(), parentEffect: nil, radii: radii, color: bgColor))
-        return cmds
+        items.append(DrawRRect(rect: selfRect(), parentEffect: nil, radii: radii, color: bgColor))
     }
 
     override func paintEffects(into items: inout [any DisplayItem], from start: Int) {

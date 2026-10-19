@@ -57,17 +57,13 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         true
     }
 
-    func paint() -> [any DisplayItem] {
-        guard let element = node as? Element else {
-            return []
-        }
-        var cmds: [any DisplayCommand] = []
-
+    func paint(into items: inout [any DisplayItem]) {
+        guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
             let radii: CornerRadii = CSSValueParser.cornerRadii(element.style) ?? .zero
             if !radii.isZero {
-                cmds.append(
+                items.append(
                     DrawRRect(
                         rect: selfRect(),
                         parentEffect: nil,
@@ -76,15 +72,15 @@ class InputLayout: LayoutObject, InlineLayoutItem {
                     )
                 )
             } else {
-                cmds.append(DrawRect(rect: selfRect(), color: bgcolor))
+                items.append(DrawRect(rect: selfRect(), color: bgcolor))
             }
         }
 
         if element.attributes["type"] == "checkbox" {
-            cmds.append(DrawRect(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonFace : "white"))
-            cmds.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
+            items.append(DrawRect(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonFace : "white"))
+            items.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
             if element.isChecked {
-                cmds.append(
+                items.append(
                     DrawText(
                         at: Point(x: x, y: y),
                         text: "X",
@@ -95,11 +91,10 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
             let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
-                cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 2))
-                cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 4))
+                items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 2))
+                items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 4))
             }
-            if let outline = outline { cmds.append(outline) }
-            return cmds
+            if let outline = outline { items.append(outline) }
         }
 
         var text: String = ""
@@ -118,13 +113,13 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             }
         }
         let color: String = element.style["color"] ?? "black"
-        cmds.append(DrawText(at: Point(x: x, y: y), text: text, font: font, color: color))
+        items.append(DrawText(at: Point(x: x, y: y), text: text, font: font, color: color))
 
         if element.isFocused {
             // NOTE: cx = caret X
             // The caret X is the x-position of the blinking text cursor when the input has focus.
             let cx: CGFloat = x + font.measure(text)
-            cmds.append(
+            items.append(
                 DrawLine(
                     from: Point(x: cx, y: y),
                     to: Point(x: cx, y: y + height),
@@ -135,12 +130,10 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         }
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
-            cmds.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
+            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
+            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
         }
-        if let outline = outline { cmds.append(outline) }
-
-        return cmds
+        if let outline = outline { items.append(outline) }
     }
 
     func selfRect() -> Rect {
