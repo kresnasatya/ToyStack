@@ -5,8 +5,8 @@ import CoreGraphics
 class TextLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let word: String
-    let parent: (any LayoutObject)?
-    let previous: (any LayoutObject)?
+    var parent: (any LayoutObject)?
+    var previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
     var x: CGFloat = 0
     var y: CGFloat = 0
@@ -17,9 +17,10 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var font: BrowserFont = inlineDefaultFont
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
-    private(set) var textWidth: CGFloat = 0
+    var textWidth: CGFloat = 0
+    var whiteSpace: WhiteSpaceMode = .normal
 
-    init(node: any DOMNode, word: String, parent: any LayoutObject, previous: (any LayoutObject)?) {
+    init(node: any DOMNode, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
         self.node = node
         self.word = word
         self.parent = parent

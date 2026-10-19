@@ -22,6 +22,7 @@ class BlockLayout: LayoutObject {
 
     private var cursorX: CGFloat = 0
     private var fontByNode: [ObjectIdentifier: BrowserFont] = [:]
+    private var inlineItems: [InlineItem] = []
     private var usedWidth: CGFloat = -1
 
     var scrollOffset: CGFloat = 0
@@ -162,14 +163,11 @@ class BlockLayout: LayoutObject {
                     children.append(next)
                 }
                 assert(!reusesChildren || pool.finished, "block structure changed without a style pass; reuse is unsafe")
+            } else if reusesChildren, !inlineItems.isEmpty {
+                placeInlineItems()
             } else {
-                children = []
-                newLine()
-                if !extraNodes.isEmpty {
-                    for n in extraNodes { recurse(n) }
-                } else {
-                    recurse(node)
-                }
+                inlineItems = buildInlineItems()
+                placeInlineItems()
             }
         }
         if subtreeStable { return }
@@ -222,29 +220,47 @@ class BlockLayout: LayoutObject {
         return scaled(CGFloat(v))
     }
 
-    private func recurse(_ n: any DOMNode) {
-        if let textNode = n as? TextNode {
-            addTextNode(textNode)
-        } else if let el = n as? Element {
-            if el.tag == "br" {
+    // MARK: - Inline items
+    private func buildInlineItems() -> [InlineItem] {
+        var items: [InlineItem] = []
+        if extraNodes.isEmpty {
+            collect(node, into: &items)
+        } else {
+            for n in extraNodes { collect(n, into: &items) }
+        }
+        return items
+    }
+
+    private func placeInlineItems() {
+        children = []
+        newLine()
+        for item in inlineItems {
+            switch item {
+            case .lineBreak:
                 newLine()
-            } else if el.tag == "input" {
-                addInput(el)
-            } else if el.tag == "button" {
-                addButton(el)
-            } else if el.tag == "img" {
-                addImage(el)
-            } else if el.tag == "iframe" {
-                addIframe(el)
-            } else if el.tag == "canvas" {
-                addCanvas(el)
-            } else {
-                for child in el.children { recurse(child) }
+            case .text(let text):
+                placeText(text)
+            case .embed(let element):
+                placeEmbed(element)
             }
         }
     }
 
-    private func addTextNode(_ textNode: TextNode) {
+    private func collect(_ n: any DOMNode, into items: inout [InlineItem]) {
+        if let textNode = n as? TextNode {
+            addTextNode(textNode, into: &items)
+        } else if let el = n as? Element {
+            if el.tag == "br" {
+                items.append(.lineBreak)
+            } else if el.tag == "input" || el.tag == "button" || el.tag == "img" || el.tag == "iframe" || el.tag == "canvas" {
+                items.append(.embed(el))
+            } else {
+                for child in el.children { collect(child, into: &items) }
+            }
+        }
+    }
+
+    private func addTextNode(_ textNode: TextNode, into items: inout [InlineItem]) {
         let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.style["white-space"])
         let font: BrowserFont = font(for: textNode)
         let run: InlineTextRun = InlineTextRun(
@@ -256,76 +272,96 @@ class BlockLayout: LayoutObject {
         if mode.keepsNewlines {
             let segments: [String] = textNode.text.components(separatedBy: "\n")
             for (i, segment) in segments.enumerated() {
-                if i > 0 { newLine() }
-                addSegment(text: segment, run: run)
+                if i > 0 { items.append(.lineBreak) }
+                addSegment(text: segment, run: run, into: &items)
             }
         } else {
-            addSegment(text: textNode.text, run: run)
+            addSegment(text: textNode.text, run: run, into: &items)
         }
     }
 
-    private func addSegment(text: String, run: InlineTextRun) {
+    private func addSegment(text: String, run: InlineTextRun, into items: inout [InlineItem]) {
         if run.whiteSpace.keepSpaces {
-            if !text.isEmpty { addWord(text, run: run) }
+            if !text.isEmpty { addWord(text, run: run, into: &items) }
         } else {
             for word in text.split(whereSeparator: { $0.isWhitespace }) {
-                addWord(String(word), run: run)
+                addWord(String(word), run: run, into: &items)
             }
         }
     }
 
-    private func addWord(_ word: String, run: InlineTextRun) {
+    private func addWord(_ word: String, run: InlineTextRun, into items: inout [InlineItem]) {
         profiler.count("text.words")
-        let font: BrowserFont = run.font
-        let node: any DOMNode = run.node
-        let w: CGFloat = font.measure(word)
 
         if run.isAbbr && word.contains(where: { $0.isLowercase }) {
-            addAbbrWord(node: node, word: word)
+            addAbbrWord(run: run, word: word, into: &items)
             return
         }
+        items.append(.text(makeText(run: run, word: word, display: nil, font: run.font)))
+    }
 
-        let mode: WhiteSpaceMode = run.whiteSpace
-        if cursorX + w > width && mode.wraps {
-            if word.contains("\u{00AD}") {
-                let parts: [String] = word.components(separatedBy: "\u{00AD}")
+    private func makeText(run: InlineTextRun, word: String, display: String?, font: BrowserFont) -> TextLayout {
+        let text: TextLayout = TextLayout(node: run.node, word: word, parent: nil, previous: nil)
+        text.font = font
+        text.fontOverride = font
+        text.displayWord = display
+        text.whiteSpace = run.whiteSpace
+        text.textWidth = font.measure(display ?? word)
+        return text
+    }
+
+    private func placeEmbed(_ element: Element) {
+        switch element.tag {
+        case "input": addInput(element)
+        case "button": addButton(element)
+        case "img": addImage(element)
+        case "iframe": addIframe(element)
+        case "canvas": addCanvas(element)
+        default: break
+        }
+    }
+
+    private func placeText(_ text: TextLayout) {
+        let w: CGFloat = text.textWidth
+        if cursorX + w > width && text.whiteSpace.wraps {
+            if text.word.contains("\u{00AD}") {
+                let parts: [String] = text.word.components(separatedBy: "\u{00AD}")
                 var chunk: String = ""
                 var breakIdx: Int = -1
                 for (i, part) in parts.dropLast().enumerated() {
                     let candidate: String = chunk + part + "-"
-                    if cursorX + font.measure(candidate) <= width {
+                    if cursorX + text.font.measure(candidate) <= width {
                         chunk = chunk + part
                         breakIdx = i
                     }
                 }
                 if breakIdx >= 0 {
-                    let line: any LayoutObject = children.last!
-                    let prev: (any LayoutObject)? = line.children.last
-                    let chunkText: TextLayout = TextLayout(
-                        node: node,
-                        word: chunk + "-",
-                        parent: line,
-                        previous: prev
-                    )
-                    chunkText.fontOverride = font
-                    line.children.append(chunkText)
+                    appendToLine(clone(text, word: chunk + "-"))
                     newLine()
-                    addWord(
-                        parts[(breakIdx + 1)...].joined(separator: "\u{00AD}"),
-                        run: run
-                    )
+                    placeText(clone(text, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")))
                     return
                 }
             }
             newLine()
         }
+        appendToLine(text)
+        cursorX += w + text.font.spaceWidth
+    }
 
+    private func appendToLine(_ text: TextLayout) {
         let line: any LayoutObject = children.last!
-        let prevWord: (any LayoutObject)? = line.children.last
-        let textLayout: TextLayout = TextLayout(node: node, word: word, parent: line, previous: prevWord)
-        textLayout.fontOverride = font
-        line.children.append(textLayout)
-        cursorX += w + font.spaceWidth
+        text.parent = line
+        text.previous = line.children.last
+        line.children.append(text)
+    }
+
+    private func clone(_ text: TextLayout, word: String) -> TextLayout {
+        let copy: TextLayout = TextLayout(node: text.node, word: word, parent: nil, previous: nil)
+        copy.font = text.font
+        copy.fontOverride = text.font
+        copy.whiteSpace = text.whiteSpace
+        copy.textWidth = text.font.measure(word)
+        return copy
     }
 
     private func font(for node: any DOMNode) -> BrowserFont {
@@ -431,7 +467,7 @@ class BlockLayout: LayoutObject {
         return false
     }
 
-    private func addAbbrWord(node: any DOMNode, word: String) {
+    private func addAbbrWord(run: InlineTextRun, word: String, into items: inout [InlineItem]) {
         var runs: [(String, Bool)] = []
         for ch in word {
             let isLower: Bool = ch.isLowercase
@@ -442,31 +478,22 @@ class BlockLayout: LayoutObject {
             }
         }
 
+        let node: any DOMNode = run.node
         let weight: String = node.style["font-weight"] ?? "normal"
         var styleStr: String = node.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt: Int = Int(sizePx * 0.75)
         let smallSize: Int = Int(Double(sizeInt) * 0.75)
+        let family: String = node.style["font-family"] ?? "serif"
 
         for (text, isLower) in runs {
             let displayText: String = isLower ? text.uppercased() : text
             let font: BrowserFont =
                 isLower
-                ? getFont(
-                    size: smallSize, weight: "bold", style: styleStr,
-                    family: node.style["font-family"] ?? "serif")
-                : getFont(
-                    size: sizeInt, weight: weight, style: styleStr,
-                    family: node.style["font-family"] ?? "serif")
-            let w: CGFloat = font.measure(displayText)
-            if cursorX + w > width { newLine() }
-            let line: any LayoutObject = children.last!
-            let prev: (any LayoutObject)? = line.children.last
-            let textLayout: TextLayout = TextLayout(node: node, word: text, parent: line, previous: prev)
-            textLayout.fontOverride = font
-            textLayout.displayWord = displayText
-            line.children.append(textLayout)
+                ? getFont(size: smallSize, weight: "bold", style: styleStr, family: family)
+                : getFont(size: sizeInt, weight: weight, style: styleStr, family: family)
+            items.append(.text(makeText(run: run, word: text, display: displayText, font: font)))
         }
     }
 
