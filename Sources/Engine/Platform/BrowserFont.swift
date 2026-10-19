@@ -11,22 +11,16 @@ final class FontMeasureCache {
 public struct BrowserFont {
     public let ctFont: CTFont
     let cache: FontMeasureCache
+    let ascent: CGFloat
+    let descent: CGFloat
+    let leading: CGFloat
 
     init(ctFont: CTFont) {
         self.ctFont = ctFont
         self.cache = FontMeasureCache()
-    }
-
-    var ascent: CGFloat {
-        CTFontGetAscent(ctFont)
-    }
-
-    var descent: CGFloat {
-        CTFontGetDescent(ctFont)
-    }
-
-    var leading: CGFloat {
-        CTFontGetLeading(ctFont)
+        self.ascent = CTFontGetAscent(ctFont)
+        self.descent = CTFontGetDescent(ctFont)
+        self.leading = CTFontGetLeading(ctFont)
     }
 
     var spaceWidth: CGFloat { measure(" ") }

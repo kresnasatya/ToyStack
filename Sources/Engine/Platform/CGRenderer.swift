@@ -75,7 +75,7 @@ public final class CGRenderer: Renderer {
         ])
         let line: CTLine = CTLineCreateWithAttributedString(attrs)
         cg.saveGState()
-        cg.translateBy(x: point.x, y: point.y + CTFontGetAscent(font.ctFont))
+        cg.translateBy(x: point.x, y: point.y + font.ascent)
         cg.scaleBy(x: 1, y: -1)
         cg.textMatrix = .identity
         cg.textPosition = .zero
