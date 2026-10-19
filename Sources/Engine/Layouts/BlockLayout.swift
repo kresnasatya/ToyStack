@@ -232,53 +232,46 @@ class BlockLayout: LayoutObject {
 
     private func addTextNode(_ textNode: TextNode) {
         let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.style["white-space"])
+        let font: BrowserFont = font(for: textNode)
+        let run: InlineTextRun = InlineTextRun(
+            node: textNode,
+            font: font,
+            whiteSpace: mode,
+            isAbbr: isInsideAbbr(textNode),
+        )
         if mode.keepsNewlines {
             let segments: [String] = textNode.text.components(separatedBy: "\n")
             for (i, segment) in segments.enumerated() {
                 if i > 0 { newLine() }
-                addSegment(node: textNode, text: segment, mode: mode)
+                addSegment(text: segment, run: run)
             }
         } else {
-            addSegment(node: textNode, text: textNode.text, mode: mode)
+            addSegment(text: textNode.text, run: run)
         }
     }
 
-    private func addSegment(node: any DOMNode, text: String, mode: WhiteSpaceMode) {
-        if mode.keepSpaces {
-            if !text.isEmpty { addWord(node: node, word: text) }
+    private func addSegment(text: String, run: InlineTextRun) {
+        if run.whiteSpace.keepSpaces {
+            if !text.isEmpty { addWord(text, run: run) }
         } else {
             for word in text.split(whereSeparator: { $0.isWhitespace }) {
-                addWord(node: node, word: String(word))
+                addWord(String(word), run: run)
             }
         }
     }
 
-    private func addWord(node: any DOMNode, word: String) {
+    private func addWord(_ word: String, run: InlineTextRun) {
         profiler.count("text.words")
-        let font: BrowserFont
-        let nodeID: ObjectIdentifier = ObjectIdentifier(node)
-        if let cachedFont = fontByNode[nodeID] {
-            font = cachedFont
-        } else {
-            profiler.count("text.fontNodes")
-            let weight: String = node.style["font-weight"] ?? "normal"
-            var style: String = node.style["font-style"] ?? "normal"
-            if style == "normal" { style = "roman" }
-            let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-            let sizeInt: Int = Int(scaled(sizePx * 0.75))
-            font = getFont(
-                size: sizeInt, weight: weight, style: style,
-                family: node.style["font-family"] ?? "serif")
-            fontByNode[nodeID] = font
-        }
+        let font: BrowserFont = run.font
+        let node: any DOMNode = run.node
         let w: CGFloat = font.measure(word)
 
-        if isInsideAbbr(node) && word.contains(where: { $0.isLowercase }) {
+        if run.isAbbr && word.contains(where: { $0.isLowercase }) {
             addAbbrWord(node: node, word: word)
             return
         }
 
-        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: node.style["white-space"])
+        let mode: WhiteSpaceMode = run.whiteSpace
         if cursorX + w > width && mode.wraps {
             if word.contains("\u{00AD}") {
                 let parts: [String] = word.components(separatedBy: "\u{00AD}")
@@ -304,7 +297,9 @@ class BlockLayout: LayoutObject {
                     line.children.append(chunkText)
                     newLine()
                     addWord(
-                        node: node, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}"))
+                        parts[(breakIdx + 1)...].joined(separator: "\u{00AD}"),
+                        run: run
+                    )
                     return
                 }
             }
@@ -317,6 +312,24 @@ class BlockLayout: LayoutObject {
         textLayout.fontOverride = font
         line.children.append(textLayout)
         cursorX += w + font.spaceWidth
+    }
+
+    private func font(for node: any DOMNode) -> BrowserFont {
+        let nodeID: ObjectIdentifier = ObjectIdentifier(node)
+        if let cached = fontByNode[nodeID] { return cached }
+        profiler.count("text.fontNodes")
+        let weight: String = node.style["font-weight"] ?? "normal"
+        var style: String = node.style["font-style"] ?? "normal"
+        if style == "normal" { style = "roman" }
+        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let resolved: BrowserFont = getFont(
+            size: Int(scaled(sizePx * 0.75)),
+            weight: weight,
+            style: style,
+            family: node.style["font-family"] ?? "serif"
+        )
+        fontByNode[nodeID] = resolved
+        return resolved
     }
 
     private func newLine() {
