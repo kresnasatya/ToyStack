@@ -306,7 +306,7 @@ class BlockLayout: LayoutObject {
         text.fontOverride = font
         text.displayWord = display
         text.whiteSpace = run.whiteSpace
-        text.textWidth = font.measure(display ?? word)
+        text.cacheMetrics()
         return text
     }
 
@@ -345,7 +345,7 @@ class BlockLayout: LayoutObject {
             newLine()
         }
         appendToLine(text)
-        cursorX += w + text.font.spaceWidth
+        cursorX += text.advance
     }
 
     private func appendToLine(_ text: TextLayout) {
@@ -360,7 +360,7 @@ class BlockLayout: LayoutObject {
         copy.font = text.font
         copy.fontOverride = text.font
         copy.whiteSpace = text.whiteSpace
-        copy.textWidth = text.font.measure(word)
+        copy.cacheMetrics()
         return copy
     }
 

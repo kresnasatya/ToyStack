@@ -18,7 +18,9 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
     var textWidth: CGFloat = 0
+    var advance: CGFloat = 0
     var whiteSpace: WhiteSpaceMode = .normal
+    private(set) var isMeasured: Bool = false
 
     init(node: any DOMNode, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
         self.node = node
@@ -29,7 +31,17 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
+        layout(reusesChildren: false)
+    }
+
+    func layout(reusesChildren: Bool) {
         profiler.measure("layout.text", {
+            if reusesChildren {
+                positionAfterPrevious()
+                width = advance
+                return
+            }
+
             let resolvedFont: BrowserFont
             if let override = fontOverride {
                 resolvedFont = override
@@ -49,17 +61,25 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             }
 
             font = resolvedFont
-            textWidth = font.measure(displayWord ?? word)
-            width = textWidth + font.spaceWidth
-
-            if let prev = previous as? InlineLayoutItem {
-                x = prev.x + prev.width
-            } else {
-                x = parent!.x
-            }
-
-            height = font.linespace
+            if !isMeasured { cacheMetrics() }
+            positionAfterPrevious()
         })
+    }
+
+    func cacheMetrics() {
+        textWidth = font.measure(displayWord ?? word)
+        advance = textWidth + font.spaceWidth
+        width = advance
+        height = font.linespace
+        isMeasured = true
+    }
+
+    private func positionAfterPrevious() {
+        if let prev = previous as? InlineLayoutItem {
+            x = prev.x + prev.width
+        } else {
+            x = parent!.x
+        }
     }
 
     func paint(into items: inout [any DisplayItem]) {

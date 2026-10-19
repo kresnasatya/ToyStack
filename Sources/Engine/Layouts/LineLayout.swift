@@ -22,12 +22,16 @@ class LineLayout: LayoutObject {
     }
 
     func layout() {
+        layout(reusesChildren: false)
+    }
+
+    func layout(reusesChildren: Bool) {
         zoom = resolvedZoom()
         width = parent!.width
         x = parent!.x
         y = previous.map { $0.y + $0.height } ?? parent!.y
 
-        for child in children { child.layout() }
+        for child in children { child.layout(reusesChildren: reusesChildren) }
 
         profiler.measure("layout.line.place", {
             if let lastText = children.last as? TextLayout {
