@@ -108,3 +108,11 @@ extension LayoutObject {
         return cssPx * zoom
     }
 }
+
+@MainActor
+func translateSubtree(_ object: any LayoutObject, dx: CGFloat, dy: CGFloat) {
+    guard dx != 0 || dy != 0 else { return }
+    object.x += dx
+    object.y += dy
+    for child in object.children { translateSubtree(child, dx: dx, dy: dy) }
+}

@@ -22,6 +22,7 @@ class BlockLayout: LayoutObject {
 
     private var cursorX: CGFloat = 0
     private var fontByNode: [ObjectIdentifier: BrowserFont] = [:]
+    private var usedWidth: CGFloat = -1
 
     var scrollOffset: CGFloat = 0
     var contentHeight: CGFloat = 0
@@ -46,9 +47,12 @@ class BlockLayout: LayoutObject {
     }
 
     func layout(reusesChildren: Bool) {
+        var subtreeStable: Bool = false
         profiler.measure("layout.block.build") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
+            let oldX: CGFloat = x
+            let oldY: CGFloat = y
             if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
             {
@@ -84,6 +88,15 @@ class BlockLayout: LayoutObject {
                 y += VSTEP
             }
 
+            if reusesChildren, usedWidth == width {
+                subtreeStable = true
+                let dx: CGFloat = x - oldX
+                let dy: CGFloat = y - oldY
+                for child in children { translateSubtree(child, dx: dx, dy: dy) }
+                return
+            }
+
+            usedWidth = width
             let mode: String = layoutMode()
             if mode == "block" {
                 var pool: ChildReuse = ChildReuse(prior: children, enabled: reusesChildren)
@@ -159,6 +172,7 @@ class BlockLayout: LayoutObject {
                 }
             }
         }
+        if subtreeStable { return }
 
         for child in children { child.layout(reusesChildren: reusesChildren) }
 
