@@ -26,6 +26,7 @@ public class BrowserTab {
     )?)? = nil
 
     private nonisolated(unsafe) var visitedURL: Set<String> = []
+    var hasVisitedURLs: Bool { !visitedURL.isEmpty }
     private var history: [HistoryEntry] = []
     private var historyIndex: Int = -1
 

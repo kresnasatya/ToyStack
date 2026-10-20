@@ -55,6 +55,8 @@ class Frame {
     var needsStyle: Bool = false
     var needsLayout: Bool = false
     var needsPaint: Bool = false
+    private var styleInvalidatedByViewport: Bool = false
+    private var styleInvalidatedByOther: Bool = false
     private var needsHasPrecompute: Bool = true
     private var mediaQueries: Set<String> = []
     private var mediaMatches: [String: Bool] = [:]
@@ -454,14 +456,14 @@ class Frame {
         lazyImages = remaining
     }
 
-    private func loadBackgroundImages() {
+    private func loadBackgroundImages(_ allNodes: [any DOMNode]) {
         guard let tab, let runner = tab.networkTaskRunner, let base = url else { return }
 
         var order: [String] = []
         var urlByKey: [String: WebURL] = [:]
         var elementsByKey: [String: [Element]] = [:]
 
-        for node in treeToList(nodes) {
+        for node in allNodes {
             guard let el = node as? Element,
                 let value = el.style["background-image"],
                 let raw = CSSValueParser.backgroundImageURL(value)
@@ -666,11 +668,18 @@ class Frame {
 
     func render() {
         let styled: Bool = needsStyle
+        let reusableStyle: Bool = styled && styleInvalidatedByViewport && !styleInvalidatedByOther
+        styleInvalidatedByViewport = false
+        styleInvalidatedByOther = false
+        var styledNodes: [any DOMNode] = []
         if needsStyle {
             browser?.measure.start("BrowserTab.style")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.style") }
             defer { browser?.measure.stop("BrowserTab.style") }
+
+            let allNodes: [any DOMNode] = treeToList(nodes)
+            styledNodes = allNodes
 
             browser?.measure.start("BrowserTab.style.rules")
             if indexedRulesRevision != rulesRevision {
@@ -691,7 +700,7 @@ class Frame {
 
             browser?.measure.start("BrowserTab.style.snapshot")
             var oldStyles: [ObjectIdentifier: [String: String]] = [:]
-            for node in treeToList(nodes) {
+            for node in allNodes {
                 oldStyles[ObjectIdentifier(node)] = node.style
             }
             browser?.measure.stop("BrowserTab.style.snapshot")
@@ -709,7 +718,7 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.apply")
 
             browser?.measure.start("BrowserTab.style.diff")
-            for node in treeToList(nodes) {
+            for node in allNodes {
                 let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
                 let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style)
                 for (property, animation) in newAnimations {
@@ -719,36 +728,54 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.diff")
 
             browser?.measure.start("BrowserTab.style.keyframes")
-            for node in treeToList(nodes) {
-                guard let animDecl = node.style["animation"],
-                    let playback = KeyframePlayback.parse(animDecl),
-                    let frames = keyframes[playback.name]
-                else { continue }
-                let key: String = "animation/\(playback.name)"
-                guard node.animations[key] == nil else { continue }
-                if let anim = KeyframeAnimation.make(frames: frames, playback: playback)
-                {
-                    node.animations[key] = anim
+            if !keyframes.isEmpty {
+                for node in allNodes {
+                    guard let animDecl = node.style["animation"],
+                        let playback = KeyframePlayback.parse(animDecl),
+                        let frames = keyframes[playback.name]
+                    else { continue }
+                    let key: String = "animation/\(playback.name)"
+                    guard node.animations[key] == nil else { continue }
+                    if let anim = KeyframeAnimation.make(frames: frames, playback: playback)
+                    {
+                        node.animations[key] = anim
+                    }
                 }
             }
             browser?.measure.stop("BrowserTab.style.keyframes")
 
-            activeAnimations = treeToList(nodes).reduce(0) { $0 + $1.animations.count }
+            activeAnimations = allNodes.reduce(0) { $0 + $1.animations.count }
 
             browser?.measure.start("BrowserTab.style.visited")
-            for node in treeToList(nodes) {
-                guard let el = node as? Element, el.tag == "a",
-                    let href = el.attributes["href"]
-                else {
-                    continue
-                }
-                if tab?.hasVisited(url.resolve(href).toString()) == true {
-                    el.style["color"] = (tab?.forcedColors ?? false) ? ForcedColor.visitedText : "purple"
+            if tab?.hasVisitedURLs == true {
+                for node in allNodes {
+                    guard let el = node as? Element, el.tag == "a",
+                        let href = el.attributes["href"]
+                    else {
+                        continue
+                    }
+                    if tab?.hasVisited(url.resolve(href).toString()) == true {
+                        el.style["color"] = (tab?.forcedColors ?? false) ? ForcedColor.visitedText : "purple"
+                    }
                 }
             }
             browser?.measure.stop("BrowserTab.style.visited")
 
-            loadBackgroundImages()
+            loadBackgroundImages(allNodes)
+
+            if reusableStyle {
+                browser?.measure.start("BrowserTab.style.stale")
+                var staleNodes: Int = 0
+                for node in allNodes {
+                    let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
+                    if old != node.style {
+                        markLayoutStale(node)
+                        staleNodes += 1
+                    }
+                }
+                profiler.count("layout.staleNodes", by: staleNodes)
+                browser?.measure.stop("BrowserTab.style.stale")
+            }
 
             needsStyle = false
             needsLayout = true
@@ -763,7 +790,7 @@ class Frame {
             let reuse: Bool
             if let existing = document, existing.node === nodes {
                 doc = existing
-                reuse = !styled
+                reuse = !styled || reusableStyle
             } else {
                 doc = DocumentLayout(node: nodes)
                 reuse = false
@@ -771,6 +798,9 @@ class Frame {
             doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
             document = doc
             rebuildScrollTargets(doc)
+            if reusableStyle {
+                for node in styledNodes { node.layoutStale = false }
+            }
 
             needsLayout = false
             tab?.needsAccessibility = true
@@ -778,6 +808,14 @@ class Frame {
         }
 
         requestAnimationFrame()
+    }
+
+    private func markLayoutStale(_ node: any DOMNode) {
+        var current: (any DOMNode)? = node
+        while let n = current {
+            n.layoutStale = true
+            current = n.parent
+        }
     }
 
     func paint() {
@@ -1278,7 +1316,12 @@ class Frame {
         invalidateStyle()
     }
 
-    private func invalidateStyle() {
+    private func invalidateStyle(fromViewport: Bool = false) {
+        if fromViewport {
+            styleInvalidatedByViewport = true
+        } else {
+            styleInvalidatedByOther = true
+        }
         needsStyle = true
         needsRender = true
         parentFrame?.setNeedsLayout()
@@ -1294,7 +1337,7 @@ class Frame {
 
     func setNeedsViewportResize() {
         if mediaMatchesChanged() {
-            invalidateStyle()
+            invalidateStyle(fromViewport: true)
         } else {
             setNeedsLayout()
         }

@@ -10,8 +10,8 @@ class BlockLayout: LayoutObject {
     static let bulletSize: CGFloat = 8.0
 
     let node: any DOMNode
-    let parent: (any LayoutObject)?
-    let previous: (any LayoutObject)?
+    var parent: (any LayoutObject)?
+    var previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
     let extraNodes: [any DOMNode]
     var x: CGFloat = 0
@@ -23,6 +23,8 @@ class BlockLayout: LayoutObject {
     private var cursorX: CGFloat = 0
     private var fontByNode: [ObjectIdentifier: BrowserFont] = [:]
     private var inlineItems: [InlineItem] = []
+    private var itemsByNode: [ObjectIdentifier: [InlineItem]] = [:]
+    private var inlineBuilt: Bool = false
     private var usedWidth: CGFloat = -1
 
     var scrollOffset: CGFloat = 0
@@ -48,7 +50,7 @@ class BlockLayout: LayoutObject {
     }
 
     func layout(reusesChildren: Bool) {
-        var subtreeStable: Bool = false
+        var subtreeStale: Bool = false
         profiler.measure("layout.block.build") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
@@ -89,8 +91,8 @@ class BlockLayout: LayoutObject {
                 y += VSTEP
             }
 
-            if reusesChildren, usedWidth == width {
-                subtreeStable = true
+            if reusesChildren, usedWidth == width, !subtreeStale {
+                subtreeStale = true
                 let dx: CGFloat = x - oldX
                 let dy: CGFloat = y - oldY
                 for child in children { translateSubtree(child, dx: dx, dy: dy) }
@@ -114,9 +116,10 @@ class BlockLayout: LayoutObject {
                     if isBlock {
                         if let el = child as? Element, el.tag == "h6" {
                             if !inlineRun.isEmpty {
-                                let anon: BlockLayout = pool.take({
-                                    BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                                })
+                                let run: [any DOMNode] = inlineRun
+                                let anon: BlockLayout = pool.takeRun(run, previous: prev) {
+                                    BlockLayout(nodes: run, parent: self, previous: prev)
+                                }
                                 children.append(anon)
                                 prev = anon
                                 inlineRun = []
@@ -124,24 +127,26 @@ class BlockLayout: LayoutObject {
                             pendingRunIn = el
                         } else {
                             if !inlineRun.isEmpty {
-                                let anon: BlockLayout = pool.take({
-                                    BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                                })
+                                let run: [any DOMNode] = inlineRun
+                                let anon: BlockLayout = pool.takeRun(run, previous: prev) {
+                                    BlockLayout(nodes: run, parent: self, previous: prev)
+                                }
                                 children.append(anon)
                                 prev = anon
                                 inlineRun = []
                             }
                             if let runIn = pendingRunIn {
-                                let next: BlockLayout = pool.take({
-                                    BlockLayout(nodes: [runIn, child], parent: self, previous: prev)
-                                })
+                                let run: [any DOMNode] = [runIn, child]
+                                let next: BlockLayout = pool.takeRun(run, previous: prev) {
+                                    BlockLayout(nodes: run, parent: self, previous: prev)
+                                }
                                 children.append(next)
                                 prev = next
                                 pendingRunIn = nil
                             } else {
-                                let next: BlockLayout = pool.take({
+                                let next: BlockLayout = pool.takeBlock(child, previous: prev) {
                                     BlockLayout(node: child, parent: self, previous: prev)
-                                })
+                                }
                                 children.append(next)
                                 if child.style["position"] != "absolute" { prev = next }
                             }
@@ -151,26 +156,31 @@ class BlockLayout: LayoutObject {
                     }
                 }
                 if !inlineRun.isEmpty {
-                    let anon: BlockLayout = pool.take({
-                        BlockLayout(nodes: inlineRun, parent: self, previous: prev)
-                    })
+                    let run: [any DOMNode] = inlineRun
+                    let anon: BlockLayout = pool.takeRun(run, previous: prev) {
+                        BlockLayout(nodes: run, parent: self, previous: prev)
+                    }
                     children.append(anon)
                 }
                 if let runIn = pendingRunIn {
-                    let next: BlockLayout = pool.take({
+                    let next: BlockLayout = pool.takeBlock(runIn, previous: prev) {
                         BlockLayout(node: runIn, parent: self, previous: prev)
-                    })
+                    }
                     children.append(next)
                 }
-                assert(!reusesChildren || pool.finished, "block structure changed without a style pass; reuse is unsafe")
-            } else if reusesChildren, !inlineItems.isEmpty {
+            } else if reusesChildren, inlineBuilt {
+                if subtreeStale {
+                    refreshInlineItems()
+                }
                 placeInlineItems()
             } else {
-                inlineItems = buildInlineItems()
+                fontByNode.removeAll()
+                itemsByNode = [:]
+                refreshInlineItems()
                 placeInlineItems()
             }
         }
-        if subtreeStable { return }
+        if subtreeStale { return }
 
         for child in children { child.layout(reusesChildren: reusesChildren) }
 
@@ -200,6 +210,11 @@ class BlockLayout: LayoutObject {
             let maxScroll: CGFloat = max(0, contentHeight - height)
             scrollOffset = min(el.scrollOffsetY, maxScroll)
         }
+    }
+
+    private var subtreeStale: Bool {
+        if node.layoutStale { return true }
+        return extraNodes.contains(where: { $0.layoutStale })
     }
 
     private func layoutMode() -> String {
@@ -244,6 +259,65 @@ class BlockLayout: LayoutObject {
                 placeEmbed(element)
             }
         }
+    }
+
+    private func refreshInlineItems() {
+        var leaves: [any DOMNode] = []
+        if extraNodes.isEmpty {
+            collectLeaves(node, into: &leaves)
+        } else {
+            for n in extraNodes { collectLeaves(n, into: &leaves) }
+        }
+        var items: [InlineItem] = []
+        var cache: [ObjectIdentifier: [InlineItem]] = [:]
+        cache.reserveCapacity(leaves.count)
+        for leaf in leaves {
+            let key: ObjectIdentifier = ObjectIdentifier(leaf)
+            if let cached = itemsByNode[key], !leaf.layoutStale {
+                items.append(contentsOf: cached)
+                cache[key] = cached
+                continue
+            }
+            fontByNode.removeValue(forKey: key)
+            let rebuilt: [InlineItem] = makeItems(for: leaf)
+            items.append(contentsOf: rebuilt)
+            cache[key] = rebuilt
+        }
+        inlineItems = items
+        itemsByNode = cache
+        inlineBuilt = true
+    }
+
+    private func collectLeaves(_ n: any DOMNode, into leaves: inout [any DOMNode]) {
+        if n is TextNode {
+            leaves.append(n)
+            return
+        }
+        guard let el = n as? Element else { return }
+        if el.tag == "br" || isEmbed(el) {
+            leaves.append(el)
+            return
+        }
+        for child in el.children { collectLeaves(child, into: &leaves) }
+    }
+
+    private func isEmbed(_ el: Element) -> Bool {
+        el.tag == "input" || el.tag == "button" || el.tag == "img"
+        || el.tag == "iframe" || el.tag == "canvas"
+    }
+
+    private func makeItems(for leaf: any DOMNode) -> [InlineItem] {
+        var items: [InlineItem] = []
+        if let text = leaf as? TextNode {
+            addTextNode(text, into: &items)
+        } else if let el = leaf as? Element {
+            if el.tag == "br" {
+                items.append(.lineBreak)
+            } else {
+                items.append(.embed(el))
+            }
+        }
+        return items
     }
 
     private func collect(_ n: any DOMNode, into items: inout [InlineItem]) {
@@ -583,21 +657,85 @@ class BlockLayout: LayoutObject {
 
 // MARK: - ChildReuse
 
+@MainActor
 private struct ChildReuse {
-    private let prior: [any LayoutObject]
+    enum Kind {
+        case block
+        case run
+    }
+
+    private var prior: [any LayoutObject]
     private var index: Int = 0
+    private var byNode: [ObjectIdentifier: any LayoutObject]? = nil
 
     init(prior: [any LayoutObject], enabled: Bool) {
         self.prior = enabled ? prior : []
     }
 
-    var finished: Bool { index == prior.count }
+    mutating func takeBlock(
+        _ node: any DOMNode,
+        previous: (any LayoutObject)?,
+        _ make: () -> BlockLayout
+    ) -> BlockLayout {
+        reuse(.block, first: node, run: [], previous: previous, make)
+    }
 
-    mutating func take(_ make: () -> BlockLayout) -> BlockLayout {
-        guard index < prior.count, let existing = prior[index] as? BlockLayout else {
-            return make()
+    mutating func takeRun(
+        _ run: [any DOMNode],
+        previous: (any LayoutObject)?,
+        _ make: () -> BlockLayout
+    ) -> BlockLayout {
+        guard let first = run.first else { return make() }
+        return reuse(.run, first: first, run: run, previous: previous, make)
+    }
+
+    private mutating func reuse(
+        _ kind: Kind,
+        first: any DOMNode,
+        run: [any DOMNode],
+        previous: (any LayoutObject)?,
+        _ make: () -> BlockLayout
+    ) -> BlockLayout {
+        if byNode == nil, index < prior.count,
+            let block = prior[index] as? BlockLayout,
+            matches(block, kind: kind, first: first, run: run)
+        {
+            index += 1
+            block.previous = previous
+            return block
         }
-        index += 1
-        return existing
+        buildIndex()
+        guard let candidate = byNode?.removeValue(forKey: ObjectIdentifier(first)),
+            let block = candidate as? BlockLayout,
+            matches(block, kind: kind, first: first, run: run)
+        else { return make() }
+        block.previous = previous
+        return block
+    }
+
+    private mutating func buildIndex() {
+        guard byNode == nil else { return }
+        var map: [ObjectIdentifier: any LayoutObject] = [:]
+        map.reserveCapacity(prior.count - index)
+        for i in index..<prior.count {
+            map[ObjectIdentifier(prior[i].node)] = prior[i]
+        }
+        byNode = map
+    }
+
+    private func matches(
+        _ block: BlockLayout,
+        kind: Kind,
+        first: any DOMNode,
+        run: [any DOMNode]
+    ) -> Bool {
+        guard block.node === first else { return false }
+        switch kind {
+        case .block:
+            return block.extraNodes.isEmpty
+        case .run:
+            guard block.extraNodes.count == run.count else { return false }
+            return zip(block.extraNodes, run).allSatisfy({ $0 === $1 })
+        }
     }
 }
