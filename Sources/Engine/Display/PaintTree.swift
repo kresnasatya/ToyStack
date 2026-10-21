@@ -1,12 +1,41 @@
 import CoreGraphics
 
 @MainActor
-func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem]) {
+func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt) {
     let start: Int = displayList.count
     profiler.count("paint.nodes", by: 1)
 
+    let line: LineLayout? = obj as? LineLayout
+    if let line, line.canCachePaint(), line.shouldPaint(),
+        line.paintCache.canReuse(epoch: epoch, generation: line.paintGeneration)
+    {
+        line.paintCache.append(to: &displayList, currentX: line.x, currentY: line.y)
+        profiler.count("paint.cached.lines", by: 1)
+        return
+    }
+
     if obj.shouldPaint() {
-        obj.paint(into: &displayList)
+        if let block = obj as? BlockLayout {
+            let key: PaintKey = PaintKey(
+                rect: block.selfRect(),
+                epoch: epoch,
+                generation: 0
+            )
+            if block.paintCache.canReuse(key: key) {
+                block.paintCache.append(to: &displayList)
+                profiler.count("paint.cached.blocks", by: 1)
+            } else {
+                let ownStart: Int = displayList.count
+                obj.paint(into: &displayList)
+                block.paintCache.store(
+                    items: Array(displayList[ownStart...]),
+                    key: key
+                )
+                profiler.count("paint.stored.blocks", by: 1)
+            }
+        } else {
+            obj.paint(into: &displayList)
+        }
     }
     profiler.count("paint.own.items", by: displayList.count - start)
 
@@ -22,7 +51,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             visibleChildren.append(child)
         }
         for child in inPaintOrder(visibleChildren) {
-            paintTree(child, into: &displayList)
+            paintTree(child, into: &displayList, epoch: epoch)
         }
         let childItems: [any DisplayItem] = profiler.measure("paint.range.copy", {
             Array(displayList[childStart...])
@@ -43,27 +72,41 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             rect: block.selfRect(),
             shape: ClipShape(rect: block.selfRect(), radii: radii),
             node: block.node,
-            children: clippedChildren(of: obj, into: &displayList)
+            children: clippedChildren(of: obj, into: &displayList, epoch: epoch)
         )
         displayList.append(clip)
     } else if let iframe = obj as? IframeLayout,
         let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
         let childDoc = childFrame.document {
-        paintTree(childDoc, into: &displayList)
+        paintTree(childDoc, into: &displayList, epoch: childFrame.paintEpoch)
     } else {
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &displayList)
+            paintTree(child, into: &displayList, epoch: epoch)
         }
     }
 
     obj.paintEffects(into: &displayList, from: start)
+
+    if let line, line.canCachePaint() {
+        let key: LinePaintKey = LinePaintKey(
+            x: line.x,
+            y: line.y,
+            epoch: epoch,
+            generation: line.paintGeneration
+        )
+        line.paintCache.store(
+            items: Array(displayList[start...]),
+            key: key
+        )
+        profiler.count("paint.stored.lines", by: 1)
+    }
 }
 
 @MainActor
-private func clippedChildren(of obj: any LayoutObject, into displayList: inout [any DisplayItem]) -> [any DisplayItem] {
+private func clippedChildren(of obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt) -> [any DisplayItem] {
     let start: Int = displayList.count
     for child in inPaintOrder(obj.children) {
-        paintTree(child, into: &displayList)
+        paintTree(child, into: &displayList, epoch: epoch)
     }
     let items: [any DisplayItem] = Array(displayList[start...])
     displayList.removeSubrange(start..<displayList.count)

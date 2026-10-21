@@ -19,6 +19,7 @@ class BlockLayout: LayoutObject {
     var width: CGFloat = 0
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
+    var paintCache: PaintCache = PaintCache()
 
     private var cursorX: CGFloat = 0
     private var fontByNode: [ObjectIdentifier: BrowserFont] = [:]
@@ -272,6 +273,8 @@ class BlockLayout: LayoutObject {
                     continue
                 }
                 line.prelaid = geometry(of: old)
+                line.paintCache = old.paintCache
+                line.paintGeneration = old.paintGeneration
                 reused += 1
             }
         }
@@ -283,10 +286,10 @@ class BlockLayout: LayoutObject {
     private func sameLine(_ old: LineLayout, _ new: LineLayout) -> Bool {
         guard !old.hasEmbed, !new.hasEmbed else { return false }
         guard old.children.count == new.children.count else { return false }
-        guard let oldFirst = old.children.first, let newFirst = new.children.first else {
-            return old.children.isEmpty
+        for index in old.children.indices {
+            guard old.children[index] === new.children[index] else { return false }
         }
-        return oldFirst === newFirst && old.children.last === new.children.last
+        return true
     }
 
     private func geometry(of line: LineLayout) -> LineGeometry {

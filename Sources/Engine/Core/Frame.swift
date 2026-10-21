@@ -24,6 +24,9 @@ class Frame {
     var document: DocumentLayout?
     var displayList: [any DisplayItem] = []
     var paintRevision: UInt = 0
+    // Bumped when anything that paint reads may have changed.
+    // One epoch covers many paints; a cached item is valid only in its epoch.
+    var paintEpoch: UInt = 0
     var title: String = "New Tab"
     var isSecure: Bool = false
 
@@ -673,6 +676,7 @@ class Frame {
         styleInvalidatedByOther = false
         var styledNodes: [any DOMNode] = []
         if needsStyle {
+            paintEpoch += 1
             browser?.measure.start("BrowserTab.style")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.style") }
@@ -843,7 +847,7 @@ class Frame {
         guard let doc = document else { return }
         var list: [any DisplayItem] = []
         list.reserveCapacity(displayList.count)
-        paintTree(doc, into: &list)
+        paintTree(doc, into: &list, epoch: paintEpoch)
         displayList = list
         paintedBottom = maxRectBottom(list)
         paintRevision += 1
@@ -1362,6 +1366,7 @@ class Frame {
     }
 
     func setNeedsPaint() {
+        paintEpoch += 1
         needsPaint = true
         needsRender = true
         parentFrame?.setNeedsPaint()

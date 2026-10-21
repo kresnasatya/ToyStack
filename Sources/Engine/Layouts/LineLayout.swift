@@ -23,6 +23,8 @@ class LineLayout: LayoutObject {
     var zoom: CGFloat = 1.0
     var prelaid: LineGeometry? = nil
     var hasEmbed: Bool = false
+    var paintCache: LinePaintCache = LinePaintCache()
+    var paintGeneration: UInt = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -51,6 +53,7 @@ class LineLayout: LayoutObject {
             return
         }
 
+        paintGeneration += 1
         zoom = resolvedZoom()
         width = parent!.width
         x = parent!.x
@@ -112,6 +115,10 @@ class LineLayout: LayoutObject {
             }.max() ?? 0
             height = maxAscent + maxDescent
         })
+    }
+
+    func canCachePaint() -> Bool {
+        return !hasEmbed
     }
 
     func paint(into items: inout [any DisplayItem]) {
