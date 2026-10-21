@@ -92,6 +92,7 @@ class Frame {
 
     private var iframeTargets: [IframeTarget] = []
     private var scrollBlockTargets: [ScrollBlockTarget] = []
+    private var scrollTargetsValid: Bool = false
 
     var hasScrollElement: Bool { scrollFocusNode != nil }
 
@@ -812,11 +813,18 @@ class Frame {
             } else {
                 doc = DocumentLayout(node: nodes)
                 reuse = false
+                scrollTargetsValid = false
             }
             doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
             document = doc
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
-            rebuildScrollTargets(doc)
+            if !styled, scrollTargetsValid {
+                refreshScrollTargetRects()
+                profiler.count("scrollTargets.reused")
+            } else {
+                rebuildScrollTargets(doc)
+                scrollTargetsValid = true
+            }
             browser?.measure.stop("BrowserTab.rebuildScrollTargets")
             if reusableStyle {
                 for node in styledNodes { node.layoutStale = false }
@@ -949,6 +957,21 @@ class Frame {
         compositedUpdates = [:]
         needsCompositeForPaint = false
         browser?.commit(tab: tab, data: data)
+    }
+
+    private func refreshScrollTargetRects() {
+        iframeTargets = iframeTargets.compactMap({ target in
+            let el: Element? = target.iframe.node as? Element
+            guard let iframe = el?.layoutObject as? IframeLayout else { return nil }
+            return IframeTarget(rect: iframe.absoluteBounds(), iframe: iframe)
+        })
+        scrollBlockTargets = scrollBlockTargets.map({ target in
+            ScrollBlockTarget(
+                rect: target.block.selfRect(),
+                element: target.element,
+                block: target.block
+            )
+        })
     }
 
     private func rebuildScrollTargets(_ doc: DocumentLayout) {
