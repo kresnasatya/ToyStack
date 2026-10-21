@@ -50,7 +50,7 @@ class BlockLayout: LayoutObject {
     }
 
     func layout(reusesChildren: Bool) {
-        var subtreeStale: Bool = false
+        var skippedChildren: Bool = false
         profiler.measure("layout.block.build") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
@@ -92,7 +92,7 @@ class BlockLayout: LayoutObject {
             }
 
             if reusesChildren, usedWidth == width, !subtreeStale {
-                subtreeStale = true
+                skippedChildren = true
                 let dx: CGFloat = x - oldX
                 let dy: CGFloat = y - oldY
                 for child in children { translateSubtree(child, dx: dx, dy: dy) }
@@ -180,7 +180,7 @@ class BlockLayout: LayoutObject {
                 placeInlineItems()
             }
         }
-        if subtreeStale { return }
+        if skippedChildren { return }
 
         for child in children { child.layout(reusesChildren: reusesChildren) }
 
