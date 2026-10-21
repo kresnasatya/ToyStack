@@ -247,6 +247,8 @@ class BlockLayout: LayoutObject {
     }
 
     private func placeInlineItems() {
+        let oldChildren: [any LayoutObject] = children
+
         children = []
         newLine()
         for item in inlineItems {
@@ -259,6 +261,36 @@ class BlockLayout: LayoutObject {
                 placeEmbed(element)
             }
         }
+
+        var reused: Int = 0
+        if !subtreeStale, TextDirection(cssValue: node.style["direction"]) != .rtl {
+            for (i, object) in children.enumerated() where i < oldChildren.count {
+                guard let line = object as? LineLayout,
+                    let old = oldChildren[i] as? LineLayout,
+                    sameLine(old, line)
+                else {
+                    continue
+                }
+                line.prelaid = geometry(of: old)
+                reused += 1
+            }
+        }
+
+        profiler.count("layout.lines.total", by: children.count)
+        profiler.count("layout.lines.reused", by: reused)
+    }
+
+    private func sameLine(_ old: LineLayout, _ new: LineLayout) -> Bool {
+        guard !old.hasEmbed, !new.hasEmbed else { return false }
+        guard old.children.count == new.children.count else { return false }
+        guard let oldFirst = old.children.first, let newFirst = new.children.first else {
+            return old.children.isEmpty
+        }
+        return oldFirst === newFirst && old.children.last === new.children.last
+    }
+
+    private func geometry(of line: LineLayout) -> LineGeometry {
+        LineGeometry(x: line.x, y: line.y, height: line.height)
     }
 
     private func refreshInlineItems() {
@@ -385,6 +417,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func placeEmbed(_ element: Element) {
+        if let line = children.last as? LineLayout { line.hasEmbed = true }
         switch element.tag {
         case "input": addInput(element)
         case "button": addButton(element)

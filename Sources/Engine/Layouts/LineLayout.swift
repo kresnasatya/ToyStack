@@ -1,6 +1,13 @@
 import CoreGraphics
 
 // MARK: - LineLayout
+
+struct LineGeometry {
+    let x: CGFloat
+    let y: CGFloat
+    let height: CGFloat
+}
+
 @MainActor
 class LineLayout: LayoutObject {
     let node: any DOMNode
@@ -14,6 +21,8 @@ class LineLayout: LayoutObject {
     var minHeight: CGFloat = 0
     var centered: Bool = false
     var zoom: CGFloat = 1.0
+    var prelaid: LineGeometry? = nil
+    var hasEmbed: Bool = false
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -26,6 +35,22 @@ class LineLayout: LayoutObject {
     }
 
     func layout(reusesChildren: Bool) {
+        if let prelaid {
+            self.prelaid = nil
+            zoom = resolvedZoom()
+            width = parent!.width
+            x = parent!.x
+            y = previous.map { $0.y + $0.height } ?? parent!.y
+
+            let dx: CGFloat = x - prelaid.x
+            let dy: CGFloat = y - prelaid.y
+            if dx != 0 || dy != 0 {
+                for child in children { translateSubtree(child, dx: dx, dy: dy) }
+            }
+            height = prelaid.height
+            return
+        }
+
         zoom = resolvedZoom()
         width = parent!.width
         x = parent!.x
