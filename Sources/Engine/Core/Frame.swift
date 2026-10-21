@@ -707,18 +707,29 @@ class Frame {
 
             browser?.measure.start("BrowserTab.style.apply")
             let media: MediaFeatures = currentMedia()
+            let hasBaseline: Bool = !mediaMatches.isEmpty
+            let flipped: Set<String> = flippedMediaQueries(media)
             recordMediaMatches(media)
-            let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
-            applyStyle(
-                node: nodes,
+            browser?.measure.start("BrowserTab.style.scope")
+            let scope: StyleScope? = (reusableStyle && hasBaseline) ? scopedStyleScope(flipped, allNodes: allNodes) : nil
+            browser?.measure.stop("BrowserTab.style.scope")
+            profiler.count("style.flipped.queries", by: flipped.count)
+            profiler.count("style.scope.direct", by: scope?.direct.count ?? 0)
+            profiler.count("style.nodes", by: allNodes.count)
+            let cascade: StyleCascade = StyleCascade(
                 index: ruleIndex,
                 media: media,
-                ancestorKeys: ancestorKeys
+                oldStyles: oldStyles,
+                scope: scope
             )
+            if scope?.isEmpty != true {
+                applyStyle(node: nodes, cascade: cascade)
+            }
+            profiler.count("style.applied", by: cascade.appliedNodes.count)
             browser?.measure.stop("BrowserTab.style.apply")
 
             browser?.measure.start("BrowserTab.style.diff")
-            for node in allNodes {
+            for node in cascade.appliedNodes {
                 let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
                 let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style)
                 for (property, animation) in newAnimations {
@@ -729,7 +740,7 @@ class Frame {
 
             browser?.measure.start("BrowserTab.style.keyframes")
             if !keyframes.isEmpty {
-                for node in allNodes {
+                for node in cascade.appliedNodes {
                     guard let animDecl = node.style["animation"],
                         let playback = KeyframePlayback.parse(animDecl),
                         let frames = keyframes[playback.name]
@@ -748,7 +759,7 @@ class Frame {
 
             browser?.measure.start("BrowserTab.style.visited")
             if tab?.hasVisitedURLs == true {
-                for node in allNodes {
+                for node in cascade.appliedNodes {
                     guard let el = node as? Element, el.tag == "a",
                         let href = el.attributes["href"]
                     else {
@@ -766,14 +777,17 @@ class Frame {
             if reusableStyle {
                 browser?.measure.start("BrowserTab.style.stale")
                 var staleNodes: Int = 0
-                for node in allNodes {
+                var staleText: Int = 0
+                for node in cascade.appliedNodes {
                     let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
                     if old != node.style {
                         markLayoutStale(node)
                         staleNodes += 1
+                        if node is TextNode { staleText += 1 }
                     }
                 }
                 profiler.count("layout.staleNodes", by: staleNodes)
+                profiler.count("layout.staleText", by: staleText)
                 browser?.measure.stop("BrowserTab.style.stale")
             }
 
@@ -1340,7 +1354,7 @@ class Frame {
     }
 
     func setNeedsViewportResize() {
-        if mediaMatchesChanged() {
+        if !mediaMatches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
             invalidateStyle(fromViewport: true)
         } else {
             setNeedsLayout()
@@ -1390,24 +1404,44 @@ class Frame {
         )
     }
 
+    private func flippedMediaQueries(_ media: MediaFeatures) -> Set<String> {
+        var flipped: Set<String> = []
+        for query in mediaQueries where mediaMatches[query] != media.matches(query) {
+            flipped.insert(query)
+        }
+        return flipped
+    }
+
+    private func scopedStyleScope(
+        _ flipped: Set<String>,
+        allNodes: [any DOMNode]
+    ) -> StyleScope? {
+        var rules: [(selector: any CSSSelector, body: [String: String])] = []
+        for rule in sortedRules {
+            guard let query: String = rule.0, flipped.contains(query) else { continue }
+            rules.append((rule.1, rule.2))
+        }
+        profiler.count("style.scope.rules", by: rules.count)
+        guard !rules.isEmpty else { return StyleScope(direct: []) }
+        guard rules.count <= 64 else { return nil } // NOTE: why 64?
+
+        var direct: Set<ObjectIdentifier> = []
+        for node in allNodes {
+            guard let element: Element = node as? Element else { continue }
+            for rule in rules {
+                if rule.selector.matches(element) {
+                    direct.insert(ObjectIdentifier(node))
+                    break
+                }
+            }
+        }
+        return StyleScope(direct: direct)
+    }
+
     private func recordMediaMatches(_ media: MediaFeatures) {
         mediaMatches = mediaQueries.reduce(into: [:], { verdicts, query in
             verdicts[query] = media.matches(query)
         })
-    }
-
-    private func mediaMatchesChanged() -> Bool {
-        guard !mediaQueries.isEmpty else { return false }
-        let media: MediaFeatures = currentMedia()
-        var changed: Bool = false
-        for query in mediaQueries {
-            let now: Bool = media.matches(query)
-            if mediaMatches[query] != now {
-                changed = true
-                mediaMatches[query] = now
-            }
-        }
-        return changed
     }
 }
 

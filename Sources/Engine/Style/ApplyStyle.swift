@@ -10,14 +10,42 @@ let inheritedPropertyDefaults: [String: String] = [
 ]
 
 // MARK: - applyStyle
-func applyStyle(
+@MainActor
+func applyStyle(node: any DOMNode, cascade: StyleCascade) {
+    applyStyle(node: node, cascade: cascade, force: false)
+}
+
+@MainActor
+private func applyStyle(node: any DOMNode, cascade: StyleCascade, force: Bool) {
+    let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
+    let applies: Bool = force || direct
+    if applies {
+        cascade.record(node)
+        applyNodeStyle(node: node, cascade: cascade)
+    }
+
+    let pushedElement: Element? = node as? Element
+    let pushedKeys: [SelectorKey]? = pushedElement.map({ element in
+        profiler.measure("style.apply.push", { cascade.ancestorKeys.push(element) })
+    })
+    defer {
+        if let pushedKeys {
+            profiler.measure("style.apply.pop", { cascade.ancestorKeys.pop(pushedKeys) })
+        }
+    }
+
+    let inheritsChange: Bool = applies ? cascade.inheritedChanged(node) : false
+    for child in node.children {
+        applyStyle(node: child, cascade: cascade, force: inheritsChange)
+    }
+}
+
+@MainActor
+private func applyNodeStyle(
     node: any DOMNode,
-    index: RuleIndex,
-    media: MediaFeatures,
-    ancestorKeys: AncestorSelectorKeys
+    cascade: StyleCascade
 ) {
 
-    profiler.count("style.nodes")
     let parentStyle: [String: String]? = node.parent?.style
     profiler.measure("style.apply.reset") {
         var newStyle: [String: String] = [:]
@@ -35,10 +63,10 @@ func applyStyle(
         }
 
         let candidates: [Int] = profiler.measure("style.apply.flags", {
-            index.candidateIndices(for: element, ancestorKeys: ancestorKeys)
+            cascade.index.candidateIndices(for: element, ancestorKeys: cascade.ancestorKeys)
         })
         profiler.count("style.candidates", by: candidates.count)
-        profiler.count("style.universalCandidates", by: index.universalRuleCount)
+        profiler.count("style.universalCandidates", by: cascade.index.universalRuleCount)
 
         var descendantCandidates: Int = 0
         var matchesTrue: Int = 0
@@ -46,10 +74,10 @@ func applyStyle(
         var bodyWrites: Int = 0
         profiler.measure("style.apply.test", {
             for candidate in candidates {
-                let (mediaQuery, selector, body) = index.orderedRules[candidate]
+                let (mediaQuery, selector, body) = cascade.index.orderedRules[candidate]
                 let isDescendant: Bool = isDescendantRule(selector)
                 if isDescendant { descendantCandidates += 1 }
-                guard media.matches(mediaQuery), selector.matches(node) else { continue }
+                guard cascade.media.matches(mediaQuery), selector.matches(node) else { continue }
                 matchesTrue += 1
                 if isDescendant { descendantTrue += 1 }
                 for (property, value) in body {
@@ -75,7 +103,7 @@ func applyStyle(
     })
 
     profiler.measure("style.apply.post", {
-        if media.preferences.usesForcedColors { applyForcedColors(node: node) }
+        if cascade.media.preferences.usesForcedColors { applyForcedColors(node: node) }
 
         if node.style["overflow"] == nil {
             let scrolls: Bool = node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll"
@@ -94,19 +122,4 @@ func applyStyle(
             node.style["font-size"] = "\(percentage / 100.0 * parentPx)px"
         }
     })
-
-    let pushedElement: Element? = node as? Element
-    let pushedKeys: [SelectorKey]? = pushedElement.map { element in
-        profiler.measure("style.apply.push", { ancestorKeys.push(element) })
-    }
-
-    defer {
-        if let pushedKeys {
-            profiler.measure("style.apply.pop", { ancestorKeys.pop(pushedKeys) })
-        }
-    }
-
-    for child in node.children {
-        applyStyle(node: child, index: index, media: media, ancestorKeys: ancestorKeys)
-    }
 }
