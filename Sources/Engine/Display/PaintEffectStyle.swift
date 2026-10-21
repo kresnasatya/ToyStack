@@ -12,6 +12,13 @@ struct PaintEffectStyle {
 // MARK: - Resolution
 
 func paintEffectStyle(node: DOMNode) -> PaintEffectStyle? {
+    if node.animations.isEmpty,
+        node.style["opacity"] == nil,
+        node.style["mix-blend-mode"] == nil,
+        node.style["transform"] == nil,
+        node.style["filter"] == nil {
+        return nil
+    }
     let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
     let blendMode: BrowserBlendMode? = browserBlendMode(node.style["mix-blend-mode"])
     let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")

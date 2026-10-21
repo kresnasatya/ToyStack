@@ -3,13 +3,16 @@ import CoreGraphics
 @MainActor
 func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem]) {
     let start: Int = displayList.count
+    profiler.count("paint.nodes", by: 1)
 
     if obj.shouldPaint() {
         obj.paint(into: &displayList)
     }
+    profiler.count("paint.own.items", by: displayList.count - start)
 
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
         let childStart: Int = displayList.count
+        profiler.count("paint.scroll", by: 1)
         let visibleTop: CGFloat = block.y + block.scrollOffset
         let visibleBottom: CGFloat = visibleTop + block.height
         var visibleChildren: [any LayoutObject] = []
@@ -21,7 +24,9 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         for child in inPaintOrder(visibleChildren) {
             paintTree(child, into: &displayList)
         }
-        let childItems: [any DisplayItem] = Array(displayList[childStart...])
+        let childItems: [any DisplayItem] = profiler.measure("paint.range.copy", {
+            Array(displayList[childStart...])
+        })
         displayList.removeSubrange(childStart..<displayList.count)
         let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
         let effect: ScrollEffect = ScrollEffect(

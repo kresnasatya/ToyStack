@@ -30,9 +30,15 @@ extension LayoutObject {
     }
 
     func applyPaintEffects(into items: inout [any DisplayItem], from start: Int) {
-        if self is LineLayout || paintEffectStyle(node: node) == nil { return }
+        if self is LineLayout { return }
+        let style: PaintEffectStyle? = profiler.measure("paint.effect.check", {
+            paintEffectStyle(node: node)
+        })
+        guard let style else { return }
         let produced: [any DisplayItem] = Array(items[start...])
-        let wrapped: [any DisplayItem] = paintBrowserVisualEffects(node: node, items: produced, rect: selfRect())
+        let wrapped: [any DisplayItem] = profiler.measure("paint.effect.wrap", {
+            paintBrowserVisualEffects(style: style, node: node, items: produced, rect: selfRect())
+        })
         items.replaceSubrange(start..<items.count, with: wrapped)
     }
 

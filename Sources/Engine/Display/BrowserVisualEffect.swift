@@ -30,22 +30,32 @@ public class BrowserVisualEffect: DisplayItem {
     }
 }
 
-func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
-    guard let style: PaintEffectStyle = paintEffectStyle(node: node) else { return items }
-    let opacity: Double = style.opacity
-    let blendMode: BrowserBlendMode? = style.blendMode
-    let translation: CGPoint? = style.translation
-    let blurRadius: CGFloat = style.blurRadius
-
+func paintBrowserVisualEffects(style: PaintEffectStyle, node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
     var displayItems: [any DisplayItem] = items
-
-    if blurRadius > 0 {
-        displayItems = [BlurFilter(radius: blurRadius, node: node, children: displayItems)]
+    if style.blurRadius > 0 {
+        displayItems = [BlurFilter(radius: style.blurRadius, node: node, children: displayItems)]
     }
 
-    let blend: Blend = Blend(opacity: opacity, blendMode: blendMode, node: node, children: displayItems)
-    let transform: Transform = Transform(translation: translation, rect: rect, node: node, children: [blend])
+    let blend: Blend = Blend(
+        opacity: style.opacity,
+        blendMode: style.blendMode,
+        node: node,
+        children: displayItems
+    )
+
+    let transform: Transform = Transform(
+        translation: style.translation,
+        rect: rect,
+        node: node,
+        children: [blend]
+    )
+
     return [transform]
+}
+
+func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
+    guard let style: PaintEffectStyle = paintEffectStyle(node: node) else { return items }
+    return paintBrowserVisualEffects(style: style, node: node, items: items, rect: rect)
 }
 
 func addParentPointers(_ items: inout [any DisplayItem], parent: BrowserVisualEffect? = nil) {
