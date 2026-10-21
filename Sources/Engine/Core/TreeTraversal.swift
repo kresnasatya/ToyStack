@@ -8,12 +8,16 @@ func treeToList(_ node: any DOMNode) -> [any DOMNode] {
 }
 
 @MainActor
+func treeToList(_ obj: any LayoutObject, into list: inout [any LayoutObject]) {
+    list.append(obj)
+    for child in obj.children { treeToList(child, into: &list) }
+}
+
+@MainActor
 func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
-    var result: [any LayoutObject] = [obj]
-    for child in obj.children {
-        result.append(contentsOf: treeToList(child))
-    }
-    return result
+    var list: [any LayoutObject] = []
+    treeToList(obj, into: &list)
+    return list
 }
 
 func treeToList(_ item: any DisplayItem, into list: inout [any DisplayItem]) {

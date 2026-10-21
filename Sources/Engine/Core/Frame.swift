@@ -797,7 +797,9 @@ class Frame {
             }
             doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
             document = doc
+            browser?.measure.start("BrowserTab.rebuildScrollTargets")
             rebuildScrollTargets(doc)
+            browser?.measure.stop("BrowserTab.rebuildScrollTargets")
             if reusableStyle {
                 for node in styledNodes { node.layoutStale = false }
             }
@@ -934,7 +936,9 @@ class Frame {
     private func rebuildScrollTargets(_ doc: DocumentLayout) {
         var iframes: [IframeTarget] = []
         var blocks: [ScrollBlockTarget] = []
-        for object in treeToList(doc) {
+        var objects: [any LayoutObject] = []
+        treeToList(doc, into: &objects)
+        for object in objects {
             if let iframe = object as? IframeLayout {
                 iframes.append(
                     IframeTarget(rect: iframe.absoluteBounds(), iframe: iframe)
