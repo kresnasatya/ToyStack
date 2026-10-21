@@ -52,6 +52,7 @@ class BlockLayout: LayoutObject {
 
     func layout(reusesChildren: Bool) {
         var skippedChildren: Bool = false
+        let stale: Bool = subtreeStale
         profiler.measure("layout.block.build") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
@@ -92,8 +93,9 @@ class BlockLayout: LayoutObject {
                 y += VSTEP
             }
 
-            if reusesChildren, usedWidth == width, !subtreeStale {
+            if reusesChildren, usedWidth == width, !stale {
                 skippedChildren = true
+                profiler.count("layout.skip")
                 let dx: CGFloat = x - oldX
                 let dy: CGFloat = y - oldY
                 for child in children { translateSubtree(child, dx: dx, dy: dy) }
@@ -101,80 +103,85 @@ class BlockLayout: LayoutObject {
             }
 
             usedWidth = width
-            let mode: String = layoutMode()
+            let mode: String = profiler.measure("layout.mode", { layoutMode() })
             if mode == "block" {
-                var pool: ChildReuse = ChildReuse(prior: children, enabled: reusesChildren)
-                children = []
-                var prev: (any LayoutObject)? = nil
-                var inlineRun: [any DOMNode] = []
-                var pendingRunIn: Element? = nil
+                profiler.count("layout.mode.block")
+                profiler.measure("layout.children", {
+                    var pool: ChildReuse = ChildReuse(prior: children, enabled: reusesChildren)
+                    children = []
+                    var prev: (any LayoutObject)? = nil
+                    var inlineRun: [any DOMNode] = []
+                    var pendingRunIn: Element? = nil
 
-                for child in node.children {
-                    if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
-                        continue
-                    }
-                    let isBlock: Bool = child.style["display"] == "block"
-                    if isBlock {
-                        if let el = child as? Element, el.tag == "h6" {
-                            if !inlineRun.isEmpty {
-                                let run: [any DOMNode] = inlineRun
-                                let anon: BlockLayout = pool.takeRun(run, previous: prev) {
-                                    BlockLayout(nodes: run, parent: self, previous: prev)
-                                }
-                                children.append(anon)
-                                prev = anon
-                                inlineRun = []
-                            }
-                            pendingRunIn = el
-                        } else {
-                            if !inlineRun.isEmpty {
-                                let run: [any DOMNode] = inlineRun
-                                let anon: BlockLayout = pool.takeRun(run, previous: prev) {
-                                    BlockLayout(nodes: run, parent: self, previous: prev)
-                                }
-                                children.append(anon)
-                                prev = anon
-                                inlineRun = []
-                            }
-                            if let runIn = pendingRunIn {
-                                let run: [any DOMNode] = [runIn, child]
-                                let next: BlockLayout = pool.takeRun(run, previous: prev) {
-                                    BlockLayout(nodes: run, parent: self, previous: prev)
-                                }
-                                children.append(next)
-                                prev = next
-                                pendingRunIn = nil
-                            } else {
-                                let next: BlockLayout = pool.takeBlock(child, previous: prev) {
-                                    BlockLayout(node: child, parent: self, previous: prev)
-                                }
-                                children.append(next)
-                                if child.style["position"] != "absolute" { prev = next }
-                            }
+                    for child in node.children {
+                        if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
+                            continue
                         }
-                    } else {
-                        inlineRun.append(child)
+                        let isBlock: Bool = child.style["display"] == "block"
+                        if isBlock {
+                            if let el = child as? Element, el.tag == "h6" {
+                                if !inlineRun.isEmpty {
+                                    let run: [any DOMNode] = inlineRun
+                                    let anon: BlockLayout = pool.takeRun(run, previous: prev) {
+                                        BlockLayout(nodes: run, parent: self, previous: prev)
+                                    }
+                                    children.append(anon)
+                                    prev = anon
+                                    inlineRun = []
+                                }
+                                pendingRunIn = el
+                            } else {
+                                if !inlineRun.isEmpty {
+                                    let run: [any DOMNode] = inlineRun
+                                    let anon: BlockLayout = pool.takeRun(run, previous: prev) {
+                                        BlockLayout(nodes: run, parent: self, previous: prev)
+                                    }
+                                    children.append(anon)
+                                    prev = anon
+                                    inlineRun = []
+                                }
+                                if let runIn = pendingRunIn {
+                                    let run: [any DOMNode] = [runIn, child]
+                                    let next: BlockLayout = pool.takeRun(run, previous: prev) {
+                                        BlockLayout(nodes: run, parent: self, previous: prev)
+                                    }
+                                    children.append(next)
+                                    prev = next
+                                    pendingRunIn = nil
+                                } else {
+                                    let next: BlockLayout = pool.takeBlock(child, previous: prev) {
+                                        BlockLayout(node: child, parent: self, previous: prev)
+                                    }
+                                    children.append(next)
+                                    if child.style["position"] != "absolute" { prev = next }
+                                }
+                            }
+                        } else {
+                            inlineRun.append(child)
+                        }
                     }
-                }
-                if !inlineRun.isEmpty {
-                    let run: [any DOMNode] = inlineRun
-                    let anon: BlockLayout = pool.takeRun(run, previous: prev) {
-                        BlockLayout(nodes: run, parent: self, previous: prev)
+                    if !inlineRun.isEmpty {
+                        let run: [any DOMNode] = inlineRun
+                        let anon: BlockLayout = pool.takeRun(run, previous: prev) {
+                            BlockLayout(nodes: run, parent: self, previous: prev)
+                        }
+                        children.append(anon)
                     }
-                    children.append(anon)
-                }
-                if let runIn = pendingRunIn {
-                    let next: BlockLayout = pool.takeBlock(runIn, previous: prev) {
-                        BlockLayout(node: runIn, parent: self, previous: prev)
+                    if let runIn = pendingRunIn {
+                        let next: BlockLayout = pool.takeBlock(runIn, previous: prev) {
+                            BlockLayout(node: runIn, parent: self, previous: prev)
+                        }
+                        children.append(next)
                     }
-                    children.append(next)
-                }
+                })
             } else if reusesChildren, inlineBuilt {
+                profiler.count("layout.mode.inline")
                 if subtreeStale {
-                    refreshInlineItems()
+                    profiler.measure("layout.inline.refresh", { refreshInlineItems() })
                 }
-                placeInlineItems()
+                profiler.measure("layout.inline.place", { placeInlineItems() })
             } else {
+                profiler.count("layout.mode.inline")
                 fontByNode.removeAll()
                 itemsByNode = [:]
                 refreshInlineItems()
@@ -185,14 +192,17 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout(reusesChildren: reusesChildren) }
 
-        let sumHeight: Double = children.reduce(0) {
-            if $1.node.style["position"] == "absolute" { return $0 }
-            var h: CGFloat = $1.height
-            if $1 is BlockLayout {
-                h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
+        let sumHeight: Double = profiler.measure("layout.height", {
+            children.reduce(0) {
+                if $1.node.style["position"] == "absolute" { return $0 }
+                var h: CGFloat = $1.height
+                if $1 is BlockLayout {
+                    h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
+                }
+                return $0 + h
             }
-            return $0 + h
-        }
+        })
+
         if let hStr = node.style["height"], hStr.hasSuffix("px"),
             let h = Double(hStr.dropLast(2))
         {

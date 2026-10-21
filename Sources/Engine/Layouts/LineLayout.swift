@@ -38,17 +38,20 @@ class LineLayout: LayoutObject {
 
     func layout(reusesChildren: Bool) {
         if let prelaid {
-            self.prelaid = nil
-            zoom = resolvedZoom()
-            width = parent!.width
-            x = parent!.x
-            y = previous.map { $0.y + $0.height } ?? parent!.y
+            profiler.measure("layout.line.prelaid", {
+                self.prelaid = nil
+                zoom = resolvedZoom()
+                width = parent!.width
+                x = parent!.x
+                y = previous.map { $0.y + $0.height } ?? parent!.y
 
-            let dx: CGFloat = x - prelaid.x
-            let dy: CGFloat = y - prelaid.y
-            if dx != 0 || dy != 0 {
-                for child in children { translateSubtree(child, dx: dx, dy: dy) }
-            }
+                let dx: CGFloat = x - prelaid.x
+                let dy: CGFloat = y - prelaid.y
+                if dx != 0 || dy != 0 {
+                    profiler.count("layout.line.moved")
+                    for child in children { translateSubtree(child, dx: dx, dy: dy) }
+                }
+            })
             height = prelaid.height
             return
         }
