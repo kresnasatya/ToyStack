@@ -37,13 +37,16 @@ public class Browser: ObservableObject {
     private var frames: [ObjectIdentifier: TabFrame] = [:]
     private var activeFrameID: ObjectIdentifier?
     private var activeFrame: TabFrame = TabFrame()
+    private var presentRevision: Int = 0
 
     public var drawList: [any DisplayItem] { activeFrame.render.drawList }
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
     public var contentImage: CGImage? { activeFrame.render.content.image }
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
+
     public var presentedFrame: PresentedFrame {
         PresentedFrame(
+            revision: presentRevision,
             frameID: frameCounter,
             content: activeFrame.render.content,
             viewport: PresentedViewport(
@@ -230,6 +233,7 @@ public class Browser: ObservableObject {
 
     private func dispatchPresent() {
         measure.start("present.main")
+        presentRevision += 1
         onPresent?(presentedFrame)
         measure.stop("present.main")
     }

@@ -19,10 +19,14 @@ public final class MeasureTime: @unchecked Sendable {
         let frame: Int
     }
 
+    private static let streamKey: String = "browser.trace.stream"
+
     private let lock: NSLock = NSLock()
     private var file: FileHandle?
     private var stacks: [UInt: [OpenSpan]] = [:]
-    private var namedThreads: Set<UInt> = []
+    private var namedThreads: [UInt: String] = [:]
+    private var streamIDs: [String: UInt] = [:]
+    private var nextStreamID: UInt = 1
     private var currentFrame: Int = 0
     private let epochOffset: UInt64
 
@@ -108,15 +112,17 @@ public final class MeasureTime: @unchecked Sendable {
 
     private func noteThreadLocked(tid: UInt, name: String?) {
         if let name {
-            guard namedThreads.insert(tid).inserted else { return }
+            guard namedThreads[tid] != name else { return }
+            namedThreads[tid] = name
             seekBeforeClose()
             writeTrace(
                 ", { \"name\": \"thread_name\", \"ph\": \"M\", \"pid\": 1, \"tid\": \(tid), \"cat\": \"__metadata\", \"args\": {\"name\": \"\(name)\"} }]}"
             )
             return
         }
-        guard namedThreads.insert(tid).inserted else { return }
+        guard namedThreads[tid] == nil else { return }
         let label: String = Thread.isMainThread ? "main" : "worker"
+        namedThreads[tid] = label
         seekBeforeClose()
         writeTrace(
             ", { \"name\": \"thread_name\", \"ph\": \"M\", \"pid\": 1, \"tid\": \(tid), \"cat\": \"__metadata\", \"args\": {\"name\": \"\(label)\"} }]}"
@@ -131,15 +137,15 @@ public final class MeasureTime: @unchecked Sendable {
         )
     }
 
-    public func counter(_ name: String, _ args: [String: Int]) {
+    public func counter(_ name: String, _ args: [String: Int], frame: Int? = nil) {
         lock.lock()
         defer { lock.unlock() }
         seekBeforeClose()
         let ts: UInt64 = now()
         let tid: UInt = threadID()
         var all: [String: Int] = args
-        all["frame"] = currentFrame
-         let body: String = all.map { "\"\($0.key)\": \($0.value)"}.joined(separator: ", ")
+        all["frame"] = frame ?? currentFrame
+        let body: String = all.map { "\"\($0.key)\": \($0.value)"}.joined(separator: ", ")
         writeTrace(
             ", { \"ph\": \"C\", \"cat\": \"\(category(for: name).rawValue)\", \"name\": \"\(name)\", \"ts\": \(ts), \"pid\": 1, \"tid\": \(tid), \"args\": {\(body)}}]}"
         )
@@ -175,11 +181,30 @@ public final class MeasureTime: @unchecked Sendable {
     public func noteThread(_ name: String) {
         lock.lock()
         defer { lock.unlock() }
+        Thread.current.threadDictionary[Self.streamKey] = nil
         noteThreadLocked(tid: threadID(), name: name)
     }
 
+    public func noteStream(_ name: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let id: UInt
+        if let existing: UInt = streamIDs[name] {
+            id = existing
+        } else {
+            id = nextStreamID
+            nextStreamID += 1
+            streamIDs[name] = id
+        }
+        Thread.current.threadDictionary[Self.streamKey] = NSNumber(value: id)
+        noteThreadLocked(tid: id, name: name)
+    }
+
     private func threadID() -> UInt {
-        UInt(bitPattern: pthread_self())
+        if let stream: NSNumber = Thread.current.threadDictionary[Self.streamKey] as? NSNumber {
+            return stream.uintValue
+        }
+        return UInt(bitPattern: pthread_self())
     }
 
     private func now() -> UInt64 {
@@ -191,7 +216,7 @@ public final class MeasureTime: @unchecked Sendable {
         if name.hasPrefix("profile.layout") || name.hasPrefix("BrowserTab.layout") || name.hasPrefix("layout.") { return .layout }
         if name.hasPrefix("profile.paint") || name.hasPrefix("BrowserTab.paint") || name.hasPrefix("paint.") { return .paint }
         if name.hasPrefix("raster.") || name == "tiles" || name == "pool" { return .raster }
-        if name.hasPrefix("view.") || name == "present.main" || name == "present" { return .present }
+        if name.hasPrefix("view.") || name == "view" || name == "present.main" || name == "present" { return .present }
         if name.hasPrefix("profile.load") || name.hasPrefix("BrowserTab.load") || name.hasPrefix("load.") { return .load }
         if name == "composite_raster_and_draw" || name.hasPrefix("BrowserTab.anim") || name.hasPrefix("BrowserTab.raf") { return .frame }
         if name.hasPrefix("BrowserTab.scroll") { return .input }

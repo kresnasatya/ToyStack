@@ -13,6 +13,7 @@ final class ContentPresenter: @unchecked Sendable {
 
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
+    private var applied: (revision: Int, size: CGSize)?
     private var presenting = false
     private var dropped = 0
 
@@ -24,6 +25,14 @@ final class ContentPresenter: @unchecked Sendable {
 
     func enqueue(_ frame: PresentedFrame, viewSize: CGSize) {
         lock.lock()
+        if applied?.revision == frame.revision, applied?.size == viewSize {
+            lock.unlock()
+            return
+        }
+        if latest?.frame.revision == frame.revision, latest?.viewSize == viewSize {
+            lock.unlock()
+            return
+        }
         if latest != nil { dropped += 1 }
         latest = (frame, viewSize)
         let kick = !presenting
@@ -33,7 +42,7 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func drain() {
-        measure.noteThread("browser.present")
+        measure.noteStream("browser.present")
         while true {
             lock.lock()
             guard let next = latest else {
@@ -49,11 +58,14 @@ final class ContentPresenter: @unchecked Sendable {
             present(next.frame, viewSize: next.viewSize)
             measure.counter("present", [
                 "dropped": droppedNow
-            ])
+            ], frame: next.frame.frameID)
         }
     }
 
     private func present(_ frame: PresentedFrame, viewSize: CGSize) {
+        lock.lock()
+        applied = (frame.revision, viewSize)
+        lock.unlock()
         measure.start("view.apply", category: .present, frame: frame.frameID)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -94,7 +106,7 @@ final class ContentPresenter: @unchecked Sendable {
             height: viewSize.height
         )
         let placements = frame.content.placements
-        measure.start("view.updateSublayers")
+        measure.start("view.updateSublayers", category: .present, frame: frame.frameID)
         var seen: Set<LayerPlacementKey> = []
         seen.reserveCapacity(placements.count)
         var added = 0
@@ -121,7 +133,7 @@ final class ContentPresenter: @unchecked Sendable {
             "added": added,
             "removed": stale.count,
             "sublayers": contentLayer.sublayers?.count ?? 0
-        ])
+        ], frame: frame.frameID)
     }
 
     private func makeSublayer(scale: CGFloat) -> CALayer {
