@@ -783,7 +783,7 @@ class Frame {
             var markedDirtyText: Int = 0
             for node in cascade.appliedNodes {
                 let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
-                if old != node.style {
+                if layoutInputsChanged(old, node.style) {
                     markLayoutDirty(node)
                     markedDirty += 1
                     if node is TextNode { markedDirtyText += 1 }
