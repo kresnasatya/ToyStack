@@ -4,7 +4,8 @@ This is a project to build a toy browser engine with Swift programming language.
 
 ## Code Architecture
 
-- Each class / struct / function restricted to have maximum 4 parameters.
+- Each function, method, and initializer takes at most four parameters.
+- Each struct has at most four instance stored properties. Group related values into a nested struct when more are needed; computed properties and static constants do not count.
 - Always put explicit type information to make Swift compiler fast to compile. Reference: https://developer.apple.com/documentation/xcode/improving-build-efficiency-with-good-coding-practices#Provide-the-Swift-compiler-with-explicit-type-information
 - One concept per file. Name each file after the main type it holds, don't leave a type inside a file named after something else (e.g. `BrowserFont` lives in `BrowserFont.swift`).
 - When a file grows several unrelated types, split each into its own file. A type belongs where its name says its belong, NOT where it happened to be first written.
