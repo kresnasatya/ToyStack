@@ -27,6 +27,7 @@ class Frame {
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
     var paintEpoch: UInt = 0
+    private var dirtyNodes: [any DOMNode] = []
     var title: String = "New Tab"
     var isSecure: Bool = false
 
@@ -675,7 +676,6 @@ class Frame {
         let reusableStyle: Bool = styled && styleInvalidatedByViewport && !styleInvalidatedByOther
         styleInvalidatedByViewport = false
         styleInvalidatedByOther = false
-        var styledNodes: [any DOMNode] = []
         if needsStyle {
             paintEpoch += 1
             browser?.measure.start("BrowserTab.style")
@@ -684,7 +684,6 @@ class Frame {
             defer { browser?.measure.stop("BrowserTab.style") }
 
             let allNodes: [any DOMNode] = treeToList(nodes)
-            styledNodes = allNodes
 
             browser?.measure.start("BrowserTab.style.rules")
             if indexedRulesRevision != rulesRevision {
@@ -779,22 +778,20 @@ class Frame {
 
             loadBackgroundImages(allNodes)
 
-            if reusableStyle {
-                browser?.measure.start("BrowserTab.style.stale")
-                var staleNodes: Int = 0
-                var staleText: Int = 0
-                for node in cascade.appliedNodes {
-                    let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
-                    if old != node.style {
-                        markLayoutStale(node)
-                        staleNodes += 1
-                        if node is TextNode { staleText += 1 }
-                    }
+            browser?.measure.start("BrowserTab.style.invalidate")
+            var markedDirty: Int = 0
+            var markedDirtyText: Int = 0
+            for node in cascade.appliedNodes {
+                let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
+                if old != node.style {
+                    markLayoutDirty(node)
+                    markedDirty += 1
+                    if node is TextNode { markedDirtyText += 1 }
                 }
-                profiler.count("layout.staleNodes", by: staleNodes)
-                profiler.count("layout.staleText", by: staleText)
-                browser?.measure.stop("BrowserTab.style.stale")
             }
+            profiler.count("layout.markedDirty", by: markedDirty)
+            profiler.count("layout.markedDirtyText", by: markedDirtyText)
+            browser?.measure.stop("BrowserTab.style.invalidate")
 
             needsStyle = false
             needsLayout = true
@@ -826,9 +823,9 @@ class Frame {
                 scrollTargetsValid = true
             }
             browser?.measure.stop("BrowserTab.rebuildScrollTargets")
-            if reusableStyle {
-                for node in styledNodes { node.layoutStale = false }
-            }
+
+            for node in dirtyNodes { node.layoutDirty = false }
+            dirtyNodes.removeAll(keepingCapacity: true)
 
             needsLayout = false
             tab?.needsAccessibility = true
@@ -838,12 +835,35 @@ class Frame {
         requestAnimationFrame()
     }
 
-    private func markLayoutStale(_ node: any DOMNode) {
+    private func markLayoutDirty(_ node: any DOMNode) {
         var current: (any DOMNode)? = node
         while let n = current {
-            n.layoutStale = true
+            if !n.layoutDirty {
+                n.layoutDirty = true
+                dirtyNodes.append(n)
+            }
             current = n.parent
         }
+    }
+
+    private static let layoutProperties: Set<String> = [
+        "width", "height", "min-width", "min-height", "max-width", "max-height",
+        "padding-top", "padding-right", "padding-bottom", "padding-left",
+        "margin-top", "margin-right", "margin-bottom", "margin-left",
+        "display", "position", "top", "right", "bottom", "left",
+        "font-family", "font-size", "font-weight", "font-style", "line-height",
+        "white-space", "direction", "overflow", "overflow-x", "overflow-y",
+        "border-width", "border-style", "zoom"
+    ]
+
+    private func layoutInputsChanged(
+        _ old: [String: String],
+        _ new: [String: String]
+    ) -> Bool {
+        for key in Self.layoutProperties where (old[key] ?? "") != (new[key] ?? "") {
+            return true
+        }
+        return false
     }
 
     func paint() {
@@ -890,6 +910,7 @@ class Frame {
                         }
                     } else if property == "width" || property == "height" {
                         node.style[property] = value
+                        markLayoutDirty(node)
                         needsLayoutUpdate = true
                     } else {
                         node.style[property] = value

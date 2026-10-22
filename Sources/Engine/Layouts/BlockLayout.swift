@@ -95,12 +95,16 @@ class BlockLayout: LayoutObject {
 
             if reusesChildren, usedWidth == width, !stale {
                 skippedChildren = true
-                profiler.count("layout.skip")
+                profiler.count("layout.reusedChildren")
                 let dx: CGFloat = x - oldX
                 let dy: CGFloat = y - oldY
                 for child in children { translateSubtree(child, dx: dx, dy: dy) }
                 return
             }
+            profiler.count("layout.rebuilt")
+            if !reusesChildren { profiler.count("layout.rebuildReason.noReuse") }
+            if usedWidth != width { profiler.count("layout.rebuildReason.widthChanged") }
+            if stale { profiler.count("layout.rebuildReason.dirtyFlag") }
 
             usedWidth = width
             let mode: String = profiler.measure("layout.mode", { layoutMode() })
@@ -224,8 +228,8 @@ class BlockLayout: LayoutObject {
     }
 
     private var subtreeStale: Bool {
-        if node.layoutStale { return true }
-        return extraNodes.contains(where: { $0.layoutStale })
+        if node.layoutDirty { return true }
+        return extraNodes.contains(where: { $0.layoutDirty })
     }
 
     private func layoutMode() -> String {
@@ -318,7 +322,7 @@ class BlockLayout: LayoutObject {
         cache.reserveCapacity(leaves.count)
         for leaf in leaves {
             let key: ObjectIdentifier = ObjectIdentifier(leaf)
-            if let cached = itemsByNode[key], !leaf.layoutStale {
+            if let cached = itemsByNode[key], !leaf.layoutDirty {
                 items.append(contentsOf: cached)
                 cache[key] = cached
                 continue
