@@ -45,6 +45,7 @@ final class RasterWorkerPool: @unchecked Sendable {
         for index in 0..<strips.count {
             group.enter()
             queue.async {
+                measure?.noteThread("browser.raster.workers")
                 measure?.start("raster.worker")
                 let image: CGImage? = TileStripRasterizer.render(strips[index], scale: scale)
                 measure?.stop("raster.worker")

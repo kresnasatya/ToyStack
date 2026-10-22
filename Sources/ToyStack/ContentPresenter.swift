@@ -33,6 +33,7 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func drain() {
+        measure.noteThread("browser.present")
         while true {
             lock.lock()
             guard let next = latest else {

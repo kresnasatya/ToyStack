@@ -108,6 +108,7 @@ public class Browser: ObservableObject {
 
     public init() {
         rasterScheduler.measure = measure
+        measure.noteThread("main")
     }
 
     public func newTab(_ url: WebURL) {

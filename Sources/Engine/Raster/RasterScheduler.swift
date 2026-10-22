@@ -27,6 +27,7 @@ class RasterScheduler: @unchecked Sendable {
     }
 
     private func drain() {
+        measure?.noteThread("browser.compositor")
         lock.lock()
         guard let job = pending else {
             draining = false
