@@ -219,15 +219,15 @@ public class BrowserTab {
     }
 
     public func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
-        browser?.measure.start("BrowserTab.scrollAt")
-        defer { browser?.measure.stop("BrowserTab.scrollAt") }
-        rootFrame.scrollAt(x: x, y: y, deltaY: deltaY)
+        browser?.measure.span("BrowserTab.scrollAt", category: .input) {
+            rootFrame.scrollAt(x: x, y: y, deltaY: deltaY)
+        }
     }
 
     public func scrollBy(deltaY: CGFloat) {
-        browser?.measure.start("BrowserTab.scrollBy")
-        defer { browser?.measure.stop("BrowserTab.scrollBy") }
-        rootFrame.scrollBy(deltaY: deltaY)
+        browser?.measure.span("BrowserTab.scrollBy", category: .input) {
+            rootFrame.scrollBy(deltaY: deltaY)
+        }
     }
 
     public func scrollElementDown() {

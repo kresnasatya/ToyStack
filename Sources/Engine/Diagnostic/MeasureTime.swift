@@ -12,6 +12,13 @@ public final class MeasureTime: @unchecked Sendable {
         let start: UInt64
     }
 
+    struct SpanInterval {
+        let start: UInt64
+        let end: UInt64
+        let category: Category
+        let frame: Int
+    }
+
     private let lock: NSLock = NSLock()
     private var file: FileHandle?
     private var stacks: [UInt: [OpenSpan]] = [:]
@@ -79,12 +86,9 @@ public final class MeasureTime: @unchecked Sendable {
         return try body()
     }
 
-    public func interval(
+    func interval(
         _ name: String,
-        start: UInt64,
-        end: UInt64,
-        category: Category,
-        frame: Int,
+        _ span: SpanInterval,
         args: [String: Int] = [:]
     ) {
         lock.lock()
@@ -93,12 +97,12 @@ public final class MeasureTime: @unchecked Sendable {
         noteThreadLocked(tid: tid, name: nil)
         seekBeforeClose()
         var all: [String: Int] = args
-        all["frame"] = frame
+        all["frame"] = span.frame
         let body: String = all
             .map({ "\"\($0.key)\": \($0.value)" })
             .joined(separator: ", ")
         writeTrace(
-             ", { \"ph\": \"X\", \"cat\": \"\(category.rawValue)\", \"name\": \"\(name)\", \"ts\": \(start), \"dur\": \(end >= start ? end - start : 0), \"pid\": 1, \"tid\": \(tid), \"args\": {\(body)} }]}"
+             ", { \"ph\": \"X\", \"cat\": \"\(span.category.rawValue)\", \"name\": \"\(name)\", \"ts\": \(span.start), \"dur\": \(span.end >= span.start ? span.end - span.start : 0), \"pid\": 1, \"tid\": \(tid), \"args\": {\(body)} }]}"
         )
     }
 

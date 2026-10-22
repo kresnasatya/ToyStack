@@ -44,6 +44,7 @@ public class Browser: ObservableObject {
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
     public var presentedFrame: PresentedFrame {
         PresentedFrame(
+            frameID: frameCounter,
             content: activeFrame.render.content,
             viewport: PresentedViewport(
                 contentOffset: topInset - activeFrame.scroll.scroll,
@@ -84,6 +85,7 @@ public class Browser: ObservableObject {
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
     private var compositeInFlight: Bool = false
+    private var frameCounter: Int = 0
     private var needsTileContinuation: Bool = false
     private var tileContinuationPasses: UInt = 0
 
@@ -296,6 +298,11 @@ public class Browser: ObservableObject {
             return
         }
 
+        frameCounter += 1
+        let frameID: Int = frameCounter
+        measure.setFrame(frameID)
+        let compositeStart: UInt64 = measure.timestamp()
+
         if !needsTileContinuation { tileContinuationPasses = 0 }
         needsTileContinuation = false
 
@@ -306,7 +313,6 @@ public class Browser: ObservableObject {
         }
         needsDraw = false
 
-        measure.start("composite_raster_and_draw")
         let frameStart: Date = frameStartTime
         frameStartTime = .distantPast
         let ownerID: ObjectIdentifier? = activeFrameID
@@ -314,11 +320,11 @@ public class Browser: ObservableObject {
         let measure: MeasureTime = self.measure
         rasterScheduler.schedule(
             RasterScheduler.Job(
-                scale: inputs.settings.viewport.displayScale,
+                trace: TraceContext(frame: frameID, measure: measure),
                 plan: { (store: TileStore) -> RasterPlan in
-                    measure.start("raster.plan")
+                    measure.start("raster.plan", category: .raster, frame: frameID)
 
-                    measure.start("raster.composite")
+                    measure.start("raster.composite", category: .raster, frame: frameID)
                     let layers: [CompositedLayer] =
                         inputs.settings.flags.needsComposite
                         ? Browser.computeComposite(inputs)
@@ -350,7 +356,7 @@ public class Browser: ObservableObject {
                         $0.kind == .blendFallback || $0.kind == .scrollFallback
                     }
 
-                    measure.start("raster.plan.tiles")
+                    measure.start("raster.plan.tiles", category: .raster, frame: frameID)
                     var strips: [TileStrip] = []
                     var deferred: Bool = false
                     if usesSublayers {
@@ -516,7 +522,16 @@ public class Browser: ObservableObject {
                     }
 
                     self.updateAccessibility()
-                    self.measure.stop("composite_raster_and_draw")
+                    self.measure.interval(
+                        "composite_raster_and_draw",
+                        MeasureTime.SpanInterval(
+                            start: compositeStart,
+                            end: self.measure.timestamp(),
+                            category: .frame,
+                            frame: frameID
+                        ),
+                        args: ["owner": ownerID == nil ? 0 : 1]
+                    )
                     self.compositeInFlight = false
                     if frameStart != .distantPast {
                         let elapsed: TimeInterval = Date().timeIntervalSince(frameStart)

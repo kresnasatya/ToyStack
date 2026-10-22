@@ -3,7 +3,7 @@ import Foundation
 
 class RasterScheduler: @unchecked Sendable {
     struct Job {
-        let scale: CGFloat
+        let trace: TraceContext
         let plan: @Sendable (TileStore) -> RasterPlan
         let install: @Sendable (TileStore, RasterPlan, [CGImage?]) -> RasterOutput
         let then: @MainActor (RasterOutput) -> Void
@@ -42,7 +42,8 @@ class RasterScheduler: @unchecked Sendable {
             finish(job: job, plan: plan, images: [])
             return
         }
-        workers.render(plan.batch.strips, scale: job.scale, measure: measure) { images in
+        let scale: CGFloat = plan.composition.inputs.settings.viewport.displayScale
+        workers.render(plan.batch.strips, scale: scale, trace: job.trace) { images in
             self.queue.async {
                 self.finish(job: job, plan: plan, images: images)
             }
@@ -50,6 +51,7 @@ class RasterScheduler: @unchecked Sendable {
     }
 
     private func finish(job: Job, plan: RasterPlan, images: [CGImage?]) {
+        measure?.noteThread("browser.compositor")
         let output: RasterOutput = job.install(tileStore, plan, images)
         Task { @MainActor in job.then(output) }
         drain()

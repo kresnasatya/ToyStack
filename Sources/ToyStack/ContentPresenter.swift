@@ -54,15 +54,9 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func present(_ frame: PresentedFrame, viewSize: CGSize) {
-        measure.start("view.apply")
+        measure.start("view.apply", category: .present, frame: frame.frameID)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        defer { measure.stop("view.apply") }
-        defer {
-            measure.start("view.commit")
-            CATransaction.commit()
-            measure.stop("view.commit")
-        }
 
         if frame.content.usesSublayers {
             applySublayers(frame, viewSize: viewSize)
@@ -70,6 +64,11 @@ final class ContentPresenter: @unchecked Sendable {
             applyImage(frame, viewSize: viewSize)
         }
         applyScrollbar(frame.viewport.scrollbar)
+        measure.stop("view.apply")
+
+        measure.start("view.commit", category: .present, frame: frame.frameID)
+        CATransaction.commit()
+        measure.stop("view.commit")
     }
 
     private func applyScrollbar(_ scrollbar: (frame: CGRect, color: CGColor)?) {
