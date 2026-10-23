@@ -51,7 +51,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
                 var styleStr: String = node.style["font-style"] ?? "normal"
                 if styleStr == "normal" { styleStr = "roman" }
                 let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-                let sizeInt: Int = Int(scaled(sizePx * 0.75))
+                let sizeInt: Int = Int(scaled(sizePx))
                 resolvedFont = getFont(
                         size: sizeInt,
                         weight: weight,

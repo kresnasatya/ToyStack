@@ -33,7 +33,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         var styleStr: String = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(scaled(sizePx * 0.75))
+        let sizeInt: Int = Int(scaled(sizePx))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif"

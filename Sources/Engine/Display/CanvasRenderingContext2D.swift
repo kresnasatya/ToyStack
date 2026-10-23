@@ -294,6 +294,6 @@ final class CanvasRenderingContext2D {
 
     private func canvasFont() -> BrowserFont {
         let size: Double = Double(state.style.font.prefix(while: { $0.isNumber })) ?? 10
-        return getFont(size: Int(size * 0.75), weight: "normal", style: "roman", family: "serif")
+        return getFont(size: Int(size), weight: "normal", style: "roman", family: "serif")
     }
 }

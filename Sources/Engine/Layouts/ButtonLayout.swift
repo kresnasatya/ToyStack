@@ -40,7 +40,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         var styleStr: String = element.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(scaled(sizePx * 0.75))
+        let sizeInt: Int = Int(scaled(sizePx))
         font = getFont(
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
@@ -87,7 +87,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         var style: String = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
         let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(scaled(sizePx * 0.75))
+        let sizeInt: Int = Int(scaled(sizePx))
         let font: BrowserFont = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif"

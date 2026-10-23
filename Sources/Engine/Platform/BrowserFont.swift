@@ -45,7 +45,7 @@ public struct BrowserFont {
 
 // MARK: - Font Cache
 nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
-let inlineDefaultFont: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+let inlineDefaultFont: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
 
 public func getFont(size: Int, weight: String, style: String, family: String = "serif") -> BrowserFont {
     profiler.count("text.fontRequests")
@@ -81,6 +81,6 @@ func fontForElement(_ node: any DOMNode, zoom: CGFloat) -> BrowserFont {
     var style: String = node.style["font-style"] ?? "normal"
     if style == "normal" { style = "roman" }
     let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-    let sizeInt: Int = Int(sizePx * 0.75 * zoom)
+    let sizeInt: Int = Int(sizePx * zoom)
     return getFont(size: sizeInt, weight: weight, style: style, family: node.style["font-family"] ?? "serif")
 }

@@ -497,7 +497,7 @@ class BlockLayout: LayoutObject {
         if style == "normal" { style = "roman" }
         let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let resolved: BrowserFont = getFont(
-            size: Int(scaled(sizePx * 0.75)),
+            size: Int(scaled(sizePx)),
             weight: weight,
             style: style,
             family: node.style["font-family"] ?? "serif"
@@ -527,7 +527,7 @@ class BlockLayout: LayoutObject {
         var style: String = node.style["font-style"] ?? "normal"
         if style == "normal" { style = "roman" }
         let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(sizePx * 0.75)
+        let sizeInt: Int = Int(sizePx)
         let font: BrowserFont = getFont(
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
@@ -607,8 +607,8 @@ class BlockLayout: LayoutObject {
         var styleStr: String = node.style["font-style"] ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(sizePx * 0.75)
-        let smallSize: Int = Int(Double(sizeInt) * 0.75)
+        let sizeInt: Int = Int(sizePx)
+        let smallSize: Int = Int(Double(sizeInt))
         let family: String = node.style["font-family"] ?? "serif"
 
         for (text, isLower) in runs {
