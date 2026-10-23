@@ -7,6 +7,7 @@ class CompositedLayer {
         let bounds: Rect
     }
 
+    var id: LayerID = LayerID(effect: nil, ordinal: 0)
     var displayItems: [DisplayCommand] = []
     var tiles: [TileIndex: CGImage] = [:]
     var effectImage: CGImage?
@@ -75,6 +76,7 @@ class CompositedLayer {
 
     func rasterIfNeeded(scale: CGFloat, store: TileStore, region: RasterRegion, budget: RasterBudget) -> [TileStrip] {
         guard !displayItems.isEmpty else { return [] }
+        tiles.removeAll(keepingCapacity: true)
         let bounds: Rect = compositedBounds()
         let width: CGFloat = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return [] }
@@ -127,17 +129,26 @@ class CompositedLayer {
                 if let cached = keyCache[index] {
                     key = cached
                 } else {
+                    let tileRect: Rect = Rect(
+                        left: colLeft,
+                        top: rowTop, right:
+                        colRight,
+                        bottom: rowTop + t
+                    )
                     key = TileKey(
-                        origin: TileLayerOrigin(left: Int(left), width: Int(width)),
+                        layer: id,
                         index: index,
-                        contentHash: tileHash(inside),
+                        contentHash: tileHash(inside, tileRect: tileRect),
                         scale: scaleInt
                     )
                     keyCache[index] = key
                 }
-                if let reused = store.image(for: key) {
+                switch store.lookup(key) {
+                case .hit(let reused):
                     tiles[index] = reused
                     continue
+                case .missNew, .missStale, .missEvicted:
+                    break
                 }
                 guard budget.remaining > 0 else { continue }
                 budget.remaining -= 1
@@ -164,10 +175,20 @@ class CompositedLayer {
         return strips
     }
 
-    private func tileHash(_ inside: [DisplayCommand]) -> Int {
+    private func tileHash(_ inside: [DisplayCommand], tileRect: Rect) -> Int {
         var hasher: Hasher = Hasher()
         for item in inside {
-            hasher.combine(item.contentHash)
+            if let fill = item as? DrawRect {
+                hasher.combine(ObjectIdentifier(DrawRect.self))
+                hasher.combine(fill.color)
+                let visible: Rect = fill.rect.intersect(tileRect)
+                hasher.combine(visible.left)
+                hasher.combine(visible.top)
+                hasher.combine(visible.right)
+                hasher.combine(visible.bottom)
+            } else {
+                hasher.combine(item.contentHash)
+            }
         }
         return hasher.finalize()
     }

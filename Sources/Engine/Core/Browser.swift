@@ -438,6 +438,11 @@ public class Browser: ObservableObject {
                             "scroll": Int(inputs.scrollState.scroll),
                             "hits": store.hits,
                             "misses": store.misses,
+                            "missNew": store.missNew,
+                            "missStale": store.missStale,
+                            "missEvicted": store.missEvicted,
+                            "entries": store.entryCount,
+                            "pixels": store.retainedPixels,
                             "layers": layers.count,
                             "flat": effectStrategies.filter({ $0.kind == .flat }).count
                         ], frame: frameID)
@@ -613,6 +618,15 @@ public class Browser: ObservableObject {
             layer.ancestorChain = chain
         }
 
+        var ordinals: [ObjectIdentifier?: Int] = [:]
+        for layer in compositedLayers {
+            let effect: ObjectIdentifier? = layer.displayItems.first?.parentEffect.map {
+                ObjectIdentifier($0)
+            }
+            let ordinal: Int = ordinals[effect, default: 0]
+            ordinals[effect] = ordinal + 1
+            layer.id = LayerID(effect: effect, ordinal: ordinal)
+        }
         reuseRasterization(from: inputs.scene.previousLayers, into: compositedLayers)
         return compositedLayers
     }
@@ -622,29 +636,16 @@ public class Browser: ObservableObject {
         into layers: [CompositedLayer]
     ) {
         guard !previous.isEmpty else { return }
-        var pool: [LayerRasterKey: [CompositedLayer]] = [:]
+        var pool: [LayerID: [CompositedLayer]] = [:]
         for layer in previous {
-            pool[rasterKey(layer), default: []].append(layer)
+            pool[layer.id, default: []].append(layer)
         }
         for layer in layers {
-            let key: LayerRasterKey = rasterKey(layer)
-            guard var candidates = pool[key], let source = candidates.popLast() else { continue }
-            pool[key] = candidates
-            layer.tiles = source.tiles
+            guard var candidates = pool[layer.id], let source = candidates.popLast() else { continue }
+            pool[layer.id] = candidates
             layer.effectImage = source.effectImage
             layer.effectImageKey = source.effectImageKey
         }
-    }
-
-    nonisolated private static func rasterKey(_ layer: CompositedLayer) -> LayerRasterKey {
-        let b: Rect = layer.compositedBounds()
-        return LayerRasterKey(
-            left: b.left,
-            top: b.top,
-            right: b.right,
-            bottom: b.bottom,
-            content: layer.displayItems.map({ $0.contentHash })
-        )
     }
 
     nonisolated private static func getLatest(
