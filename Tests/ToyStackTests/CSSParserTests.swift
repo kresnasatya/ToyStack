@@ -8,10 +8,11 @@ import Testing
 
     @Test func parseSingleRule() {
         let css = "p { color: red; font-size: 16px; }"
-        let rules = CSSParser(css).parse()
+        let rules = CSSParser(css).parse().rules
         #expect(rules.count == 1)
-        #expect(rules[0].1["color"] == "red")
-        #expect(rules[0].1["font-size"] == "16px")
+        let (_, _, declarations) = rules[0]
+        #expect(declarations["color"] == "red")
+        #expect(declarations["font-size"] == "16px")
     }
 
     @Test func tagSelectorMatches() {
@@ -23,42 +24,46 @@ import Testing
 
     @Test func parseMultipleRules() {
         let css = "p { color: red; } div { margin: 0 }"
-        let rules = CSSParser(css).parse()
+        let rules = CSSParser(css).parse().rules
         #expect(rules.count == 2)
     }
 
     @Test func parseEmptyInput() {
-        let rules = CSSParser("").parse()
+        let rules = CSSParser("").parse().rules
         #expect(rules.count == 0)
     }
 
     @Test func parseMalformedRuleRecovery() {
         let css = "!invalid { } p { color: red; }"
-        let rules = CSSParser(css).parse()
+        let rules = CSSParser(css).parse().rules
         #expect(rules.count == 1)
-        #expect(rules[0].1["color"] == "red")
+        let (_, _, declarations) = rules[0]
+        #expect(declarations["color"] == "red")
     }
 
     @Test func parseDescendantSelectorFromCSS() {
         let css = "div p { color: blue; }"
-        let rules = CSSParser(css).parse()
+        let rules = CSSParser(css).parse().rules
         #expect(rules.count == 1)
-        #expect(rules[0].0 is DescendantSelector)
-        #expect(rules[0].1["color"] == "blue")
+        let (_, selector, declarations) = rules[0]
+        #expect(selector is DescendantSelector)
+        #expect(declarations["color"] == "blue")
     }
 
     // MARK: - CSSParser.body()
 
     @Test func bodyMalformedDeclarationRecovery() {
         let css = "p { !!!; color: red; }"
-        let rules = CSSParser(css).parse()
-        #expect(rules[0].1["color"] == "red")
+        let rules = CSSParser(css).parse().rules
+        let (_, _, declarations) = rules[0]
+        #expect(declarations["color"] == "red")
     }
 
     @Test func bodyLowercasesProperties() {
         let css = "P { Color: Red; }"
-        let rules = CSSParser(css).parse()
-        #expect(rules[0].1["color"] == "Red")
+        let rules = CSSParser(css).parse().rules
+        let (_, _, declarations) = rules[0]
+        #expect(declarations["color"] == "Red")
     }
 
     // MARK: - TagSelector
@@ -79,7 +84,7 @@ import Testing
     @Test func descendantSelectorPriority() {
         let ancestor = TagSelector(tag: "div")
         let descendant = TagSelector(tag: "p")
-        let selector = DescendantSelector(ancestor: ancestor, descendant: descendant)
+        let selector = DescendantSelector(selectors: [ancestor, descendant])
         #expect(selector.priority == 2)
     }
 
@@ -88,10 +93,10 @@ import Testing
         let p = Element(tag: "p", attributes: [:], parent: div)
         div.children = [p]
 
-        let selector = DescendantSelector(
-            ancestor: TagSelector(tag: "div"),
-            descendant: TagSelector(tag: "p")
-        )
+        let selector = DescendantSelector(selectors:[
+            TagSelector(tag: "div"),
+            TagSelector(tag: "p")
+        ])
 
         #expect(selector.matches(p))
     }
@@ -100,10 +105,10 @@ import Testing
         let span = Element(tag: "span", attributes: [:], parent: nil)
         let p = Element(tag: "p", attributes: [:], parent: span)
 
-        let selector = DescendantSelector(
-            ancestor: TagSelector(tag: "div"),
-            descendant: TagSelector(tag: "p")
-        )
+        let selector = DescendantSelector(selectors: [
+            TagSelector(tag: "div"),
+            TagSelector(tag: "p")
+        ])
 
         #expect(!selector.matches(p))
     }
