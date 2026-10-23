@@ -28,6 +28,7 @@ class Frame {
     // One epoch covers many paints; a cached item is valid only in its epoch.
     var paintEpoch: UInt = 0
     private var dirtyNodes: [any DOMNode] = []
+    private var isLayingOut: Bool = false
     var title: String = "New Tab"
     var isSecure: Bool = false
 
@@ -812,6 +813,8 @@ class Frame {
                 reuse = false
                 scrollTargetsValid = false
             }
+            isLayingOut = true
+            defer { isLayingOut = false }
             doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
             document = doc
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
@@ -835,15 +838,22 @@ class Frame {
         requestAnimationFrame()
     }
 
-    private func markLayoutDirty(_ node: any DOMNode) {
+    @discardableResult
+    private func markLayoutDirty(_ node: any DOMNode) -> Int {
+        var marked: Int = 0
         var current: (any DOMNode)? = node
         while let n = current {
             if !n.layoutDirty {
                 n.layoutDirty = true
                 dirtyNodes.append(n)
+                marked += 1
             }
             current = n.parent
         }
+        if isLayingOut {
+            browser?.measure.counter("layout.dirtyDuringLayout", ["nodes": marked])
+        }
+        return marked
     }
 
     private static let layoutProperties: Set<String> = [
@@ -892,6 +902,7 @@ class Frame {
         var needsAnotherFrame: Bool = false
         needsComposite = needsStyle || needsLayout || needsPaint
         var needsLayoutUpdate: Bool = false
+        var layoutDirtyMarked: Int = 0
         browser?.measure.start("BrowserTab.animScan")
         let animated: [any DOMNode] = activeAnimations > 0 ? treeToList(nodes) : []
         for node in animated {
@@ -910,7 +921,7 @@ class Frame {
                         }
                     } else if property == "width" || property == "height" {
                         node.style[property] = value
-                        markLayoutDirty(node)
+                        layoutDirtyMarked += markLayoutDirty(node)
                         needsLayoutUpdate = true
                     } else {
                         node.style[property] = value
@@ -924,6 +935,7 @@ class Frame {
                 }
             }
         }
+        browser?.measure.counter("layout.markedDirtyAnimation", ["nodes" : layoutDirtyMarked])
         browser?.measure.stop("BrowserTab.animScan")
 
         if needsPaint {

@@ -24,7 +24,7 @@ final class ContentPresenter: @unchecked Sendable {
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: Int, size: CGSize)?
     private var presenting = false
-    private var dropped = 0
+    private var coalesced = 0
 
     init(contentLayer: CALayer, scrollbarLayer: CALayer, measure: MeasureTime) {
         self.contentLayer = contentLayer
@@ -42,7 +42,7 @@ final class ContentPresenter: @unchecked Sendable {
             lock.unlock()
             return
         }
-        if latest != nil { dropped += 1 }
+        if latest != nil { coalesced += 1 }
         latest = (frame, viewSize)
         let kick = !presenting
         if kick { presenting = true }
@@ -60,13 +60,13 @@ final class ContentPresenter: @unchecked Sendable {
                 return
             }
             latest = nil
-            let droppedNow = dropped
-            dropped = 0
+            let coalescedNow = coalesced
+            coalesced = 0
             lock.unlock()
 
             present(next.frame, viewSize: next.viewSize)
             measure.counter("present", [
-                "dropped": droppedNow
+                "coalesced": coalescedNow
             ], frame: next.frame.frameID)
         }
     }

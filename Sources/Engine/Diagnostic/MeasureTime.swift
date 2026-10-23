@@ -39,7 +39,7 @@ public final class MeasureTime: @unchecked Sendable {
         epochOffset = UInt64(Date().timeIntervalSince1970 * 1_000_000) - DispatchTime.now().uptimeNanoseconds / 1_000
         let ts: Int = Int(Date().timeIntervalSince1970 * 1_000_000)
         writeTrace(
-            #"{"traceEvents": [{ "name": "process_name", "ph": "M", "ts": \#(ts), "pid": 1, "cat": "__metadata", "args": {"name": "Browser"}}]}"#
+            #"{"traceEvents": [{ "name": "process_name", "ph": "M", "ts": \#(ts), "pid": 1, "cat": "__metadata", "args": {"name": "Browser"}}, { "name": "trace.schema", "ph": "M", "ts": \#(ts), "pid": 1, "cat": "__metadata", "args": {"version": 1, "durationUnit": "us", "counterUnit": "count", "frameKey": "frame"}}]}"#
         )
     }
 
