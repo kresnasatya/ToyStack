@@ -67,12 +67,36 @@ extension KeyframeAnimation {
 
         let factory: (AnimatedValue, AnimatedValue, Int, Easing) -> Animation?
         switch (oldValue, newValue) {
-        case (.number(let o), .number(let n)):
-            factory = { _, _, tf, e in NumericAnimation(animatedProperty: property, oldValue: o, newValue: n, timing: FrameTiming(totalFrames: tf, easing: e)) }
-        case (.length(let o), .length(let n)):
-            factory = { _, _, tf, e in PixelAnimation(animatedProperty: property, oldValue: o, newValue: n, timing: FrameTiming(totalFrames: tf, easing: e)) }
-        case (.color(let o), .color(let n)):
-            factory = { _, _, tf, e in ColorAnimation(animatedProperty: property, oldColor: o, newColor: n, timing: FrameTiming(totalFrames: tf, easing: e)) }
+        case (.number, .number):
+            factory = { (from: AnimatedValue, to: AnimatedValue, tf: Int, e: Easing) -> Animation? in
+                guard let o: Double = from.length, let n: Double = to.length else { return nil }
+                return PixelAnimation(
+                    animatedProperty: property,
+                    oldValue: o,
+                    newValue: n,
+                    timing: FrameTiming(totalFrames: tf, easing: e)
+                )
+            }
+        case (.length, .length):
+            factory = { (from: AnimatedValue, to: AnimatedValue, tf: Int, e: Easing) -> Animation? in
+                guard let o: Double = from.length, let n: Double = to.length else { return nil }
+                return PixelAnimation(
+                    animatedProperty: property,
+                    oldValue: o,
+                    newValue: n,
+                    timing: FrameTiming(totalFrames: tf, easing: e)
+                )
+            }
+        case (.color, .color):
+            factory = { (from: AnimatedValue, to: AnimatedValue, tf: Int, e: Easing) -> Animation? in
+                guard case .color(let o) = from, case .color(let n) = to else { return nil }
+                return ColorAnimation(
+                    animatedProperty: property,
+                    oldColor: o,
+                    newColor: n,
+                    timing: FrameTiming(totalFrames: tf, easing: e)
+                )
+            }
         default:
             return nil
         }
