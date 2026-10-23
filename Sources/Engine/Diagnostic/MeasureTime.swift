@@ -154,6 +154,16 @@ public final class MeasureTime: @unchecked Sendable {
     public func close() {
         lock.lock()
         defer { lock.unlock() }
+        let ts: UInt64 = now()
+        for (tid, stack) in stacks {
+            for span in stack.reversed() {
+                seekBeforeClose()
+                writeTrace(
+                    ", { \"ph\": \"E\", \"cat\": \"\(span.category.rawValue)\", \"name\": \"\(span.name)\", \"ts\": \(ts), \"pid\": 1, \"tid\": \(tid), \"args\": {\"frame\": \(span.frame), \"clipped\": 1} }]}"
+                )
+            }
+        }
+        stacks.removeAll()
         try? file?.close()
         file = nil
     }

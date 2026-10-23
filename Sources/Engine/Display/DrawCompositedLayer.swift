@@ -39,6 +39,9 @@ struct DrawCompositedLayer: DisplayCommand {
             layer.raster(renderer: renderer)
             renderer.restoreState()
         }
+    }
 
+    func shifted(dx: CGFloat, dy: CGFloat) -> any DisplayCommand {
+        preconditionFailure("DrawCompositedLayer is absolute and never cached")
     }
 }

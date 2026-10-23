@@ -2,7 +2,7 @@ import CoreGraphics
 
 // MARK: - DrawOutline
 public struct DrawOutline: DisplayCommand {
-    public let rect: Rect
+    public var rect: Rect
     public let color: String
     public let thickness: CGFloat
     public var parentEffect: BrowserVisualEffect? = nil
@@ -19,6 +19,12 @@ public struct DrawOutline: DisplayCommand {
             color: BrowserColor(cssName: color),
             lineWidth: thickness
         )
+    }
+
+    public func shifted(dx: CGFloat, dy: CGFloat) -> any DisplayCommand {
+        var copy: DrawOutline = self
+        copy.rect = rect.translated(dx: dx, dy: dy)
+        return copy
     }
 }
 

@@ -5,6 +5,7 @@ import CoreText
 public protocol DisplayCommand: DisplayItem {
     var parentEffect: BrowserVisualEffect? { get set }
     func execute(scroll: CGFloat, renderer: any Renderer)
+    func shifted(dx: CGFloat, dy: CGFloat) -> any DisplayCommand
 }
 
 extension DisplayCommand {

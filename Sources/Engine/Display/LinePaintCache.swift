@@ -1,7 +1,7 @@
 import CoreGraphics
 
 struct LinePaintCache {
-    private var items: [any DisplayItem] = []
+    private var items: [any DisplayCommand] = []
     private var key: LinePaintKey? = nil
     private var valid: Bool = false
 
@@ -11,11 +11,18 @@ struct LinePaintCache {
     }
 
     mutating func store(items: [any DisplayItem], key: LinePaintKey) {
-        guard items.allSatisfy({ $0 is DrawText || $0 is DrawOutline }) else {
-            valid = false
-            return
+        var commands: [any DisplayCommand] = []
+        commands.reserveCapacity(items.count)
+        for item in items {
+            guard let command = item as? any DisplayCommand, command is DrawText || command is DrawOutline
+            else {
+                valid = false
+                self.items.removeAll(keepingCapacity: true)
+                return
+            }
+            commands.append(command)
         }
-        self.items = items
+        self.items = commands
         self.key = key
         self.valid = true
     }
@@ -29,43 +36,11 @@ struct LinePaintCache {
         let dx: CGFloat = currentX - key.x
         let dy: CGFloat = currentY - key.y
         if dx == 0 && dy == 0 {
-            displayList.append(contentsOf: items)
+            for item in items { displayList.append(item) }
             return
         }
         for item in items {
-            displayList.append(shifted(item, dx: dx, dy: dy))
+            displayList.append(item.shifted(dx: dx, dy: dy))
         }
     }
-}
-
-private func shifted(
-    _ item: any DisplayItem,
-    dx: CGFloat,
-    dy: CGFloat
-) -> any DisplayItem {
-    if let text = item as? DrawText {
-        return DrawText(
-            rect: offset(text.rect, dx: dx, dy: dy),
-            text: text.text,
-            font: text.font,
-            color: text.color
-        )
-    }
-    if let outline = item as? DrawOutline {
-        return DrawOutline(
-            rect: offset(outline.rect, dx: dx, dy: dy),
-            color: outline.color,
-            thickness: outline.thickness
-        )
-    }
-    preconditionFailure("Unsupported line item: \(type(of: item))")
-}
-
-private func offset(_ rect: Rect, dx: CGFloat, dy: CGFloat) -> Rect {
-    return Rect(
-        left: rect.left + dx,
-        top: rect.top + dy,
-        right: rect.right + dx,
-        bottom: rect.bottom + dy
-    )
 }

@@ -174,6 +174,7 @@ public class BrowserTab {
     }
 
     func runAnimationFrame() {
+        browser?.beginFrame()
         let frames: [Frame] = windowIDToFrame.values.sorted(by: { $0.windowID < $1.windowID })
         for frame in frames where frame.loaded {
             frame.runAnimationFrame()

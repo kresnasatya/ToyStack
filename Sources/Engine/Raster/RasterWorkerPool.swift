@@ -57,7 +57,7 @@ final class RasterWorkerPool: @unchecked Sendable {
             trace.measure?.counter("pool", [
                 "workers": RasterWorkerPool.defaultWorkerCount,
                 "strips": strips.count
-            ])
+            ], frame: trace.frame)
             completion(results.snapshot())
         }
     }

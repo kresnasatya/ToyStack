@@ -1,7 +1,7 @@
 import CoreGraphics
 
 struct PaintCache {
-    private var items: [any DisplayItem] = []
+    private var items: [any DisplayCommand] = []
     private var key: PaintKey? = nil
     private var valid: Bool = false
 
@@ -11,23 +11,34 @@ struct PaintCache {
 
     mutating func store(
         items: [any DisplayItem],
-        key: PaintKey
+        key: PaintKey,
+        origin: Point
     ) {
-        guard !items.contains(where: { $0 is BrowserVisualEffect }) else {
-            valid = false
-            return
+        var relative: [any DisplayCommand] = []
+        relative.reserveCapacity(items.count)
+        for item in items {
+            guard let command = item as? any DisplayCommand, !(command is DrawCompositedLayer)
+            else {
+                valid = false
+                self.items.removeAll(keepingCapacity: true)
+                return
+            }
+            relative.append(command.shifted(dx: -origin.x, dy: -origin.y))
         }
-        self.items = items
+        self.items = relative
         self.key = key
         self.valid = true
     }
 
-    func append(to displayList: inout [any DisplayItem]) {
+    func append(to displayList: inout [any DisplayItem], origin: Point) {
         guard valid else { return }
-        displayList.append(contentsOf: items)
+        for item in items {
+            displayList.append(item.shifted(dx: origin.x, dy: origin.y))
+        }
     }
 
     mutating func invalidate() {
         valid = false
+        self.items.removeAll(keepingCapacity: true)
     }
 }

@@ -10,28 +10,30 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         line.paintCache.canReuse(epoch: epoch, generation: line.paintGeneration)
     {
         line.paintCache.append(to: &displayList, currentX: line.x, currentY: line.y)
-        profiler.count("paint.cached.lines", by: 1)
+        profiler.count("paint.cache.hit.lines", by: 1)
         return
     }
 
     if obj.shouldPaint() {
         if let block = obj as? BlockLayout {
+            let origin: Point = Point(x: block.x, y: block.y)
             let key: PaintKey = PaintKey(
-                rect: block.selfRect(),
-                epoch: epoch,
-                generation: 0
+                width: block.width,
+                height: block.height,
+                epoch: epoch
             )
             if block.paintCache.canReuse(key: key) {
-                block.paintCache.append(to: &displayList)
-                profiler.count("paint.cached.blocks", by: 1)
+                block.paintCache.append(to: &displayList, origin: origin)
+                profiler.count("paint.cache.hit.blocks", by: 1)
             } else {
                 let ownStart: Int = displayList.count
                 obj.paint(into: &displayList)
                 block.paintCache.store(
                     items: Array(displayList[ownStart...]),
-                    key: key
+                    key: key,
+                    origin: origin
                 )
-                profiler.count("paint.stored.blocks", by: 1)
+                profiler.count("paint.cache.store.blocks", by: 1)
             }
         } else {
             obj.paint(into: &displayList)
@@ -98,7 +100,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             items: Array(displayList[start...]),
             key: key
         )
-        profiler.count("paint.stored.lines", by: 1)
+        profiler.count("paint.cache.store.lines", by: 1)
     }
 }
 

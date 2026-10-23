@@ -31,6 +31,15 @@ public struct Rect: Equatable {
         )
     }
 
+    func translated(dx: CGFloat, dy: CGFloat) -> Rect {
+        return Rect(
+            left: left + dx,
+            top: top + dy,
+            right: right + dx,
+            bottom: bottom + dy
+        )
+    }
+
     func union(_ other: Rect) -> Rect {
         return Rect(
             left: min(self.left, other.left), top: min(self.top, other.top),

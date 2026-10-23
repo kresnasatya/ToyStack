@@ -26,4 +26,10 @@ struct DrawImage: DisplayCommand {
             rendering: rendering
         )
     }
+
+    func shifted(dx: CGFloat, dy: CGFloat) -> any DisplayCommand {
+        var copy: DrawImage = self
+        copy.rect = rect.translated(dx: dx, dy: dy)
+        return copy
+    }
 }

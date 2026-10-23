@@ -4,8 +4,8 @@ import CoreGraphics
 struct DrawClippedImage: DisplayCommand {
     let image: CGImage
     let rendering: ImageRendering
-    let rect: Rect
-    let clip: Rect
+    var rect: Rect
+    var clip: Rect
     var parentEffect: BrowserVisualEffect? = nil
 
     init(image: CGImage, rendering: ImageRendering, rect: Rect, clip: Rect) {
@@ -36,5 +36,12 @@ struct DrawClippedImage: DisplayCommand {
             rendering: rendering
         )
         renderer.restoreState()
+    }
+
+    func shifted(dx: CGFloat, dy: CGFloat) -> any DisplayCommand {
+        var copy: DrawClippedImage = self
+        copy.rect = rect.translated(dx: dx, dy: dy)
+        copy.clip = clip.translated(dx: dx, dy: dy)
+        return copy
     }
 }

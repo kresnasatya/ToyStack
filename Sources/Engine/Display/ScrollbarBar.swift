@@ -2,7 +2,7 @@ import CoreGraphics
 
 // MARK: - ScrollbarBar
 public struct ScrollbarBar: DisplayCommand {
-    public let rect: Rect
+    public var rect: Rect
     public let color: String
     public let radius: CGFloat
     public var parentEffect: BrowserVisualEffect? = nil
@@ -25,6 +25,11 @@ public struct ScrollbarBar: DisplayCommand {
         } else {
             renderer.fillRect(target, color: BrowserColor(cssName: color))
         }
+    }
 
+    public func shifted(dx: CGFloat, dy: CGFloat) -> any DisplayCommand {
+        var copy: ScrollbarBar = self
+        copy.rect = rect.translated(dx: dx, dy: dy)
+        return copy
     }
 }

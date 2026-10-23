@@ -44,10 +44,19 @@ public class Browser: ObservableObject {
     public var contentImage: CGImage? { activeFrame.render.content.image }
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
 
+    func beginFrame() {
+        currentFrameID += 1
+        measure.setFrame(currentFrameID)
+    }
+
     public var presentedFrame: PresentedFrame {
+        return presentedFrame(frameID: currentFrameID)
+    }
+
+    private func presentedFrame(frameID: Int) -> PresentedFrame {
         PresentedFrame(
             revision: presentRevision,
-            frameID: frameCounter,
+            frameID: frameID,
             content: activeFrame.render.content,
             viewport: PresentedViewport(
                 contentOffset: topInset - activeFrame.scroll.scroll,
@@ -57,6 +66,7 @@ public class Browser: ObservableObject {
             )
         )
     }
+
     public var onPresent: ((PresentedFrame) -> Void)?
     private var lastTileScroll: CGFloat = .nan
 
@@ -88,7 +98,7 @@ public class Browser: ObservableObject {
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
     private var compositeInFlight: Bool = false
-    private var frameCounter: Int = 0
+    private var currentFrameID: Int = 0
     private var needsTileContinuation: Bool = false
     private var tileContinuationPasses: UInt = 0
 
@@ -227,14 +237,14 @@ public class Browser: ObservableObject {
             if layers[index].effectImage == nil { return false }
         }
         activeFrame.render.content.placements = Browser.layerPlacements(layers, effectStrategies: effectStrategies)
-        dispatchPresent()
+        dispatchPresent(frameID: currentFrameID)
         return true
     }
 
-    private func dispatchPresent() {
-        measure.start("present.main")
+    private func dispatchPresent(frameID: Int) {
+        measure.start("present.main", category: .present, frame: frameID)
         presentRevision += 1
-        onPresent?(presentedFrame)
+        onPresent?(presentedFrame(frameID: frameID))
         measure.stop("present.main")
     }
 
@@ -302,9 +312,7 @@ public class Browser: ObservableObject {
             return
         }
 
-        frameCounter += 1
-        let frameID: Int = frameCounter
-        measure.setFrame(frameID)
+        let frameID: Int = currentFrameID
         let compositeStart: UInt64 = measure.timestamp()
 
         if !needsTileContinuation { tileContinuationPasses = 0 }
@@ -408,9 +416,9 @@ public class Browser: ObservableObject {
                     let effectStrategies: [LayerEffectStrategy] = plan.composition.effectStrategies
                     let inputs: RasterInput = plan.composition.inputs
 
-                    measure.start("raster.install")
+                    measure.start("raster.install", category: .raster, frame: frameID)
                     if plan.composition.usesSublayers {
-                        measure.start("raster.install.tiles")
+                        measure.start("raster.install.tiles", category: .raster, frame: frameID)
                         for (i, strip) in plan.batch.strips.enumerated() {
                             guard let stripImage = images[i] else { continue }
                             for key in strip.tiles {
@@ -432,11 +440,11 @@ public class Browser: ObservableObject {
                             "misses": store.misses,
                             "layers": layers.count,
                             "flat": effectStrategies.filter({ $0.kind == .flat }).count
-                        ])
+                        ], frame: frameID)
                         if plan.batch.deferred {
                             store.markDeferred()
                         }
-                        measure.start("raster.effect")
+                        measure.start("raster.effect", category: .raster, frame: frameID)
                         for (index, layer) in layers.enumerated() where effectStrategies[index].kind == .ca {
                             Browser.updateEffectImage(
                                 layer,
@@ -501,7 +509,7 @@ public class Browser: ObservableObject {
                             if let drawList: [any DisplayItem] = output.drawList { self.activeFrame.render.drawList = drawList }
                             if inputs.settings.flags.needsDraw || output.content.usesSublayers {
                                 self.activeFrame.render.content = output.content
-                                self.dispatchPresent()
+                                self.dispatchPresent(frameID: frameID)
                             }
                             self.activeFrame.render.signature = signature
                             self.frames[ownerID] = self.activeFrame
@@ -872,7 +880,7 @@ public class Browser: ObservableObject {
         }
 
         if activeFrame.render.content.usesSublayers {
-            dispatchPresent()
+            dispatchPresent(frameID: currentFrameID)
             let step: CGFloat = CompositedLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
                 lastTileScroll = scroll

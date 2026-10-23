@@ -1,13 +1,13 @@
 import CoreGraphics
 
 struct PaintKey: Equatable {
-    let rect: Rect
+    let width: CGFloat
+    let height: CGFloat
     let epoch: UInt
-    let generation: UInt
 
-    init(rect: Rect, epoch: UInt, generation: UInt) {
-        self.rect = rect
+    init(width: CGFloat, height: CGFloat, epoch: UInt) {
+        self.width = width
+        self.height = height
         self.epoch = epoch
-        self.generation = generation
     }
 }
