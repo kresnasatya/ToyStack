@@ -75,11 +75,13 @@ import Testing
         #expect(el(body.children[0]).tag == "p")
     }
 
-    // MARK: - Whitespace-only text is discarded
-    @Test func whiteSpaceOnlyTextDiscarded() {
+    // MARK: - Whitespace-only text is preserved for layout to collapse
+    @Test func whiteSpaceOnlyTextPreserved() {
         let root = el(HTMLParser(body: "<p>    </p>").parse())
         let body = el(root.children[0])
         let p = el(body.children[0])
-        #expect(p.children.isEmpty)
+        #expect(p.children.count == 1)
+        let text = p.children[0] as! TextNode
+        #expect(text.text == "    ")
     }
 }
