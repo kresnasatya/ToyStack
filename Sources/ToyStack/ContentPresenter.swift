@@ -4,13 +4,22 @@ import QuartzCore
 import Engine
 
 final class ContentPresenter: @unchecked Sendable {
+
+    private struct Slot {
+        let layer: CALayer
+        var lastSeen: Int
+        var hidden: Bool
+    }
+
     private let queue = DispatchQueue(label: "browser.present", qos: .userInteractive)
     private let measure: MeasureTime
     private let contentLayer: CALayer
     private let scrollbarLayer: CALayer
     private var lastImage: CGImage?
-    private var layersByPlacement: [LayerPlacementKey: CALayer] = [:]
-
+    private var layersByPlacement: [LayerPlacementKey: Slot] = [:]
+    private var frameNumber: Int = 0
+    private var lastUsesSublayers: Bool?
+    private let graceFrames: Int = 10
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: Int, size: CGSize)?
@@ -63,6 +72,14 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func present(_ frame: PresentedFrame, viewSize: CGSize) {
+        frameNumber += 1
+        let usesSublayers: Bool = frame.content.usesSublayers
+        let flipped: Bool = lastUsesSublayers.map({ $0 != usesSublayers }) ?? false
+        measure.counter("view.usesSublayersFlips", [
+            "flip" : flipped ? 1 : 0,
+            "sublayers": usesSublayers ? 1 : 0
+        ], frame: frame.frameID)
+        lastUsesSublayers = usesSublayers
         lock.lock()
         applied = (frame.revision, viewSize)
         lock.unlock()
@@ -107,31 +124,63 @@ final class ContentPresenter: @unchecked Sendable {
         )
         let placements = frame.content.placements
         measure.start("view.updateSublayers", category: .present, frame: frame.frameID)
-        var seen: Set<LayerPlacementKey> = []
-        seen.reserveCapacity(placements.count)
+        let previous: Set<LayerPlacementKey> = Set(layersByPlacement.keys)
+        let diff: PlacementDiff = PlacementDiff(
+            previous: previous,
+            current: placements.map(\.key)
+        )
         var added = 0
+        var unhidden = 0
+        var removedNow = 0
+        var purged = 0
         for placed in placements {
-            seen.insert(placed.key)
             let layer: CALayer
-            if let existing = layersByPlacement[placed.key] {
-                layer = existing
+            if var slot = layersByPlacement[placed.key] {
+                layer = slot.layer
+                slot.lastSeen = frameNumber
+                if slot.hidden {
+                    slot.hidden = false
+                    layer.isHidden = false
+                    unhidden += 1
+                }
+                layersByPlacement[placed.key] = slot
             } else {
                 layer = makeSublayer(scale: frame.viewport.displayScale)
-                layersByPlacement[placed.key] = layer
+                layersByPlacement[placed.key] = Slot(
+                    layer: layer,
+                    lastSeen: frameNumber,
+                    hidden: false
+                )
                 added += 1
             }
             updateSublayer(layer, with: placed)
         }
-        let stale = layersByPlacement.keys.filter { !seen.contains($0) }
-        for key in stale {
-            layersByPlacement[key]?.removeFromSuperlayer()
+        for key in diff.removed {
+            guard var slot = layersByPlacement[key] else { continue }
+            if !slot.hidden {
+                slot.hidden = true
+                slot.layer.isHidden = true
+                removedNow += 1
+            }
+            layersByPlacement[key] = slot
+        }
+        for key in Array(layersByPlacement.keys) {
+            guard let slot = layersByPlacement[key] else { continue }
+            guard frameNumber - slot.lastSeen > graceFrames else { continue }
+            slot.layer.removeFromSuperlayer()
             layersByPlacement.removeValue(forKey: key)
+            purged += 1
         }
         measure.stop("view.updateSublayers")
         measure.counter("view", [
             "placements": placements.count,
             "added": added,
-            "removed": stale.count,
+            "removed": removedNow,
+            "kept": diff.kept,
+            "hidden": layersByPlacement.values.filter(\.hidden).count,
+            "unhidden": unhidden,
+            "purged": purged,
+            "pool": layersByPlacement.count,
             "sublayers": contentLayer.sublayers?.count ?? 0
         ], frame: frame.frameID)
     }
@@ -204,9 +253,20 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func applyImage(_ frame: PresentedFrame, viewSize: CGSize) {
-        if !layersByPlacement.isEmpty {
-            contentLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
-            layersByPlacement.removeAll()
+        for key in Array(layersByPlacement.keys) {
+            guard var slot = layersByPlacement[key] else { continue }
+            if !slot.hidden {
+                slot.hidden = true
+                slot.layer.isHidden = true
+            }
+            layersByPlacement[key] = slot
+        }
+
+        for key in Array(layersByPlacement.keys) {
+            guard let slot = layersByPlacement[key] else { continue }
+            guard frameNumber - slot.lastSeen > graceFrames else { continue }
+            slot.layer.removeFromSuperlayer()
+            layersByPlacement.removeValue(forKey: key)
         }
 
         if let image = frame.content.image, image !== lastImage {
