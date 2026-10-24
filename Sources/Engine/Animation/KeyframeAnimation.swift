@@ -69,8 +69,8 @@ extension KeyframeAnimation {
         switch (oldValue, newValue) {
         case (.number, .number):
             factory = { (from: AnimatedValue, to: AnimatedValue, tf: Int, e: Easing) -> Animation? in
-                guard let o: Double = from.length, let n: Double = to.length else { return nil }
-                return PixelAnimation(
+                guard case .number(let o) = from, case .number(let n) = to else { return nil }
+                return NumericAnimation(
                     animatedProperty: property,
                     oldValue: o,
                     newValue: n,
