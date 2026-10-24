@@ -36,7 +36,9 @@ public class BrowserTab {
     private(set) var focusedFrame: Frame!
 
     public private(set) var tabHeight: CGFloat
-    private var tabWidth: CGFloat
+    public private(set) var tabWidth: CGFloat
+
+    var pageZoom: CGFloat { rootFrame.pageZoom }
 
     public var canGoBack: Bool { nearestLiveIndex(from: historyIndex - 1, direction: -1) != nil }
     public var canGoForward: Bool { nearestLiveIndex(from: historyIndex + 1, direction: 1) != nil }
@@ -195,7 +197,8 @@ public class BrowserTab {
     }
 
     public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
-        rootFrame.linkURL(at: x, y: y)
+        let zoom: CGFloat = rootFrame.pageZoom
+        return rootFrame.linkURL(at: x / zoom, y: y / zoom)
     }
 
     public func scrollbarCommands() -> [any DisplayCommand] {
@@ -206,8 +209,8 @@ public class BrowserTab {
         guard width != tabWidth || height != tabHeight else { return }
         tabWidth = width
         tabHeight = height
-        rootFrame.frameWidth = width
-        rootFrame.frameHeight = height
+        rootFrame.frameWidth = width / rootFrame.pageZoom
+        rootFrame.frameHeight = height / rootFrame.pageZoom
         rootFrame.setNeedsViewportResize()
     }
 
@@ -221,13 +224,14 @@ public class BrowserTab {
 
     public func scrollAt(x: CGFloat, y: CGFloat, deltaY: CGFloat) {
         browser?.measure.span("BrowserTab.scrollAt", category: .input) {
-            rootFrame.scrollAt(x: x, y: y, deltaY: deltaY)
+            let zoom: CGFloat = rootFrame.pageZoom
+            rootFrame.scrollAt(x: x / zoom, y: y / zoom, deltaY: deltaY / zoom)
         }
     }
 
     public func scrollBy(deltaY: CGFloat) {
         browser?.measure.span("BrowserTab.scrollBy", category: .input) {
-            rootFrame.scrollBy(deltaY: deltaY)
+            rootFrame.scrollBy(deltaY: deltaY / rootFrame.pageZoom)
         }
     }
 
@@ -348,7 +352,8 @@ public class BrowserTab {
     }
 
     public func click(x: CGFloat, y: CGFloat) {
-        rootFrame.click(x: x, y: y)
+        let zoom: CGFloat = rootFrame.pageZoom
+        rootFrame.click(x: x / zoom, y: y / zoom)
     }
 
     public func enterKey() {

@@ -111,11 +111,14 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func applySublayers(_ frame: PresentedFrame, viewSize: CGSize) {
+        let scale: ContentScale = frame.viewport.scale
         if lastImage != nil {
             lastImage = nil
             contentLayer.contents = nil
         }
         contentLayer.backgroundColor = frame.viewport.canvasColor
+        contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
+        contentLayer.transform = CATransform3DMakeScale(scale.page, scale.page, 1)
         contentLayer.frame = CGRect(
             x: 0,
             y: frame.viewport.contentOffset,
@@ -145,7 +148,7 @@ final class ContentPresenter: @unchecked Sendable {
                 }
                 layersByPlacement[placed.key] = slot
             } else {
-                layer = makeSublayer(scale: frame.viewport.displayScale)
+                layer = makeSublayer(scale: scale.effective)
                 layersByPlacement[placed.key] = Slot(
                     layer: layer,
                     lastSeen: frameNumber,
@@ -153,7 +156,7 @@ final class ContentPresenter: @unchecked Sendable {
                 )
                 added += 1
             }
-            updateSublayer(layer, with: placed)
+            updateSublayer(layer, with: placed, scale: scale.effective)
         }
         for key in diff.removed {
             guard var slot = layersByPlacement[key] else { continue }
@@ -193,7 +196,10 @@ final class ContentPresenter: @unchecked Sendable {
         return layer
     }
 
-    private func updateSublayer(_ layer: CALayer, with placed: LayerPlacement) {
+    private func updateSublayer(_ layer: CALayer, with placed: LayerPlacement, scale: CGFloat) {
+        if layer.contentsScale != scale {
+            layer.contentsScale = scale
+        }
         if (layer.contents as AnyObject?) !== placed.image {
             layer.contents = placed.image
         }
@@ -253,6 +259,7 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func applyImage(_ frame: PresentedFrame, viewSize: CGSize) {
+        let scale: ContentScale = frame.viewport.scale
         for key in Array(layersByPlacement.keys) {
             guard var slot = layersByPlacement[key] else { continue }
             if !slot.hidden {
@@ -272,11 +279,12 @@ final class ContentPresenter: @unchecked Sendable {
         if let image = frame.content.image, image !== lastImage {
             lastImage = image
             contentLayer.contents = image
-            contentLayer.contentsScale = frame.viewport.displayScale
+            contentLayer.contentsScale = scale.display
         }
         guard let image = lastImage else { return }
 
-        let imageHeight = CGFloat(image.height) / frame.viewport.displayScale
+        contentLayer.transform = CATransform3DIdentity
+        let imageHeight = CGFloat(image.height) / scale.display
         contentLayer.frame = CGRect(
             x: 0,
             y: 0,

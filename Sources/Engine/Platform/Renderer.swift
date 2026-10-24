@@ -4,6 +4,7 @@ public protocol Renderer {
     func saveState()
     func restoreState()
     func translateBy(x: CGFloat, y: CGFloat)
+    func scaleBy(x: CGFloat, y: CGFloat)
     func clip(to rect: Rect)
     func clipRRect(_ rect: Rect, radii: CornerRadii)
     func fillRect(_ rect: Rect, color: BrowserColor)

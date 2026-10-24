@@ -77,7 +77,7 @@ class Frame {
     private var scrollFocusNode: Element? = nil
     private var scrollTween: ScrollTween? = nil
     private var paintedBottom: CGFloat = 0
-    private var zoom: CGFloat = 1.0
+    private(set) var pageZoom: CGFloat = 1.0
 
     private var activeAnimations: Int = 0
 
@@ -549,6 +549,7 @@ class Frame {
         guard let tab else { return }
         let parent: FrameParent = FrameParent(frame: self, element: iframe)
         let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
+        child.pageZoom = pageZoom
         iframe.frame = child
         iframe.frameSource = source
         child.load(documentURL)
@@ -815,7 +816,7 @@ class Frame {
             }
             isLayingOut = true
             defer { isLayingOut = false }
-            doc.layout(availableWidth: frameWidth, zoom: zoom, reusesChildren: reuse)
+            doc.layout(availableWidth: frameWidth, zoom: 1.0, pageZoom: pageZoom, reusesChildren: reuse)
             document = doc
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
             if !styled, scrollTargetsValid {
@@ -1432,27 +1433,30 @@ class Frame {
     // MARK: - Zoom
 
     func zoomBy(_ increment: Bool) {
-        if increment {
-            zoom *= 1.1
-            scroll *= 1.1
-        } else {
-            zoom *= 1 / 1.1
-            scroll *= 1 / 1.1
-        }
-        setNeedsRender()
+        setPageZoom(pageZoom * (increment ? 1.1 : 1 / 1.1))
     }
 
     func resetZoom() {
-        scroll /= zoom
-        zoom = 1.0
-        setNeedsRender()
+        setPageZoom(1.0)
     }
 
     func setZoom(_ newZoom: CGFloat) {
-        guard newZoom > 0, abs(newZoom - zoom) > 0.001 else { return }
-        scroll *= newZoom / zoom
-        zoom = newZoom
-        setNeedsRender()
+        setPageZoom(newZoom)
+    }
+
+    func setPageZoom(_ newZoom: CGFloat) {
+        guard newZoom > 0, abs(newZoom - pageZoom) > 0.001 else { return }
+        pageZoom = newZoom
+        if parentFrame == nil, let tab {
+            frameWidth = tab.tabWidth / newZoom
+            frameHeight = tab.tabHeight / newZoom
+        }
+        if let tab {
+            for child in tab.windowIDToFrame.values where child.parentFrame === self {
+                child.setPageZoom(newZoom)
+            }
+        }
+        setNeedsViewportResize()
     }
 
     private func currentMedia() -> MediaFeatures {
@@ -1461,7 +1465,7 @@ class Frame {
                 prefersDark: tab?.prefersDark ?? false,
                 usesForcedColors: tab?.forcedColors ?? false
             ),
-            frameWidth: frameWidth / zoom
+            frameWidth: frameWidth
         )
     }
 

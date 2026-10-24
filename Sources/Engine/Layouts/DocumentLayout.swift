@@ -11,6 +11,7 @@ class DocumentLayout: LayoutObject {
     var width: CGFloat = 0
     var height: CGFloat = 0
     var zoom: CGFloat = 1.0
+    var pageZoom: CGFloat = 1.0
 
     init(node: any DOMNode) {
         self.node = node
@@ -21,11 +22,12 @@ class DocumentLayout: LayoutObject {
     }
 
     func layout(reusesChildren: Bool) {
-        layout(availableWidth: WIDTH, zoom: zoom, reusesChildren: reusesChildren)
+        layout(availableWidth: WIDTH, zoom: zoom, pageZoom: pageZoom, reusesChildren: reusesChildren)
     }
 
-    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, reusesChildren: Bool = false) {
+    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0, reusesChildren: Bool = false) {
         self.zoom = zoom
+        self.pageZoom = pageZoom
         let child: BlockLayout
         if reusesChildren, let existing = children.first as? BlockLayout, existing.node === node {
             child = existing

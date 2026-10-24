@@ -23,6 +23,10 @@ final class SwiftUIRenderer: Renderer {
         context.translateBy(x: x, y: y)
     }
 
+    func scaleBy(x: CGFloat, y: CGFloat) {
+        context.scaleBy(x: x, y: y)
+    }
+
     func clip(to rect: Rect) {
         context.clip(to: Path(rect.cgRect))
     }

@@ -35,6 +35,7 @@ public final class CGRenderer: Renderer {
     public func saveState() { cg.saveGState() }
     public func restoreState() { cg.restoreGState() }
     public func translateBy(x: CGFloat, y: CGFloat) { cg.translateBy(x: x, y: y) }
+    public func scaleBy(x: CGFloat, y: CGFloat) { cg.scaleBy(x: x, y: y) }
     public func clip(to rect: Rect) { cg.clip(to: rect.cgRect) }
 
     public func clipRRect(_ rect: Rect, radii: CornerRadii) {

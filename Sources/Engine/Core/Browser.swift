@@ -41,6 +41,7 @@ public class Browser: ObservableObject {
 
     public var drawList: [any DisplayItem] { activeFrame.render.drawList }
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
+    public var pageZoom: CGFloat { activeTab?.pageZoom ?? 1.0 }
     public var contentImage: CGImage? { activeFrame.render.content.image }
     public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
 
@@ -59,8 +60,8 @@ public class Browser: ObservableObject {
             frameID: frameID,
             content: activeFrame.render.content,
             viewport: PresentedViewport(
-                contentOffset: topInset - activeFrame.scroll.scroll,
-                displayScale: displayScale,
+                contentOffset: topInset - activeFrame.scroll.scroll * pageZoom,
+                scale: ContentScale(display: displayScale, page: pageZoom),
                 canvasColor: canvasColor,
                 scrollbar: activeSidebar
             )
@@ -80,10 +81,10 @@ public class Browser: ObservableObject {
         guard contentHeight > 0,
             let bar = scrollbarBarRect(
                 ScrollbarGeometry(
-                    docHeight: activeFrame.scroll.maxScroll + contentHeight,
+                    docHeight: activeFrame.scroll.maxScroll * pageZoom + contentHeight,
                     contentHeight: contentHeight,
                     contentWidth: windowSize.width,
-                    scroll: activeFrame.scroll.scroll
+                    scroll: activeFrame.scroll.scroll * pageZoom
                 ),
                 forcedColors: activeFrame.preferences.usesForcedColors,
                 topInset: topInset
@@ -250,8 +251,8 @@ public class Browser: ObservableObject {
 
     private func resolvePendingHover() {
         guard let pending = pendingHover else { return }
-        let adjustedY: CGFloat = pending.y + activeTabScroll
-        if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x, y: adjustedY) {
+        let adjustedY: CGFloat = pending.y / pageZoom + activeTabScroll
+        if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x / pageZoom, y: adjustedY) {
             if hoveredA11yNode == nil || hit.node !== hoveredA11yNode!.node {
                 needsSpeakHoveredNode = true
             }
@@ -285,7 +286,7 @@ public class Browser: ObservableObject {
                 previousLayers: activeFrame.render.layers,
             ),
             settings: RasterSettings(
-                viewport: Viewport(windowSize: windowSize, topInset: topInset, displayScale: displayScale),
+                viewport: Viewport(windowSize: windowSize, topInset: topInset, scale: ContentScale(display: displayScale, page: pageZoom)),
                 preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
                 flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
@@ -297,7 +298,7 @@ public class Browser: ObservableObject {
             viewport: FrameViewport(
                 scroll: activeFrame.scroll.scroll,
                 size: windowSize,
-                displayScale: displayScale
+                scale: ContentScale(display: displayScale, page: pageZoom)
             ),
             revisions: FrameRevisions(
                 paint: activeFrame.display.paintRevision,
@@ -343,21 +344,23 @@ public class Browser: ObservableObject {
                         : inputs.scene.previousLayers
                     measure.stop("raster.composite")
 
+                    let scale: ContentScale = inputs.settings.viewport.scale
                     let tabHeight: CGFloat = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
                     let prefetch: CGFloat = 2 * CompositedLayer.tileSize
+                    let viewportHeight: CGFloat = tabHeight / scale.page
                     let viewportWidth: CGFloat = inputs.settings.viewport.windowSize.width
                     let region: RasterRegion = RasterRegion(
                         hint: Rect(
                             left: 0,
                             top: inputs.scrollState.scroll - prefetch,
                             right: viewportWidth,
-                            bottom: inputs.scrollState.scroll + tabHeight + prefetch
+                            bottom: inputs.scrollState.scroll + viewportHeight + prefetch
                         ),
                         visible: Rect(
                             left: 0,
                             top: inputs.scrollState.scroll,
                             right: viewportWidth,
-                            bottom: inputs.scrollState.scroll + tabHeight
+                            bottom: inputs.scrollState.scroll + viewportHeight
                         )
                     )
 
@@ -374,20 +377,20 @@ public class Browser: ObservableObject {
                     if usesSublayers {
                         store.beginComposite(
                             viewportTop: inputs.scrollState.scroll,
-                            viewportBottom: inputs.scrollState.scroll + tabHeight
+                            viewportBottom: inputs.scrollState.scroll + viewportHeight
                         )
                         let budget: RasterBudget = RasterBudget(CompositedLayer.rasterCapPerComposite)
 
                         for (index, layer) in layers.enumerated() where effectStrategies[index].kind == .flat {
                             strips.append(contentsOf: layer.rasterIfNeeded(
-                                scale: inputs.settings.viewport.displayScale,
+                                scale: scale.effective,
                                 store: store,
                                 region: region,
                                 budget: budget
                             ))
                             layer.pruneTiles(
                                 keepTop: inputs.scrollState.scroll - 4 * CompositedLayer.tileSize,
-                                keepBottom: inputs.scrollState.scroll + tabHeight + 4 * CompositedLayer.tileSize
+                                keepBottom: inputs.scrollState.scroll + viewportHeight + 4 * CompositedLayer.tileSize
                             )
                         }
 
@@ -426,7 +429,7 @@ public class Browser: ObservableObject {
                                     to: TileStrip.sliceRect(
                                         for: key,
                                         in: strip.bounds,
-                                        scale: inputs.settings.viewport.displayScale
+                                        scale: inputs.settings.viewport.scale.effective
                                     )
                                 ) else { continue }
                                 strip.layer.tiles[key.index] = tile
@@ -453,7 +456,7 @@ public class Browser: ObservableObject {
                         for (index, layer) in layers.enumerated() where effectStrategies[index].kind == .ca {
                             Browser.updateEffectImage(
                                 layer,
-                                scale: inputs.settings.viewport.displayScale,
+                                scale: inputs.settings.viewport.scale.effective,
                                 blur: effectStrategies[index].blur
                             )
                         }
@@ -473,13 +476,17 @@ public class Browser: ObservableObject {
                                     width: inputs.settings.viewport.windowSize.width,
                                     height: regionHeight
                                 ),
-                                scale: inputs.settings.viewport.displayScale,
+                                scale: inputs.settings.viewport.scale.display,
                                 backgroundColor: inputs.settings.preferences.usesForcedColors
                                     ? BrowserColor(cssName: ForcedColor.canvas)
                                     : (inputs.settings.preferences.prefersDark ? BrowserColor(cssName: "black") : BrowserColor(cssName: "white"))
                             ) { r in
                                 r.saveState()
-                                r.translateBy(x: 0, y: inputs.settings.viewport.topInset - regionTop)
+                                ContentTransform(
+                                    pageZoom: inputs.settings.viewport.scale.page,
+                                    scroll: regionTop,
+                                    topInset: inputs.settings.viewport.topInset
+                                ).apply(to: r)
                                 for item in drawList {
                                     if let cmd = item as? any DisplayCommand {
                                         cmd.execute(scroll: 0, renderer: r)
@@ -754,12 +761,14 @@ public class Browser: ObservableObject {
     ) -> [any DisplayItem] {
         var newEffects: [ObjectIdentifier: BrowserVisualEffect] = [:]
         var drawList: [any DisplayItem] = []
+        let scale: ContentScale = inputs.settings.viewport.scale
+        let viewportHeight: CGFloat = (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) / scale.page
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
             var currentEffect: any DisplayItem = DrawCompositedLayer(
                 layer: layer,
                 visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
-                visibleBottom: inputs.scrollState.scroll + (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) + 2 * CompositedLayer.tileSize
+                visibleBottom: inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
             )
             var mergedIntoExisting: Bool = false
             for p in layer.ancestorChain {
@@ -961,7 +970,7 @@ public class Browser: ObservableObject {
         if activeFrame.render.content.image == nil && !activeFrame.render.content.usesSublayers {
             setNeedsComposite()
         } else if let sig = activeFrame.render.signature,
-            sig.viewport.size != windowSize || sig.viewport.displayScale != displayScale {
+            sig.viewport.size != windowSize || sig.viewport.scale.display != displayScale || sig.viewport.scale.page != pageZoom {
             setNeedsComposite()
         }
         needsAnimationFrame = true

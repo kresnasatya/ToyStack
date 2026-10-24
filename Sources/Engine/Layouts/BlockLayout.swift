@@ -61,12 +61,12 @@ class BlockLayout: LayoutObject {
             if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
             {
-                x = CGFloat(l)
+                x = scaled(CGFloat(l))
             } else {
                 x = parent!.x
             }
             if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
-                width = CGFloat(w)
+                width = scaled(CGFloat(w))
             } else {
                 width = parent!.width
             }
@@ -79,7 +79,7 @@ class BlockLayout: LayoutObject {
             if isAbsolute, let tStr = node.style["top"], tStr.hasSuffix("px"),
                 let t = Double(tStr.dropLast(2))
             {
-                y = CGFloat(t)
+                y = scaled(CGFloat(t))
             } else {
                 let ownTop: CGFloat = marginPx(node, "margin-top")
                 if let prev = previous, prev is BlockLayout {
@@ -211,7 +211,7 @@ class BlockLayout: LayoutObject {
             let h = Double(hStr.dropLast(2))
         {
             contentHeight = sumHeight
-            height = CGFloat(h)
+            height = scaled(CGFloat(h))
         } else {
             contentHeight = sumHeight
             height = sumHeight

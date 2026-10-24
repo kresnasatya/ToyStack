@@ -90,7 +90,7 @@ class CompositedLayer {
         let lastRow: Int = min(Int((bounds.bottom - 1) / t) , Int(region.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
-        let scaleInt: Int = Int(scale)
+        let scaleInt: Int = Int((scale * 1000).rounded())
         if keyCacheScale != scaleInt {
             keyCache = [:]
             keyCacheScale = scaleInt

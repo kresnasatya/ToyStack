@@ -113,6 +113,10 @@ extension LayoutObject {
     func scaled(_ cssPx: CGFloat) -> CGFloat {
         return cssPx * zoom
     }
+
+    var pageZoom: CGFloat {
+        return parent?.pageZoom ?? 1.0
+    }
 }
 
 @MainActor

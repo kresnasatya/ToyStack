@@ -32,7 +32,7 @@ final class CanvasLayout: EmbedLayout {
         self.width = scaled(size.width)
         self.height = scaled(size.height)
         el.canvasContext?.resize(width: size.width, height: size.height)
-        el.canvasContext?.setScale(displayScale * zoom)
+        el.canvasContext?.setScale(displayScale * pageZoom * zoom)
     }
 
     override func paint(into items: inout [any DisplayItem]) {
