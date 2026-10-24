@@ -1,165 +1,403 @@
 # Profiling
 
-How ToyStack measures itself. Everything is written to `browser.trace` (Chrome
-Trace Event Format: `{"traceEvents": [...]}`) in the working directory.
+How ToyStack measures itself. The output is a Chrome Trace Event Format file
+(`{"traceEvents": [...]}`, events in microseconds) written while the browser
+runs.
 
-There are two tools with different roles:
+Two writers:
 
-| Tool | File | Shape | For |
+| Writer | File | Shape | Use for |
 |---|---|---|---|
-| `MeasureTime` | `Sources/Engine/MeasureTime.swift` | `B`/`E` spans + `C` | non-recursive phases (nesting and gaps are visible) |
-| `Profiler` | `Sources/Engine/Profiler.swift` | accumulated metrics | recursive sub-phases (summed across calls) |
+| `MeasureTime` | `Sources/Engine/Diagnostic/MeasureTime.swift` | `B`/`E` spans, `X` intervals, `C` counters | phases, frames, threads, async boundaries |
+| `Profiler` | `Sources/Engine/Diagnostic/Profiler.swift` | one accumulated `profile.<phase>` counter | recursive work (per node, per rule, per word) |
 
-## When to use which
+`MeasureTime` is locked and is called from the main thread, the presenter, the
+compositor, and raster workers. `Profiler` is a `nonisolated(unsafe)` global
+with no lock; it is only called from the main thread.
 
-- **Spans** (`browser?.measure.start/stop`) for large, non-recursive phases, e.g.
-  `tab.style`, `tab.layout`. They nest in the trace, so gaps in time are easy to
-  spot.
-- **Profiler** (`profiler.measure`/`count`) for work repeated inside recursion
-  (e.g. `applyStyle`, `layout()` per node). Same-named nested spans would break
-  the trace reader, whereas the Profiler accumulates them.
+## Deterministic runs
 
-## Switch
-
-`Profiler` is on by default; turn it off with the `--no-profile` argument
-(`Sources/Engine/Profiler.swift:58-60`):
+`ToyStackHeadless` drives the engine from an animation clock instead of a
+`Timer`. Use it for anything you intend to compare:
 
 ```bash
-swift run -c release ToyStackHeadless \
-  https://browser.engineering/visual-effects.html --screenshot /tmp/s.png
-# no metrics, overhead is close to zero:
-swift run -c release ToyStackHeadless <url> --no-profile
+swift build -c release
+.build/release/ToyStackHeadless <url> \
+  --trace /tmp/run.trace \
+  --frame-limit 600 \
+  --screenshot /tmp/run.png
 ```
 
-When off, `measure`/`count` are just `guard enabled else { return }` — no timer,
-closure, or dictionary — and no `profile.*` events are emitted at all.
+Flags:
+
+| Flag | Meaning |
+|---|---|
+| `--trace <path>` | write here instead of `./browser.trace` |
+| `--screenshot <path>` | capture when the run ends |
+| `--frame-limit <n>` | stop after `n` ticks on the 60 Hz clock |
+| `--run-for <seconds>` | `seconds × 60` ticks; `--frame-limit` wins if both are given |
+| `--screenshot-at <t> <path>` | capture after `t` seconds of animation time |
+| `--scroll-at <t>:<x>:<y>:<dy>` | scroll at `t` seconds; `x`/`y` are viewport CSS pixels, `dy` is CSS pixels and negative scrolls down; repeatable |
+| `--force-full-layout` | rebuild every box on every layout pass |
+| `--no-incremental-layout` | same switch, pre-0b spelling |
+| `--no-profile` | keep spans and counters, drop `profile.*` |
+
+One tick is one `Browser.advanceFrame()` call; between ticks the runner waits
+for `Browser.isRenderIdle`. Time is animation time, not wall time:
+
+- CSS durations are frame counts (`secondsPerFrame = 1/60`), so `--run-for 10`
+  and `--frame-limit 600` produce the same trace.
+- `setTimeout` and `asyncAfter` use wall time and do **not** advance with ticks.
+- `--screenshot-at 1.0` and a run ending at `--frame-limit 60` produce identical
+  pixels.
+- A scroll or capture at tick N runs after N frames have completed; a scroll at
+  tick N therefore affects frame N+1.
+
+`scripts/run-scenarios.sh` runs the frozen A–D set three times by default
+(`REPEATS=1` for one), into `benchmark/<timestamp>/run-<n>/`:
+
+| Scenario | Page | Input |
+|---|---|---|
+| A | `www/ch13/exercise-13-5-1.html` | width animation, 600 ticks |
+| B | `www/ch13/exercise-13-5-2.html` | opacity animation, 600 ticks |
+| C | `www/bench/large.html` | 360 scroll events over 300 ticks |
+| D | `www/bench/large.html` | no input, 600 ticks |
+
+Counts and pixels are reproducible. Timings are not: a single large-page run can
+vary by 50%. Compare medians of at least three runs, and never compare a run
+made just after a build with one made on an idle machine.
+
+`ToyStackHeadless` does not create `ContentPresenter`, so it emits no `view.*`
+or presenter `present` counters. Those require a GUI run.
+
+## Trace file
+
+`MeasureTime.init` writes the metadata array and the closing `]}` immediately;
+every later event is inserted before those last two bytes. The file is valid
+JSON between writes. `Browser.stopAnimationTimer()` calls `MeasureTime.close()`,
+which emits an `E` for any span still open (with `"clipped": 1`) and closes the
+file.
+
+`ts` is microseconds since the Unix epoch (wall-clock aligned). `dur` and span
+durations are microseconds. The schema metadata says so explicitly:
+
+```json
+{"name": "trace.schema", "ph": "M", "cat": "__metadata",
+ "args": {"version": 1, "durationUnit": "us", "counterUnit": "count", "frameKey": "frame"}}
+```
+
+`process_name` is always `Browser`. `thread_name` is emitted lazily, once per
+`tid`, the first time that thread writes an event.
+
+## Event kinds
+
+| `ph` | Name in trace | Shape | Meaning |
+|---|---|---|---|
+| `M` | `process_name`, `trace.schema`, `thread_name` | metadata | process, schema, thread label |
+| `B` | span start | `cat`, `tid`, `args.frame` | opens a span on one thread |
+| `E` | span end | same `cat`, `tid`, `args.frame` | closes the most recent `B` on that `tid` |
+| `X` | complete span | `ts`, `dur`, `args` | one event with duration; used when the interval crosses an asynchronous boundary |
+| `C` | counter | `name`, `args` (all integers) | one sample at the point of emission; usually per frame, but `pool` can appear more than once per frame |
+| `i` | `trace.warning` | `s: "t"`, `args.kind` | pairing problem |
+
+`B`/`E` are a stack per thread. Every `B`, `E`, `X`, and `C` event carries the
+frame id in `args.frame`; the metadata names it `frame`, so a reader should not
+guess.
+
+`X` is used for `composite_raster_and_draw` because the interval starts on the
+main thread and ends in the compositor's main-thread completion. Its `dur`
+therefore includes queue wait and the hop back to main; see
+[Known distortions](#known-distortions).
+
+`trace.warning` kinds:
+
+- `unmatchedStop` — an `E` with no matching `B` on that thread.
+- `nameMismatch` — `stop(name)` did not match the top `B`.
+
+A healthy trace has zero warnings and zero clipped ends.
+
+## Categories
+
+`cat` is never empty or `_`:
+
+| Category | Assigned to |
+|---|---|
+| `load` | `profile.load`, `BrowserTab.load*`, `load.*` |
+| `style` | `profile.style`, `BrowserTab.style*`, `style.*` |
+| `layout` | `profile.layout`, `BrowserTab.layout`, `layout.*` |
+| `paint` | `profile.paint`, `BrowserTab.paint`, `paint.*` |
+| `raster` | `raster.*`, `tiles`, `pool` |
+| `present` | `view`, `view.*`, `present.main`, `present` |
+| `frame` | `composite_raster_and_draw`, `BrowserTab.anim*`, `BrowserTab.raf` |
+| `input` | `BrowserTab.scroll*` |
+| `engine` | everything else, including accessibility timers |
+
+Classification is prefix-based in `MeasureTime.category(for:)`, so a new name
+must follow an existing prefix or be given an explicit category at the call
+site. `BrowserTab.rebuildScrollTargets` currently falls through to `engine`;
+treat it as layout work when reading a trace.
+
+## Threads and streams
+
+| `thread_name` | How it is made | Notes |
+|---|---|---|
+| `main` | `Browser.init` → `noteThread` | real `pthread_self` id |
+| `browser.present` | `ContentPresenter.drain` → `noteStream` | GUI only; synthetic stable tid |
+| `browser.compositor` | `RasterScheduler.drain/finish` → `noteStream` | synthetic stable tid |
+| `browser.raster.workers` | each worker → `noteThread` | one tid per actual thread, all share the name |
+| `worker` | fallback for an unnamed non-main thread | |
+
+`noteStream` assigns a synthetic tid so asynchronous work stays on one trace
+lane. `noteThread` labels a real thread. The number of `browser.raster.workers`
+tids can exceed the pool size because OS threads are recreated; use the `pool`
+counter's `workers` for the intended concurrency.
+
+## Reading rules
+
+1. Pair `B`/`E` per `tid`. Do not pair by name only; the same name can be open on
+   several worker threads at once.
+2. Load spans are wall-clock envelopes. `BrowserTab.load`,
+   `BrowserTab.load.page`, `BrowserTab.load.styles`,
+   `BrowserTab.load.scripts`, and `BrowserTab.load.images` contain `await`
+   (`Sources/Engine/Core/Frame.swift:124`). Other main-thread work can run inside
+   them, so their duration is not exclusive CPU and their nesting can mislead.
+   Synchronous spans (`BrowserTab.style`, `layout`, `paint`, `raster.plan`) do
+   not have this problem.
+3. Use `profile.*` windows for recursive work. They are emitted once per pass,
+   with the frame id of the pass.
+4. A `profile.layout`/`profile.paint`/`profile.style` event with **no**
+   `composite_raster_and_draw` for the same frame means the frame produced work
+   but was replaced before rasterization. That is the coalescing signal in a
+   headless trace. In a GUI trace, `present` with `coalesced > 0` is the same
+   signal at the presenter (older notes call it `present.coalesced`).
+5. A frame with `BrowserTab.layout` but no `BrowserTab.style` is an incremental
+   layout driven by dirty flags or animation, not a style pass.
 
 ## Measurement windows
 
-The Profiler holds one global `[String: ProfileMetric]`. Each window:
-`profiler.reset()` at the start, `profiler.emitProfile(into:named:)` at the end.
-Emission writes **one** `C` event named `profile.<phase>`.
+The Profiler holds one global `[String: ProfileMetric]`. Each window calls
+`profiler.reset()` first and `profiler.emitProfile(into:named:)` last. Anything
+measured outside a window is discarded at the next reset.
 
 | Event | Window | Contains |
 |---|---|---|
-| `profile.load` | `BrowserTab.swift:114-117` (around `parseHTML`) | `load.*`, `jsc.*` |
-| `profile.style` | the `needsStyle` block | `style.*` |
-| `profile.layout` | the `needsLayout` block | `layout.*`, `text.*` |
-| `profile.paint` | the `needsPaint` block | `text.*` (from `DisplayCommand`) |
+| `profile.load` | `Frame.load`, around `parseHTML` (`Frame.swift:140-143`) | `load.*`, `jsc.*` |
+| `profile.style` | `Frame.render`, `needsStyle` block (`Frame.swift:684-685`) | `style.*`, `layout.markedDirty*` |
+| `profile.layout` | `Frame.render`, `needsLayout` block (`Frame.swift:804-805`) | `layout.*`, `text.*`, `scrollTargets.reused` |
+| `profile.paint` | `Frame.paint` (`Frame.swift:902-903`) | `paint.*`, canvas `text.font*` |
 
-Because there is one global with a reset per window, measuring outside any window
-is discarded when the next window resets.
+A window must not contain an `await`; the reset→emit pair would then include
+unrelated work. The `parseHTML` window is synchronous. `BrowserTab.load` itself
+is not a profiler window because it awaits.
 
-## Units & format
+Metric storage is nanoseconds; emission writes:
 
-- Stored as **nanoseconds**; emitted as **microseconds** with a `.us` suffix
-  (1 ms = 1,000 µs). `us` is ASCII for `µs`.
-- Every metric with a value > 0 produces `<name>.us`.
-- Every metric produces `<name>.count` (number of calls/occurrences).
-- `measure` adds a `count` of 1 per call; `count(name, by:)` adds `amount`.
+- `<name>.us` for every metric whose value is > 0;
+- `<name>.count` for every metric that has calls/occurrences.
 
-## Naming convention
+## Vocabulary
 
-Hierarchical, dot-separated, shaped `<domain>.<part>`:
+### `profile.load` — durations
 
-- `load.*` — `parseHTML` steps (once per load).
-- `jsc.*` — `JSRuntime` initialization.
-- `style.*` — the style cascade (`applyStyle`).
-- `layout.*` — each layout type's own work.
-- `text.*` — font/text measurement (used in layout and paint).
-
-Rules of thumb:
-
-- **Do not** put `measure` inside a per-item loop (e.g. per rule candidate, per
-  word). If you need to count something in a loop, accumulate into a local
-  variable and call `profiler.count(name, by: total)` **once** per node — like
-  `style.matchesTrue`/`style.bodyWrites` in `DOMUtils.applyStyle`.
-- One name, one meaning. Do not put the unit in the name (`.us`/`.ms` are added
-  automatically).
-
-## Current metrics
-
-### `profile.load`
-
-| Metric | Kind |
+| Metric | Work |
 |---|---|
-| `load.parse` | duration — `HTMLParser` |
-| `load.checkboxes`, `load.title`, `load.resources`, `load.defaultCss` | duration |
-| `load.jsInit` | duration — total `JSRuntime(tab:)` |
-| `jsc.context`, `jsc.callbacks`, `jsc.runtimeHead`, `jsc.runtimeEval` | duration |
+| `load.parse` | `HTMLParser` |
+| `load.checkboxes` | checkbox state initialization |
+| `load.title` | title extraction |
+| `load.resources` | resource URL collection |
+| `load.defaultCss` | default stylesheet parse |
+| `load.jsInit` | whole `JSRuntime` construction |
+| `jsc.runtime`, `jsc.context`, `jsc.callbacks`, `jsc.runtimeHead`, `jsc.runtimeEval` | sub-parts inside `load.jsInit` |
 
-`jsc.*` are sub-parts **inside** `load.jsInit` (not additive to it).
-`jsc.context` is ~40 ms only for the first `JSRuntime` in a process (JavaScriptCore
-cold start); afterwards it is ~1.5 ms.
+`jsc.context` is ~40 ms only for the first runtime in a process; later runtimes
+pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 
-### `profile.style`
+### `profile.style` — durations and counts
 
-| Metric | Kind |
+| Metric | Kind | Meaning |
+|---|---|---|
+| `style.apply.reset`, `.flags`, `.test`, `.inline`, `.post`, `.push`, `.pop` | duration | phases of `applyStyle` |
+| `style.nodes` | count | nodes in the pass |
+| `style.elements` | count | elements (vs text nodes) |
+| `style.rules` | count | sorted rules |
+| `style.candidates` | count | rules that passed the selector pre-filter |
+| `style.universalCandidates` | count | universal-rule candidates |
+| `style.descendantCandidates`, `style.descendantTrue` | count | descendant matching work |
+| `style.matchesTrue` | count | selectors that matched |
+| `style.bodyWrites` | count | declarations applied |
+| `style.applied` | count | nodes whose style was applied |
+| `style.scope.direct`, `style.scope.rules`, `style.flipped.queries` | count | reusable-style scope |
+
+The seven `style.apply.*` phases are the measured subset; the enclosing
+`BrowserTab.style` span also contains rules, snapshot, scope, keyframes, and
+invalidation.
+
+### `profile.layout` — durations and counts
+
+| Metric | Kind | Meaning |
+|---|---|---|
+| `layout.visit` | duration | one `BlockLayout.layout` visit, **including the skip gate** |
+| `layout.children` | duration | child placement |
+| `layout.height` | duration | height accumulation |
+| `layout.mode` | duration | `layoutMode()` |
+| `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
+| `layout.line.prelaid`, `layout.line.place` | duration | line layout |
+| `layout.text` | duration | text layout |
+| `layout.rebuilt` | count | boxes that actually rebuilt |
+| `layout.reusedChildren` | count | visits that skipped their children |
+| `layout.rebuildReason.noReuse` | count | rebuild because `reusesChildren == false` |
+| `layout.rebuildReason.widthChanged` | count | rebuild because `usedWidth != width` |
+| `layout.rebuildReason.dirtyFlag` | count | rebuild because the subtree was dirty |
+| `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
+| `layout.lines.total`, `layout.lines.reused`, `layout.line.moved` | count | line reuse |
+| `text.measureCalls`, `text.measureMisses` | count | font width calls and cache misses |
+| `text.measure` | duration | `CTLine` creation per miss |
+| `text.fontRequests`, `text.font` | count/duration | font resolution |
+| `text.words`, `text.fontNodes` | count | text inputs |
+
+Rules:
+
+- **Use `layout.rebuilt`, not `layout.visit`, for "boxes rebuilt".** `layout.visit`
+  wraps the whole function including the skip gate (it was called
+  `layout.block.build` before `44fb338`). `layout.visit - layout.rebuilt` is the
+  skip count.
+- `layout.rebuildReason.*` are not disjoint. One rebuild can report `noReuse`,
+  `widthChanged`, and `dirtyFlag` together.
+- The `layout.*` durations nest and overlap; do not add them. `layout.visit`
+  contains `layout.children`, `layout.height`, and the line/text work.
+- `text.measure` is `CTLine` creation per cache miss; `text.font` is font
+  resolution, called before the word is measured. Both sit inside
+  `layout.visit`, so do not add `layout.*` and `text.*` as independent buckets.
+
+### `profile.paint` — durations and counts
+
+| Metric | Kind | Meaning |
+|---|---|---|
+| `paint.nodes` | count | layout objects visited by `paintTree` |
+| `paint.own.items` | count | display items produced by the node itself |
+| `paint.cache.hit.blocks`, `paint.cache.store.blocks` | count | block cache hits and stores |
+| `paint.cache.hit.lines`, `paint.cache.store.lines` | count | line cache hits and stores |
+| `paint.scroll` | count | scroll containers painted |
+| `paint.range.copy` | duration | `Array(displayList[childStart...])` allocation in `PaintTree` |
+| `paint.effect.check`, `paint.effect.wrap` | duration | visual-effect detection and wrapping |
+
+Layout text does no font work during paint: `DrawText` carries the font resolved
+in layout. Canvas painting is the exception and can emit `text.font*` while
+resolving a canvas font.
+
+### Spans outside `profile.*`
+
+| Span | Where | Use |
+|---|---|---|
+| `BrowserTab.animFrame`, `.raf`, `.animScan` | main frame | animation entry and scan |
+| `BrowserTab.style*` | main | style pass and its sub-parts |
+| `BrowserTab.layout`, `.rebuildScrollTargets` | main | layout pass |
+| `BrowserTab.paint` | main | display-list build |
+| `BrowserTab.scrollAt`, `.scrollBy` | main | input dispatch |
+| `BrowserTab.load*` | main, awaits | load envelope |
+| `raster.queueWait` | `X` | enqueue → `raster.plan` start |
+| `raster.plan`, `raster.composite`, `raster.effect` | compositor | plan work |
+| `raster.plan.tiles`, `raster.install.tiles` | compositor | tile bookkeeping |
+| `raster.install`, `raster.bitmap` | compositor | tile install and bitmap composition |
+| `raster.installWait` | `X` | `raster.install` end → main-thread completion start |
+| `raster.strip` | worker | one span per strip; runs on a worker thread |
+| `present.main` | main | presented-frame dispatch |
+| `view.apply`, `view.commit`, `view.updateSublayers` | presenter (GUI) | Core Animation work |
+| `composite_raster_and_draw` | `X` | enqueue → main-thread install completion |
+
+### Counters outside `profile.*`
+
+Every `C` event is one sample for one frame.
+
+`layout.markedDirtyAnimation` (`nodes`): boxes marked by the animation loop.
+Compare with `layout.rebuildReason.dirtyFlag`; equal values mean the dirty
+signal is not leaking.
+
+`layout.dirtyDuringLayout` (`nodes`): a node was marked dirty while layout was
+running. Non-zero means the clear loop missed something or a layout input was
+mutated mid-pass.
+
+`tiles`: one sample per composite, reset by `TileStore.beginComposite`.
+
+| Arg | Unit | Meaning |
+|---|---|---|
+| `scroll` | CSS px | scroll offset at plan time (the only non-count arg) |
+| `hits` | count | tile found and reused |
+| `misses` | count | all misses, equal to the three reasons below |
+| `missNew` | count | no slot for this `(layer, index, scale)` |
+| `missStale` | count | slot exists, content hash changed |
+| `missEvicted` | count | slot exists, same content, image evicted by budget |
+| `entries` | count | tiles currently retained |
+| `pixels` | pixels | retained pixel budget in use |
+| `layers` | count | layers in the plan |
+| `flat` | count | layers using the flat effect strategy |
+
+`pool` (`workers`, `strips`): `workers` is
+`min(activeProcessorCount, 4)` (`RasterWorkerPool.defaultWorkerCount`), the
+intended concurrency, not the number of OS threads; `strips` is the batch size.
+The number of worker tids is not the worker count.
+
+`present` (`coalesced`): GUI only. Count of pending frames replaced while the
+presenter was busy. A headless trace has no `present` counter; use rule 4 in
+[Reading rules](#reading-rules).
+
+`view` (`placements`, `added`, `removed`, `kept`, `hidden`, `unhidden`,
+`purged`, `pool`, `sublayers`): GUI only, layer placement per presented frame.
+
+| Arg | Meaning |
 |---|---|
-| `style.apply.reset`, `.flags`, `.scan`, `.test`, `.inline`, `.post`, `.push`, `.pop` | duration |
-| `style.rules`, `style.nodes`, `style.elements` | count |
-| `style.candidates`, `style.universalCandidates`, `style.descendantCandidates`, `style.descendantTrue`, `style.matchesTrue`, `style.bodyWrites` | count |
+| `placements` | placements in this frame |
+| `added` | new layer keys created |
+| `removed` | keys hidden this frame |
+| `kept` | keys present before and after |
+| `hidden` | total hidden slots after this frame |
+| `unhidden` | hidden keys returned this frame |
+| `purged` | slots destroyed after the grace period |
+| `pool` | slots retained (visible + hidden) |
+| `sublayers` | `contentLayer.sublayers.count` |
 
-The sum of the eight phases ≈ `tab.style.apply`.
+`unhidden` is a policy number, not a health check: the presenter keeps removed
+layers for 10 frames (`ContentPresenter.graceFrames`), while the tile set
+oscillates over 120–240 frames, so a removed key is normally purged before it
+returns.
 
-### `profile.layout`
+`view.usesSublayersFlips` (`flip`, `sublayers`): GUI only. `flip` is 1 when the
+strategy changed on this frame; `sublayers` is the current strategy.
 
-| Metric | Kind |
-|---|---|
-| `layout.block.build`, `layout.line.place`, `layout.text` | duration — each type's own work |
-| `text.measure` | duration — `CTLine` creation per cache miss |
-| `text.font` | duration — `getFont` resolution |
-| `text.words`, `text.fontNodes`, `text.fontRequests`, `text.measureCalls`, `text.measureMisses` | count |
+## Known distortions
 
-`layout.block.build` **contains** part of `text.measure`/`text.font` (from
-`addWord`), so do not simply add `layout.*` and `text.*` together. The sum of the
-three `layout.*` phases ≈ `tab.layout`.
-
-### `profile.paint`
-
-| Metric | Kind |
-|---|---|
-| `text.measureCalls`, `text.measureMisses`, `text.measure` | count/duration |
-
-Holds `font.measure` calls from `DisplayCommand.swift:112` while building the
-display list. Compare with `profile.layout` to see the paint share.
-
-## How to read `browser.trace`
-
-The trace mixes event kinds:
-
-- `{ "ph": "B"/"E", "name": "<span>" }` — `MeasureTime` spans.
-- `{ "ph": "C", "name": "profile.<phase>", "args": { "<metric>.us": N, ... } }` —
-  Profiler metrics.
-
-Quick example in Python:
-
-```python
-import json
-d = json.load(open("browser.trace"))
-for e in d["traceEvents"]:
-    if e.get("name", "").startswith("profile."):
-        print(e["name"])
-        for k in sorted(e["args"]):
-            print(f"  {k} = {e['args'][k]}")
-```
-
-For a nested view, open `browser.trace` in a Chrome Trace viewer
-(`chrome://tracing` or Perfetto) — spans appear as nested bars.
+- **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
+- **`layout.visit` is not a rebuild count.** See `layout.rebuilt`.
+- **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,
+  or presenter coalescing.
+- **D is a load trace.** `www/bench/large.html` has no animation, so a 600-tick
+  run produces two browser frames and one layout. It measures first-layout
+  cost, not steady state.
+- **Single-run timings are noisy.** Counts and pixels repeat; multi-millisecond
+  passes can vary by tens of percent between runs.
 
 ## Assumptions
 
-- **Main thread.** `Profiler`, `MeasureTime`, and `fontCache` use
-  `nonisolated(unsafe)` globals with **no lock** (`Profiler.swift:58`,
-  `DOMUtils.swift:14`). All callers run on the main thread. If they are ever used
-  from the raster worker, both need a lock.
-- **Synchronous window.** A reset→measure→emit window must not be interrupted by
-  an `await`. The `parseHTML` pattern is safe because it is synchronous; do not
-  add an `await` in the middle of a window.
+- **Locks.** `MeasureTime` has an `NSLock` and is called from main, compositor,
+  and workers. `Profiler` and `fontCache` are unlocked `nonisolated(unsafe)`
+  globals (`Profiler.swift:58`, `BrowserFont.swift:47`) and must stay on the
+  main thread.
+- **Tracing is always on.** There is no compile-time switch. `--no-profile` only
+  disables the `Profiler`; spans and counters still run.
+- **Close the trace.** Call `Browser.stopAnimationTimer()` before the process
+  exits. Without it, open spans stay unpaired (the file is still valid JSON).
+- **One trace path per process.** `MeasureTime` truncates the file at init.
 
 ## Adding / removing measure points
 
-- Use `profiler.measure("domain.part") { ... }` or `profiler.count(...)`.
-- Pick names per the convention above.
-- Points that turn out to be ~0 can be removed to keep the trace lean; metrics
-  with long-term value (e.g. `text.fontNodes`, `style.candidates`) should stay.
+- Spans (`measure.start/stop`, `measure.span`) for large, non-recursive phases.
+- `measure.interval` for an interval that crosses an async boundary; it emits
+  `X` with the frame id and extra integer args.
+- `measure.counter` for per-frame integers. All args must be `Int`; put units in
+  the documentation, not the name.
+- `profiler.measure` / `profiler.count` inside recursion only.
+- Do not `measure` inside a per-item loop. Accumulate and call `count(name, by:)`
+  once, as `style.matchesTrue` does.
+- One name, one meaning. Do not overload args either: `tiles.scroll` is pixels,
+  every other tile arg is a count.
+- Update this file whenever a span or counter is added, renamed, or removed.
