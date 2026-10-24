@@ -109,7 +109,9 @@ public class Browser: ObservableObject {
     @Published public var forcedColors: Bool = false
     @Published public private(set) var commitedForcedColors: Bool = false
 
-    public var measure: MeasureTime = MeasureTime()
+    public let measure: MeasureTime
+
+    public var forceFullLayout: Bool = false
 
     let networkTaskRunner: NetworkTaskRunner = NetworkTaskRunner()
     let rasterScheduler: RasterScheduler = RasterScheduler()
@@ -122,7 +124,8 @@ public class Browser: ObservableObject {
         let content: [Int]
     }
 
-    public init() {
+    public init(tracePath: String? = nil) {
+        measure = MeasureTime(path: tracePath)
         rasterScheduler.measure = measure
         measure.noteThread("main")
     }
@@ -174,9 +177,13 @@ public class Browser: ObservableObject {
     }
 
     public func stopAnimationTimer() {
+        pauseAnimationTimer()
+        measure.close()
+    }
+
+    public func pauseAnimationTimer() {
         animationTimer?.invalidate()
         animationTimer = nil
-        measure.close()
     }
 
     private func animationTick() {
@@ -186,6 +193,14 @@ public class Browser: ObservableObject {
         needsAnimationFrame = false
         frameStartTime = Date()
         activeTab?.runAnimationFrame()
+    }
+
+    public func advanceFrame() {
+        animationTick()
+    }
+
+    public var isRenderIdle: Bool {
+        return !compositeInFlight && !needsComposite && !needsRaster && !needsDraw && !needsTileContinuation
     }
 
     func commit(tab: BrowserTab, data: FrameCommit) {

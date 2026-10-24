@@ -816,7 +816,13 @@ class Frame {
             }
             isLayingOut = true
             defer { isLayingOut = false }
-            doc.layout(availableWidth: frameWidth, zoom: 1.0, pageZoom: pageZoom, reusesChildren: reuse)
+            let reusesChildren: Bool = reuse && browser?.forceFullLayout != true
+            doc.layout(
+                availableWidth: frameWidth,
+                zoom: 1.0,
+                pageZoom: pageZoom,
+                reusesChildren: reusesChildren
+            )
             document = doc
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
             if !styled, scrollTargetsValid {

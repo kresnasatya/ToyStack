@@ -30,10 +30,14 @@ public final class MeasureTime: @unchecked Sendable {
     private var currentFrame: Int = 0
     private let epochOffset: UInt64
 
-    public init() {
-        let path: String = FileManager.default.currentDirectoryPath + "/browser.trace"
-        FileManager.default.createFile(atPath: path, contents: nil)
-        file = FileHandle(forUpdatingAtPath: path)
+    public init(path: String? = nil) {
+        let resolved: String = path ?? FileManager.default.currentDirectoryPath + "/browser.trace"
+        let directory: String = (resolved as NSString).deletingLastPathComponent
+        if !directory.isEmpty {
+            try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        }
+        FileManager.default.createFile(atPath: resolved, contents: nil)
+        file = FileHandle(forUpdatingAtPath: resolved)
         try? file?.truncate(atOffset: 0)
         file?.seek(toFileOffset: 0)
         epochOffset = UInt64(Date().timeIntervalSince1970 * 1_000_000) - DispatchTime.now().uptimeNanoseconds / 1_000

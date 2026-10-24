@@ -65,6 +65,7 @@ public class BrowserTab {
     var displayList: [any DisplayItem] { rootFrame.displayList }
     public var title: String { rootFrame.title }
     public var isSecure: Bool { rootFrame.isSecure }
+    public var isLoaded: Bool { rootFrame.loaded }
     var focus: Element? { focusedFrame.focus }
     private(set) var accessibilityTree: AccessibilityNode? = nil
     var needsAccessibility: Bool = false
