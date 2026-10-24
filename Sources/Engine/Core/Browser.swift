@@ -346,10 +346,16 @@ public class Browser: ObservableObject {
         let ownerID: ObjectIdentifier? = activeFrameID
 
         let measure: MeasureTime = self.measure
+        let installWait: RasterInstallWait = RasterInstallWait()
         rasterScheduler.schedule(
             RasterScheduler.Job(
                 trace: TraceContext(frame: frameID, measure: measure),
                 plan: { (store: TileStore) -> RasterPlan in
+                    let planStart: UInt64 = measure.timestamp()
+                    measure.interval(
+                        "raster.queueWait",
+                        MeasureTime.SpanInterval(start: compositeStart, end: planStart, category: .raster, frame: frameID)
+                    )
                     measure.start("raster.plan", category: .raster, frame: frameID)
 
                     measure.start("raster.composite", category: .raster, frame: frameID)
@@ -515,6 +521,7 @@ public class Browser: ObservableObject {
                         measure.stop("raster.bitmap")
                     }
                     measure.stop("raster.install")
+                    installWait.noteInstallEnd(measure.timestamp())
 
                     return RasterOutput(
                         compositedLayers: inputs.settings.flags.needsComposite ? layers : nil,
@@ -530,6 +537,10 @@ public class Browser: ObservableObject {
                 },
                 then: { [weak self] (output: RasterOutput) in
                     guard let self = self else { return }
+                    let mainHopStart: UInt64 = self.measure.timestamp()
+                    if let wait: (start: UInt64, end: UInt64) = installWait.takeWait(endedAt: mainHopStart) {
+                        self.measure.interval("raster.installWait", MeasureTime.SpanInterval(start: wait.start, end: wait.end, category: .raster, frame: frameID))
+                    }
                     if let ownerID {
                         if ownerID == self.activeFrameID {
                             self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
