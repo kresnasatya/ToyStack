@@ -857,22 +857,35 @@ class Frame {
         return marked
     }
 
-    private static let layoutProperties: Set<String> = [
-        "width", "height", "min-width", "min-height", "max-width", "max-height",
-        "padding-top", "padding-right", "padding-bottom", "padding-left",
-        "margin-top", "margin-right", "margin-bottom", "margin-left",
-        "display", "position", "top", "right", "bottom", "left",
-        "font-family", "font-size", "font-weight", "font-style", "line-height",
-        "white-space", "direction", "overflow", "overflow-x", "overflow-y",
-        "border-width", "border-style", "zoom"
+    // Properties that cannot change geometry. Everything else is treated as a
+    // layout input, including properties this engine does not know yet.
+    private static let paintOnlyProperties: Set<String> = [
+        "color", "background-color", "background-image", "background-size",
+        "border-color", "border-radius",
+        "border-top-left-radius", "border-top-right-radius",
+        "border-bottom-left-radius", "border-bottom-right-radius",
+        "outline-color", "outline-style", "outline-width",
+        "filter", "mix-blend-mode", "opacity", "transform", "z-index",
+        "image-rendering", "object-fit"
     ]
 
     private func layoutInputsChanged(
         _ old: [String: String],
         _ new: [String: String]
     ) -> Bool {
-        for key in Self.layoutProperties where (old[key] ?? "") != (new[key] ?? "") {
-            return true
+        return Self.layoutInputsDiffer(old, new)
+    }
+
+    static func affectsLayout(_ property: String) -> Bool {
+        return !paintOnlyProperties.contains(property)
+    }
+
+    private static func layoutInputsDiffer(_ old: [String: String], _ new: [String: String]) -> Bool {
+        for (key, value) in new where affectsLayout(key) {
+            if (old[key] ?? "") != value { return true }
+        }
+        for (key, value) in old where affectsLayout(key) {
+            if (new[key] ?? "") != value { return true }
         }
         return false
     }
@@ -920,7 +933,7 @@ class Frame {
                         {
                             compositedUpdates[ObjectIdentifier(node)] = effect
                         }
-                    } else if property == "width" || property == "height" {
+                    } else if Self.affectsLayout(property) {
                         node.style[property] = value
                         layoutDirtyMarked += markLayoutDirty(node)
                         needsLayoutUpdate = true
