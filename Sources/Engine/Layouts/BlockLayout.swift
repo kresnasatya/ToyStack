@@ -53,7 +53,7 @@ class BlockLayout: LayoutObject {
     func layout(reusesChildren: Bool) {
         var skippedChildren: Bool = false
         let stale: Bool = subtreeStale
-        profiler.measure("layout.block.build") {
+        profiler.measure("layout.visit") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
             let oldX: CGFloat = x
