@@ -49,7 +49,7 @@ extension Element: CustomStringConvertible {
 
 // MARK: - TextNode
 class TextNode: DOMNode {
-    let text: String
+    private(set) var text: String
     var children: [any DOMNode] = []
     var parent: (any DOMNode)?
     var style: [String: String] = [:]
@@ -63,6 +63,10 @@ class TextNode: DOMNode {
     init(text: String, parent: (any DOMNode)?) {
         self.text = text
         self.parent = parent
+    }
+
+    func append(_ suffix: String) {
+        text += suffix
     }
 }
 

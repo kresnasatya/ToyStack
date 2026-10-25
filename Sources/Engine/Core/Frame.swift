@@ -1259,7 +1259,21 @@ class Frame {
     func keypress(_ char: String) {
         guard let f = focus else { return }
         if js.dispatchEvent(type: "keydown", elt: f) { return }
-        f.attributes["value", default: ""] += char
+
+        if f.attributes["contenteditable"] != nil {
+            let text: TextNode
+            if let last = treeToList(f).compactMap({ $0 as? TextNode }).last {
+                text = last
+            } else {
+                text = TextNode(text: "", parent: f)
+                f.children.append(text)
+            }
+            text.append(char)
+        } else if f.tag == "input" {
+            f.attributes["value", default: ""] += char
+        } else {
+            return
+        }
 
         setNeedsRender()
     }
@@ -1337,6 +1351,10 @@ class Frame {
                         return
                     }
                     el.attributes["value"] = ""
+                    focusElement(el, showRing: true)
+                    setNeedsRender()
+                    return
+                } else if let el = node as? Element, el.attributes["contenteditable"] != nil {
                     focusElement(el, showRing: true)
                     setNeedsRender()
                     return

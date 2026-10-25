@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — contenteditable driver</title>
+</head>
+<body>
+
+<h1>Chapter 16: input invalidation driver</h1>
+
+<p class="note">Click the first paragraph and type — the caret is the red line after the last glyph. The two boxes at the bottom animate opacity only and must never dirty layout.</p>
+
+<p id="editable" contenteditable="true">The quick brown fox jumps over the lazy dog, then keeps going, because this paragraph is deliberately long enough to wrap onto several lines inside a 420px block. Type at the end: every keystroke reflows this paragraph.</p>
+
+<p id="empty" contenteditable="true" style="height: 32px"></p>
+
+<p><input id="plain-input" type="text" value="plain input (old path)" /></p>
+
+<div id="fade" class="box">transition: opacity 1s, toggled inline every second — paint-only.</div>
+
+<div id="pulse" class="box">keyframes: opacity 0.25 ↔ 1.0, infinite alternate — paint-only.</div>
+
+<style>
+  body { font-family: monospace; font-size: 16px; margin: 12px; }
+  h1 { font-size: 20px; }
+  .note { color: gray; width: 460px; }
+  #editable {
+    width: 420px;
+    border: 1px solid gray;
+    background-color: whitesmoke;
+    margin-top: 10px;
+  }
+  #editable:focus {
+    border-color: red;
+    background-color: yellow;
+  }
+  #empty {
+    width: 420px;
+    border: 1px dashed lightgray;
+    background-color: whitesmoke;
+    margin-top: 8px;
+  }
+  #empty:focus { border-color: red; }
+  #plain-input { margin-top: 8px; }
+  .box {
+    width: 420px;
+    border: 1px solid black;
+    margin-top: 12px;
+  }
+  #fade {
+    background-color: lightblue;
+    opacity: 1.0;
+    transition: opacity 1s;
+  }
+  #pulse {
+    background-color: salmon;
+    animation: pulse 2s infinite alternate;
+  }
+  @keyframes pulse {
+    0% { opacity: 0.25; }
+    100% { opacity: 1.0; }
+  }
+</style>
+
+<script>
+  var box = document.getElementById("fade");
+  var faded = false;
+  function toggleFade() {
+    faded = !faded;
+    box.style.opacity = faded ? "0.2" : "1.0";
+    setTimeout(toggleFade, 1000);
+  }
+  setTimeout(toggleFade, 1000);
+</script>
+
+</body>
+</html>

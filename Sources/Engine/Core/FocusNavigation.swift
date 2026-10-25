@@ -1,6 +1,8 @@
 func isFocusable(_ node: DOMNode) -> Bool {
     guard let el = node as? Element else { return false }
-    return ["input", "button", "a"].contains(el.tag) || el.attributes["tabindex"] != nil
+    return ["input", "button", "a"].contains(el.tag)
+        || el.attributes["tabindex"] != nil
+        || el.attributes["contenteditable"] != nil
 }
 
 func explicitTabIndex(_ node: DOMNode) -> Int? {

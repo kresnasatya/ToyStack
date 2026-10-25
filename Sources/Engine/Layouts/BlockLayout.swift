@@ -687,6 +687,19 @@ class BlockLayout: LayoutObject {
         }
     }
 
+    func paintEffects(into items: inout [any DisplayItem], from start: Int) {
+        if let el = node as? Element, el.isFocused,
+            el.attributes["contenteditable"] != nil
+        {
+            if let last = lastTextLayout() {
+                items.append(drawCursor(last, offset: last.width))
+            } else {
+                items.append(drawCursor(self, offset: 0))
+            }
+        }
+        applyPaintEffects(into: &items, from: start)
+    }
+
     func paintScrollbar() -> [any DisplayItem] {
         guard node.style["overflow"] == "scroll", contentHeight > height else { return [] }
         let barWidth: CGFloat = 8
@@ -702,6 +715,21 @@ class BlockLayout: LayoutObject {
         if node is TextNode { return true }
         guard let el = node as? Element else { return true }
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
+    }
+
+    // MARK: - Cursor
+
+    private func lastTextLayout() -> TextLayout? {
+        BlockLayout.lastTextLayout(in: self)
+    }
+
+    private static func lastTextLayout(in object: any LayoutObject) -> TextLayout? {
+        for child in object.children.reversed() {
+            if let text = child as? TextLayout { return text }
+            if let nested = lastTextLayout(in: child) { return nested }
+        }
+
+        return nil
     }
 }
 

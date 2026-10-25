@@ -116,17 +116,7 @@ class InputLayout: LayoutObject, InlineLayoutItem {
         items.append(DrawText(at: Point(x: x, y: y), text: text, font: font, color: color))
 
         if element.isFocused {
-            // NOTE: cx = caret X
-            // The caret X is the x-position of the blinking text cursor when the input has focus.
-            let cx: CGFloat = x + font.measure(text)
-            items.append(
-                DrawLine(
-                    from: Point(x: cx, y: y),
-                    to: Point(x: cx, y: y + height),
-                    color: usesForcedColors(node) ? ForcedColor.buttonText : "black",
-                    thickness: 1
-                )
-            )
+            items.append(drawCursor(self, offset: font.measure(text)))
         }
         let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
