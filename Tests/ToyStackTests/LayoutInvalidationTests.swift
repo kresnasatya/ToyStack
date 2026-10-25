@@ -99,6 +99,36 @@ struct LayoutInvalidationTests {
         fixture.frame.render()
         #expect((profiler.snapshot()["layout.rebuilt"]?.count ?? 0) == 0)
     }
+
+    @Test func animatingFontSizeRebuildsTheDirtySubtree() {
+        let fixture = makeFixture()
+        fixture.narrow.animations["font-size"] = PixelAnimation(animatedProperty: "font-size", oldValue: 20, newValue: 10, timing: FrameTiming(totalFrames: 60, easing: .linear))
+        fixture.frame.needsStyle = true
+        fixture.frame.render()
+
+        fixture.frame.js = JSRuntime(frame: fixture.frame)
+        profiler.reset()
+        fixture.frame.runAnimationFrame()
+
+        #expect((profiler.snapshot()["layout.rebuilt"]?.count ?? 0) > 0)
+        #expect(fixture.narrow.layoutDirty == false)
+        #expect(fixture.narrow.style["font-size"] != nil)
+    }
+
+    @Test func animatingOpacityDoesNotMarkLayoutDirty() {
+        let fixture = makeFixture()
+        fixture.narrow.animations["opacity"] = NumericAnimation(animatedProperty: "opacity", oldValue: 1, newValue: 0.5, timing: FrameTiming(totalFrames: 60, easing: .linear))
+        fixture.frame.needsStyle = true
+        fixture.frame.render()
+
+        fixture.frame.js = JSRuntime(frame: fixture.frame)
+        profiler.reset()
+        fixture.frame.runAnimationFrame()
+
+        #expect(profiler.snapshot()["layout.rebuilt"] == nil)
+        #expect(fixture.narrow.layoutDirty == false)
+        #expect(fixture.narrow.style["opacity"] != nil)
+    }
 }
 
 @MainActor

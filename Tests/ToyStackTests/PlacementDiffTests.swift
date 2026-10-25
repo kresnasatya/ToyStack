@@ -24,4 +24,18 @@ struct PlacementDiffTests {
         #expect(diff.added.count == 1)
         #expect(diff.removed.count == 1)
     }
+
+    @Test func keyRemovedAndReturnedIsAddedAgain() {
+        let key: LayerPlacementKey = .tile(zIndex: 0, col: 0, row: 0)
+
+        let afterRemoval: PlacementDiff = PlacementDiff(previous: [key], current: [])
+        #expect(afterRemoval.removed == [key])
+        #expect(afterRemoval.added.isEmpty)
+        #expect(afterRemoval.kept == 0)
+
+        let afterReturn: PlacementDiff = PlacementDiff(previous: [], current: [key])
+        #expect(afterReturn.added == [key])
+        #expect(afterReturn.removed.isEmpty)
+        #expect(afterReturn.kept == 0)
+    }
 }
