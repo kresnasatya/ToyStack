@@ -53,8 +53,8 @@ while [ "$rep" -le "$repeats" ]; do
     --trace "$dir/C.trace" --frame-limit 300 $scrolls \
     --screenshot "$dir/C.png"
 
-  # D — same page, no input; first-layout cost baseline.
-  run "$base/bench/large.html" \
+  # D — animated large page, no input; per-frame layout/paint baseline.
+  run "$base/bench/large-animated.html" \
     --trace "$dir/D.trace" --frame-limit 600 \
     --screenshot "$dir/D.png"
 

@@ -61,7 +61,7 @@ for `Browser.isRenderIdle`. Time is animation time, not wall time:
 | A | `www/ch13/exercise-13-5-1.html` | width animation, 600 ticks |
 | B | `www/ch13/exercise-13-5-2.html` | opacity animation, 600 ticks |
 | C | `www/bench/large.html` | 360 scroll events over 300 ticks |
-| D | `www/bench/large.html` | no input, 600 ticks |
+| D | `www/bench/large-animated.html` | no input; self-animating width, 600 ticks |
 
 `benchmark/baseline/` holds the committed A–D screenshots. Compare a run
 against it; a mismatch names the scenario and prints both hashes:
@@ -313,6 +313,7 @@ resolving a canvas font.
 | `BrowserTab.load*` | main, awaits | load envelope |
 | `raster.queueWait` | `X` | enqueue → `raster.plan` start |
 | `raster.plan`, `raster.composite`, `raster.effect` | compositor | plan work |
+| `raster.composite.copy`, `.flatten`, `.layers` | compositor | display-list copy + parent links, flatten + filter, layer merge |
 | `raster.plan.tiles`, `raster.install.tiles` | compositor | tile bookkeeping |
 | `raster.install`, `raster.bitmap` | compositor | tile install and bitmap composition |
 | `raster.installWait` | `X` | `raster.install` end → main-thread completion start |
@@ -382,6 +383,7 @@ strategy changed on this frame; `sublayers` is the current strategy.
 
 ## Known distortions
 
+- **`raster.composite` splits into `copy`, `flatten`, and `layers`.** The sub-spans nest inside the total; their sum is approximately the total, and the remainder is sampling between spans.
 - **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
 - **`layout.visit` is not a rebuild count.** See `layout.rebuilt`.
 - **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,

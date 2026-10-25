@@ -361,7 +361,7 @@ public class Browser: ObservableObject {
                     measure.start("raster.composite", category: .raster, frame: frameID)
                     let layers: [CompositedLayer] =
                         inputs.settings.flags.needsComposite
-                        ? Browser.computeComposite(inputs)
+                        ? Browser.computeComposite(inputs, measure: measure, frame: frameID)
                         : inputs.scene.previousLayers
                     measure.stop("raster.composite")
 
@@ -600,10 +600,17 @@ public class Browser: ObservableObject {
         )
     }
 
-    nonisolated static func computeComposite(_ inputs: RasterInput) -> [CompositedLayer] {
+    nonisolated static func computeComposite(
+        _ inputs: RasterInput,
+        measure: MeasureTime,
+        frame: Int
+    ) -> [CompositedLayer] {
+        measure.start("raster.composite.copy", category: .raster, frame: frame)
         var displayList: [any DisplayItem] = inputs.scene.displayList
         addParentPointers(&displayList)
+        measure.stop("raster.composite.copy")
 
+        measure.start("raster.composite.flatten", category: .raster, frame: frame)
         var allItems: [any DisplayItem] = []
         for item in displayList {
             treeToList(item, into: &allItems)
@@ -616,7 +623,9 @@ public class Browser: ObservableObject {
             }
             return nil
         })
+        measure.stop("raster.composite.flatten")
 
+        measure.start("raster.composite.layers", category: .raster, frame: frame)
         var compositedLayers: [CompositedLayer] = []
         var assumeOverlap: Bool = false
         for cmd in nonComposited {
@@ -661,6 +670,7 @@ public class Browser: ObservableObject {
             layer.id = LayerID(effect: effect, ordinal: ordinal)
         }
         reuseRasterization(from: inputs.scene.previousLayers, into: compositedLayers)
+        measure.stop("raster.composite.layers")
         return compositedLayers
     }
 

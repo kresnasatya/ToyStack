@@ -2,7 +2,20 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-out="$root/www/bench/large.html"
+variant=${1:-plain}
+
+case "$variant" in
+  plain)
+    out="$root/www/bench/large.html"
+    ;;
+  animated)
+    out="$root/www/bench/large-animated.html"
+    ;;
+  *)
+    printf 'usage: %s [plain|animated]\n' "$0" >&2
+    exit 2
+    ;;
+esac
 mkdir -p "$(dirname "$out")"
 
 {
@@ -19,10 +32,24 @@ mkdir -p "$(dirname "$out")"
   .warm { background-color: #fff7e6; }
   .hi { color: #a40000; }
   h2 { margin: 8px 0 4px; font-size: 14px; }
+HTML
+
+  if [ "$variant" = "animated" ]; then
+    cat <<'HTML'
+  .bar { width: 400px; height: 20px; background-color: red; animation: 2s infinite alternate grow; }
+  @keyframes grow { from { width: 400px; } to { width: 100px; } }
+HTML
+  fi
+
+  cat <<'HTML'
 </style>
 </head>
 <body>
 HTML
+
+  if [ "$variant" = "animated" ]; then
+    printf '<div class="bar"></div>\n'
+  fi
 
   i=0
   while [ "$i" -lt 1000 ]; do
