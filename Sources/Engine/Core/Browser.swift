@@ -146,6 +146,7 @@ public class Browser: ObservableObject {
         activeFrameID = id
         activeFrame = TabFrame()
         frames[id] = activeFrame
+        dispatchPresent(frameID: currentFrameID)
         startAnimationTimer()
     }
 
@@ -1012,6 +1013,7 @@ public class Browser: ObservableObject {
         }
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()
+        dispatchPresent(frameID: currentFrameID)
     }
 
     private func speakText(_ text: String) {

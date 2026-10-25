@@ -281,7 +281,17 @@ final class ContentPresenter: @unchecked Sendable {
             contentLayer.contents = image
             contentLayer.contentsScale = scale.display
         }
-        guard let image = lastImage else { return }
+        guard let image = frame.content.image else {
+            lastImage = nil
+            contentLayer.contents = nil
+            return
+        }
+
+        if image !== lastImage {
+            lastImage = image
+            contentLayer.contents = image
+            contentLayer.contentsScale = scale.display
+        }
 
         contentLayer.transform = CATransform3DIdentity
         let imageHeight = CGFloat(image.height) / scale.display
