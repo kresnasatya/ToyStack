@@ -33,7 +33,13 @@ class Frame {
     var isSecure: Bool = false
 
     var scroll: CGFloat = 0
-    var frameWidth: CGFloat
+    var frameWidth: CGFloat {
+        didSet {
+            if oldValue != frameWidth {
+                document?.widthField.mark()
+            }
+        }
+    }
     var frameHeight: CGFloat
     var loaded: Bool = false
 
@@ -1452,6 +1458,8 @@ class Frame {
     }
 
     func setNeedsViewportResize() {
+        document?.widthField.mark()
+        document?.zoomField.mark()
         if !mediaMatches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
             invalidateStyle(fromViewport: true)
         } else {
@@ -1484,6 +1492,8 @@ class Frame {
     func setPageZoom(_ newZoom: CGFloat) {
         guard newZoom > 0, abs(newZoom - pageZoom) > 0.001 else { return }
         pageZoom = newZoom
+        document?.zoomField.mark()
+        document?.widthField.mark()
         if parentFrame == nil, let tab {
             frameWidth = tab.tabWidth / newZoom
             frameHeight = tab.tabHeight / newZoom

@@ -32,6 +32,8 @@ final class IframeLayout: EmbedLayout {
         guard let el = node as? Element else { return }
 
         let size: (width: CGFloat, height: CGFloat) = IframeLayout.displaySize(for: el)
+        let zoom: CGFloat = zoomField.read(notify: widthField)
+        widthField.set(size.width * zoom)
         self.width = scaled(size.width)
         self.height = scaled(size.height)
 

@@ -13,13 +13,23 @@ class InputLayout: LayoutObject, InlineLayoutItem {
     var hasDirtyDescendants: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var width: CGFloat = 0
+    let widthField: ProtectedField<CGFloat>
+    var width: CGFloat {
+        get { widthField.get() }
+        set { widthField.set(newValue) }
+    }
     var height: CGFloat = 0
-    var zoom: CGFloat = 1.0
+    let zoomField: ProtectedField<CGFloat>
+    var zoom: CGFloat {
+        get { zoomField.get() }
+        set { zoomField.set(newValue) }
+    }
 
     var font: BrowserFont = inlineDefaultFont
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+        self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.parent = parent
         self.previous = previous
@@ -40,9 +50,10 @@ class InputLayout: LayoutObject, InlineLayoutItem {
             family: element.style["font-family"] ?? "serif"
         )
 
-        width = scaled(InputLayout.inputWidthPx)
+        let zoom: CGFloat = zoomField.read(notify: widthField)
+        widthField.set(InputLayout.inputWidthPx * zoom)
         if (node as? Element)?.attributes["type"] == "checkbox" {
-            width = font.linespace
+            widthField.set(font.linespace)
         }
 
         if let prev = previous as? InlineLayoutItem {

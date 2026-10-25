@@ -11,9 +11,17 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var hasDirtyDescendants: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var width: CGFloat = 0
+    let widthField: ProtectedField<CGFloat>
+    var width: CGFloat {
+        get { widthField.get() }
+        set { widthField.set(newValue) }
+    }
     var height: CGFloat = 0
-    var zoom: CGFloat = 1.0
+    let zoomField: ProtectedField<CGFloat>
+    var zoom: CGFloat {
+        get { zoomField.get() }
+        set { zoomField.set(newValue) }
+    }
 
     var font: BrowserFont = inlineDefaultFont
     var fontOverride: BrowserFont? = nil
@@ -24,6 +32,8 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     private(set) var isMeasured: Bool = false
 
     init(node: any DOMNode, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
+        self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.word = word
         self.parent = parent
@@ -39,7 +49,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         profiler.measure("layout.text", {
             if reusesChildren {
                 positionAfterPrevious()
-                width = advance
+                widthField.set(advance)
                 return
             }
 
@@ -70,7 +80,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     func cacheMetrics() {
         textWidth = font.measure(displayWord ?? word)
         advance = textWidth + font.spaceWidth
-        width = advance
+        widthField.set(advance)
         height = font.linespace
         isMeasured = true
     }

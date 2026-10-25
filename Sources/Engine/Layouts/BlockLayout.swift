@@ -21,9 +21,17 @@ class BlockLayout: LayoutObject {
     let extraNodes: [any DOMNode]
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var width: CGFloat = 0
+    let widthField: ProtectedField<CGFloat>
+    var width: CGFloat {
+        get { widthField.get() }
+        set { widthField.set(newValue) }
+    }
     var height: CGFloat = 0
-    var zoom: CGFloat = 1.0
+    let zoomField: ProtectedField<CGFloat>
+    var zoom: CGFloat {
+        get { zoomField.get() }
+        set { zoomField.set(newValue) }
+    }
     var paintCache: PaintCache = PaintCache()
 
     private var cursorX: CGFloat = 0
@@ -44,6 +52,8 @@ class BlockLayout: LayoutObject {
                 return zip(lhs, rhs).allSatisfy({ pair in pair.0 === pair.1 })
             }
         )
+        self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.extraNodes = []
         self.parent = parent
@@ -59,6 +69,8 @@ class BlockLayout: LayoutObject {
                 return zip(lhs, rhs).allSatisfy({ pair in pair.0 === pair.1 })
             }
         )
+        self.widthField = ProtectedField("width", node: nodes[0], parent: parent)
+        self.zoomField = ProtectedField("zoom", node: nodes[0], parent: parent)
         self.node = nodes[0]
         self.extraNodes = nodes
         self.parent = parent
@@ -88,10 +100,13 @@ class BlockLayout: LayoutObject {
             } else {
                 x = parent!.x
             }
+
+            let parentWidth: CGFloat = parent!.widthField.read(notify: widthField)
+            let zoom: CGFloat = zoomField.read(notify: widthField)
             if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
-                width = scaled(CGFloat(w))
+                widthField.set(CGFloat(w) * zoom)
             } else {
-                width = parent!.width
+                widthField.set(parentWidth)
             }
 
             if let el = node as? Element, el.tag == "li" {

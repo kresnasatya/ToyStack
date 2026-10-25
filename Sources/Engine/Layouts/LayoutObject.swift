@@ -12,6 +12,8 @@ protocol LayoutObject: AnyObject {
     var height: CGFloat { get set }
     var zoom: CGFloat { get set }
     var hasDirtyDescendants: Bool { get set }
+    var zoomField: ProtectedField<CGFloat> { get }
+    var widthField: ProtectedField<CGFloat> { get }
 
     func layout()
     func layout(reusesChildren: Bool)
@@ -101,7 +103,10 @@ extension LayoutObject {
     }
 
     func resolvedZoom() -> CGFloat {
-        guard let zoomStr = node.style["zoom"] else { return parent?.zoom ?? 1.0 }
+        let parentZoom: CGFloat = parent?.zoomField.read(notify: zoomField) ?? 1.0
+        guard let zoomStr = node.style["zoom"] else {
+            return parentZoom
+        }
         let trimmed: String = zoomStr.trimmingCharacters(in: .whitespaces)
         let factor: CGFloat
         if trimmed.hasSuffix("%"), let pct = Double(trimmed.dropLast()) {
@@ -109,9 +114,9 @@ extension LayoutObject {
         } else if let val = Double(trimmed) {
             factor = CGFloat(val)
         } else {
-            return parent?.zoom ?? 1.0
+            return parentZoom
         }
-        return (parent?.zoom ?? 1.0) * factor
+        return parentZoom * factor
     }
 
     func scaled(_ cssPx: CGFloat) -> CGFloat {

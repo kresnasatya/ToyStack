@@ -20,14 +20,24 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
             }
         }
     }
-    var width: CGFloat = 0
+    let widthField: ProtectedField<CGFloat>
+    var width: CGFloat {
+        get { widthField.get() }
+        set { widthField.set(newValue) }
+    }
     var height: CGFloat = 0
-    var zoom: CGFloat = 1.0
+    let zoomField: ProtectedField<CGFloat>
+    var zoom: CGFloat {
+        get { zoomField.get() }
+        set { zoomField.set(newValue) }
+    }
     var font: BrowserFont = inlineDefaultFont
 
     private var cursorX: CGFloat = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+        self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.parent = parent
         self.previous = previous
@@ -46,7 +56,8 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
             size: sizeInt, weight: weight, style: styleStr,
             family: element.style["font-family"] ?? "serif")
 
-        width = scaled(InputLayout.inputWidthPx)
+        let zoom: CGFloat = zoomField.read(notify: widthField)
+        widthField.set(InputLayout.inputWidthPx * zoom)
         if let prev = previous as? InlineLayoutItem {
             x = prev.x + prev.font.spaceWidth + prev.width
         } else {

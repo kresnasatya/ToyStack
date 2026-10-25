@@ -29,7 +29,8 @@ final class CanvasLayout: EmbedLayout {
         guard let el = node as? Element else { return }
         let size: (width: CGFloat, height: CGFloat) = CanvasLayout.contentSize(for: el)
 
-        self.width = scaled(size.width)
+        let zoom: CGFloat = zoomField.read(notify: widthField)
+        widthField.set(size.width * zoom)
         self.height = scaled(size.height)
         el.canvasContext?.resize(width: size.width, height: size.height)
         el.canvasContext?.setScale(displayScale * pageZoom * zoom)

@@ -13,12 +13,22 @@ class DocumentLayout: LayoutObject {
     var hasDirtyDescendants: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var width: CGFloat = 0
+    let widthField: ProtectedField<CGFloat>
+    var width: CGFloat {
+        get { widthField.get() }
+        set { widthField.set(newValue) }
+    }
     var height: CGFloat = 0
-    var zoom: CGFloat = 1.0
+    let zoomField: ProtectedField<CGFloat>
+    var zoom: CGFloat {
+        get { zoomField.get() }
+        set { zoomField.set(newValue) }
+    }
     var pageZoom: CGFloat = 1.0
 
     init(node: any DOMNode) {
+        self.zoomField = ProtectedField("zoom", node: node)
+        self.widthField = ProtectedField("width", node: node)
         self.childrenField = ProtectedField(
             owner: FieldOwner(name: "children", node: node),
             equals: { lhs, rhs in
@@ -38,7 +48,7 @@ class DocumentLayout: LayoutObject {
     }
 
     func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0, reusesChildren: Bool = false) {
-        self.zoom = zoom
+        zoomField.set(zoom)
         self.pageZoom = pageZoom
         let child: BlockLayout
         if reusesChildren,
@@ -51,7 +61,8 @@ class DocumentLayout: LayoutObject {
         }
         children = [child]
 
-        width = availableWidth - 2 * scaled(HSTEP)
+        let rootZoom: CGFloat = zoomField.read(notify: widthField)
+        widthField.set(availableWidth - 2 * HSTEP * rootZoom)
         x = scaled(HSTEP)
         y = scaled(VSTEP)
 

@@ -100,7 +100,7 @@ final class ProtectedField<Value>: InvalidatableField {
         setAncestorDirtyFlags()
     }
 
-    func read(_ notify: any InvalidatableField) -> Value {
+    func read(notify: any InvalidatableField) -> Value {
         if notify.frozenDependencies {
             assert(containsInvalidation(notify), "Undeclared dependency: \(self) -> \(notify)")
         } else {
@@ -110,7 +110,7 @@ final class ProtectedField<Value>: InvalidatableField {
     }
 
     func copy(from field: ProtectedField<Value>) {
-        set(field.read(self))
+        set(field.read(notify: self))
     }
 
     func setDependencies(_ fields: [any InvalidatableField]) {

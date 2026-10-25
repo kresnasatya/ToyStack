@@ -17,17 +17,27 @@ class LineLayout: LayoutObject {
     var hasDirtyDescendants: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var width: CGFloat = 0
+    let widthField: ProtectedField<CGFloat>
+    var width: CGFloat {
+        get { widthField.get() }
+        set { widthField.set(newValue) }
+    }
     var height: CGFloat = 0
     var minHeight: CGFloat = 0
     var centered: Bool = false
-    var zoom: CGFloat = 1.0
+    let zoomField: ProtectedField<CGFloat>
+    var zoom: CGFloat {
+        get { zoomField.get() }
+        set { zoomField.set(newValue) }
+    }
     var prelaid: LineGeometry? = nil
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
     var paintGeneration: UInt = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+        self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.parent = parent
         self.previous = previous
@@ -42,7 +52,7 @@ class LineLayout: LayoutObject {
             profiler.measure("layout.line.prelaid", {
                 self.prelaid = nil
                 zoom = resolvedZoom()
-                width = parent!.width
+                widthField.copy(from: parent!.widthField)
                 x = parent!.x
                 y = previous.map { $0.y + $0.height } ?? parent!.y
 
@@ -59,7 +69,7 @@ class LineLayout: LayoutObject {
 
         paintGeneration += 1
         zoom = resolvedZoom()
-        width = parent!.width
+        widthField.copy(from: parent!.widthField)
         x = parent!.x
         y = previous.map { $0.y + $0.height } ?? parent!.y
 

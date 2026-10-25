@@ -38,8 +38,10 @@ final class ImageLayout: EmbedLayout {
     override func layout() {
         super.layout()
         guard let el = node as? Element else { return }
-        let usedWidth: CGFloat = ImageLayout.usedWidth(for: el, available: parent!.width, zoom: zoom)
-        width = usedWidth
+        let available: CGFloat = parent!.widthField.read(notify: widthField)
+        let zoom: CGFloat = zoomField.read(notify: widthField)
+        let usedWidth: CGFloat = ImageLayout.usedWidth(for: el, available: available, zoom: zoom)
+        widthField.set(usedWidth)
         imgHeight = ImageLayout.usedHeight(for: el, usedWidth: usedWidth, zoom: zoom)
         height = max(imgHeight, font.linespace)
     }
