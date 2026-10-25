@@ -532,7 +532,6 @@ class BlockLayout: LayoutObject {
             size: sizeInt, weight: weight, style: style,
             family: node.style["font-family"] ?? "serif")
         cursorX += w + font.spaceWidth
-        width = scaled(BlockLayout.inputWidthPx)
     }
 
     private func addButton(_ node: Element) {

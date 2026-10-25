@@ -52,6 +52,7 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
             x = parent!.x
         }
 
+        children = []
         newLine()
         for child in element.children { recurse(child) }
         for child in children { child.layout() }
