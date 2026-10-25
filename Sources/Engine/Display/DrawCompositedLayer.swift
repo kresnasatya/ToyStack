@@ -19,7 +19,8 @@ struct DrawCompositedLayer: DisplayCommand {
         let bounds: Rect = layer.compositedBounds()
         if !layer.tiles.isEmpty {
             let t: CGFloat = CompositedLayer.tileSize
-            for (index, image) in layer.tiles {
+            for index in layer.orderedTileIndices {
+                guard let image: CGImage = layer.tiles[index] else { continue }
                 let tileLeft: CGFloat = CGFloat(index.col) * t
                 let tileTop: CGFloat = CGFloat(index.row) * t
                 if tileTop + t <= visibleTop || tileTop >= visibleBottom { continue }

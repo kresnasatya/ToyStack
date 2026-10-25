@@ -18,6 +18,13 @@ class CompositedLayer {
     static let rasterCapPerComposite: UInt = 300
     var ancestorChain: [BrowserVisualEffect] = []
 
+    // Draw and placement order for tiles. Dictionary iteration order is
+    // randomized per process; at a fractional scroll offset adjacent tiles
+    // share a partly covered device pixel row, so order changes the blend.
+    var orderedTileIndices: [TileIndex] {
+        return tiles.keys.sorted(by: { ($0.row, $0.col) < ($1.row, $1.col) })
+    }
+
     func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
         let t: CGFloat = Self.tileSize
         tiles = tiles.filter{ index, _ in

@@ -834,7 +834,8 @@ public class Browser: ObservableObject {
         for (z, layer) in layers.enumerated() {
             switch effectStrategies[z].kind {
                 case .flat:
-                    for (index, image) in layer.tiles {
+                    for index in layer.orderedTileIndices {
+                        guard let image: CGImage = layer.tiles[index] else { continue }
                         placements.append(
                             LayerPlacement(
                                 key: .tile(zIndex: z, col: index.col, row: index.row),
