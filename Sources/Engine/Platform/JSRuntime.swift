@@ -116,6 +116,7 @@ class JSRuntime: @unchecked Sendable {
                 MainActor.assumeIsolated({
                     guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                     elt.attributes[attr] = value
+                    LayoutInvalidation.attributesChanged(elt)
                     if attr == "src", elt.tag == "iframe" {
                         self.frame?.syncIframes()
                     }
@@ -224,6 +225,7 @@ class JSRuntime: @unchecked Sendable {
             MainActor.assumeIsolated({
                 guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                 elt.children = [TextNode(text: value, parent: elt)]
+                LayoutInvalidation.childrenChanged(elt)
                 self.frame?.syncIframes()
                 self.frame?.setNeedsRender()
             })
@@ -241,6 +243,7 @@ class JSRuntime: @unchecked Sendable {
                     let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
                     elt.children = newNodes ?? []
                     for child in elt.children { child.parent = elt }
+                    LayoutInvalidation.childrenChanged(elt)
                     frame.runNewScripts(in: elt)
                     frame.reloadStylesheets()
                     frame.syncIframes()
@@ -278,6 +281,7 @@ class JSRuntime: @unchecked Sendable {
                     else { return }
                     child.parent = parent
                     parent.children.append(child)
+                    LayoutInvalidation.childrenChanged(parent)
                     frame.runNewScripts(in: child)
                     frame.reloadStylesheets()
                     frame.syncIframes()
@@ -296,6 +300,7 @@ class JSRuntime: @unchecked Sendable {
                     else { return -1 }
                     parent.children.removeAll { $0 === child }
                     child.parent = nil
+                    LayoutInvalidation.childrenChanged(parent)
                     frame.reloadStylesheets()
                     frame.syncIframes()
                     frame.setNeedsRender()
@@ -316,6 +321,8 @@ class JSRuntime: @unchecked Sendable {
                     else { return }
                     child.parent = parent
                     parent.children.insert(child, at: idx)
+                    LayoutInvalidation.childrenChanged(parent)
+                    frame.setNeedsRender()
                     frame.runNewScripts(in: child)
                     frame.reloadStylesheets()
                     frame.syncIframes()

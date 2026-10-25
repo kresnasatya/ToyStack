@@ -14,6 +14,7 @@ class LineLayout: LayoutObject {
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
+    var hasDirtyDescendants: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
     var width: CGFloat = 0

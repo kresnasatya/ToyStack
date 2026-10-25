@@ -65,8 +65,10 @@ class TextNode: DOMNode {
         self.parent = parent
     }
 
+    @MainActor
     func append(_ suffix: String) {
         text += suffix
+        LayoutInvalidation.textChanged(self)
     }
 }
 

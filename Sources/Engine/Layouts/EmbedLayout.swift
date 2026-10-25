@@ -6,6 +6,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
+    var hasDirtyDescendants: Bool = false
     var x: CGFloat = 0, y: CGFloat = 0, width: CGFloat = 0, height: CGFloat = 0
     var zoom: CGFloat = 1.0
     var font: BrowserFont = inlineDefaultFont

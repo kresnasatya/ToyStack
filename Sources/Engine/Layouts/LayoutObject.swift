@@ -11,9 +11,11 @@ protocol LayoutObject: AnyObject {
     var width: CGFloat { get set }
     var height: CGFloat { get set }
     var zoom: CGFloat { get set }
+    var hasDirtyDescendants: Bool { get set }
 
     func layout()
     func layout(reusesChildren: Bool)
+    func layoutNeeded() -> Bool
     func paint(into items: inout [any DisplayItem])
     func shouldPaint() -> Bool
     func paintEffects(into items: inout [any DisplayItem], from start: Int)
@@ -21,6 +23,8 @@ protocol LayoutObject: AnyObject {
 }
 
 extension LayoutObject {
+    func layoutNeeded() -> Bool { true }
+
     func layout(reusesChildren: Bool) {
         layout()
     }

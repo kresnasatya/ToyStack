@@ -12,7 +12,12 @@ class BlockLayout: LayoutObject {
     let node: any DOMNode
     var parent: (any LayoutObject)?
     var previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []
+    private let childrenField: ProtectedField<[any LayoutObject]>
+    var children: [any LayoutObject] {
+        get { childrenField.get() }
+        set { childrenField.set(newValue) }
+    }
+    var hasDirtyDescendants: Bool = false
     let extraNodes: [any DOMNode]
     var x: CGFloat = 0
     var y: CGFloat = 0
@@ -32,6 +37,13 @@ class BlockLayout: LayoutObject {
     var contentHeight: CGFloat = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+        self.childrenField = ProtectedField(
+            owner: FieldOwner(name: "children", node: node, parent: parent),
+            equals: { lhs, rhs in
+                guard lhs.count == rhs.count else { return false }
+                return zip(lhs, rhs).allSatisfy({ pair in pair.0 === pair.1 })
+            }
+        )
         self.node = node
         self.extraNodes = []
         self.parent = parent
@@ -40,6 +52,13 @@ class BlockLayout: LayoutObject {
     }
 
     init(nodes: [any DOMNode], parent: any LayoutObject, previous: (any LayoutObject)?) {
+        self.childrenField = ProtectedField(
+            owner: FieldOwner(name: "children", node: nodes[0], parent: parent),
+            equals: { lhs, rhs in
+                guard lhs.count == rhs.count else { return false }
+                return zip(lhs, rhs).allSatisfy({ pair in pair.0 === pair.1 })
+            }
+        )
         self.node = nodes[0]
         self.extraNodes = nodes
         self.parent = parent
@@ -48,6 +67,10 @@ class BlockLayout: LayoutObject {
 
     func layout() {
         layout(reusesChildren: false)
+    }
+
+    func markChildrenDirty() {
+        childrenField.mark()
     }
 
     func layout(reusesChildren: Bool) {
@@ -93,12 +116,12 @@ class BlockLayout: LayoutObject {
                 y += VSTEP
             }
 
-            if reusesChildren, usedWidth == width, !stale {
+            if reusesChildren, usedWidth == width, !stale, !childrenField.dirty {
                 skippedChildren = true
                 profiler.count("layout.reusedChildren")
                 let dx: CGFloat = x - oldX
                 let dy: CGFloat = y - oldY
-                for child in children { translateSubtree(child, dx: dx, dy: dy) }
+                for child in childrenField.get() { translateSubtree(child, dx: dx, dy: dy) }
                 return
             }
             profiler.count("layout.rebuilt")
@@ -110,13 +133,16 @@ class BlockLayout: LayoutObject {
             let mode: String = profiler.measure("layout.mode", { layoutMode() })
             if mode == "block" {
                 profiler.count("layout.mode.block")
-                profiler.measure("layout.children", {
-                    var pool: ChildReuse = ChildReuse(prior: children, enabled: reusesChildren)
-                    children = []
+                if childrenField.dirty {
+                    profiler.count("layout.children.rebuilt")
+                    var built: [any LayoutObject] = []
+                    var pool: ChildReuse = ChildReuse(
+                        prior: childrenField.peek() ?? [],
+                        enabled: reusesChildren
+                    )
                     var prev: (any LayoutObject)? = nil
                     var inlineRun: [any DOMNode] = []
                     var pendingRunIn: Element? = nil
-
                     for child in node.children {
                         if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
                             continue
@@ -129,7 +155,7 @@ class BlockLayout: LayoutObject {
                                     let anon: BlockLayout = pool.takeRun(run, previous: prev) {
                                         BlockLayout(nodes: run, parent: self, previous: prev)
                                     }
-                                    children.append(anon)
+                                    built.append(anon)
                                     prev = anon
                                     inlineRun = []
                                 }
@@ -140,7 +166,7 @@ class BlockLayout: LayoutObject {
                                     let anon: BlockLayout = pool.takeRun(run, previous: prev) {
                                         BlockLayout(nodes: run, parent: self, previous: prev)
                                     }
-                                    children.append(anon)
+                                    built.append(anon)
                                     prev = anon
                                     inlineRun = []
                                 }
@@ -149,14 +175,14 @@ class BlockLayout: LayoutObject {
                                     let next: BlockLayout = pool.takeRun(run, previous: prev) {
                                         BlockLayout(nodes: run, parent: self, previous: prev)
                                     }
-                                    children.append(next)
+                                    built.append(next)
                                     prev = next
                                     pendingRunIn = nil
                                 } else {
                                     let next: BlockLayout = pool.takeBlock(child, previous: prev) {
                                         BlockLayout(node: child, parent: self, previous: prev)
                                     }
-                                    children.append(next)
+                                    built.append(next)
                                     if child.style["position"] != "absolute" { prev = next }
                                 }
                             }
@@ -169,15 +195,16 @@ class BlockLayout: LayoutObject {
                         let anon: BlockLayout = pool.takeRun(run, previous: prev) {
                             BlockLayout(nodes: run, parent: self, previous: prev)
                         }
-                        children.append(anon)
+                        built.append(anon)
                     }
                     if let runIn = pendingRunIn {
                         let next: BlockLayout = pool.takeBlock(runIn, previous: prev) {
                             BlockLayout(node: runIn, parent: self, previous: prev)
                         }
-                        children.append(next)
+                        built.append(next)
                     }
-                })
+                    childrenField.set(built)
+                }
             } else if reusesChildren, inlineBuilt {
                 profiler.count("layout.mode.inline")
                 if subtreeStale {
@@ -262,7 +289,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func placeInlineItems() {
-        let oldChildren: [any LayoutObject] = children
+        let oldChildren: [any LayoutObject] = childrenField.peek() ?? []
 
         children = []
         newLine()
