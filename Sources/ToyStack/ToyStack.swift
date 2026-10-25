@@ -283,7 +283,7 @@ public struct BrowserView: View {
                     """
                 )
             }
-            app.newTab(WebURL("http://localhost:3000/exercise-13-5-1"))
+            app.newTab(WebURL("https://browser.engineering"))
         }
     }
 }
