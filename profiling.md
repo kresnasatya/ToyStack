@@ -63,6 +63,22 @@ for `Browser.isRenderIdle`. Time is animation time, not wall time:
 | C | `www/bench/large.html` | 360 scroll events over 300 ticks |
 | D | `www/bench/large.html` | no input, 600 ticks |
 
+`benchmark/baseline/` holds the committed A–D screenshots. Compare a run
+against it; a mismatch names the scenario and prints both hashes:
+
+```bash
+scripts/compare-scenarios.sh benchmark/baseline /tmp/bench/run-1
+```
+
+Regenerate the baseline only for an intentional rendering change:
+
+```bash
+REPEATS=1 scripts/run-scenarios.sh /tmp/bench
+cp /tmp/bench/run-1/*.png benchmark/baseline/
+```
+
+Commit the new images with that change.
+
 Counts and pixels are reproducible. Timings are not: a single large-page run can
 vary by 50%. Compare medians of at least three runs, and never compare a run
 made just after a build with one made on an idle machine.

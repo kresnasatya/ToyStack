@@ -11,4 +11,5 @@ browser.trace
 *.png
 !Sources/Engine/**/*.png
 !www/**/*.png
+!benchmark/baseline/*.png
 *.mov
