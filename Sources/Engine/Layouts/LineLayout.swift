@@ -2,12 +2,6 @@ import CoreGraphics
 
 // MARK: - LineLayout
 
-struct LineGeometry {
-    let x: CGFloat
-    let y: CGFloat
-    let height: CGFloat
-}
-
 @MainActor
 class LineLayout: LayoutObject {
     let node: any DOMNode
@@ -43,7 +37,6 @@ class LineLayout: LayoutObject {
     }
     let ascentField: ProtectedField<CGFloat>
     let descentField: ProtectedField<CGFloat>
-    var prelaid: LineGeometry? = nil
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
     var paintGeneration: UInt = 0
@@ -62,10 +55,6 @@ class LineLayout: LayoutObject {
     }
 
     func layout() {
-        layout(reusesChildren: false)
-    }
-
-    func layout(reusesChildren: Bool) {
         if !layoutNeeded() { return }
         paintGeneration += 1
         zoomField.copy(from: parent!.zoomField)
@@ -80,9 +69,6 @@ class LineLayout: LayoutObject {
         for child in children { child.layout() }
 
         profiler.measure("layout.line.place", {
-            if let lastText = children.last as? TextLayout {
-                lastText.width = lastText.font.measure(lastText.word)
-            }
 
             guard !children.isEmpty else {
                 ascentField.set(0)
@@ -124,8 +110,7 @@ class LineLayout: LayoutObject {
             }
 
             if TextDirection(cssValue: node.style["direction"]) == .rtl {
-                let lastChild: any LayoutObject = children.last!
-                let usedWidth: CGFloat = lastChild.x + lastChild.width - x
+                let usedWidth: CGFloat = contentWidth()
                 let offset: CGFloat = width - usedWidth
 
                 for child in children {
@@ -134,8 +119,7 @@ class LineLayout: LayoutObject {
             }
 
             if centered {
-                let lastChild: any LayoutObject = children.last!
-                let usedWidth: CGFloat = lastChild.x + lastChild.width - x
+                let usedWidth: CGFloat = contentWidth()
                 let offset: CGFloat = (width - usedWidth) / 2
 
                 for child in children {
@@ -145,6 +129,12 @@ class LineLayout: LayoutObject {
 
             heightField.set(ascentField.read(notify: heightField) + descentField.read(notify: heightField))
         })
+    }
+
+    private func contentWidth() -> CGFloat {
+        guard let last = children.last else { return 0 }
+        let trailing: CGFloat = (last as? TextLayout)?.textWidth ?? last.width
+        return last.x + trailing - x
     }
 
     func canCachePaint() -> Bool {

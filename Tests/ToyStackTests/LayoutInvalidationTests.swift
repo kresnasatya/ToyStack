@@ -20,25 +20,32 @@ struct LayoutInvalidationTests {
         #expect(!Frame.affectsLayout("border-radius"))
     }
 
-    @Test func cleanSecondLayoutReuses() {
+    @Test func cleanSecondLayoutKeepsBlockChildren() throws {
         let fixture = makeFixture()
+
+        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
+        let childrenBefore: [ObjectIdentifier] = bodyBefore.children.map({ ObjectIdentifier($0 as AnyObject) })
+
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let metrics = profiler.snapshot()
-        #expect((metrics["layout.rebuilt"]?.count ?? 0) == 0)
-        #expect((metrics["layout.reusedChildren"]?.count ?? 0) == 1)
+        let bodyAfter = try #require(fixture.body.layoutObject as? BlockLayout)
+        #expect(bodyAfter === bodyBefore)
+        #expect(bodyAfter.children.map{ ObjectIdentifier($0 as AnyObject) } == childrenBefore)
+        #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
-    @Test func removingAspectRatioMarksLayoutDirty() {
-        let fixture = makeFixture(mediaBody: "aspect-ratio: 2;")
+    @Test func mediaRuleChangeUpdatesWidth() throws {
+        let fixture = makeFixture(mediaBody: "width: 200px;")
+        let narrowBefore = try #require(fixture.narrow.layoutObject as? BlockLayout)
+        #expect(narrowBefore.width == CGFloat(200))
+
         fixture.frame.frameWidth = 400
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let metrics = profiler.snapshot()
-        #expect((metrics["layout.reusedChildren"]?.count ?? 0) >= 1)
-        #expect((metrics["layout.rebuildReason.dirtyFlag"]?.count ?? 0) >= 3)
+        let narrowAfter = try #require(fixture.narrow.layoutObject as? BlockLayout)
+        #expect(narrowAfter.width == CGFloat(100))
         #expect(fixture.narrow.layoutDirty == false)
         #expect(fixture.body.layoutDirty == false)
         #expect(fixture.html.layoutDirty == false)
@@ -59,31 +66,24 @@ struct LayoutInvalidationTests {
         #expect(bodyAfter.height == 0)
         let wideAfter = try #require(fixture.wide.layoutObject)
         #expect(wideAfter.y == wideYBefore - 50)
-        let metrics = profiler.snapshot()
-        #expect((metrics["layout.rebuildReason.dirtyFlag"]?.count ?? 0) >= 3)
     }
 
-    @Test func dirtyLeafRebuildsOnlyItsPath() throws {
+    @Test func widthChangeOnOneBlockKeepsSiblings() throws {
         let fixture = makeFixture()
+        let wideBefore = try #require(fixture.wide.layoutObject)
+
         fixture.narrow.style["width"] = "200px"
-        fixture.narrow.layoutDirty = true
-        fixture.body.layoutDirty = true
-        fixture.html.layoutDirty = true
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
         let narrow = try #require(fixture.narrow.layoutObject as? BlockLayout)
         #expect(narrow.width == CGFloat(200))
-        let metrics = profiler.snapshot()
-        #expect((metrics["layout.reusedChildren"]?.count ?? 0) == 1)
-        #expect((metrics["layout.rebuildReason.dirtyFlag"]?.count ?? 0) >= 3)
 
-        fixture.narrow.layoutDirty = false
-        fixture.body.layoutDirty = false
-        fixture.html.layoutDirty = false
+        #expect(fixture.wide.layoutObject === wideBefore)
+        #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
-    @Test func nonReusableStylePassClearsDirtyFlags() {
+    @Test func nonReusableStylePassClearsDirtyFlags() throws {
         let fixture = makeFixture()
         fixture.frame.rules = CSSParser("""
             html { width: 600px; }
@@ -98,9 +98,12 @@ struct LayoutInvalidationTests {
         #expect(fixture.narrow.layoutDirty == false)
         #expect(fixture.wide.layoutDirty == false)
 
+        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
-        #expect((profiler.snapshot()["layout.rebuilt"]?.count ?? 0) == 0)
+
+        #expect(fixture.body.layoutObject === bodyBefore)
+        #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
     @Test func animatingFontSizeRebuildsTheDirtySubtree() {

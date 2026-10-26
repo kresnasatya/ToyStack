@@ -15,6 +15,15 @@ enum LayoutInvalidation {
         childrenChanged(node)
     }
 
+    static func styleChanged(_ node: any DOMNode, old: [String: String], new: [String: String]) {
+        guard let block = nearestBlock(node) else { return }
+        block.markChildrenDirty()
+
+        let regroupped: Bool = old["display"] != new["display"] || old["position"] != new["position"]
+        guard regroupped else { return }
+        parentBlock(of: block)?.markChildrenDirty()
+    }
+
     static func imageChanged(_ node: Element) {
         if let image = node.layoutObject as? ImageLayout {
             image.widthField.mark()
@@ -37,6 +46,15 @@ enum LayoutInvalidation {
                 return block
             }
             dom = current.parent
+        }
+        return nil
+    }
+
+    private static func parentBlock(of block: BlockLayout) -> BlockLayout? {
+        var object: (any LayoutObject)? = block.parent
+        while let current = object {
+            if let parent = current as? BlockLayout { return parent }
+            object = current.parent
         }
         return nil
     }

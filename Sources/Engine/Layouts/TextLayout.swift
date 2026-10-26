@@ -45,9 +45,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
     var textWidth: CGFloat = 0
-    var advance: CGFloat = 0
     var whiteSpace: WhiteSpaceMode = .normal
-    private(set) var isMeasured: Bool = false
 
     init(node: any DOMNode, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
         self.widthField = ProtectedField("width", node: node, parent: parent)
@@ -80,10 +78,6 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        layout(reusesChildren: false)
-    }
-
-    func layout(reusesChildren: Bool) {
         if !layoutNeeded() { return }
         profiler.measure("layout.text", {
             zoomField.set(resolvedZoom())
@@ -98,8 +92,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             let measuredFont: BrowserFont = fontField.read(notify: widthField)
             let measured: CGFloat = measuredFont.measure(displayWord ?? word)
             textWidth = measured
-            advance = measured + measuredFont.spaceWidth
-            widthField.set(advance)
+            widthField.set(measured + measuredFont.spaceWidth)
 
             heightField.set(fontField.read(notify: heightField).linespace)
             ascentField.set(fontField.read(notify: ascentField).ascent)
@@ -113,22 +106,6 @@ class TextLayout: LayoutObject, InlineLayoutItem {
                 xField.copy(from: parent!.xField)
             }
         })
-    }
-
-    func cacheMetrics() {
-        textWidth = font.measure(displayWord ?? word)
-        advance = textWidth + font.spaceWidth
-        widthField.set(advance)
-        height = font.linespace
-        isMeasured = true
-    }
-
-    private func positionAfterPrevious() {
-        if let prev = previous as? InlineLayoutItem {
-            x = prev.x + prev.width
-        } else {
-            x = parent!.x
-        }
     }
 
     func paint(into items: inout [any DisplayItem]) {

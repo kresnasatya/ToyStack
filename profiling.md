@@ -38,7 +38,7 @@ Flags:
 | `--run-for <seconds>` | `seconds × 60` ticks; `--frame-limit` wins if both are given |
 | `--screenshot-at <t> <path>` | capture after `t` seconds of animation time |
 | `--scroll-at <t>:<x>:<y>:<dy>` | scroll at `t` seconds; `x`/`y` are viewport CSS pixels, `dy` is CSS pixels and negative scrolls down; repeatable |
-| `--force-full-layout` | rebuild every box on every layout pass |
+| `--force-full-layout` | recreate the layout tree on every layout pass |
 | `--no-incremental-layout` | same switch, pre-0b spelling |
 | `--no-profile` | keep spans and counters, drop `profile.*` |
 
@@ -252,35 +252,30 @@ invalidation.
 
 | Metric | Kind | Meaning |
 |---|---|---|
-| `layout.visit` | duration | one `BlockLayout.layout` visit, **including the skip gate** |
-| `layout.children` | duration | child placement |
+| `layout.visit` | duration | one `BlockLayout.layout` body; the skip gate is outside |
+| `layout.visited` | count | `BlockLayout.layout` bodies entered |
+| `layout.skipped` | count | visits returned by the `layoutNeeded()` gate; `0` until step 8 |
 | `layout.height` | duration | height accumulation |
 | `layout.mode` | duration | `layoutMode()` |
 | `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
-| `layout.line.prelaid`, `layout.line.place` | duration | line layout |
+| `layout.line.place` | duration | line layout |
 | `layout.text` | duration | text layout |
-| `layout.rebuilt` | count | boxes that actually rebuilt |
-| `layout.reusedChildren` | count | visits that skipped their children |
-| `layout.rebuildReason.noReuse` | count | rebuild because `reusesChildren == false` |
-| `layout.rebuildReason.widthChanged` | count | rebuild because `usedWidth != width` |
-| `layout.rebuildReason.dirtyFlag` | count | rebuild because the subtree was dirty |
+| `layout.rebuilt` | count | `BlockLayout` bodies that ran; equals `layout.visited` in step 7 |
+| `layout.children.rebuilt` | count | blocks that rebuilt their child object list |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
-| `layout.lines.total`, `layout.lines.reused`, `layout.line.moved` | count | line reuse |
+| `layout.lines.total` | count | lines placed |
 | `text.measureCalls`, `text.measureMisses` | count | font width calls and cache misses |
 | `text.measure` | duration | `CTLine` creation per miss |
 | `text.fontRequests`, `text.font` | count/duration | font resolution |
-| `text.words`, `text.fontNodes` | count | text inputs |
+| `text.words` | count | words emitted by inline item construction |
 
 Rules:
 
-- **Use `layout.rebuilt`, not `layout.visit`, for "boxes rebuilt".** `layout.visit`
-  wraps the whole function including the skip gate (it was called
-  `layout.block.build` before `44fb338`). `layout.visit - layout.rebuilt` is the
-  skip count.
-- `layout.rebuildReason.*` are not disjoint. One rebuild can report `noReuse`,
-  `widthChanged`, and `dirtyFlag` together.
+- **Use `layout.rebuilt` for "boxes laid out".** `layout.visited` counts entries;
+  `layout.skipped` counts gate returns. They are equal in step 7 because
+  `layoutNeeded()` still returns `true`. Step 8 makes the gate real.
 - The `layout.*` durations nest and overlap; do not add them. `layout.visit`
-  contains `layout.children`, `layout.height`, and the line/text work.
+  contains `layout.height` and the line/text work.
 - `text.measure` is `CTLine` creation per cache miss; `text.font` is font
   resolution, called before the word is measured. Both sit inside
   `layout.visit`, so do not add `layout.*` and `text.*` as independent buckets.
@@ -327,8 +322,8 @@ resolving a canvas font.
 Every `C` event is one sample for one frame.
 
 `layout.markedDirtyAnimation` (`nodes`): boxes marked by the animation loop.
-Compare with `layout.rebuildReason.dirtyFlag`; equal values mean the dirty
-signal is not leaking.
+The coarse dirty path is deleted in step 10; until then this counts nodes marked
+by animation, not nodes that rebuilt.
 
 `layout.dirtyDuringLayout` (`nodes`): a node was marked dirty while layout was
 running. Non-zero means the clear loop missed something or a layout input was
@@ -385,7 +380,7 @@ strategy changed on this frame; `sublayers` is the current strategy.
 
 - **`raster.composite` splits into `copy`, `flatten`, and `layers`.** The sub-spans nest inside the total; their sum is approximately the total, and the remainder is sampling between spans.
 - **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
-- **`layout.visit` is not a rebuild count.** See `layout.rebuilt`.
+- **`layout.visit` is a duration, not a count.** Box counts are `layout.visited`, `layout.skipped`, and `layout.rebuilt`.
 - **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,
   or presenter coalescing.
 - **D is a load trace.** `www/bench/large.html` has no animation, so a 600-tick

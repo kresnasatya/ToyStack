@@ -15,10 +15,7 @@ struct GeometryInvalidationTests {
 
         let text: TextNode = try #require(fixture.first.children.first as? TextNode)
         text.append(String(repeating: " word", count: 80))
-        text.layoutDirty = true
-        fixture.first.layoutDirty = true
-        fixture.body.layoutDirty = true
-        fixture.html.layoutDirty = true
+
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
@@ -37,9 +34,7 @@ struct GeometryInvalidationTests {
         let yBefore: CGFloat = before.y
 
         fixture.header.style["height"] = "80px"
-        fixture.header.layoutDirty = true
-        fixture.body.layoutDirty = true
-        fixture.html.layoutDirty = true
+
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
@@ -58,10 +53,7 @@ struct GeometryInvalidationTests {
         let yBefore: CGFloat = before.y
 
         fixture.firstItem.style["height"] = "80px"
-        fixture.firstItem.layoutDirty = true
-        fixture.list.layoutDirty = true
-        fixture.body.layoutDirty = true
-        fixture.html.layoutDirty = true
+
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
@@ -80,12 +72,10 @@ struct GeometryInvalidationTests {
         let textBefore: TextLayout = try #require(
             treeToList(blockBefore).compactMap({ $0 as? TextLayout }).first
         )
-        #expect(textBefore.x + textBefore.width == blockBefore.x + blockBefore.width)
+        #expect(textBefore.x + textBefore.textWidth == blockBefore.x + blockBefore.width)
 
         fixture.header.style["height"] = "80px"
-        fixture.header.layoutDirty = true
-        fixture.body.layoutDirty = true
-        fixture.html.layoutDirty = true
+
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
@@ -96,7 +86,7 @@ struct GeometryInvalidationTests {
             treeToList(blockAfter).compactMap({ $0 as? TextLayout }).first
         )
         #expect(blockAfter.y == yBefore + 70)
-        #expect(textAfter.x + textAfter.width == blockAfter.x + blockAfter.width)
+        #expect(textAfter.x + textAfter.textWidth == blockAfter.x + blockAfter.width)
     }
 }
 

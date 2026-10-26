@@ -58,16 +58,11 @@ class DocumentLayout: LayoutObject {
         layout(availableWidth: WIDTH)
     }
 
-    func layout(reusesChildren: Bool) {
-        layout(availableWidth: WIDTH, zoom: zoom, pageZoom: pageZoom, reusesChildren: reusesChildren)
-    }
-
-    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0, reusesChildren: Bool = false) {
+    func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0) {
         zoomField.set(zoom)
         self.pageZoom = pageZoom
         let child: BlockLayout
-        if reusesChildren,
-            let existing = childrenField.peek()?.first as? BlockLayout,
+        if let existing = childrenField.peek()?.first as? BlockLayout,
             existing.node === node
         {
             child = existing
@@ -81,7 +76,7 @@ class DocumentLayout: LayoutObject {
         xField.set(HSTEP * zoomField.read(notify: xField))
         yField.set(VSTEP * zoomField.read(notify: yField))
 
-        child.layout(reusesChildren: reusesChildren)
+        child.layout()
         heightField.copy(from: child.heightField)
     }
 

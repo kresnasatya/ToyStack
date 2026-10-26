@@ -46,11 +46,7 @@ class BlockLayout: LayoutObject {
     var paintCache: PaintCache = PaintCache()
 
     private var cursorX: CGFloat = 0
-    private var fontByNode: [ObjectIdentifier: BrowserFont] = [:]
     private var inlineItems: [InlineItem] = []
-    private var itemsByNode: [ObjectIdentifier: [InlineItem]] = [:]
-    private var inlineBuilt: Bool = false
-    private var usedWidth: CGFloat = -1
 
     var scrollOffset: CGFloat = 0
     var contentHeight: CGFloat = 0
@@ -94,22 +90,20 @@ class BlockLayout: LayoutObject {
         self.previous = previous
     }
 
-    func layout() {
-        layout(reusesChildren: false)
-    }
-
     func markChildrenDirty() {
         childrenField.mark()
     }
 
-    func layout(reusesChildren: Bool) {
-        var skippedChildren: Bool = false
-        let stale: Bool = subtreeStale
+    func layout() {
+        if !layoutNeeded() {
+            profiler.count("layout.skipped")
+            return
+        }
+        profiler.count("layout.visited")
         profiler.measure("layout.visit") {
+            profiler.count("layout.rebuilt")
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
-            let oldX: CGFloat = xField.peek() ?? 0
-            let oldY: CGFloat = yField.peek() ?? 0
 
             let parentX: CGFloat = parent!.xField.read(notify: xField)
             if isAbsolute,
@@ -159,31 +153,12 @@ class BlockLayout: LayoutObject {
                 y += VSTEP
             }
 
-            if reusesChildren, usedWidth == width, !stale, !childrenField.dirty {
-                let dx: CGFloat = x - oldX
-                let dy: CGFloat = y - oldY
-                if dx == 0, dy == 0 {
-                    skippedChildren = true
-                    profiler.count("layout.reusedChildren")
-                    return
-                }
-            }
-            profiler.count("layout.rebuilt")
-            if !reusesChildren { profiler.count("layout.rebuildReason.noReuse") }
-            if usedWidth != width { profiler.count("layout.rebuildReason.widthChanged") }
-            if stale { profiler.count("layout.rebuildReason.dirtyFlag") }
-
-            usedWidth = width
             let mode: String = profiler.measure("layout.mode", { layoutMode() })
             if mode == "block" {
                 profiler.count("layout.mode.block")
                 if childrenField.dirty {
                     profiler.count("layout.children.rebuilt")
                     var built: [any LayoutObject] = []
-                    var pool: ChildReuse = ChildReuse(
-                        prior: childrenField.peek() ?? [],
-                        enabled: reusesChildren
-                    )
                     var prev: (any LayoutObject)? = nil
                     var inlineRun: [any DOMNode] = []
                     var pendingRunIn: Element? = nil
@@ -196,9 +171,7 @@ class BlockLayout: LayoutObject {
                             if let el = child as? Element, el.tag == "h6" {
                                 if !inlineRun.isEmpty {
                                     let run: [any DOMNode] = inlineRun
-                                    let anon: BlockLayout = pool.takeRun(run, previous: prev) {
-                                        BlockLayout(nodes: run, parent: self, previous: prev)
-                                    }
+                                    let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
                                     built.append(anon)
                                     prev = anon
                                     inlineRun = []
@@ -207,25 +180,19 @@ class BlockLayout: LayoutObject {
                             } else {
                                 if !inlineRun.isEmpty {
                                     let run: [any DOMNode] = inlineRun
-                                    let anon: BlockLayout = pool.takeRun(run, previous: prev) {
-                                        BlockLayout(nodes: run, parent: self, previous: prev)
-                                    }
+                                    let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
                                     built.append(anon)
                                     prev = anon
                                     inlineRun = []
                                 }
                                 if let runIn = pendingRunIn {
                                     let run: [any DOMNode] = [runIn, child]
-                                    let next: BlockLayout = pool.takeRun(run, previous: prev) {
-                                        BlockLayout(nodes: run, parent: self, previous: prev)
-                                    }
+                                    let next: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
                                     built.append(next)
                                     prev = next
                                     pendingRunIn = nil
                                 } else {
-                                    let next: BlockLayout = pool.takeBlock(child, previous: prev) {
-                                        BlockLayout(node: child, parent: self, previous: prev)
-                                    }
+                                    let next: BlockLayout = BlockLayout(node: child, parent: self, previous: prev)
                                     built.append(next)
                                     if child.style["position"] != "absolute" { prev = next }
                                 }
@@ -236,36 +203,23 @@ class BlockLayout: LayoutObject {
                     }
                     if !inlineRun.isEmpty {
                         let run: [any DOMNode] = inlineRun
-                        let anon: BlockLayout = pool.takeRun(run, previous: prev) {
-                            BlockLayout(nodes: run, parent: self, previous: prev)
-                        }
+                        let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
                         built.append(anon)
                     }
                     if let runIn = pendingRunIn {
-                        let next: BlockLayout = pool.takeBlock(runIn, previous: prev) {
-                            BlockLayout(node: runIn, parent: self, previous: prev)
-                        }
+                        let next: BlockLayout = BlockLayout(node: runIn, parent: self, previous: prev)
                         built.append(next)
                     }
                     childrenField.set(built)
                 }
-            } else if reusesChildren, inlineBuilt {
-                profiler.count("layout.mode.inline")
-                if subtreeStale {
-                    profiler.measure("layout.inline.refresh", { refreshInlineItems() })
-                }
-                profiler.measure("layout.inline.place", { placeInlineItems() })
             } else {
                 profiler.count("layout.mode.inline")
-                fontByNode.removeAll()
-                itemsByNode = [:]
-                refreshInlineItems()
-                placeInlineItems()
+                profiler.measure("layout.inline.refresh", { refreshInlineItems() })
+                profiler.measure("layout.inline.place", { placeInlineItems() })
             }
         }
-        if skippedChildren { return }
 
-        for child in children { child.layout(reusesChildren: reusesChildren) }
+        for child in children { child.layout() }
 
         let heightChildren: [any LayoutObject] = childrenField.read(notify: heightField)
         let sumHeight: Double = profiler.measure("layout.height", {
@@ -302,11 +256,6 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    private var subtreeStale: Bool {
-        if node.layoutDirty { return true }
-        return extraNodes.contains(where: { $0.layoutDirty })
-    }
-
     private func layoutMode() -> String {
         if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
@@ -337,7 +286,6 @@ class BlockLayout: LayoutObject {
     }
 
     private func placeInlineItems() {
-        let oldChildren: [any LayoutObject] = childrenField.peek() ?? []
 
         children = []
         newLine()
@@ -352,37 +300,7 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        var reused: Int = 0
-        if !subtreeStale, TextDirection(cssValue: node.style["direction"]) != .rtl {
-            for (i, object) in children.enumerated() where i < oldChildren.count {
-                guard let line = object as? LineLayout,
-                    let old = oldChildren[i] as? LineLayout,
-                    sameLine(old, line)
-                else {
-                    continue
-                }
-                line.prelaid = geometry(of: old)
-                line.paintCache = old.paintCache
-                line.paintGeneration = old.paintGeneration
-                reused += 1
-            }
-        }
-
         profiler.count("layout.lines.total", by: children.count)
-        profiler.count("layout.lines.reused", by: reused)
-    }
-
-    private func sameLine(_ old: LineLayout, _ new: LineLayout) -> Bool {
-        guard !old.hasEmbed, !new.hasEmbed else { return false }
-        guard old.children.count == new.children.count else { return false }
-        for index in old.children.indices {
-            guard old.children[index] === new.children[index] else { return false }
-        }
-        return true
-    }
-
-    private func geometry(of line: LineLayout) -> LineGeometry {
-        LineGeometry(x: line.x, y: line.y, height: line.height)
     }
 
     private func refreshInlineItems() {
@@ -393,23 +311,11 @@ class BlockLayout: LayoutObject {
             for n in extraNodes { collectLeaves(n, into: &leaves) }
         }
         var items: [InlineItem] = []
-        var cache: [ObjectIdentifier: [InlineItem]] = [:]
-        cache.reserveCapacity(leaves.count)
+
         for leaf in leaves {
-            let key: ObjectIdentifier = ObjectIdentifier(leaf)
-            if let cached = itemsByNode[key], !leaf.layoutDirty {
-                items.append(contentsOf: cached)
-                cache[key] = cached
-                continue
-            }
-            fontByNode.removeValue(forKey: key)
-            let rebuilt: [InlineItem] = makeItems(for: leaf)
-            items.append(contentsOf: rebuilt)
-            cache[key] = rebuilt
+            items.append(contentsOf: makeItems(for: leaf))
         }
         inlineItems = items
-        itemsByNode = cache
-        inlineBuilt = true
     }
 
     private func collectLeaves(_ n: any DOMNode, into leaves: inout [any DOMNode]) {
@@ -460,7 +366,8 @@ class BlockLayout: LayoutObject {
 
     private func addTextNode(_ textNode: TextNode, into items: inout [InlineItem]) {
         let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.style["white-space"])
-        let font: BrowserFont = font(for: textNode)
+        let zoom: CGFloat = zoomField.read(notify: childrenField)
+        let font: BrowserFont = fontForElement(textNode, zoom: zoom)
         let run: InlineTextRun = InlineTextRun(
             node: textNode,
             font: font,
@@ -552,7 +459,6 @@ class BlockLayout: LayoutObject {
         text.fontOverride = font
         text.displayWord = item.display
         text.whiteSpace = item.run.whiteSpace
-        text.cacheMetrics()
         line.children.append(text)
     }
 
@@ -563,24 +469,6 @@ class BlockLayout: LayoutObject {
             display: nil,
             fontOverride: item.fontOverride
         )
-    }
-
-    private func font(for node: any DOMNode) -> BrowserFont {
-        let nodeID: ObjectIdentifier = ObjectIdentifier(node)
-        if let cached = fontByNode[nodeID] { return cached }
-        profiler.count("text.fontNodes")
-        let weight: String = node.style["font-weight"] ?? "normal"
-        var style: String = node.style["font-style"] ?? "normal"
-        if style == "normal" { style = "roman" }
-        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let resolved: BrowserFont = getFont(
-            size: Int(scaled(sizePx)),
-            weight: weight,
-            style: style,
-            family: node.style["font-family"] ?? "serif"
-        )
-        fontByNode[nodeID] = resolved
-        return resolved
     }
 
     private func newLine() {
@@ -772,7 +660,7 @@ class BlockLayout: LayoutObject {
             el.attributes["contenteditable"] != nil
         {
             if let last = lastTextLayout() {
-                items.append(drawCursor(last, offset: last.width))
+                items.append(drawCursor(last, offset: last.textWidth))
             } else {
                 items.append(drawCursor(self, offset: 0))
             }
@@ -810,90 +698,5 @@ class BlockLayout: LayoutObject {
         }
 
         return nil
-    }
-}
-
-// MARK: - ChildReuse
-
-@MainActor
-private struct ChildReuse {
-    enum Kind {
-        case block
-        case run
-    }
-
-    private var prior: [any LayoutObject]
-    private var index: Int = 0
-    private var byNode: [ObjectIdentifier: any LayoutObject]? = nil
-
-    init(prior: [any LayoutObject], enabled: Bool) {
-        self.prior = enabled ? prior : []
-    }
-
-    mutating func takeBlock(
-        _ node: any DOMNode,
-        previous: (any LayoutObject)?,
-        _ make: () -> BlockLayout
-    ) -> BlockLayout {
-        reuse(.block, first: node, run: [], previous: previous, make)
-    }
-
-    mutating func takeRun(
-        _ run: [any DOMNode],
-        previous: (any LayoutObject)?,
-        _ make: () -> BlockLayout
-    ) -> BlockLayout {
-        guard let first = run.first else { return make() }
-        return reuse(.run, first: first, run: run, previous: previous, make)
-    }
-
-    private mutating func reuse(
-        _ kind: Kind,
-        first: any DOMNode,
-        run: [any DOMNode],
-        previous: (any LayoutObject)?,
-        _ make: () -> BlockLayout
-    ) -> BlockLayout {
-        if byNode == nil, index < prior.count,
-            let block = prior[index] as? BlockLayout,
-            matches(block, kind: kind, first: first, run: run)
-        {
-            index += 1
-            block.previous = previous
-            return block
-        }
-        buildIndex()
-        guard let candidate = byNode?.removeValue(forKey: ObjectIdentifier(first)),
-            let block = candidate as? BlockLayout,
-            matches(block, kind: kind, first: first, run: run)
-        else { return make() }
-        block.previous = previous
-        return block
-    }
-
-    private mutating func buildIndex() {
-        guard byNode == nil else { return }
-        var map: [ObjectIdentifier: any LayoutObject] = [:]
-        map.reserveCapacity(prior.count - index)
-        for i in index..<prior.count {
-            map[ObjectIdentifier(prior[i].node)] = prior[i]
-        }
-        byNode = map
-    }
-
-    private func matches(
-        _ block: BlockLayout,
-        kind: Kind,
-        first: any DOMNode,
-        run: [any DOMNode]
-    ) -> Bool {
-        guard block.node === first else { return false }
-        switch kind {
-        case .block:
-            return block.extraNodes.isEmpty
-        case .run:
-            guard block.extraNodes.count == run.count else { return false }
-            return zip(block.extraNodes, run).allSatisfy({ $0 === $1 })
-        }
     }
 }

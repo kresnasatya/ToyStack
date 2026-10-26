@@ -15,28 +15,26 @@ struct LayoutIdempotenceTests {
         document.layout(
             availableWidth: fixture.frame.frameWidth,
             zoom: document.zoom,
-            pageZoom: document.pageZoom,
-            reusesChildren: false
+            pageZoom: document.pageZoom
         )
 
         #expect(snapshot(of: document) == first)
     }
 
-    @Test func redundantLayoutKeepsObjectIdentity() throws {
+    @Test func redundantLayoutKeepsBlockIdentity() throws {
         let fixture: Fixture = makeFixture()
         let document: DocumentLayout = try #require(fixture.frame.document)
 
-        let objectsBefore: [ObjectIdentifier] = ids(of: document)
+        let objectsBefore: [ObjectIdentifier] = blockIDs(of: document)
         let first: [Snapshot] = snapshot(of: document)
 
         document.layout(
             availableWidth: fixture.frame.frameWidth,
             zoom: document.zoom,
-            pageZoom: document.pageZoom,
-            reusesChildren: true
+            pageZoom: document.pageZoom
         )
 
-        #expect(ids(of: document) == objectsBefore)
+        #expect(blockIDs(of: document) == objectsBefore)
         #expect(snapshot(of: document) == first)
     }
 
@@ -129,6 +127,6 @@ private func appendSnapshot(
 }
 
 @MainActor
-private func ids(of object: any LayoutObject) -> [ObjectIdentifier] {
-    treeToList(object).map({ ObjectIdentifier($0 as AnyObject) })
+private func blockIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
+    return treeToList(object).compactMap({ $0 as? BlockLayout }).map({ ObjectIdentifier($0) })
 }

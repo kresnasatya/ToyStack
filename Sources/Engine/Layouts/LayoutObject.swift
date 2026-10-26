@@ -19,7 +19,6 @@ protocol LayoutObject: AnyObject {
     var yField: ProtectedField<CGFloat> { get }
 
     func layout()
-    func layout(reusesChildren: Bool)
     func layoutNeeded() -> Bool
     func paint(into items: inout [any DisplayItem])
     func shouldPaint() -> Bool
@@ -29,10 +28,6 @@ protocol LayoutObject: AnyObject {
 
 extension LayoutObject {
     func layoutNeeded() -> Bool { true }
-
-    func layout(reusesChildren: Bool) {
-        layout()
-    }
 
     func paintEffects(into items: inout [any DisplayItem], from start: Int) {
         applyPaintEffects(into: &items, from: start)

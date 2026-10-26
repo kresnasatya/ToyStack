@@ -796,6 +796,11 @@ class Frame {
                 let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
                 if layoutInputsChanged(old, node.style) {
                     markLayoutDirty(node)
+                    LayoutInvalidation.styleChanged(
+                        node,
+                        old: old,
+                        new: node.style
+                    )
                     markedDirty += 1
                     if node is TextNode { markedDirtyText += 1 }
                 }
@@ -814,23 +819,18 @@ class Frame {
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
             let doc: DocumentLayout
-            let reuse: Bool
-            if let existing = document, existing.node === nodes {
+            if let existing = document, existing.node === nodes, browser?.forceFullLayout != true {
                 doc = existing
-                reuse = !styled || reusableStyle
             } else {
                 doc = DocumentLayout(node: nodes)
-                reuse = false
                 scrollTargetsValid = false
             }
             isLayingOut = true
             defer { isLayingOut = false }
-            let reusesChildren: Bool = reuse && browser?.forceFullLayout != true
             doc.layout(
                 availableWidth: frameWidth,
                 zoom: 1.0,
-                pageZoom: pageZoom,
-                reusesChildren: reusesChildren
+                pageZoom: pageZoom
             )
             document = doc
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
