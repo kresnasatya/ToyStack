@@ -35,13 +35,14 @@ class LineLayout: LayoutObject {
         get { heightField.get() }
         set { heightField.set(newValue) }
     }
-    var minHeight: CGFloat = 0
     var centered: Bool = false
     let zoomField: ProtectedField<CGFloat>
     var zoom: CGFloat {
         get { zoomField.get() }
         set { zoomField.set(newValue) }
     }
+    let ascentField: ProtectedField<CGFloat>
+    let descentField: ProtectedField<CGFloat>
     var prelaid: LineGeometry? = nil
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
@@ -53,6 +54,8 @@ class LineLayout: LayoutObject {
         self.xField = ProtectedField("x", node: node, parent: parent)
         self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
+        self.ascentField = ProtectedField("ascent", cleanValue: 0, node: node, parent: parent)
+        self.descentField = ProtectedField("descent", cleanValue: 0, node: node, parent: parent)
         self.node = node
         self.parent = parent
         self.previous = previous
@@ -63,29 +66,18 @@ class LineLayout: LayoutObject {
     }
 
     func layout(reusesChildren: Bool) {
-        if let prelaid {
-            self.prelaid = nil
-            zoom = resolvedZoom()
-            widthField.copy(from: parent!.widthField)
-            x = parent!.x
-            y = previous.map { $0.y + $0.height } ?? parent!.y
-
-            let dx: CGFloat = x - prelaid.x
-            let dy: CGFloat = y - prelaid.y
-            if dx == 0, dy == 0 {
-                profiler.count("layout.line.prelaid")
-                height = prelaid.height
-                return
-            }
+        if !layoutNeeded() { return }
+        paintGeneration += 1
+        zoomField.copy(from: parent!.zoomField)
+        widthField.copy(from: parent!.widthField)
+        xField.copy(from: parent!.xField)
+        if let previous {
+            yField.set(previous.yField.read(notify: yField) + previous.heightField.read(notify: yField))
+        } else {
+            yField.copy(from: parent!.yField)
         }
 
-        paintGeneration += 1
-        zoom = resolvedZoom()
-        widthField.copy(from: parent!.widthField)
-        x = parent!.x
-        y = previous.map { $0.y + $0.height } ?? parent!.y
-
-        for child in children { child.layout(reusesChildren: reusesChildren) }
+        for child in children { child.layout() }
 
         profiler.measure("layout.line.place", {
             if let lastText = children.last as? TextLayout {
@@ -93,27 +85,42 @@ class LineLayout: LayoutObject {
             }
 
             guard !children.isEmpty else {
-                height = minHeight
+                ascentField.set(0)
+                descentField.set(0)
+                heightField.set(0)
                 return
             }
 
-            let inlineChildren: [any InlineLayoutItem] = children.compactMap { $0 as? InlineLayoutItem }
+            let inlineChildren: [any InlineLayoutItem] = children.compactMap {
+                $0 as? InlineLayoutItem
+            }
             guard !inlineChildren.isEmpty else {
-                height = 0
+                heightField.set(0)
                 return
             }
 
-            let maxAscent: CGFloat = inlineChildren.map { child in
-                child.inlineAscent
+            let maxAscent: CGFloat = inlineChildren.map {
+                $0.ascentField.read(notify: ascentField)
             }.max() ?? 0
-            let baseline: CGFloat = y + maxAscent
+            ascentField.set(maxAscent)
+            let maxDescent: CGFloat = inlineChildren.map {
+                $0.descentField.read(notify: descentField)
+            }.max() ?? 0
+            descentField.set(maxDescent)
 
             for child in inlineChildren {
+                let lineY: CGFloat = yField.read(notify: child.yField)
+                let baseline: CGFloat = lineY + ascentField.read(notify: child.yField)
                 if let el = child.node as? Element, el.tag == "sup" {
-                    child.y = baseline - maxAscent
+                    child.yField.set(baseline - maxAscent)
                 } else {
-                    child.y = baseline - child.inlineAscent
+                    let ascent: CGFloat = child.ascentField.read(notify: child.yField)
+                    child.yField.set(baseline - ascent)
                 }
+            }
+
+            for child in children where !child.children.isEmpty {
+                child.layout()
             }
 
             if TextDirection(cssValue: node.style["direction"]) == .rtl {
@@ -136,10 +143,7 @@ class LineLayout: LayoutObject {
                 }
             }
 
-            let maxDescent: CGFloat = inlineChildren.map{ child in
-                child.inlineDescent
-            }.max() ?? 0
-            height = maxAscent + maxDescent
+            heightField.set(ascentField.read(notify: heightField) + descentField.read(notify: heightField))
         })
     }
 

@@ -32,9 +32,13 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         get { zoomField.get() }
         set { zoomField.set(newValue) }
     }
-    var font: BrowserFont = inlineDefaultFont
-    var inlineAscent: CGFloat { height }
-    var inlineDescent: CGFloat { 0 }
+    let fontField: ProtectedField<BrowserFont>
+    var font: BrowserFont {
+        get { fontField.get() }
+        set { fontField.set(newValue) }
+    }
+    let ascentField: ProtectedField<CGFloat>
+    let descentField: ProtectedField<CGFloat>
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.widthField = ProtectedField("width", node: node, parent: parent)
@@ -42,6 +46,23 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         self.xField = ProtectedField("x", node: node, parent: parent)
         self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
+        self.fontField = ProtectedField(
+            owner: FieldOwner(name: "font", node: node, parent: parent),
+            equals: { lhs, rhs in CFEqual(lhs.ctFont, rhs.ctFont) },
+            cleanValue: inlineDefaultFont
+        )
+        self.ascentField = ProtectedField(
+            "ascent",
+            cleanValue: inlineDefaultFont.ascent,
+            node: node,
+            parent: parent
+        )
+        self.descentField = ProtectedField(
+            "descent",
+            cleanValue: inlineDefaultFont.descent,
+            node: node,
+            parent: parent
+        )
         self.node = node;
         self.parent = parent;
         self.previous = previous
@@ -49,13 +70,24 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout() {
-        zoom = resolvedZoom()
-        font = fontForElement(node, zoom: zoom)
+        if !layoutNeeded() { return }
+
+        zoomField.set(resolvedZoom())
+        fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField)))
+
         if let prev = previous as? InlineLayoutItem {
-            x = prev.x + prev.font.spaceWidth + prev.width
+            let prevX: CGFloat = prev.xField.read(notify: xField)
+            let prevWidth: CGFloat = prev.widthField.read(notify: xField)
+            let space: CGFloat = prev.fontField.read(notify: xField).spaceWidth
+            xField.set(prevX + prevWidth + space)
         } else {
-            x = parent!.x
+            xField.copy(from: parent!.xField)
         }
+    }
+
+    func setAscentFromHeight() {
+        ascentField.set(heightField.read(notify: ascentField))
+        descentField.set(0)
     }
 
     func shouldPaint() -> Bool { true }

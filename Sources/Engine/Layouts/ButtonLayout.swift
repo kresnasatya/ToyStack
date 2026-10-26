@@ -1,91 +1,39 @@
 import Foundation
 
 @MainActor
-class ButtonLayout: LayoutObject, InlineLayoutItem {
-    let node: any DOMNode
-    let parent: (any LayoutObject)?
-    let previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []
-    var hasDirtyDescendants: Bool = false
-    let xField: ProtectedField<CGFloat>
-    var x: CGFloat {
-        get { xField.get() }
-        set { xField.set(newValue) }
-    }
-    let yField: ProtectedField<CGFloat>
-    var y: CGFloat {
-        get { yField.get() }
-        set {
-            let oldValue: CGFloat? = yField.peek()
-            yField.set(newValue)
-            guard let oldValue, oldValue != newValue else { return }
-            let delta: CGFloat = newValue - oldValue
-            for child in children {
-                child.y += delta
-                for grandchild in child.children {
-                    grandchild.y += delta
-                }
-            }
-        }
-    }
-    let widthField: ProtectedField<CGFloat>
-    var width: CGFloat {
-        get { widthField.get() }
-        set { widthField.set(newValue) }
-    }
-    let heightField: ProtectedField<CGFloat>
-    var height: CGFloat {
-        get { heightField.get() }
-        set { heightField.set(newValue) }
-    }
-    let zoomField: ProtectedField<CGFloat>
-    var zoom: CGFloat {
-        get { zoomField.get() }
-        set { zoomField.set(newValue) }
-    }
-    var font: BrowserFont = inlineDefaultFont
+class ButtonLayout: EmbedLayout {
 
     private var cursorX: CGFloat = 0
 
-    init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
-        self.widthField = ProtectedField("width", node: node, parent: parent)
-        self.heightField = ProtectedField("height", node: node, parent: parent)
-        self.xField = ProtectedField("x", node: node, parent: parent)
-        self.yField = ProtectedField("y", cleanValue: 0, node: node, parent: parent)
-        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
-        self.node = node
-        self.parent = parent
-        self.previous = previous
+    override init(
+        node: any DOMNode,
+        parent: any LayoutObject,
+        previous: (any LayoutObject)?
+    ) {
+        super.init(node: node, parent: parent, previous: previous)
+        // The first inner-line pass runs before the containing line can place this button.
+        // Seed a known y so that pass does not read a dirty field;
+        // the line overwrites it, then re-lays out this button.
+        yField.set(0)
     }
 
-    func layout() {
-        zoom = resolvedZoom()
-        guard let element = node as? Element else { return }
+    override func layout() {
+        if !layoutNeeded() { return }
+        super.layout()
 
-        let weight: String = element.style["font-weight"] ?? "normal"
-        var styleStr: String = element.style["font-style"] ?? "normal"
-        if styleStr == "normal" { styleStr = "roman" }
-        let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(scaled(sizePx))
-        font = getFont(
-            size: sizeInt, weight: weight, style: styleStr,
-            family: element.style["font-family"] ?? "serif")
-
-        let zoom: CGFloat = zoomField.read(notify: widthField)
-        widthField.set(InputLayout.inputWidthPx * zoom)
-        if let prev = previous as? InlineLayoutItem {
-            x = prev.x + prev.font.spaceWidth + prev.width
-        } else {
-            x = parent!.x
-        }
+        widthField.set(InputLayout.inputWidthPx * zoomField.read(notify: widthField))
 
         children = []
         newLine()
-        for child in element.children { recurse(child) }
+        for child in node.children { recurse(child) }
         for child in children { child.layout() }
 
-        height = children.reduce(0) { $0 + $1.height }
-        if height == 0 { height = font.linespace }
+        let contentHeight: CGFloat = children.reduce(0) { $0 + $1.height }
+        heightField.set(contentHeight == 0 ? fontField.read(notify: heightField).linespace : contentHeight)
+
+        // A button is an inline container: its baseline stays the font baseline.
+        ascentField.set(fontField.read(notify: ascentField).ascent)
+        descentField.set(fontField.read(notify: descentField).descent)
     }
 
     private func newLine() {
@@ -131,7 +79,9 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     }
 
     private func addInput(_ node: Element) {
-        let w: CGFloat = scaled(InputLayout.inputWidthPx)
+        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let isCheckbox: Bool = node.attributes["type"] == "checkbox"
+        let w: CGFloat = isCheckbox ? font.linespace : scaled(InputLayout.inputWidthPx)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
         let prev: (any LayoutObject)? = line.children.last
@@ -139,11 +89,11 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         cursorX += w
     }
 
-    func shouldPaint() -> Bool {
+    override func shouldPaint() -> Bool {
         true
     }
 
-    func paint(into items: inout [any DisplayItem]) {
+    override func paint(into items: inout [any DisplayItem]) {
         guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         let displayColor: String = bgcolor == "transparent" ? (usesForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor

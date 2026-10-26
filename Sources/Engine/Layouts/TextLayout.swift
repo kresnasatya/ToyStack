@@ -35,7 +35,13 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         set { zoomField.set(newValue) }
     }
 
-    var font: BrowserFont = inlineDefaultFont
+    let fontField: ProtectedField<BrowserFont>
+    var font: BrowserFont {
+        get { fontField.get() }
+        set { fontField.set(newValue) }
+    }
+    let ascentField: ProtectedField<CGFloat>
+    let descentField: ProtectedField<CGFloat>
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
     var textWidth: CGFloat = 0
@@ -49,6 +55,23 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         self.xField = ProtectedField("x", node: node, parent: parent)
         self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
+        self.fontField = ProtectedField(
+            owner: FieldOwner(name: "font", node: node, parent: parent),
+            equals: { lhs, rhs in CFEqual(lhs.ctFont, rhs.ctFont) },
+            cleanValue: inlineDefaultFont
+        )
+        self.ascentField = ProtectedField(
+            "ascent",
+            cleanValue: inlineDefaultFont.ascent,
+            node: node,
+            parent: parent
+        )
+        self.descentField = ProtectedField(
+            "descent",
+            cleanValue: inlineDefaultFont.descent,
+            node: node,
+            parent: parent
+        )
         self.node = node
         self.word = word
         self.parent = parent
@@ -61,34 +84,34 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func layout(reusesChildren: Bool) {
+        if !layoutNeeded() { return }
         profiler.measure("layout.text", {
-            if reusesChildren {
-                positionAfterPrevious()
-                widthField.set(advance)
-                return
-            }
-
+            zoomField.set(resolvedZoom())
             let resolvedFont: BrowserFont
             if let override = fontOverride {
                 resolvedFont = override
             } else {
-                zoom = resolvedZoom()
-                let weight: String = node.style["font-weight"] ?? "normal"
-                var styleStr: String = node.style["font-style"] ?? "normal"
-                if styleStr == "normal" { styleStr = "roman" }
-                let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-                let sizeInt: Int = Int(scaled(sizePx))
-                resolvedFont = getFont(
-                        size: sizeInt,
-                        weight: weight,
-                        style: styleStr,
-                        family: node.style["font-family"] ?? "serif"
-                )
+                resolvedFont = fontForElement(node, zoom: zoomField.read(notify: fontField))
             }
+            fontField.set(resolvedFont)
 
-            font = resolvedFont
-            if !isMeasured { cacheMetrics() }
-            positionAfterPrevious()
+            let measuredFont: BrowserFont = fontField.read(notify: widthField)
+            let measured: CGFloat = measuredFont.measure(displayWord ?? word)
+            textWidth = measured
+            advance = measured + measuredFont.spaceWidth
+            widthField.set(advance)
+
+            heightField.set(fontField.read(notify: heightField).linespace)
+            ascentField.set(fontField.read(notify: ascentField).ascent)
+            descentField.set(fontField.read(notify: descentField).descent)
+
+            if let previous {
+                let prevX: CGFloat = previous.xField.read(notify: xField)
+                let prevWidth: CGFloat = previous.widthField.read(notify: xField)
+                xField.set(prevX + prevWidth)
+            } else {
+                xField.copy(from: parent!.xField)
+            }
         })
     }
 

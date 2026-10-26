@@ -5,7 +5,6 @@ import CoreGraphics
 class BlockLayout: LayoutObject {
     static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
 
-    static let inputWidthPx: CGFloat = 200
     static let liIndent: CGFloat = 20.0
     static let bulletSize: CGFloat = 8.0
 
@@ -496,17 +495,7 @@ class BlockLayout: LayoutObject {
             addAbbrWord(run: run, word: word, into: &items)
             return
         }
-        items.append(.text(makeText(run: run, word: word, display: nil, font: run.font)))
-    }
-
-    private func makeText(run: InlineTextRun, word: String, display: String?, font: BrowserFont) -> TextLayout {
-        let text: TextLayout = TextLayout(node: run.node, word: word, parent: nil, previous: nil)
-        text.font = font
-        text.fontOverride = font
-        text.displayWord = display
-        text.whiteSpace = run.whiteSpace
-        text.cacheMetrics()
-        return text
+        items.append(.text(InlineTextItem(run: run, word: word, display: nil)))
     }
 
     private func placeEmbed(_ element: Element) {
@@ -521,47 +510,59 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    private func placeText(_ text: TextLayout) {
-        let w: CGFloat = text.textWidth
-        if cursorX + w > width && text.whiteSpace.wraps {
-            if text.word.contains("\u{00AD}") {
-                let parts: [String] = text.word.components(separatedBy: "\u{00AD}")
+    private func placeText(_ item: InlineTextItem) {
+        let font: BrowserFont = item.fontOverride ?? item.run.font
+        let measured: CGFloat = font.measure(item.display ?? item.word)
+        let w: CGFloat = measured + font.spaceWidth
+        if cursorX + w > width && item.run.whiteSpace.wraps {
+            if item.word.contains("\u{00AD}") {
+                let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
                 var chunk: String = ""
                 var breakIdx: Int = -1
                 for (i, part) in parts.dropLast().enumerated() {
                     let candidate: String = chunk + part + "-"
-                    if cursorX + text.font.measure(candidate) <= width {
+                    if cursorX + font.measure(candidate) <= width {
                         chunk = chunk + part
                         breakIdx = i
                     }
                 }
                 if breakIdx >= 0 {
-                    appendToLine(clone(text, word: chunk + "-"))
+                    appendToLine(clone(item, word: chunk + "-"), font: font)
                     newLine()
-                    placeText(clone(text, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")))
+                    placeText(clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")))
                     return
                 }
             }
             newLine()
         }
-        appendToLine(text)
-        cursorX += text.advance
+
+        appendToLine(item, font: font)
+        cursorX += w
     }
 
-    private func appendToLine(_ text: TextLayout) {
-        let line: any LayoutObject = children.last!
-        text.parent = line
-        text.previous = line.children.last
+    private func appendToLine(_ item: InlineTextItem, font: BrowserFont) {
+        let line: LineLayout = children.last as! LineLayout
+        let text: TextLayout = TextLayout(
+            node: item.run.node,
+            word: item.word,
+            parent: line,
+            previous: line.children.last
+        )
+        text.font = font
+        text.fontOverride = font
+        text.displayWord = item.display
+        text.whiteSpace = item.run.whiteSpace
+        text.cacheMetrics()
         line.children.append(text)
     }
 
-    private func clone(_ text: TextLayout, word: String) -> TextLayout {
-        let copy: TextLayout = TextLayout(node: text.node, word: word, parent: nil, previous: nil)
-        copy.font = text.font
-        copy.fontOverride = text.font
-        copy.whiteSpace = text.whiteSpace
-        copy.cacheMetrics()
-        return copy
+    private func clone(_ item: InlineTextItem, word: String) -> InlineTextItem {
+        InlineTextItem(
+            run: item.run,
+            word: word,
+            display: nil,
+            fontOverride: item.fontOverride
+        )
     }
 
     private func font(for node: any DOMNode) -> BrowserFont {
@@ -592,38 +593,38 @@ class BlockLayout: LayoutObject {
     private func addInput(_ node: Element) {
         if node.attributes["type"] == "hidden" { return }
 
-        let w: CGFloat = BlockLayout.inputWidthPx
-        if cursorX + w > width { newLine() }
+        let available: CGFloat = widthField.read(notify: childrenField)
+        let zoom: CGFloat = zoomField.read(notify: childrenField)
+        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let isCheckbox: Bool = node.attributes["type"] == "checkbox"
+        let w: CGFloat = isCheckbox ? font.linespace : InputLayout.inputWidthPx * zoom
+        if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let input: InputLayout = InputLayout(node: node, parent: line, previous: prevItem)
         line.children.append(input)
 
-        let weight: String = node.style["font-weight"] ?? "normal"
-        var style: String = node.style["font-style"] ?? "normal"
-        if style == "normal" { style = "roman" }
-        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(sizePx)
-        let font: BrowserFont = getFont(
-            size: sizeInt, weight: weight, style: style,
-            family: node.style["font-family"] ?? "serif")
         cursorX += w + font.spaceWidth
     }
 
     private func addButton(_ node: Element) {
-        let w: CGFloat = InputLayout.inputWidthPx
-        if cursorX + w > width { newLine() }
+        let available: CGFloat = widthField.read(notify: childrenField)
+        let zoom: CGFloat = zoomField.read(notify: childrenField)
+        let w: CGFloat = InputLayout.inputWidthPx * zoom
+        if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let button: ButtonLayout = ButtonLayout(node: node, parent: line, previous: prevItem)
         line.children.append(button)
-        let font: BrowserFont = getFont(size: 12, weight: "normal", style: "roman")
+        let font: BrowserFont = fontForElement(node, zoom: zoom)
         cursorX += w + font.spaceWidth
     }
 
     private func addImage(_ node: Element) {
-        let w: CGFloat = ImageLayout.usedWidth(for: node, available: width, zoom: zoom)
-        if cursorX + w > width { newLine() }
+        let available: CGFloat = widthField.read(notify: childrenField)
+        let zoom: CGFloat = zoomField.read(notify: childrenField)
+        let w: CGFloat = ImageLayout.usedWidth(for: node, available: available, zoom: zoom)
+        if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let image: ImageLayout = ImageLayout(node: node, parent: line, previous: prevItem)
@@ -634,8 +635,10 @@ class BlockLayout: LayoutObject {
     }
 
     private func addIframe(_ node: Element) {
-        let w: CGFloat = scaled(IframeLayout.displaySize(for: node).width)
-        if cursorX + w > width { newLine() }
+        let available: CGFloat = widthField.read(notify: childrenField)
+        let zoom: CGFloat = zoomField.read(notify: childrenField)
+        let w: CGFloat = IframeLayout.displaySize(for: node).width * zoom
+        if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let iframe: IframeLayout = IframeLayout(node: node, parent: line, previous: prevItem)
@@ -646,8 +649,10 @@ class BlockLayout: LayoutObject {
     }
 
     private func addCanvas(_ node: Element) {
-        let w: CGFloat = scaled(CanvasLayout.contentSize(for: node).width)
-        if cursorX + w > width { newLine() }
+        let available: CGFloat = widthField.read(notify: childrenField)
+        let zoom: CGFloat = zoomField.read(notify: childrenField)
+        let w: CGFloat = CanvasLayout.contentSize(for: node).width * zoom
+        if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let canvas: CanvasLayout = CanvasLayout(node: node, parent: line, previous: prevItem)
@@ -692,7 +697,7 @@ class BlockLayout: LayoutObject {
                 isLower
                 ? getFont(size: smallSize, weight: "bold", style: styleStr, family: family)
                 : getFont(size: sizeInt, weight: weight, style: styleStr, family: family)
-            items.append(.text(makeText(run: run, word: text, display: displayText, font: font)))
+            items.append(.text(InlineTextItem(run: run, word: text, display: displayText, fontOverride: font)))
         }
     }
 

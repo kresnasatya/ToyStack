@@ -28,18 +28,18 @@ final class IframeLayout: EmbedLayout {
     }
 
     override func layout() {
+        if !layoutNeeded() { return }
         super.layout()
         guard let el = node as? Element else { return }
 
         let size: (width: CGFloat, height: CGFloat) = IframeLayout.displaySize(for: el)
-        let zoom: CGFloat = zoomField.read(notify: widthField)
-        widthField.set(size.width * zoom)
-        self.width = scaled(size.width)
-        self.height = scaled(size.height)
+        widthField.set(size.width * zoomField.read(notify: widthField))
+        heightField.set(size.height * zoomField.read(notify: heightField))
+        setAscentFromHeight()
 
         guard let frame, frame.loaded else { return }
-        let innerWidth: CGFloat = self.width - scaled(2)
-        let innerHeight: CGFloat = self.height - scaled(2)
+        let innerWidth: CGFloat = widthField.get() - scaled(2)
+        let innerHeight: CGFloat = heightField.get() - scaled(2)
         if frame.frameWidth != innerWidth {
             frame.frameWidth = innerWidth
             frame.frameHeight = innerHeight

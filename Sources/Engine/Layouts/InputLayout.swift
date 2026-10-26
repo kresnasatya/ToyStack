@@ -2,89 +2,30 @@ import CoreGraphics
 
 // MARK: - InputLayout
 @MainActor
-class InputLayout: LayoutObject, InlineLayoutItem {
+class InputLayout: EmbedLayout {
 
     static let inputWidthPx: CGFloat = 200
 
-    let node: any DOMNode
-    let parent: (any LayoutObject)?
-    let previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []
-    var hasDirtyDescendants: Bool = false
-    let xField: ProtectedField<CGFloat>
-    var x: CGFloat {
-        get { xField.get() }
-        set { xField.set(newValue) }
-    }
-    let yField: ProtectedField<CGFloat>
-    var y: CGFloat {
-        get { yField.get() }
-        set { yField.set(newValue) }
-    }
-    let widthField: ProtectedField<CGFloat>
-    var width: CGFloat {
-        get { widthField.get() }
-        set { widthField.set(newValue) }
-    }
-    let heightField: ProtectedField<CGFloat>
-    var height: CGFloat {
-        get { heightField.get() }
-        set { heightField.set(newValue) }
-    }
-    let zoomField: ProtectedField<CGFloat>
-    var zoom: CGFloat {
-        get { zoomField.get() }
-        set { zoomField.set(newValue) }
-    }
+    override func layout() {
+        if !layoutNeeded() { return }
+        super.layout()
 
-    var font: BrowserFont = inlineDefaultFont
-
-    init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
-        self.widthField = ProtectedField("width", node: node, parent: parent)
-        self.heightField = ProtectedField("height", node: node, parent: parent)
-        self.xField = ProtectedField("x", node: node, parent: parent)
-        self.yField = ProtectedField("y", node: node, parent: parent)
-        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
-        self.node = node
-        self.parent = parent
-        self.previous = previous
-        node.layoutObject = self
-    }
-
-    func layout() {
-        zoom = resolvedZoom()
-        guard let element = node as? Element else { return }
-
-        let weight: String = element.style["font-weight"] ?? "normal"
-        var styleStr: String = element.style["font-style"] ?? "normal"
-        if styleStr == "normal" { styleStr = "roman" }
-        let sizePx: Double = Double(element.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(scaled(sizePx))
-        font = getFont(
-            size: sizeInt, weight: weight, style: styleStr,
-            family: element.style["font-family"] ?? "serif"
-        )
-
-        let zoom: CGFloat = zoomField.read(notify: widthField)
-        widthField.set(InputLayout.inputWidthPx * zoom)
-        if (node as? Element)?.attributes["type"] == "checkbox" {
-            widthField.set(font.linespace)
-        }
-
-        if let prev = previous as? InlineLayoutItem {
-            let space: CGFloat = prev.font.spaceWidth
-            x = prev.x + space + prev.width
+        let isCheckbox: Bool = (node as? Element)?.attributes["type"] == "checkbox"
+        if isCheckbox {
+            widthField.set(fontField.read(notify: widthField).linespace)
         } else {
-            x = parent!.x
+            widthField.set(InputLayout.inputWidthPx * zoomField.read(notify: widthField))
         }
-        height = font.linespace
+
+        heightField.set(fontField.read(notify: heightField).linespace)
+        setAscentFromHeight()
     }
 
-    func shouldPaint() -> Bool {
+    override func shouldPaint() -> Bool {
         true
     }
 
-    func paint(into items: inout [any DisplayItem]) {
+    override func paint(into items: inout [any DisplayItem]) {
         guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {

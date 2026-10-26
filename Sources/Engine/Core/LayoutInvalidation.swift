@@ -15,6 +15,14 @@ enum LayoutInvalidation {
         childrenChanged(node)
     }
 
+    static func imageChanged(_ node: Element) {
+        if let image = node.layoutObject as? ImageLayout {
+            image.widthField.mark()
+            image.heightField.mark()
+        }
+        childrenChanged(node)
+    }
+
     static func nearestBlock(_ node: any DOMNode) -> BlockLayout? {
         var object: (any LayoutObject)? = node.layoutObject
         while let current = object {

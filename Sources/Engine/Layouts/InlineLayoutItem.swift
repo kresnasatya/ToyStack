@@ -2,12 +2,8 @@ import CoreGraphics
 
 @MainActor
 protocol InlineLayoutItem: LayoutObject {
+    var fontField: ProtectedField<BrowserFont> { get }
+    var ascentField: ProtectedField<CGFloat> { get }
+    var descentField: ProtectedField<CGFloat> { get }
     var font: BrowserFont { get }
-    var inlineAscent: CGFloat { get }
-    var inlineDescent: CGFloat { get }
-}
-
-extension InlineLayoutItem {
-    var inlineAscent: CGFloat { font.ascent }
-    var inlineDescent: CGFloat { font.descent }
 }

@@ -435,6 +435,7 @@ class Frame {
         let imgs: [Element] = elements.filter({ $0.tag == "img" })
         for (i, image) in images where i < imgs.count {
             imgs[i].image = image ?? BrokenImage.replacement(for: imgs[i])
+            LayoutInvalidation.imageChanged(imgs[i])
         }
     }
 
@@ -463,6 +464,7 @@ class Frame {
                     await self.decodeImage(url: imageURL, referrer: referrer)
                 })
                 el.image = image ?? BrokenImage.replacement(for: el)
+                LayoutInvalidation.imageChanged(el)
                 self.setNeedsLayout()
             }
         }

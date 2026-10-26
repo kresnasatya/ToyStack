@@ -3,8 +3,6 @@ import CoreGraphics
 @MainActor
 final class ImageLayout: EmbedLayout {
     var imgHeight: CGFloat = 0
-    override var inlineAscent: CGFloat { height }
-    override var inlineDescent: CGFloat { 0 }
 
     static func displaySize(for el: Element) -> (width: Double, height: Double) {
         let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
@@ -36,14 +34,20 @@ final class ImageLayout: EmbedLayout {
     }
 
     override func layout() {
+        if !layoutNeeded() { return }
         super.layout()
         guard let el = node as? Element else { return }
         let available: CGFloat = parent!.widthField.read(notify: widthField)
         let zoom: CGFloat = zoomField.read(notify: widthField)
         let usedWidth: CGFloat = ImageLayout.usedWidth(for: el, available: available, zoom: zoom)
         widthField.set(usedWidth)
-        imgHeight = ImageLayout.usedHeight(for: el, usedWidth: usedWidth, zoom: zoom)
-        height = max(imgHeight, font.linespace)
+        imgHeight = ImageLayout.usedHeight(
+            for: el,
+            usedWidth: widthField.read(notify: heightField),
+            zoom: zoomField.read(notify: heightField)
+        )
+        heightField.set(max(imgHeight, fontField.read(notify: heightField).linespace))
+        setAscentFromHeight()
     }
 
     override func paint(into items: inout [any DisplayItem]) {

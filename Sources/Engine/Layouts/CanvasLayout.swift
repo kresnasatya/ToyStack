@@ -25,15 +25,17 @@ final class CanvasLayout: EmbedLayout {
     }
 
     override func layout() {
+        if !layoutNeeded() { return }
         super.layout()
         guard let el = node as? Element else { return }
         let size: (width: CGFloat, height: CGFloat) = CanvasLayout.contentSize(for: el)
 
-        let zoom: CGFloat = zoomField.read(notify: widthField)
-        widthField.set(size.width * zoom)
-        self.height = scaled(size.height)
+        widthField.set(size.width * zoomField.read(notify: widthField))
+        heightField.set(size.height * zoomField.read(notify: heightField))
+        setAscentFromHeight()
+
         el.canvasContext?.resize(width: size.width, height: size.height)
-        el.canvasContext?.setScale(displayScale * pageZoom * zoom)
+        el.canvasContext?.setScale(displayScale * pageZoom * zoomField.get())
     }
 
     override func paint(into items: inout [any DisplayItem]) {
