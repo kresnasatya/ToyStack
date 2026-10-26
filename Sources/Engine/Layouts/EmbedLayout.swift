@@ -7,8 +7,21 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
     var hasDirtyDescendants: Bool = false
-    var x: CGFloat = 0, y: CGFloat = 0
-    var height: CGFloat = 0
+    let xField: ProtectedField<CGFloat>
+    var x: CGFloat {
+        get { xField.get() }
+        set { xField.set(newValue) }
+    }
+    let yField: ProtectedField<CGFloat>
+    var y: CGFloat {
+        get { yField.get() }
+        set { yField.set(newValue) }
+    }
+    let heightField: ProtectedField<CGFloat>
+    var height: CGFloat {
+        get { heightField.get() }
+        set { heightField.set(newValue) }
+    }
     let widthField: ProtectedField<CGFloat>
     var width: CGFloat {
         get { widthField.get() }
@@ -25,6 +38,9 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.heightField = ProtectedField("height", node: node, parent: parent)
+        self.xField = ProtectedField("x", node: node, parent: parent)
+        self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node;
         self.parent = parent;

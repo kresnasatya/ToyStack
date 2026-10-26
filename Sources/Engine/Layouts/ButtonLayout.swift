@@ -7,11 +7,19 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
     var hasDirtyDescendants: Bool = false
-    var x: CGFloat = 0
-    var y: CGFloat = 0 {
-        didSet {
-            guard y != oldValue else { return }
-            let delta: CGFloat = y - oldValue
+    let xField: ProtectedField<CGFloat>
+    var x: CGFloat {
+        get { xField.get() }
+        set { xField.set(newValue) }
+    }
+    let yField: ProtectedField<CGFloat>
+    var y: CGFloat {
+        get { yField.get() }
+        set {
+            let oldValue: CGFloat? = yField.peek()
+            yField.set(newValue)
+            guard let oldValue, oldValue != newValue else { return }
+            let delta: CGFloat = newValue - oldValue
             for child in children {
                 child.y += delta
                 for grandchild in child.children {
@@ -25,7 +33,11 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
         get { widthField.get() }
         set { widthField.set(newValue) }
     }
-    var height: CGFloat = 0
+    let heightField: ProtectedField<CGFloat>
+    var height: CGFloat {
+        get { heightField.get() }
+        set { heightField.set(newValue) }
+    }
     let zoomField: ProtectedField<CGFloat>
     var zoom: CGFloat {
         get { zoomField.get() }
@@ -37,6 +49,9 @@ class ButtonLayout: LayoutObject, InlineLayoutItem {
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.heightField = ProtectedField("height", node: node, parent: parent)
+        self.xField = ProtectedField("x", node: node, parent: parent)
+        self.yField = ProtectedField("y", cleanValue: 0, node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.parent = parent

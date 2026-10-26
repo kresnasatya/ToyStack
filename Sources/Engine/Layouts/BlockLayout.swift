@@ -19,14 +19,26 @@ class BlockLayout: LayoutObject {
     }
     var hasDirtyDescendants: Bool = false
     let extraNodes: [any DOMNode]
-    var x: CGFloat = 0
-    var y: CGFloat = 0
+    let xField: ProtectedField<CGFloat>
+    var x: CGFloat {
+        get { xField.get() }
+        set { xField.set(newValue) }
+    }
+    let yField: ProtectedField<CGFloat>
+    var y: CGFloat {
+        get { yField.get() }
+        set { yField.set(newValue) }
+    }
     let widthField: ProtectedField<CGFloat>
     var width: CGFloat {
         get { widthField.get() }
         set { widthField.set(newValue) }
     }
-    var height: CGFloat = 0
+    let heightField: ProtectedField<CGFloat>
+    var height: CGFloat {
+        get { heightField.get() }
+        set { heightField.set(newValue) }
+    }
     let zoomField: ProtectedField<CGFloat>
     var zoom: CGFloat {
         get { zoomField.get() }
@@ -53,6 +65,9 @@ class BlockLayout: LayoutObject {
             }
         )
         self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.heightField = ProtectedField("height", node: node, parent: parent)
+        self.xField = ProtectedField("x", node: node, parent: parent)
+        self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.extraNodes = []
@@ -70,6 +85,9 @@ class BlockLayout: LayoutObject {
             }
         )
         self.widthField = ProtectedField("width", node: nodes[0], parent: parent)
+        self.heightField = ProtectedField("height", node: nodes[0], parent: parent)
+        self.xField = ProtectedField("x", node: nodes[0], parent: parent)
+        self.yField = ProtectedField("y", node: nodes[0], parent: parent)
         self.zoomField = ProtectedField("zoom", node: nodes[0], parent: parent)
         self.node = nodes[0]
         self.extraNodes = nodes
@@ -91,14 +109,19 @@ class BlockLayout: LayoutObject {
         profiler.measure("layout.visit") {
             zoom = resolvedZoom()
             let isAbsolute: Bool = node.style["position"] == "absolute"
-            let oldX: CGFloat = x
-            let oldY: CGFloat = y
-            if isAbsolute, let lStr = node.style["left"], lStr.hasSuffix("px"),
+            let oldX: CGFloat = xField.peek() ?? 0
+            let oldY: CGFloat = yField.peek() ?? 0
+
+            let parentX: CGFloat = parent!.xField.read(notify: xField)
+            if isAbsolute,
+                let lStr = node.style["left"],
+                lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
             {
-                x = scaled(CGFloat(l))
+                let absoluteXZoom: CGFloat = zoomField.read(notify: xField)
+                xField.set(CGFloat(l) * absoluteXZoom)
             } else {
-                x = parent!.x
+                xField.set(parentX)
             }
 
             let parentWidth: CGFloat = parent!.widthField.read(notify: widthField)
@@ -117,13 +140,19 @@ class BlockLayout: LayoutObject {
             if isAbsolute, let tStr = node.style["top"], tStr.hasSuffix("px"),
                 let t = Double(tStr.dropLast(2))
             {
-                y = scaled(CGFloat(t))
+                let absoluteYZoom: CGFloat = zoomField.read(notify: yField)
+                yField.set(CGFloat(t) * absoluteYZoom)
             } else {
                 let ownTop: CGFloat = marginPx(node, "margin-top")
-                if let prev = previous, prev is BlockLayout {
-                    y = prev.y + prev.height + marginPx(prev.node, "margin-bottom") + ownTop
+                if let prev = previous {
+                    let prevY: CGFloat = prev.yField.read(notify: yField)
+                    let prevHeight: CGFloat = prev.heightField.read(notify: yField)
+                    yField.set(
+                        prevY + prevHeight + marginPx(prev.node, "margin-bottom") + ownTop
+                    )
                 } else {
-                    y = (previous.map { $0.y + $0.height } ?? parent!.y) + ownTop
+                    yField.copy(from: parent!.yField)
+                    yField.set(yField.get() + ownTop)
                 }
             }
 
@@ -132,12 +161,13 @@ class BlockLayout: LayoutObject {
             }
 
             if reusesChildren, usedWidth == width, !stale, !childrenField.dirty {
-                skippedChildren = true
-                profiler.count("layout.reusedChildren")
                 let dx: CGFloat = x - oldX
                 let dy: CGFloat = y - oldY
-                for child in childrenField.get() { translateSubtree(child, dx: dx, dy: dy) }
-                return
+                if dx == 0, dy == 0 {
+                    skippedChildren = true
+                    profiler.count("layout.reusedChildren")
+                    return
+                }
             }
             profiler.count("layout.rebuilt")
             if !reusesChildren { profiler.count("layout.rebuildReason.noReuse") }
@@ -238,14 +268,17 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout(reusesChildren: reusesChildren) }
 
+        let heightChildren: [any LayoutObject] = childrenField.read(notify: heightField)
         let sumHeight: Double = profiler.measure("layout.height", {
-            children.reduce(0) {
-                if $1.node.style["position"] == "absolute" { return $0 }
-                var h: CGFloat = $1.height
-                if $1 is BlockLayout {
-                    h += marginPx($1.node, "margin-top") + marginPx($1.node, "margin-bottom")
+            heightChildren.reduce(0) { total, child in
+                let position: String = child.node.style["position"] ?? "static"
+                if position == "absolute" { return total }
+                var h: CGFloat = child.heightField.read(notify: heightField)
+                if child is BlockLayout {
+                    h += marginPx(child.node, "margin-top")
+                    h += marginPx(child.node, "margin-bottom")
                 }
-                return $0 + h
+                return total + h
             }
         })
 
@@ -253,10 +286,11 @@ class BlockLayout: LayoutObject {
             let h = Double(hStr.dropLast(2))
         {
             contentHeight = sumHeight
-            height = scaled(CGFloat(h))
+            let styleHeightZoom: CGFloat = zoomField.read(notify: heightField)
+            heightField.set(CGFloat(h) * styleHeightZoom)
         } else {
             contentHeight = sumHeight
-            height = sumHeight
+            heightField.set(sumHeight)
         }
 
         if let el = node as? Element, el.attributes["id"] == "toc" {

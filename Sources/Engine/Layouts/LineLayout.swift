@@ -15,14 +15,26 @@ class LineLayout: LayoutObject {
     let previous: (any LayoutObject)?
     var children: [any LayoutObject] = []
     var hasDirtyDescendants: Bool = false
-    var x: CGFloat = 0
-    var y: CGFloat = 0
+    let xField: ProtectedField<CGFloat>
+    var x: CGFloat {
+        get { xField.get() }
+        set { xField.set(newValue) }
+    }
+    let yField: ProtectedField<CGFloat>
+    var y: CGFloat {
+        get { yField.get() }
+        set { yField.set(newValue) }
+    }
     let widthField: ProtectedField<CGFloat>
     var width: CGFloat {
         get { widthField.get() }
         set { widthField.set(newValue) }
     }
-    var height: CGFloat = 0
+    let heightField: ProtectedField<CGFloat>
+    var height: CGFloat {
+        get { heightField.get() }
+        set { heightField.set(newValue) }
+    }
     var minHeight: CGFloat = 0
     var centered: Bool = false
     let zoomField: ProtectedField<CGFloat>
@@ -37,6 +49,9 @@ class LineLayout: LayoutObject {
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.widthField = ProtectedField("width", node: node, parent: parent)
+        self.heightField = ProtectedField("height", node: node, parent: parent)
+        self.xField = ProtectedField("x", node: node, parent: parent)
+        self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
         self.node = node
         self.parent = parent
@@ -49,22 +64,19 @@ class LineLayout: LayoutObject {
 
     func layout(reusesChildren: Bool) {
         if let prelaid {
-            profiler.measure("layout.line.prelaid", {
-                self.prelaid = nil
-                zoom = resolvedZoom()
-                widthField.copy(from: parent!.widthField)
-                x = parent!.x
-                y = previous.map { $0.y + $0.height } ?? parent!.y
+            self.prelaid = nil
+            zoom = resolvedZoom()
+            widthField.copy(from: parent!.widthField)
+            x = parent!.x
+            y = previous.map { $0.y + $0.height } ?? parent!.y
 
-                let dx: CGFloat = x - prelaid.x
-                let dy: CGFloat = y - prelaid.y
-                if dx != 0 || dy != 0 {
-                    profiler.count("layout.line.moved")
-                    for child in children { translateSubtree(child, dx: dx, dy: dy) }
-                }
-            })
-            height = prelaid.height
-            return
+            let dx: CGFloat = x - prelaid.x
+            let dy: CGFloat = y - prelaid.y
+            if dx == 0, dy == 0 {
+                profiler.count("layout.line.prelaid")
+                height = prelaid.height
+                return
+            }
         }
 
         paintGeneration += 1

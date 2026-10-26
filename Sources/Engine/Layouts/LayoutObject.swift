@@ -14,6 +14,9 @@ protocol LayoutObject: AnyObject {
     var hasDirtyDescendants: Bool { get set }
     var zoomField: ProtectedField<CGFloat> { get }
     var widthField: ProtectedField<CGFloat> { get }
+    var heightField: ProtectedField<CGFloat> { get }
+    var xField: ProtectedField<CGFloat> { get }
+    var yField: ProtectedField<CGFloat> { get }
 
     func layout()
     func layout(reusesChildren: Bool)
@@ -126,12 +129,4 @@ extension LayoutObject {
     var pageZoom: CGFloat {
         return parent?.pageZoom ?? 1.0
     }
-}
-
-@MainActor
-func translateSubtree(_ object: any LayoutObject, dx: CGFloat, dy: CGFloat) {
-    guard dx != 0 || dy != 0 else { return }
-    object.x += dx
-    object.y += dy
-    for child in object.children { translateSubtree(child, dx: dx, dy: dy) }
 }

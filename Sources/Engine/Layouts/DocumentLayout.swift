@@ -11,14 +11,26 @@ class DocumentLayout: LayoutObject {
         set { childrenField.set(newValue) }
     }
     var hasDirtyDescendants: Bool = false
-    var x: CGFloat = 0
-    var y: CGFloat = 0
+    let xField: ProtectedField<CGFloat>
+    var x: CGFloat {
+        get { xField.get() }
+        set { xField.set(newValue) }
+    }
+    let yField: ProtectedField<CGFloat>
+    var y: CGFloat {
+        get { yField.get() }
+        set { yField.set(newValue) }
+    }
     let widthField: ProtectedField<CGFloat>
     var width: CGFloat {
         get { widthField.get() }
         set { widthField.set(newValue) }
     }
-    var height: CGFloat = 0
+    let heightField: ProtectedField<CGFloat>
+    var height: CGFloat {
+        get { heightField.get() }
+        set { heightField.set(newValue) }
+    }
     let zoomField: ProtectedField<CGFloat>
     var zoom: CGFloat {
         get { zoomField.get() }
@@ -29,6 +41,9 @@ class DocumentLayout: LayoutObject {
     init(node: any DOMNode) {
         self.zoomField = ProtectedField("zoom", node: node)
         self.widthField = ProtectedField("width", node: node)
+        self.heightField = ProtectedField("height", node: node)
+        self.xField = ProtectedField("x", node: node)
+        self.yField = ProtectedField("y", node: node)
         self.childrenField = ProtectedField(
             owner: FieldOwner(name: "children", node: node),
             equals: { lhs, rhs in
@@ -63,11 +78,11 @@ class DocumentLayout: LayoutObject {
 
         let rootZoom: CGFloat = zoomField.read(notify: widthField)
         widthField.set(availableWidth - 2 * HSTEP * rootZoom)
-        x = scaled(HSTEP)
-        y = scaled(VSTEP)
+        xField.set(HSTEP * zoomField.read(notify: xField))
+        yField.set(VSTEP * zoomField.read(notify: yField))
 
         child.layout(reusesChildren: reusesChildren)
-        height = child.height
+        heightField.copy(from: child.heightField)
     }
 
     func paint(into items: inout [any DisplayItem]) { }

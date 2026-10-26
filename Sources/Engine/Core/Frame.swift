@@ -105,7 +105,8 @@ class Frame {
     var hasScrollElement: Bool { scrollFocusNode != nil }
 
     var maxScroll: CGFloat {
-        let padded: CGFloat = (document?.height ?? 0) + 2 * VSTEP
+        let documentHeight: CGFloat = document?.heightField.peek() ?? 0
+        let padded: CGFloat = documentHeight + 2 * VSTEP
         return max(max(padded, paintedBottom + VSTEP) - frameHeight, 0)
     }
 

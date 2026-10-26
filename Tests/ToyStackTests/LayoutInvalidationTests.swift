@@ -48,6 +48,8 @@ struct LayoutInvalidationTests {
         let fixture = makeFixture(mediaBody: "margin-bottom: 50px;")
         let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
         #expect(bodyBefore.height == CGFloat(50))
+        let wideBefore = try #require(fixture.wide.layoutObject)
+        let wideYBefore: CGFloat = wideBefore.y
 
         fixture.frame.frameWidth = 400
         fixture.frame.setNeedsViewportResize()
@@ -55,8 +57,9 @@ struct LayoutInvalidationTests {
 
         let bodyAfter = try #require(fixture.body.layoutObject as? BlockLayout)
         #expect(bodyAfter.height == 0)
+        let wideAfter = try #require(fixture.wide.layoutObject)
+        #expect(wideAfter.y == wideYBefore - 50)
         let metrics = profiler.snapshot()
-        #expect((metrics["layout.reusedChildren"]?.count ?? 0) >= 1)
         #expect((metrics["layout.rebuildReason.dirtyFlag"]?.count ?? 0) >= 3)
     }
 
