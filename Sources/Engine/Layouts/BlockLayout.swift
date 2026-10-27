@@ -99,6 +99,7 @@ class BlockLayout: LayoutObject {
             profiler.count("layout.skipped")
             return
         }
+        defer { hasDirtyDescendants = false }
         profiler.count("layout.visited")
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")

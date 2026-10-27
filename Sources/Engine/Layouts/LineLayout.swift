@@ -56,6 +56,7 @@ class LineLayout: LayoutObject {
 
     func layout() {
         if !layoutNeeded() { return }
+        defer { hasDirtyDescendants = false }
         paintGeneration += 1
         zoomField.copy(from: parent!.zoomField)
         widthField.copy(from: parent!.widthField)

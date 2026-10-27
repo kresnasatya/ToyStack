@@ -19,6 +19,7 @@ class ButtonLayout: EmbedLayout {
 
     override func layout() {
         if !layoutNeeded() { return }
+        defer { hasDirtyDescendants = false }
         super.layout()
 
         widthField.set(InputLayout.inputWidthPx * zoomField.read(notify: widthField))

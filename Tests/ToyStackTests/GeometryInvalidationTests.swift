@@ -33,8 +33,8 @@ struct GeometryInvalidationTests {
         let xBefore: CGFloat = before.x
         let yBefore: CGFloat = before.y
 
-        fixture.header.style["height"] = "80px"
-
+        InlineStyle.set(fixture.header, property: "height", value: "80px")
+        fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
@@ -52,8 +52,8 @@ struct GeometryInvalidationTests {
         )
         let yBefore: CGFloat = before.y
 
-        fixture.firstItem.style["height"] = "80px"
-
+        InlineStyle.set(fixture.firstItem, property: "height", value: "80px")
+        fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
@@ -74,8 +74,8 @@ struct GeometryInvalidationTests {
         )
         #expect(textBefore.x + textBefore.textWidth == blockBefore.x + blockBefore.width)
 
-        fixture.header.style["height"] = "80px"
-
+        InlineStyle.set(fixture.header, property: "height", value: "80px")
+        fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 

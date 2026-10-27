@@ -71,7 +71,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
 
     func layout() {
         if !layoutNeeded() { return }
-
+        defer { hasDirtyDescendants = false }
         zoomField.set(resolvedZoom())
         fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField)))
 

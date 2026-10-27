@@ -59,6 +59,7 @@ class DocumentLayout: LayoutObject {
     }
 
     func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0) {
+        defer { hasDirtyDescendants = false }
         zoomField.set(zoom)
         self.pageZoom = pageZoom
         let child: BlockLayout

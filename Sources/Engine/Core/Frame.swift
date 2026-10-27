@@ -950,6 +950,7 @@ class Frame {
                         }
                     } else if Self.affectsLayout(property) {
                         node.style[property] = value
+                        LayoutInvalidation.animatedPropertyChanged(node, property: property)
                         layoutDirtyMarked += markLayoutDirty(node)
                         needsLayoutUpdate = true
                     } else {

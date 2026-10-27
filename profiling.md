@@ -254,7 +254,7 @@ invalidation.
 |---|---|---|
 | `layout.visit` | duration | one `BlockLayout.layout` body; the skip gate is outside |
 | `layout.visited` | count | `BlockLayout.layout` bodies entered |
-| `layout.skipped` | count | visits returned by the `layoutNeeded()` gate; `0` until step 8 |
+| `layout.skipped` | count | `BlockLayout` visits returned by the `layoutNeeded()` gate |
 | `layout.height` | duration | height accumulation |
 | `layout.mode` | duration | `layoutMode()` |
 | `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
@@ -272,8 +272,10 @@ invalidation.
 Rules:
 
 - **Use `layout.rebuilt` for "boxes laid out".** `layout.visited` counts entries;
-  `layout.skipped` counts gate returns. They are equal in step 7 because
-  `layoutNeeded()` still returns `true`. Step 8 makes the gate real.
+  `layout.skipped` counts block gate returns. They are equal in step 7 because
+  `layoutNeeded()` still returns `true`. After step 8 a fully clean pass returns in
+  `DocumentLayout` and emits no block counters at all; assert `layout.visited` is
+  absent or `0`, not `layout.skipped == 1`.
 - The `layout.*` durations nest and overlap; do not add them. `layout.visit`
   contains `layout.height` and the line/text work.
 - `text.measure` is `CTLine` creation per cache miss; `text.font` is font

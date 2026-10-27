@@ -79,6 +79,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
     func layout() {
         if !layoutNeeded() { return }
+        defer { hasDirtyDescendants = false }
         profiler.measure("layout.text", {
             zoomField.set(resolvedZoom())
             let resolvedFont: BrowserFont

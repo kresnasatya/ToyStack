@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Engine
@@ -12,12 +13,17 @@ struct LayoutIdempotenceTests {
 
         let first: [Snapshot] = snapshot(of: document)
 
+        let zoom: CGFloat = document.zoom
+        let pageZoom: CGFloat = document.pageZoom
+        profiler.reset()
+        markAllFields(document)
         document.layout(
             availableWidth: fixture.frame.frameWidth,
-            zoom: document.zoom,
-            pageZoom: document.pageZoom
+            zoom: zoom,
+            pageZoom: pageZoom
         )
 
+        #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
         #expect(snapshot(of: document) == first)
     }
 
@@ -28,12 +34,17 @@ struct LayoutIdempotenceTests {
         let objectsBefore: [ObjectIdentifier] = blockIDs(of: document)
         let first: [Snapshot] = snapshot(of: document)
 
+        let zoom: CGFloat = document.zoom
+        let pageZoom: CGFloat = document.pageZoom
+        profiler.reset()
+        markAllFields(document)
         document.layout(
             availableWidth: fixture.frame.frameWidth,
-            zoom: document.zoom,
-            pageZoom: document.pageZoom
+            zoom: zoom,
+            pageZoom: pageZoom
         )
 
+        #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
         #expect(blockIDs(of: document) == objectsBefore)
         #expect(snapshot(of: document) == first)
     }
@@ -45,8 +56,11 @@ struct LayoutIdempotenceTests {
 
         let first: [Snapshot] = snapshot(of: button)
 
+        profiler.reset()
+        button.widthField.mark()
         button.layout()
 
+        #expect((profiler.snapshot()["layout.line.place"]?.count ?? 0) > 0)
         #expect(snapshot(of: button) == first)
     }
 }
@@ -129,4 +143,16 @@ private func appendSnapshot(
 @MainActor
 private func blockIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
     return treeToList(object).compactMap({ $0 as? BlockLayout }).map({ ObjectIdentifier($0) })
+}
+
+@MainActor
+private func markAllFields(_ object: any LayoutObject) {
+    object.xField.mark()
+    object.yField.mark()
+    object.widthField.mark()
+    object.heightField.mark()
+    object.zoomField.mark()
+    for child in object.children {
+        markAllFields(child)
+    }
 }

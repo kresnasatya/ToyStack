@@ -70,17 +70,21 @@ struct LayoutInvalidationTests {
 
     @Test func widthChangeOnOneBlockKeepsSiblings() throws {
         let fixture = makeFixture()
+        let narrowBefore = try #require(fixture.narrow.layoutObject as? BlockLayout)
+        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
         let wideBefore = try #require(fixture.wide.layoutObject)
 
-        fixture.narrow.style["width"] = "200px"
+        InlineStyle.set(fixture.narrow, property: "width", value: "200px")
+        fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
         let narrow = try #require(fixture.narrow.layoutObject as? BlockLayout)
         #expect(narrow.width == CGFloat(200))
 
+        #expect(narrow === narrowBefore)
+        #expect(fixture.body.layoutObject === bodyBefore)
         #expect(fixture.wide.layoutObject === wideBefore)
-        #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
     @Test func nonReusableStylePassClearsDirtyFlags() throws {
