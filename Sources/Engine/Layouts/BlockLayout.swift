@@ -94,6 +94,17 @@ class BlockLayout: LayoutObject {
         childrenField.mark()
     }
 
+    func layoutNeeded() -> Bool {
+        if hasDirtyDescendants { return true }
+        if zoomField.dirty || xField.dirty || yField.dirty
+            || widthField.dirty || heightField.dirty
+        {
+            return true
+        }
+
+        return childrenField.dirty
+    }
+
     func layout() {
         if !layoutNeeded() {
             profiler.count("layout.skipped")

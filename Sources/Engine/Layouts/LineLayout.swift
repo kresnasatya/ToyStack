@@ -54,6 +54,13 @@ class LineLayout: LayoutObject {
         self.previous = previous
     }
 
+    func layoutNeeded() -> Bool {
+        if hasDirtyDescendants { return true }
+        return zoomField.dirty || xField.dirty || yField.dirty
+            || widthField.dirty || heightField.dirty
+            || ascentField.dirty || descentField.dirty
+    }
+
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
@@ -112,24 +119,25 @@ class LineLayout: LayoutObject {
 
             if TextDirection(cssValue: node.style["direction"]) == .rtl {
                 let usedWidth: CGFloat = contentWidth()
-                let offset: CGFloat = width - usedWidth
-
-                for child in children {
-                    child.x += offset
-                }
+                shiftChildren(by: width - usedWidth)
             }
 
             if centered {
                 let usedWidth: CGFloat = contentWidth()
-                let offset: CGFloat = (width - usedWidth) / 2
-
-                for child in children {
-                    child.x += offset
-                }
+                shiftChildren(by: (width - usedWidth) / 2)
             }
 
             heightField.set(ascentField.read(notify: heightField) + descentField.read(notify: heightField))
         })
+    }
+
+    private func shiftChildren(by offset: CGFloat) {
+        guard offset != 0 else { return }
+        let shifted: [CGFloat] = children.map { $0.x + offset }
+
+        for (child, x) in zip(children, shifted) {
+            child.x = x
+        }
     }
 
     private func contentWidth() -> CGFloat {

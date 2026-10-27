@@ -16,20 +16,24 @@ enum LayoutInvalidation {
     }
 
     static func styleChanged(_ node: any DOMNode, old: [String: String], new: [String: String]) {
-        let regroupped: Bool = old["display"] != new["display"] || old["position"] != new["position"]
-        markLayoutInput(node, regroupped: regroupped)
+        let affectsSiblings: Bool = old["display"] != new["display"]
+            || old["position"] != new["position"]
+            || old["margin-bottom"] != new["margin-bottom"]
+        markLayoutInput(node, affectsSiblings: affectsSiblings)
     }
 
     static func animatedPropertyChanged(_ node: any DOMNode, property: String) {
-        let regroupped: Bool = property == "display" || property == "position"
-        markLayoutInput(node, regroupped: regroupped)
+        let affectsSiblings: Bool = property == "display"
+            || property == "position"
+            || property == "margin-bottom"
+        markLayoutInput(node, affectsSiblings: affectsSiblings)
     }
 
-    private static func markLayoutInput(_ node: any DOMNode, regroupped: Bool) {
+    private static func markLayoutInput(_ node: any DOMNode, affectsSiblings: Bool) {
         guard let block = nearestBlock(node) else { return }
         block.markChildrenDirty()
 
-        guard regroupped else { return }
+        guard affectsSiblings else { return }
         parentBlock(of: block)?.markChildrenDirty()
     }
 

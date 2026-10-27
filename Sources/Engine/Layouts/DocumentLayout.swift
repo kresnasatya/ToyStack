@@ -58,7 +58,20 @@ class DocumentLayout: LayoutObject {
         layout(availableWidth: WIDTH)
     }
 
+    func layoutNeeded() -> Bool {
+        if hasDirtyDescendants { return true }
+        if zoomField.dirty || xField.dirty || yField.dirty
+            || widthField.dirty || heightField.dirty
+        {
+            return true
+        }
+        return childrenField.dirty
+    }
+
     func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0) {
+        if !layoutNeeded() {
+            return
+        }
         defer { hasDirtyDescendants = false }
         zoomField.set(zoom)
         self.pageZoom = pageZoom

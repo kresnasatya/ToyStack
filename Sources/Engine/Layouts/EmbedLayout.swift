@@ -69,6 +69,13 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         node.layoutObject = self
     }
 
+    func layoutNeeded() -> Bool {
+        if hasDirtyDescendants { return true }
+        return zoomField.dirty || xField.dirty || yField.dirty
+            || widthField.dirty || heightField.dirty
+            || fontField.dirty || ascentField.dirty || descentField.dirty
+    }
+
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }

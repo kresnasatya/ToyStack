@@ -187,7 +187,8 @@ counter's `workers` for the intended concurrency.
    headless trace. In a GUI trace, `present` with `coalesced > 0` is the same
    signal at the presenter (older notes call it `present.coalesced`).
 5. A frame with `BrowserTab.layout` but no `BrowserTab.style` is an incremental
-   layout driven by dirty flags or animation, not a style pass.
+   layout driven by dirty flags or animation, not a style pass. A clean pass can emit
+   `BrowserTab.layout` and no `layout.*` counters at all; it returned at the root gate.
 
 ## Measurement windows
 
@@ -260,7 +261,7 @@ invalidation.
 | `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
 | `layout.line.place` | duration | line layout |
 | `layout.text` | duration | text layout |
-| `layout.rebuilt` | count | `BlockLayout` bodies that ran; equals `layout.visited` in step 7 |
+| `layout.rebuilt` | count | `BlockLayout` bodies that ran; equals `layout.visited` |
 | `layout.children.rebuilt` | count | blocks that rebuilt their child object list |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
 | `layout.lines.total` | count | lines placed |
@@ -272,10 +273,10 @@ invalidation.
 Rules:
 
 - **Use `layout.rebuilt` for "boxes laid out".** `layout.visited` counts entries;
-  `layout.skipped` counts block gate returns. They are equal in step 7 because
-  `layoutNeeded()` still returns `true`. After step 8 a fully clean pass returns in
-  `DocumentLayout` and emits no block counters at all; assert `layout.visited` is
-  absent or `0`, not `layout.skipped == 1`.
+  `layout.skipped` counts block gate returns. `visited` and `rebuilt` stay equal:
+  both count a body that ran, while a gate return increments only `skipped`. A fully
+  clean pass returns in `DocumentLayout` and emits no block counters at all; assert
+  `layout.visited` is absent or `0`, not `layout.skipped == 1`.
 - The `layout.*` durations nest and overlap; do not add them. `layout.visit`
   contains `layout.height` and the line/text work.
 - `text.measure` is `CTLine` creation per cache miss; `text.font` is font

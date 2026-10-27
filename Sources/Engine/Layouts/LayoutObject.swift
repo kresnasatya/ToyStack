@@ -27,8 +27,6 @@ protocol LayoutObject: AnyObject {
 }
 
 extension LayoutObject {
-    func layoutNeeded() -> Bool { true }
-
     func paintEffects(into items: inout [any DisplayItem], from start: Int) {
         applyPaintEffects(into: &items, from: start)
     }
