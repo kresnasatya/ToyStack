@@ -64,7 +64,10 @@ class DocumentLayout: LayoutObject {
     }
 
     func layoutNeeded() -> Bool {
-        if hasDirtyDescendants { return true }
+        if hasDirtyDescendants {
+            profiler.count("layout.dirtyDescendants")
+            return true
+        }
         if zoomField.dirty || xField.dirty || yField.dirty
             || widthField.dirty || heightField.dirty
         {

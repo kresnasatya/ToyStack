@@ -30,7 +30,7 @@ func runScene(_ options: HeadlessOptions) -> Never {
     var eventIndex: Int = 0
     var tick: Int = 0
     var stableTicks: Int = 0
-    var lastSignature: String = signature(browser.drawList)
+    var lastSignature: String = displaySignature(browser.drawList)
 
     while tick < limit {
         while eventIndex < scheduled.count,
@@ -50,7 +50,7 @@ func runScene(_ options: HeadlessOptions) -> Never {
         tick += 1
 
         if watchStability {
-            let current: String = signature(browser.drawList)
+            let current: String = displaySignature(browser.drawList)
             if current == lastSignature, browser.isRenderIdle {
                 stableTicks += 1
             } else {
@@ -109,15 +109,3 @@ private func pump(_ condition: () -> Bool, timeout: TimeInterval) -> Bool {
     return true
 }
 
-private func signature(_ list: [any DisplayItem]) -> String {
-    var parts: [String] = []
-    parts.reserveCapacity(list.count)
-    for item in list {
-        if let command = item as? any DisplayCommand {
-            parts.append("\(type(of: command)) \(command.rect)")
-        } else {
-            parts.append("\(type(of: item))")
-        }
-    }
-    return parts.joined(separator: "|")
-}

@@ -30,7 +30,7 @@ The process divided into 4 chapters:
 
 - [ ] ch15 - It covers Chapter 15 (Supporting Embedded Content)
 
-- [ ] ch16 - It covers Chapter 16 (Reusing Previous Computation)
+- [x] ch16 - It covers Chapter 16 (Reusing Previous Computation)
 
 ## Domain Architecture
 

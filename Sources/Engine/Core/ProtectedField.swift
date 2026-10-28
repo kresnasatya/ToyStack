@@ -90,6 +90,7 @@ final class ProtectedField<Value>: InvalidatableField {
             changed = true
         }
         if changed {
+            countLayoutWork("layout.field.set")
             behavior.dependencies.notify()
         }
         value = newValue
@@ -98,8 +99,16 @@ final class ProtectedField<Value>: InvalidatableField {
 
     func mark() {
         if dirty { return }
+        countLayoutWork("layout.field.mark")
         dirty = true
         setAncestorDirtyFlags()
+    }
+
+    // Style fields have no DOM node; only layout fields report into the
+    // layout window. Counting style writes here would mislabel them.
+    private func countLayoutWork(_ name: String) {
+        guard owner.node != nil else { return }
+        profiler.count(name)
     }
 
     func read(notify: any InvalidatableField) -> Value {

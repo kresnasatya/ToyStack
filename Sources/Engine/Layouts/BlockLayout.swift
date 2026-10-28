@@ -187,7 +187,10 @@ class BlockLayout: LayoutObject {
     }
 
     func layoutNeeded() -> Bool {
-        if hasDirtyDescendants { return true }
+        if hasDirtyDescendants {
+            profiler.count("layout.dirtyDescendants")
+            return true
+        }
         if zoomField.dirty || xField.dirty || yField.dirty
             || widthField.dirty || heightField.dirty
         {
@@ -204,6 +207,12 @@ class BlockLayout: LayoutObject {
         }
         defer { hasDirtyDescendants = false }
         profiler.count("layout.visited")
+        // A display change moves children between the block and inline paths, so
+        // the leaves that inline layout will read were not known when the block
+        // was built. Re-declare them before this pass reads them.
+        if childrenField.dirty {
+            childrenField.setDependencies(childrenInputs())
+        }
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
             zoom = resolvedZoom()

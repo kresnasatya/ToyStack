@@ -38,7 +38,7 @@ Flags:
 | `--run-for <seconds>` | `seconds × 60` ticks; `--frame-limit` wins if both are given |
 | `--screenshot-at <t> <path>` | capture after `t` seconds of animation time |
 | `--scroll-at <t>:<x>:<y>:<dy>` | scroll at `t` seconds; `x`/`y` are viewport CSS pixels, `dy` is CSS pixels and negative scrolls down; repeatable |
-| `--force-full-layout` | recreate the layout tree on every layout pass |
+| `--force-full-layout` | recreate the layout tree on every layout pass; the differential oracle |
 | `--no-incremental-layout` | same switch, pre-0b spelling |
 | `--no-profile` | keep spans and counters, drop `profile.*` |
 
@@ -52,6 +52,22 @@ for `Browser.isRenderIdle`. Time is animation time, not wall time:
   pixels.
 - A scroll or capture at tick N runs after N frames have completed; a scroll at
   tick N therefore affects frame N+1.
+
+`--force-full-layout` is not only a debug switch. Run the same page twice, once
+incremental and once with the flag, and require byte-identical screenshots: an
+incremental layout that diverges from a full rebuild is an under-invalidated
+field. `Tests/ToyStackTests/LayoutOracle.swift` does the same comparison over
+geometry and paint commands, so a failing trace can be reproduced as a unit
+test without a screenshot.
+
+```bash
+.build/release/ToyStackHeadless "file://$PWD/www/ch16/granular-style.html" \
+  --trace /tmp/inc.trace --frame-limit 120 --screenshot /tmp/inc.png
+.build/release/ToyStackHeadless "file://$PWD/www/ch16/granular-style.html" \
+  --trace /tmp/full.trace --frame-limit 120 --force-full-layout \
+  --screenshot /tmp/full.png
+cmp /tmp/inc.png /tmp/full.png
+```
 
 `scripts/run-scenarios.sh` runs the frozen A–D set three times by default
 (`REPEATS=1` for one), into `benchmark/<timestamp>/run-<n>/`:
@@ -262,7 +278,10 @@ invalidation.
 | `layout.line.place` | duration | line layout |
 | `layout.text` | duration | text layout |
 | `layout.rebuilt` | count | `BlockLayout` bodies that ran; equals `layout.visited` |
-| `layout.children.rebuilt` | count | blocks that rebuilt their child object list |
+| `layout.children.rebuilt` | count | block-mode child lists rebuilt (inline reflow is not counted) |
+| `layout.dirtyDescendants` | count | gate checks that returned because a descendant field was dirty |
+| `layout.field.set` | count | layout field writes that changed the value |
+| `layout.field.mark` | count | layout field transitions from clean to dirty |
 | `scrollTargets.rebuilt` | count | layout pass that rescanned the tree for scrollable blocks and iframes |
 | `scrollTargets.reused` | count | layout pass that reused the target list and only refreshed rects |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
@@ -279,6 +298,15 @@ Rules:
   both count a body that ran, while a gate return increments only `skipped`. A fully
   clean pass returns in `DocumentLayout` and emits no block counters at all; assert
   `layout.visited` is absent or `0`, not `layout.skipped == 1`.
+- `layout.dirtyDescendants` is the coarse path: a block entered because an ancestor
+  flag was set, not because its own fields were dirty. It costs one gate per clean
+  branch but does not rebuild anything.
+- `layout.field.set` and `layout.field.mark` only count layout fields (style fields
+  have no DOM node and are excluded). They are reset with the layout window, so a
+  style-driven mark is not included in the next layout's count.
+- `layout.children.rebuilt` only covers block-mode child lists. An inline block
+  rebuilds its lines in `placeInlineItems` without bumping it; use
+  `layout.inline.place` and `layout.lines.total` to see inline reflow.
 - The `layout.*` durations nest and overlap; do not add them. `layout.visit`
   contains `layout.height` and the line/text work.
 - `text.measure` is `CTLine` creation per cache miss; `text.font` is font

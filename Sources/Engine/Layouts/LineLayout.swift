@@ -65,7 +65,10 @@ class LineLayout: LayoutObject {
     }
 
     func layoutNeeded() -> Bool {
-        if hasDirtyDescendants { return true }
+        if hasDirtyDescendants {
+            profiler.count("layout.dirtyDescendants")
+            return true
+        }
         return zoomField.dirty || xField.dirty || yField.dirty
             || widthField.dirty || heightField.dirty
             || ascentField.dirty || descentField.dirty
