@@ -198,10 +198,10 @@ measured outside a window is discarded at the next reset.
 
 | Event | Window | Contains |
 |---|---|---|
-| `profile.load` | `Frame.load`, around `parseHTML` (`Frame.swift:140-143`) | `load.*`, `jsc.*` |
-| `profile.style` | `Frame.render`, `needsStyle` block (`Frame.swift:684-685`) | `style.*`, `layout.markedDirty*` |
-| `profile.layout` | `Frame.render`, `needsLayout` block (`Frame.swift:804-805`) | `layout.*`, `text.*`, `scrollTargets.reused` |
-| `profile.paint` | `Frame.paint` (`Frame.swift:902-903`) | `paint.*`, canvas `text.font*` |
+| `profile.load` | `Frame.load`, around `parseHTML` (`Frame.swift:150-152`) | `load.*`, `jsc.*` |
+| `profile.style` | `Frame.render`, `needsStyle` block (`Frame.swift:697-698`) | `style.*` |
+| `profile.layout` | `Frame.render`, `needsLayout` block (`Frame.swift:809-810`) | `layout.*`, `text.*`, `scrollTargets.reused`, `scrollTargets.rebuilt` |
+| `profile.paint` | `Frame.paint` (`Frame.swift:864-865`) | `paint.*`, canvas `text.font*` |
 
 A window must not contain an `await`; the reset→emit pair would then include
 unrelated work. The `parseHTML` window is synchronous. `BrowserTab.load` itself
@@ -263,6 +263,8 @@ invalidation.
 | `layout.text` | duration | text layout |
 | `layout.rebuilt` | count | `BlockLayout` bodies that ran; equals `layout.visited` |
 | `layout.children.rebuilt` | count | blocks that rebuilt their child object list |
+| `scrollTargets.rebuilt` | count | layout pass that rescanned the tree for scrollable blocks and iframes |
+| `scrollTargets.reused` | count | layout pass that reused the target list and only refreshed rects |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
 | `layout.lines.total` | count | lines placed |
 | `text.measureCalls`, `text.measureMisses` | count | font width calls and cache misses |
@@ -324,13 +326,9 @@ resolving a canvas font.
 
 Every `C` event is one sample for one frame.
 
-`layout.markedDirtyAnimation` (`nodes`): boxes marked by the animation loop.
-The coarse dirty path is deleted in step 10; until then this counts nodes marked
-by animation, not nodes that rebuilt.
-
-`layout.dirtyDuringLayout` (`nodes`): a node was marked dirty while layout was
-running. Non-zero means the clear loop missed something or a layout input was
-mutated mid-pass.
+`layout.animation.fallback` (`nodes`): an animated layout property dirtied no
+layout field, so the animation loop marked the nearest block as a fallback.
+Non-zero is a missing dependency edge and traps in debug builds.
 
 `tiles`: one sample per composite, reset by `TileStore.beginComposite`.
 

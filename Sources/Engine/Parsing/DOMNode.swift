@@ -11,7 +11,6 @@ protocol DOMNode: AnyObject {
     var satisfiedHas: Set<Int> { get set }
     var layoutObject: LayoutObject? { get set }
     var animations: [String: Animation] { get set }
-    var layoutDirty: Bool { get set }
 }
 
 extension DOMNode {
@@ -34,7 +33,6 @@ class Element: DOMNode {
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
     var animations: [String: Animation] = [:]
-    var layoutDirty: Bool = false
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
     var backgroundImage: CGImage? = nil
@@ -65,7 +63,6 @@ class TextNode: DOMNode {
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
     var animations: [String: Animation] = [:]
-    var layoutDirty: Bool = false
 
     init(text: String, parent: (any DOMNode)?) {
         self.text = text

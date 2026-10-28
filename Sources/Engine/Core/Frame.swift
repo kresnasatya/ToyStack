@@ -27,8 +27,6 @@ class Frame {
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
     var paintEpoch: UInt = 0
-    private var dirtyNodes: [any DOMNode] = []
-    private var isLayingOut: Bool = false
     var title: String = "New Tab"
     var isSecure: Bool = false
 
@@ -101,6 +99,11 @@ class Frame {
     private var iframeTargets: [IframeTarget] = []
     private var scrollBlockTargets: [ScrollBlockTarget] = []
     private var scrollTargetsValid: Bool = false
+    private var scrollTargetsNeedRebuild: Bool = false
+
+    func markStructureChanged() {
+        scrollTargetsNeedRebuild = true
+    }
 
     var hasScrollElement: Bool { scrollFocusNode != nil }
 
@@ -556,6 +559,7 @@ class Frame {
 
     private func loadIframe(_ iframe: Element, documentURL: WebURL, source: String) {
         guard let tab else { return }
+        markStructureChanged()
         let parent: FrameParent = FrameParent(frame: self, element: iframe)
         let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
         child.pageZoom = pageZoom
@@ -566,6 +570,7 @@ class Frame {
 
     private func unloadIframe(_ iframe: Element) {
         guard let child = iframe.frame else { return }
+        markStructureChanged()
         unload(child)
     }
 
@@ -683,8 +688,8 @@ class Frame {
     // MARK: - Render
 
     func render() {
-        let styled: Bool = needsStyle
-        let reusableStyle: Bool = styled && styleInvalidatedByViewport && !styleInvalidatedByOther
+        let reusableStyle: Bool =
+            needsStyle && styleInvalidatedByViewport && !styleInvalidatedByOther
         styleInvalidatedByViewport = false
         styleInvalidatedByOther = false
         if needsStyle {
@@ -746,6 +751,13 @@ class Frame {
             browser?.measure.start("BrowserTab.style.diff")
             for node in cascade.appliedNodes {
                 let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
+                // Scroll targets are collected by layout class and computed overflow.
+                // A style-only change to either changes the target set, not just rects.
+                if old["display"] != node.style["display"]
+                    || old["overflow"] != node.style["overflow"]
+                {
+                    markStructureChanged()
+                }
                 let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style.snapshot())
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
@@ -805,8 +817,6 @@ class Frame {
                 doc = DocumentLayout(node: nodes)
                 scrollTargetsValid = false
             }
-            isLayingOut = true
-            defer { isLayingOut = false }
             doc.layout(
                 availableWidth: frameWidth,
                 zoom: 1.0,
@@ -814,17 +824,16 @@ class Frame {
             )
             document = doc
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
-            if !styled, scrollTargetsValid {
-                refreshScrollTargetRects()
-                profiler.count("scrollTargets.reused")
-            } else {
+            if scrollTargetsNeedRebuild || !scrollTargetsValid {
                 rebuildScrollTargets(doc)
                 scrollTargetsValid = true
+                scrollTargetsNeedRebuild = false
+                profiler.count("scrollTargets.rebuilt")
+            } else {
+                refreshScrollTargetRects()
+                profiler.count("scrollTargets.reused")
             }
             browser?.measure.stop("BrowserTab.rebuildScrollTargets")
-
-            for node in dirtyNodes { node.layoutDirty = false }
-            dirtyNodes.removeAll(keepingCapacity: true)
 
             needsLayout = false
             tab?.needsAccessibility = true
@@ -832,24 +841,6 @@ class Frame {
         }
 
         requestAnimationFrame()
-    }
-
-    @discardableResult
-    private func markLayoutDirty(_ node: any DOMNode) -> Int {
-        var marked: Int = 0
-        var current: (any DOMNode)? = node
-        while let n = current {
-            if !n.layoutDirty {
-                n.layoutDirty = true
-                dirtyNodes.append(n)
-                marked += 1
-            }
-            current = n.parent
-        }
-        if isLayingOut {
-            browser?.measure.counter("layout.dirtyDuringLayout", ["nodes": marked])
-        }
-        return marked
     }
 
     // Properties that cannot change geometry. Everything else is treated as a
@@ -895,7 +886,6 @@ class Frame {
         needsComposite = needsStyle || needsLayout || needsPaint
         var needsLayoutUpdate: Bool = false
         var animationFallbacks: Int = 0
-        var layoutDirtyMarked: Int = 0
         browser?.measure.start("BrowserTab.animScan")
         let animated: [any DOMNode] = activeAnimations > 0 ? treeToList(nodes) : []
         for node in animated {
@@ -915,14 +905,13 @@ class Frame {
                     } else if Self.affectsLayout(property) {
                         node.style[property] = value
                         if document?.layoutNeeded() == true {
-                            layoutDirtyMarked += markLayoutDirty(node)
                             needsLayoutUpdate = true
                         } else {
-                            // A layout property that marked no field is missing edge.
-                            // Trap in debug; keep the old coarse signal in release so a page does not freeze.
+                            // A layout property that marked no field is a missing edge.
+                            // Trap in debug; mark the nearest block in release so the
+                            // page still updates instead of freezing on a stale layout.
                             assertionFailure("Animation for \(property) did not dirty a layout field")
                             LayoutInvalidation.animatedPropertyChanged(node, property: property)
-                            layoutDirtyMarked += markLayoutDirty(node)
                             needsLayoutUpdate = true
                             animationFallbacks += 1
                         }
@@ -938,7 +927,6 @@ class Frame {
                 }
             }
         }
-        browser?.measure.counter("layout.markedDirtyAnimation", ["nodes" : layoutDirtyMarked])
         browser?.measure.counter("layout.animation.fallback", ["nodes": animationFallbacks])
         browser?.measure.stop("BrowserTab.animScan")
 

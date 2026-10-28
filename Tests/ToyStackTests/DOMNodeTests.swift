@@ -2,7 +2,9 @@ import Testing
 
 @testable import Engine
 
-@Suite struct DOMNodeTests {
+@Suite
+@MainActor
+struct DOMNodeTests {
 
     // MARK: - Element initialization
     @Test func elementTagIsLowercased() {

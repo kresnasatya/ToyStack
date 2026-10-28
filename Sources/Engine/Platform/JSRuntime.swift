@@ -244,6 +244,7 @@ class JSRuntime: @unchecked Sendable {
                     elt.children = newNodes ?? []
                     for child in elt.children { child.parent = elt }
                     LayoutInvalidation.childrenChanged(elt)
+                    frame.markStructureChanged()
                     frame.runNewScripts(in: elt)
                     frame.reloadStylesheets()
                     frame.syncIframes()
@@ -282,6 +283,7 @@ class JSRuntime: @unchecked Sendable {
                     child.parent = parent
                     parent.children.append(child)
                     LayoutInvalidation.childrenChanged(parent)
+                    frame.markStructureChanged()
                     frame.runNewScripts(in: child)
                     frame.reloadStylesheets()
                     frame.syncIframes()
@@ -301,6 +303,7 @@ class JSRuntime: @unchecked Sendable {
                     parent.children.removeAll { $0 === child }
                     child.parent = nil
                     LayoutInvalidation.childrenChanged(parent)
+                    frame.markStructureChanged()
                     frame.reloadStylesheets()
                     frame.syncIframes()
                     frame.setNeedsRender()
@@ -322,6 +325,7 @@ class JSRuntime: @unchecked Sendable {
                     child.parent = parent
                     parent.children.insert(child, at: idx)
                     LayoutInvalidation.childrenChanged(parent)
+                    frame.markStructureChanged()
                     frame.setNeedsRender()
                     frame.runNewScripts(in: child)
                     frame.reloadStylesheets()

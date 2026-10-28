@@ -6,7 +6,7 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct LayoutInvalidationTests {
-    @Test func denyListClassifiesLayoutInputs() {
+    @Test func paintOnlyPropertiesDoNotAffectLayout() {
         #expect(Frame.affectsLayout("width"))
         #expect(Frame.affectsLayout("height"))
         #expect(Frame.affectsLayout("aspect-ratio"))
@@ -46,9 +46,6 @@ struct LayoutInvalidationTests {
 
         let narrowAfter = try #require(fixture.narrow.layoutObject as? BlockLayout)
         #expect(narrowAfter.width == CGFloat(100))
-        #expect(fixture.narrow.layoutDirty == false)
-        #expect(fixture.body.layoutDirty == false)
-        #expect(fixture.html.layoutDirty == false)
     }
 
     @Test func removingMarginBottomRebuildsHeight() throws {
@@ -87,7 +84,7 @@ struct LayoutInvalidationTests {
         #expect(fixture.wide.layoutObject === wideBefore)
     }
 
-    @Test func nonReusableStylePassClearsDirtyFlags() throws {
+    @Test func nonReusableStylePassKeepsLayoutObjects() throws {
         let fixture = makeFixture()
         fixture.frame.rules = CSSParser("""
             html { width: 600px; }
@@ -97,11 +94,6 @@ struct LayoutInvalidationTests {
         fixture.frame.needsStyle = true
         fixture.frame.render()
 
-        #expect(fixture.html.layoutDirty == false)
-        #expect(fixture.body.layoutDirty == false)
-        #expect(fixture.narrow.layoutDirty == false)
-        #expect(fixture.wide.layoutDirty == false)
-
         let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
@@ -110,22 +102,87 @@ struct LayoutInvalidationTests {
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
-    @Test func animatingFontSizeRebuildsTheDirtySubtree() {
-        let fixture = makeFixture()
-        fixture.narrow.animations["font-size"] = PixelAnimation(animatedProperty: "font-size", oldValue: 20, newValue: 10, timing: FrameTiming(totalFrames: 60, easing: .linear))
-        fixture.frame.needsStyle = true
-        fixture.frame.render()
+    @Test func textEditRefreshesScrollTargets() throws {
+        let page: LayoutTestPage = makeScrollTargetPage()
+        let paragraph: Element = try #require(page.firstElement(tag: "p"))
+        let text: TextNode = try #require(paragraph.children.first as? TextNode)
 
-        fixture.frame.js = JSRuntime(frame: fixture.frame)
+        text.append(" more")
+        page.frame.setNeedsRender()
         profiler.reset()
-        fixture.frame.runAnimationFrame()
+        page.frame.render()
 
-        #expect((profiler.snapshot()["layout.rebuilt"]?.count ?? 0) > 0)
-        #expect(fixture.narrow.layoutDirty == false)
-        #expect(fixture.narrow.style["font-size"] != nil)
+        #expect((profiler.snapshot()["scrollTargets.reused"]?.count ?? 0) == 1)
+        #expect(profiler.snapshot()["scrollTargets.rebuilt"] == nil)
     }
 
-    @Test func animatingOpacityDoesNotMarkLayoutDirty() {
+    @Test func structuralEditRebuildsScrollTargets() {
+        let page: LayoutTestPage = makeScrollTargetPage()
+
+        page.frame.markStructureChanged()
+        page.frame.setNeedsLayout()
+        profiler.reset()
+        page.frame.render()
+
+        #expect((profiler.snapshot()["scrollTargets.rebuilt"]?.count ?? 0) == 1)
+        #expect(profiler.snapshot()["scrollTargets.reused"] == nil)
+    }
+
+    @Test func overflowStyleChangeRebuildsScrollTargets() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="scroller">one two</div>"#,
+            rules: """
+                html { width: 600px; }
+                body { display: block; }
+                div { display: block; height: 20px; }
+                """
+        )
+        let scroller: Element = try #require(page.firstElement(tag: "div"))
+
+        InlineStyle.set(scroller, property: "overflow", value: "scroll")
+        page.frame.setNeedsRender()
+        profiler.reset()
+        page.frame.render()
+
+        #expect((profiler.snapshot()["scrollTargets.rebuilt"]?.count ?? 0) == 1)
+        #expect(profiler.snapshot()["scrollTargets.reused"] == nil)
+    }
+
+    @Test func animatingFontSizeOnTextParentRebuildsText() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="p">one two three four five</p>"#,
+            rules: """
+                html { width: 600px; }
+                body { display: block; }
+                p { display: block; width: 300px; }
+                """
+        )
+        let p: Element = try #require(page.firstElement(tag: "p"))
+        let before: CGFloat = try #require(page.lines(in: p).first).height
+
+        p.animations["font-size"] = PixelAnimation(
+            animatedProperty: "font-size",
+            oldValue: 14,
+            newValue: 28,
+            timing: FrameTiming(totalFrames: 60, easing: .linear)
+        )
+
+        page.frame.needsStyle = true
+        page.frame.render()
+
+        page.frame.js = JSRuntime(frame: page.frame)
+        profiler.reset()
+        for _ in 0..<40 {
+            page.frame.runAnimationFrame()
+        }
+
+        let after: CGFloat = try #require(page.lines(in: p).first).height
+        #expect(after > before)
+        #expect((profiler.snapshot()["layout.rebuilt"]?.count ?? 0) > 0)
+        #expect((profiler.snapshot()["layout.animation.fallback"]?.count ?? 0) == 0)
+    }
+
+    @Test func animatingOpacityDoesNotRebuildLayout() {
         let fixture = makeFixture()
         fixture.narrow.animations["opacity"] = NumericAnimation(animatedProperty: "opacity", oldValue: 1, newValue: 0.5, timing: FrameTiming(totalFrames: 60, easing: .linear))
         fixture.frame.needsStyle = true
@@ -136,9 +193,20 @@ struct LayoutInvalidationTests {
         fixture.frame.runAnimationFrame()
 
         #expect(profiler.snapshot()["layout.rebuilt"] == nil)
-        #expect(fixture.narrow.layoutDirty == false)
         #expect(fixture.narrow.style["opacity"] != nil)
     }
+}
+
+@MainActor
+private func makeScrollTargetPage() -> LayoutTestPage {
+    return LayoutTestPage(
+        html: #"<p id="p">one two</p>"#,
+        rules: """
+            html { width: 600px; }
+            body { display: block; }
+            p { display: block; }
+            """
+    )
 }
 
 @MainActor
