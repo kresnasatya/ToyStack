@@ -28,7 +28,7 @@ The process divided into 4 chapters:
 
 - [x] ch11-14 - It covers Chapter 11 (Adding Visual Effects) to Chapter 14 (Making Content Accessible)
 
-- [ ] ch15 - It covers Chapter 15 (Supporting Embedded Content)
+- [x] ch15 - It covers Chapter 15 (Supporting Embedded Content)
 
 - [x] ch16 - It covers Chapter 16 (Reusing Previous Computation)
 
