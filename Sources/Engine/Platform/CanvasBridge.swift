@@ -37,8 +37,7 @@ final class CanvasBridge {
                 }
                 return el.canvasContext != nil
             })
-        } as @convention(block) (Int, String) -> Bool,
-        forKeyedSubscript: "_canvasContext" as NSString)
+        } as @convention(block) (Int, String) -> Bool, forKeyedSubscript: "_canvasContext" as NSString)
 
         jsContext.setObject({
             [nodeForHandle] (handle: Int, key: String) -> String in
@@ -46,8 +45,7 @@ final class CanvasBridge {
                 guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return "" }
                 return ctx.style(key)
             })
-        } as @convention(block) (Int, String) -> String,
-        forKeyedSubscript: "_canvasStyleGet" as NSString)
+        } as @convention(block) (Int, String) -> String, forKeyedSubscript: "_canvasStyleGet" as NSString)
 
         jsContext.setObject({
             [nodeForHandle] (handle: Int, key: String, value: String) in
@@ -55,8 +53,7 @@ final class CanvasBridge {
                 guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
                 ctx.setStyle(key, value)
             })
-        } as @convention(block) (Int, String, String) -> Void,
-        forKeyedSubscript: "_canvasStyleSet" as NSString)
+        } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_canvasStyleSet" as NSString)
 
         jsContext.setObject({
             [nodeForHandle, requestPaint] (handle: Int, op: String, nums: [Double]) in
@@ -76,8 +73,7 @@ final class CanvasBridge {
                 }
                 requestPaint()
             })
-        } as @convention(block) (Int, String, [Double]) -> Void,
-        forKeyedSubscript: "_canvasRect" as NSString)
+        } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasRect" as NSString)
 
         jsContext.setObject({
             [nodeForHandle, requestPaint] (handle: Int, op: String, nums: [Double]) in
@@ -91,8 +87,7 @@ final class CanvasBridge {
                 }
                 requestPaint()
             })
-        } as @convention(block) (Int, String, [Double]) -> Void,
-        forKeyedSubscript: "_canvasPath" as NSString)
+        } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasPath" as NSString)
 
         jsContext.setObject({
             [nodeForHandle, requestPaint] (handle: Int, op: String) in
@@ -101,8 +96,7 @@ final class CanvasBridge {
                 if op == "fill" { ctx.fill() } else { ctx.stroke() }
                 requestPaint()
             })
-        } as @convention(block) (Int, String) -> Void,
-        forKeyedSubscript: "_canvasPaint" as NSString)
+        } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_canvasPaint" as NSString)
 
         jsContext.setObject({
             [nodeForHandle, requestPaint] (handle: Int, text: String, nums: [Double]) in
@@ -111,8 +105,7 @@ final class CanvasBridge {
                 ctx.fillText(text, at: Point(x: CGFloat(nums[0]), y: CGFloat(nums[1])))
                 requestPaint()
             })
-        } as @convention(block) (Int, String, [Double]) -> Void,
-        forKeyedSubscript: "_canvasText" as NSString)
+        } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasText" as NSString)
 
         jsContext.setObject({
             [nodeForHandle] (handle: Int, op: String) in
@@ -120,8 +113,7 @@ final class CanvasBridge {
                 guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
                 if op == "save" { ctx.save() } else { ctx.restore() }
             })
-        } as @convention(block) (Int, String) -> Void,
-        forKeyedSubscript: "_canvasState" as NSString)
+        } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_canvasState" as NSString)
 
         jsContext.setObject({
             [nodeForHandle] (handle: Int, op: String, nums: [Double]) in
@@ -137,8 +129,7 @@ final class CanvasBridge {
                     default: break
                 }
             })
-        } as @convention(block) (Int, String, [Double]) -> Void,
-        forKeyedSubscript: "_canvasTransform" as NSString)
+        } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasTransform" as NSString)
 
         jsContext.setObject({
             [nodeForHandle, requestPaint] (handle: Int, source: Int, mode: String, nums: [Double]) in
@@ -185,8 +176,7 @@ final class CanvasBridge {
                 ctx.drawImage(img, source: sourceRect, dest: dest)
                 requestPaint()
             })
-        } as @convention(block) (Int, Int, String, [Double]) -> Void,
-        forKeyedSubscript: "_canvasDrawImage" as NSString)
+        } as @convention(block) (Int, Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasDrawImage" as NSString)
 
         jsContext.setObject({
             [nodeForHandle] (handle: Int, kind: String, nums: [Double]) -> Int in
@@ -194,8 +184,7 @@ final class CanvasBridge {
                 guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return -1 }
                 return ctx.createGradient(kind: kind, nums: nums)
             })
-        } as @convention(block) (Int, String, [Double]) -> Int,
-        forKeyedSubscript: "_canvasCreateGradient" as NSString)
+        } as @convention(block) (Int, String, [Double]) -> Int, forKeyedSubscript: "_canvasCreateGradient" as NSString)
 
         jsContext.setObject({
             [nodeForHandle] (handle: Int, id: Int, offset: Double, color: String) -> String in
@@ -203,8 +192,7 @@ final class CanvasBridge {
                 guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return "" }
                 return ctx.addColorStop(id: id, offset: offset, color: color)
             })
-        } as @convention(block) (Int, Int, Double, String) -> String,
-        forKeyedSubscript: "_canvasGradientStop" as NSString)
+        } as @convention(block) (Int, Int, Double, String) -> String, forKeyedSubscript: "_canvasGradientStop" as NSString)
     }
 
     private static func affine(_ nums: [Double]) -> CGAffineTransform {

@@ -67,158 +67,138 @@ class JSRuntime: @unchecked Sendable {
     }
 
     private func registerCallbacks() {
-        jsContext.setObject(
-            {
-                (msg: String) in print(msg)
-            } as @convention(block) (String) -> Void, forKeyedSubscript: "_log" as NSString)
+        jsContext.setObject({
+            (msg: String) in print(msg)
+        } as @convention(block) (String) -> Void, forKeyedSubscript: "_log" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (selectorText: String) -> [Int] in
-                guard let self, let frame = self.frame else { return [] }
-                return MainActor.assumeIsolated({
-                    let selector: any CSSSelector = CSSParser(selectorText).selector()
-                    let nodes: [any DOMNode] = treeToList(frame.nodes).filter { selector.matches($0) }
-                    return nodes.map { self.getHandle($0) }
-                })
-            } as @convention(block) (String) -> [Int],
-            forKeyedSubscript: "_querySelectorAll" as NSString
-        )
+        jsContext.setObject({
+            [weak self] (selectorText: String) -> [Int] in
+            guard let self, let frame = self.frame else { return [] }
+            return MainActor.assumeIsolated({
+                let selector: any CSSSelector = CSSParser(selectorText).selector()
+                let nodes: [any DOMNode] = treeToList(frame.nodes).filter { selector.matches($0) }
+                return nodes.map { self.getHandle($0) }
+            })
+        } as @convention(block) (String) -> [Int], forKeyedSubscript: "_querySelectorAll" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] () -> [String: Int] in
-                guard let self, let frame = self.frame else { return [:] }
-                return MainActor.assumeIsolated({
-                    var result: [String: Int] = [:]
-                    for node in treeToList(frame.nodes) {
-                        guard let elt = node as? Element,
-                            let id = elt.attributes["id"]
-                        else { continue }
-                        result[id] = self.getHandle(elt)
-                    }
-                    return result
-                })
-            } as @convention(block) () -> [String: Int],
-            forKeyedSubscript: "_getIDs" as NSString)
-
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, attr: String) -> String in
-                guard let self, let elt = self.handleToNode[handle] as? Element else { return "" }
-                return elt.attributes[attr] ?? ""
-            } as @convention(block) (Int, String) -> String,
-            forKeyedSubscript: "_getAttribute" as NSString)
-
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, attr: String, value: String) in
-                MainActor.assumeIsolated({
-                    guard let self, let elt = self.handleToNode[handle] as? Element else { return }
-                    elt.attributes[attr] = value
-                    LayoutInvalidation.attributesChanged(elt)
-                    if attr == "src", elt.tag == "iframe" {
-                        self.frame?.syncIframes()
-                    }
-                    self.frame?.setNeedsRender()
-                })
-            } as @convention(block) (Int, String, String) -> Void,
-            forKeyedSubscript: "_setAttribute" as NSString)
-
-        jsContext.setObject(
-            {
-                [weak self] () -> String in
-                guard let self, let frame = self.frame else { return "" }
-                let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
-                guard !host.isEmpty else { return "" }
-                var result: String = ""
-                let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
-                Task {
-                    if let (cookie, params) = await CookieJar.shared.get(host) {
-                        if params["httponly"] != "true" {
-                            result = cookie
-                        }
-                    }
-                    semaphore.signal()
+        jsContext.setObject({
+            [weak self] () -> [String: Int] in
+            guard let self, let frame = self.frame else { return [:] }
+            return MainActor.assumeIsolated({
+                var result: [String: Int] = [:]
+                for node in treeToList(frame.nodes) {
+                    guard let elt = node as? Element,
+                        let id = elt.attributes["id"]
+                    else { continue }
+                    result[id] = self.getHandle(elt)
                 }
-                semaphore.wait()
                 return result
-            } as @convention(block) () -> String,
-            forKeyedSubscript: "_getCookie" as NSString)
+            })
+        } as @convention(block) () -> [String: Int], forKeyedSubscript: "_getIDs" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (cookieStr: String) in
-                guard let self, let frame = self.frame else { return }
-                let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
-                guard !host.isEmpty else { return }
-                let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
-                Task {
-                    if let (_, params) = await CookieJar.shared.get(host) {
-                        if params["httponly"] == "true" {
-                            semaphore.signal()
-                            return
-                        }
+        jsContext.setObject({
+            [weak self] (handle: Int, attr: String) -> String in
+            guard let self, let elt = self.handleToNode[handle] as? Element else { return "" }
+            return elt.attributes[attr] ?? ""
+        } as @convention(block) (Int, String) -> String, forKeyedSubscript: "_getAttribute" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int, attr: String, value: String) in
+            MainActor.assumeIsolated({
+                guard let self, let elt = self.handleToNode[handle] as? Element else { return }
+                elt.attributes[attr] = value
+                LayoutInvalidation.attributesChanged(elt)
+                if attr == "src", elt.tag == "iframe" {
+                    self.frame?.syncIframes()
+                }
+                self.frame?.setNeedsRender()
+            })
+        } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_setAttribute" as NSString)
+
+        jsContext.setObject({
+            [weak self] () -> String in
+            guard let self, let frame = self.frame else { return "" }
+            let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
+            guard !host.isEmpty else { return "" }
+            var result: String = ""
+            let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
+            Task {
+                if let (cookie, params) = await CookieJar.shared.get(host) {
+                    if params["httponly"] != "true" {
+                        result = cookie
                     }
+                }
+                semaphore.signal()
+            }
+            semaphore.wait()
+            return result
+        } as @convention(block) () -> String, forKeyedSubscript: "_getCookie" as NSString)
 
-                    var newCookieStr: String = cookieStr
-                    var cookieParams: [String: String] = [:]
-                    if cookieStr.contains(";") {
-                        let parts: [String.SubSequence] = cookieStr.split(separator: ";", maxSplits: 1)
-                        newCookieStr = String(parts[0])
-                        if parts.count > 1 {
-                            for param in String(parts[1]).split(separator: ";") {
-                                let trimmed: String = param.trimmingCharacters(in: .whitespaces)
-                                if trimmed.contains("=") {
-                                    let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
-                                    cookieParams[String(kv[0]).lowercased()] = String(kv[1])
-                                        .lowercased()
-                                } else {
-                                    let key: String = trimmed.lowercased()
-                                    if key != "httponly" {
-                                        cookieParams[key] = "true"
-                                    }
+        jsContext.setObject({
+            [weak self] (cookieStr: String) in
+            guard let self, let frame = self.frame else { return }
+            let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
+            guard !host.isEmpty else { return }
+            let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
+            Task {
+                if let (_, params) = await CookieJar.shared.get(host) {
+                    if params["httponly"] == "true" {
+                        semaphore.signal()
+                        return
+                    }
+                }
+
+                var newCookieStr: String = cookieStr
+                var cookieParams: [String: String] = [:]
+                if cookieStr.contains(";") {
+                    let parts: [String.SubSequence] = cookieStr.split(separator: ";", maxSplits: 1)
+                    newCookieStr = String(parts[0])
+                    if parts.count > 1 {
+                        for param in String(parts[1]).split(separator: ";") {
+                            let trimmed: String = param.trimmingCharacters(in: .whitespaces)
+                            if trimmed.contains("=") {
+                                let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
+                                cookieParams[String(kv[0]).lowercased()] = String(kv[1])
+                                    .lowercased()
+                            } else {
+                                let key: String = trimmed.lowercased()
+                                if key != "httponly" {
+                                    cookieParams[key] = "true"
                                 }
                             }
                         }
                     }
-                    await CookieJar.shared.set(host, cookie: newCookieStr, params: cookieParams)
-                    semaphore.signal()
                 }
-                semaphore.wait()
-            } as @convention(block) (String) -> Void, forKeyedSubscript: "_setCookie" as NSString)
+                await CookieJar.shared.set(host, cookie: newCookieStr, params: cookieParams)
+                semaphore.signal()
+            }
+            semaphore.wait()
+        } as @convention(block) (String) -> Void, forKeyedSubscript: "_setCookie" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int) -> Int in
-                guard let self, let node = self.handleToNode[handle] else { return -1 }
-                guard let parent = node.parent else { return -1 }
-                return self.getHandle(parent)
-            } as @convention(block) (Int) -> Int,
-            forKeyedSubscript: "_getParent" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int) -> Int in
+            guard let self, let node = self.handleToNode[handle] else { return -1 }
+            guard let parent = node.parent else { return -1 }
+            return self.getHandle(parent)
+        } as @convention(block) (Int) -> Int, forKeyedSubscript: "_getParent" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int) -> String in
-                guard let self, let node = self.handleToNode[handle] else { return "" }
-                return node.children.map { self.serialize($0) }.joined()
-            } as @convention(block) (Int) -> String,
-            forKeyedSubscript: "_serializeInner" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int) -> String in
+            guard let self, let node = self.handleToNode[handle] else { return "" }
+            return node.children.map { self.serialize($0) }.joined()
+        } as @convention(block) (Int) -> String, forKeyedSubscript: "_serializeInner" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int) -> String in
-                guard let self, let node = self.handleToNode[handle] else { return "" }
-                return self.serialize(node)
-            } as @convention(block) (Int) -> String,
-            forKeyedSubscript: "_serializeOuter" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int) -> String in
+            guard let self, let node = self.handleToNode[handle] else { return "" }
+            return self.serialize(node)
+        } as @convention(block) (Int) -> String, forKeyedSubscript: "_serializeOuter" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) -> String in
             guard let self, let node = self.handleToNode[handle] else { return "" }
             return self.textContent(of: node)
-        } as @convention(block) (Int) -> String,
-        forKeyedSubscript: "_getTextContent" as NSString)
+        } as @convention(block) (Int) -> String, forKeyedSubscript: "_getTextContent" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int, value: String) in
@@ -229,222 +209,198 @@ class JSRuntime: @unchecked Sendable {
                 self.frame?.syncIframes()
                 self.frame?.setNeedsRender()
             })
-        } as @convention(block) (Int, String) -> Void,
-        forKeyedSubscript: "_setTextContent" as NSString)
+        } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_setTextContent" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, s: String) in
-                MainActor.assumeIsolated({
-                    guard let self, let frame = self.frame,
-                        let elt = self.handleToNode[handle] as? Element
-                    else { return }
-                    let doc: any DOMNode = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
-                    let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
-                    elt.children = newNodes ?? []
-                    for child in elt.children { child.parent = elt }
-                    LayoutInvalidation.childrenChanged(elt)
-                    frame.markStructureChanged()
-                    frame.runNewScripts(in: elt)
-                    frame.reloadStylesheets()
-                    frame.syncIframes()
-                    frame.setNeedsRender()
-                })
-            } as @convention(block) (Int, String) -> Void,
-            forKeyedSubscript: "_innerHTML" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int, s: String) in
+            MainActor.assumeIsolated({
+                guard let self, let frame = self.frame,
+                    let elt = self.handleToNode[handle] as? Element
+                else { return }
+                let doc: any DOMNode = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
+                let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
+                elt.children = newNodes ?? []
+                for child in elt.children { child.parent = elt }
+                LayoutInvalidation.childrenChanged(elt)
+                frame.markStructureChanged()
+                frame.runNewScripts(in: elt)
+                frame.reloadStylesheets()
+                frame.syncIframes()
+                frame.setNeedsRender()
+            })
+        } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_innerHTML" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int) -> [Int] in
-                guard let self, let node = self.handleToNode[handle] else { return [] }
-                return node.children
-                    .compactMap({ $0 as? Element })
-                    .map({ self.getHandle($0) })
-            } as @convention(block) (Int) -> [Int],
-            forKeyedSubscript: "_children" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int) -> [Int] in
+            guard let self, let node = self.handleToNode[handle] else { return [] }
+            return node.children
+                .compactMap({ $0 as? Element })
+                .map({ self.getHandle($0) })
+        } as @convention(block) (Int) -> [Int], forKeyedSubscript: "_children" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (tag: String) -> Int in
-                guard let self else { return -1 }
-                let elt: Element = Element(tag: tag, attributes: [:], parent: nil)
-                return self.getHandle(elt)
-            } as @convention(block) (String) -> Int,
-            forKeyedSubscript: "_createElement" as NSString)
+        jsContext.setObject({
+            [weak self] (tag: String) -> Int in
+            guard let self else { return -1 }
+            let elt: Element = Element(tag: tag, attributes: [:], parent: nil)
+            return self.getHandle(elt)
+        } as @convention(block) (String) -> Int, forKeyedSubscript: "_createElement" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (parentHandle: Int, childHandle: Int) in
-                MainActor.assumeIsolated({
-                    guard let self, let frame = self.frame,
-                        let parent = self.handleToNode[parentHandle],
-                        let child = self.handleToNode[childHandle]
-                    else { return }
-                    child.parent = parent
-                    parent.children.append(child)
-                    LayoutInvalidation.childrenChanged(parent)
-                    frame.markStructureChanged()
-                    frame.runNewScripts(in: child)
-                    frame.reloadStylesheets()
-                    frame.syncIframes()
-                    frame.setNeedsRender()
-                })
-            } as @convention(block) (Int, Int) -> Void,
-            forKeyedSubscript: "_appendChild" as NSString)
+        jsContext.setObject({
+            [weak self] (parentHandle: Int, childHandle: Int) in
+            MainActor.assumeIsolated({
+                guard let self, let frame = self.frame,
+                    let parent = self.handleToNode[parentHandle],
+                    let child = self.handleToNode[childHandle]
+                else { return }
+                child.parent = parent
+                parent.children.append(child)
+                LayoutInvalidation.childrenChanged(parent)
+                frame.markStructureChanged()
+                frame.runNewScripts(in: child)
+                frame.reloadStylesheets()
+                frame.syncIframes()
+                frame.setNeedsRender()
+            })
+        } as @convention(block) (Int, Int) -> Void, forKeyedSubscript: "_appendChild" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (parentHandle: Int, childHandle: Int) -> Int in
-                return MainActor.assumeIsolated({
-                    guard let self, let frame = self.frame,
-                        let parent = self.handleToNode[parentHandle],
-                        let child = self.handleToNode[childHandle]
-                    else { return -1 }
-                    parent.children.removeAll { $0 === child }
-                    child.parent = nil
-                    LayoutInvalidation.childrenChanged(parent)
-                    frame.markStructureChanged()
-                    frame.reloadStylesheets()
-                    frame.syncIframes()
-                    frame.setNeedsRender()
-                    return childHandle
-                })
-            } as @convention(block) (Int, Int) -> Int,
-            forKeyedSubscript: "_removeChild" as NSString)
+        jsContext.setObject({
+            [weak self] (parentHandle: Int, childHandle: Int) -> Int in
+            return MainActor.assumeIsolated({
+                guard let self, let frame = self.frame,
+                    let parent = self.handleToNode[parentHandle],
+                    let child = self.handleToNode[childHandle]
+                else { return -1 }
+                parent.children.removeAll { $0 === child }
+                child.parent = nil
+                LayoutInvalidation.childrenChanged(parent)
+                frame.markStructureChanged()
+                frame.reloadStylesheets()
+                frame.syncIframes()
+                frame.setNeedsRender()
+                return childHandle
+            })
+        } as @convention(block) (Int, Int) -> Int, forKeyedSubscript: "_removeChild" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
-                MainActor.assumeIsolated({
-                    guard let self, let frame = self.frame,
-                        let parent = self.handleToNode[parentHandle],
-                        let child = self.handleToNode[childHandle],
-                        let ref = self.handleToNode[refHandle],
-                        let idx = parent.children.firstIndex(where: { $0 === ref })
-                    else { return }
-                    child.parent = parent
-                    parent.children.insert(child, at: idx)
-                    LayoutInvalidation.childrenChanged(parent)
-                    frame.markStructureChanged()
-                    frame.setNeedsRender()
-                    frame.runNewScripts(in: child)
-                    frame.reloadStylesheets()
-                    frame.syncIframes()
-                    frame.render()
-                })
-            } as @convention(block) (Int, Int, Int) -> Void,
-            forKeyedSubscript: "_insertBefore" as NSString)
+        jsContext.setObject({
+            [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
+            MainActor.assumeIsolated({
+                guard let self, let frame = self.frame,
+                    let parent = self.handleToNode[parentHandle],
+                    let child = self.handleToNode[childHandle],
+                    let ref = self.handleToNode[refHandle],
+                    let idx = parent.children.firstIndex(where: { $0 === ref })
+                else { return }
+                child.parent = parent
+                parent.children.insert(child, at: idx)
+                LayoutInvalidation.childrenChanged(parent)
+                frame.markStructureChanged()
+                frame.setNeedsRender()
+                frame.runNewScripts(in: child)
+                frame.reloadStylesheets()
+                frame.syncIframes()
+                frame.render()
+            })
+        } as @convention(block) (Int, Int, Int) -> Void, forKeyedSubscript: "_insertBefore" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (method: String, url: String, body: String?) -> String in
-                return MainActor.assumeIsolated({
-                    guard let self, let frame = self.frame else { return "" }
-                    let fullURL: WebURL = frame.url.resolve(url)
+        jsContext.setObject({
+            [weak self] (method: String, url: String, body: String?) -> String in
+            return MainActor.assumeIsolated({
+                guard let self, let frame = self.frame else { return "" }
+                let fullURL: WebURL = frame.url.resolve(url)
 
-                    guard frame.allowedRequest(fullURL) else {
-                        print("Cross-origin XHR blocked by CSP")
-                        return ""
-                    }
+                guard frame.allowedRequest(fullURL) else {
+                    print("Cross-origin XHR blocked by CSP")
+                    return ""
+                }
 
-                    if fullURL.origin() == frame.url.origin() {
-                        guard let (_, _, out) = fullURL.requestSync(payload: body) else { return "" }
-                        return out
-                    }
-
-                    let origin: String = frame.url.origin()
-                    guard
-                        let (_, headers, out) = fullURL.requestSync(
-                            payload: body,
-                            extraHeaders: ["Origin": origin]
-                        )
-                    else { return "" }
-                    let allowed: String = headers["access-control-allow-origin"] ?? ""
-                    guard allowed == "*" || allowed == origin else {
-                        print("Cross-origin XHR request not allowed")
-                        return ""
-                    }
+                if fullURL.origin() == frame.url.origin() {
+                    guard let (_, _, out) = fullURL.requestSync(payload: body) else { return "" }
                     return out
-                })
-            } as @convention(block) (String, String, String?) -> String,
-            forKeyedSubscript: "_XHRSend" as NSString)
+                }
 
-        jsContext.setObject(
-            {
-                [weak self] in
-                guard let frame = self?.frame else { return }
+                let origin: String = frame.url.origin()
+                guard
+                    let (_, headers, out) = fullURL.requestSync(
+                        payload: body,
+                        extraHeaders: ["Origin": origin]
+                    )
+                else { return "" }
+                let allowed: String = headers["access-control-allow-origin"] ?? ""
+                guard allowed == "*" || allowed == origin else {
+                    print("Cross-origin XHR request not allowed")
+                    return ""
+                }
+                return out
+            })
+        } as @convention(block) (String, String, String?) -> String, forKeyedSubscript: "_XHRSend" as NSString)
+
+        jsContext.setObject({
+            [weak self] in
+            guard let frame = self?.frame else { return }
+            Task { @MainActor in
+                guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
+                tab.browser?.setNeedsAnimationFrame(tab)
+            }
+        } as @convention(block) () -> Void, forKeyedSubscript: "_requestAnimationFrame" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int, time: Double) in
+            guard let frame = self?.frame else { return }
+            let delay: Double = time / 1000.0
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Task { @MainActor in
+                    guard let tab = frame.tab else { return }
+                    let task: BrowserTask = BrowserTask(
+                        name: "runSetTimeout", priority: .low, measure: tab.browser?.measure
+                    ) {
+                        frame.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
+                    }
+                    tab.taskRunner.scheduleTask(task)
+                }
+            }
+        } as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "__setTimeout" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int, time: Double) in
+            guard let frame = self?.frame else { return }
+            let interval: Double = time / 1000.0
+            let timer: any DispatchSourceTimer = DispatchSource.makeTimerSource(queue: .main)
+            timer.schedule(deadline: .now() + interval, repeating: interval)
+            timer.setEventHandler(handler: {
                 Task { @MainActor in
                     guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
-                    tab.browser?.setNeedsAnimationFrame(tab)
-                }
-            } as @convention(block) () -> Void,
-            forKeyedSubscript: "_requestAnimationFrame" as NSString)
-
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, time: Double) in
-                guard let frame = self?.frame else { return }
-                let delay: Double = time / 1000.0
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    Task { @MainActor in
-                        guard let tab = frame.tab else { return }
-                        let task: BrowserTask = BrowserTask(
-                            name: "runSetTimeout", priority: .low, measure: tab.browser?.measure
-                        ) {
-                            frame.js.run(script: "setTimeout", code: "__runSetTimeout(\(handle))")
-                        }
-                        tab.taskRunner.scheduleTask(task)
+                    let task: BrowserTask = BrowserTask(
+                        name: "runSetInterval", priority: .low, measure: tab.browser?.measure
+                    ) {
+                        frame.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
                     }
+                    tab.taskRunner.scheduleTask(task)
                 }
-            } as @convention(block) (Int, Double) -> Void,
-            forKeyedSubscript: "__setTimeout" as NSString)
+            })
+            timer.resume()
+            self?.intervalTimes[handle] = timer
+        } as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "__setInterval" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, time: Double) in
-                guard let frame = self?.frame else { return }
-                let interval: Double = time / 1000.0
-                let timer: any DispatchSourceTimer = DispatchSource.makeTimerSource(queue: .main)
-                timer.schedule(deadline: .now() + interval, repeating: interval)
-                timer.setEventHandler(handler: {
-                    Task { @MainActor in
-                        guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
-                        let task: BrowserTask = BrowserTask(
-                            name: "runSetInterval", priority: .low, measure: tab.browser?.measure
-                        ) {
-                            frame.js.run(script: "setInterval", code: "__runSetInterval(\(handle))")
-                        }
-                        tab.taskRunner.scheduleTask(task)
-                    }
-                })
-                timer.resume()
-                self?.intervalTimes[handle] = timer
-            } as @convention(block) (Int, Double) -> Void,
-            forKeyedSubscript: "__setInterval" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int) in
+            guard let self else { return }
+            if let timer = self.intervalTimes[handle] {
+                timer.setEventHandler(handler: nil)
+                timer.cancel()
+                self.intervalTimes.removeValue(forKey: handle)
+            }
+        } as @convention(block) (Int) -> Void, forKeyedSubscript: "__clearInterval" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int) in
-                guard let self else { return }
-                if let timer = self.intervalTimes[handle] {
-                    timer.setEventHandler(handler: nil)
-                    timer.cancel()
-                    self.intervalTimes.removeValue(forKey: handle)
-                }
-            } as @convention(block) (Int) -> Void, forKeyedSubscript: "__clearInterval" as NSString)
-
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, value: Double) in
-                MainActor.assumeIsolated({
-                    guard let self, let elt = self.handleToNode[handle] as? Element,
-                        let frame = self.frame
-                    else { return }
-                    elt.scrollOffsetY = CGFloat(value)
-                    frame.setNeedsPaint()
-                })
-            } as @convention(block) (Int, Double) -> Void,
-            forKeyedSubscript: "_setScrollTop" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int, value: Double) in
+            MainActor.assumeIsolated({
+                guard let self, let elt = self.handleToNode[handle] as? Element,
+                    let frame = self.frame
+                else { return }
+                elt.scrollOffsetY = CGFloat(value)
+                frame.setNeedsPaint()
+            })
+        } as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "_setScrollTop" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) in
@@ -455,70 +411,57 @@ class JSRuntime: @unchecked Sendable {
                 else { return }
                 frame.focusElement(elt)
             })
-        } as @convention(block) (Int) -> Void,
-        forKeyedSubscript: "_focusElement" as NSString)
+        } as @convention(block) (Int) -> Void, forKeyedSubscript: "_focusElement" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (handle: Int, attr: String, value: String) in
-                guard let self = self, let elt = self.handleToNode[handle] as? Element else {
-                    return
-                }
-                Task {
-                    @MainActor in
-                    InlineStyle.set(elt, property: attr, value: value)
-                    self.frame?.setNeedsRender()
-                }
-            } as @convention(block) (Int, String, String) -> Void,
-            forKeyedSubscript: "__styleSet__" as NSString)
+        jsContext.setObject({
+            [weak self] (handle: Int, attr: String, value: String) in
+            guard let self = self, let elt = self.handleToNode[handle] as? Element else {
+                return
+            }
+            Task {
+                @MainActor in
+                InlineStyle.set(elt, property: attr, value: value)
+                self.frame?.setNeedsRender()
+            }
+        } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "__styleSet__" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] () -> Int in
-                return MainActor.assumeIsolated { self?.frame?.windowID ?? -1 }
-            } as @convention(block) () -> Int,
-            forKeyedSubscript: "_getWindowID" as NSString)
+        jsContext.setObject({
+            [weak self] () -> Int in
+            return MainActor.assumeIsolated { self?.frame?.windowID ?? -1 }
+        } as @convention(block) () -> Int, forKeyedSubscript: "_getWindowID" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (_: Int) -> Int in
-                return MainActor.assumeIsolated { self?.frame?.parentFrame?.windowID ?? -1 }
-            } as @convention(block) (Int) -> Int,
-            forKeyedSubscript: "_parent" as NSString)
+        jsContext.setObject({
+            [weak self] (_: Int) -> Int in
+            return MainActor.assumeIsolated { self?.frame?.parentFrame?.windowID ?? -1 }
+        } as @convention(block) (Int) -> Int, forKeyedSubscript: "_parent" as NSString)
 
         jsContext.setObject({
             [weak self] () -> String in
             MainActor.assumeIsolated({
                 self?.frame?.url?.origin() ?? ""
             })
-        } as @convention(block) () -> String,
-        forKeyedSubscript: "_getOrigin" as NSString)
+        } as @convention(block) () -> String, forKeyedSubscript: "_getOrigin" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] () -> String in
-                MainActor.assumeIsolated({ self?.frame?.url?.toString() ?? "" })
-            } as @convention(block) () -> String,
-        forKeyedSubscript: "_getLocationHref" as NSString)
+        jsContext.setObject({
+            [weak self] () -> String in
+            MainActor.assumeIsolated({ self?.frame?.url?.toString() ?? "" })
+        } as @convention(block) () -> String, forKeyedSubscript: "_getLocationHref" as NSString)
 
         jsContext.setObject({
             [weak self] (raw: String) in
             MainActor.assumeIsolated({ self?.frame?.navigateToLocation(raw) })
-        } as @convention(block) (String) -> Void,
-        forKeyedSubscript: "_setLocationHref" as NSString)
+        } as @convention(block) (String) -> Void, forKeyedSubscript: "_setLocationHref" as NSString)
 
-        jsContext.setObject(
-            {
-                [weak self] (targetID: Int, message: String, targetOrigin: String) in
-                MainActor.assumeIsolated {
-                    self?.frame?.tab?.postMessage(
-                        message: message,
-                        targetWindowID: targetID,
-                        targetOrigin: targetOrigin
-                    )
-                }
-            } as @convention(block) (Int, String, String) -> Void,
-            forKeyedSubscript: "_postMessage" as NSString)
+        jsContext.setObject({
+            [weak self] (targetID: Int, message: String, targetOrigin: String) in
+            MainActor.assumeIsolated {
+                self?.frame?.tab?.postMessage(
+                    message: message,
+                    targetWindowID: targetID,
+                    targetOrigin: targetOrigin
+                )
+            }
+        } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_postMessage" as NSString)
 
         CanvasBridge(
             jsContext: jsContext,
