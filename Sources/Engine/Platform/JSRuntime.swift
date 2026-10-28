@@ -354,10 +354,10 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject({
             [weak self] in
             guard let frame = self?.frame else { return }
-            Task { @MainActor in
+            MainActor.assumeIsolated({
                 guard let tab = frame.tab, tab.browser?.activeTab === tab else { return }
                 tab.browser?.setNeedsAnimationFrame(tab)
-            }
+            })
         } as @convention(block) () -> Void, forKeyedSubscript: "_requestAnimationFrame" as NSString)
 
         jsContext.setObject({
