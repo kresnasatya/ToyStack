@@ -282,6 +282,23 @@ class JSRuntime: @unchecked Sendable {
         } as @convention(block) (Int, Int) -> Int, forKeyedSubscript: "_removeChild" as NSString)
 
         jsContext.setObject({
+            [weak self] (handle: Int) in
+            MainActor.assumeIsolated({
+                guard let self, let frame = self.frame,
+                    let elt = self.handleToNode[handle] as? Element
+                else { return }
+                let removed: [any DOMNode] = elt.children
+                elt.children = []
+                for child in removed { child.parent = nil }
+                LayoutInvalidation.childrenChanged(elt)
+                frame.markStructureChanged()
+                frame.reloadStylesheets()
+                frame.syncIframes()
+                frame.setNeedsRender()
+            })
+        } as @convention(block) (Int) -> Void, forKeyedSubscript: "_replaceChildren" as NSString)
+
+        jsContext.setObject({
             [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,

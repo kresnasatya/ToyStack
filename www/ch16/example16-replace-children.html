@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — replaceChildren()</title>
+  <style>
+    body { font-family: monospace; font-size: 16px; margin: 12px; }
+    h1 { font-size: 20px; }
+    #box { width: 420px; border: 1px solid black; padding: 8px; }
+    #after { width: 420px; background-color: lightblue; }
+  </style>
+</head>
+<body>
+
+<h1>Chapter 16: emptying an element</h1>
+
+<p>The box empties itself after 60 animation frames. Its gold background comes
+from a &lt;style&gt; child, so removing the children must also remove that
+rule. The paragraph and iframe inside it must disappear, and the blue paragraph
+below must move up.</p>
+
+<div id="box">
+  <style>
+    #box { background-color: gold; }
+  </style>
+  <span id="inner">inner text</span>
+  <iframe src="../ch15/leaf.html" width="120" height="60"></iframe>
+</div>
+
+<p id="after">This paragraph follows the box.</p>
+
+<pre id="out">before replaceChildren()</pre>
+
+<script>
+  var box = document.getElementById("box");
+  var framesLeft = 60;
+
+  function tick() {
+    framesLeft = framesLeft - 1;
+    if (framesLeft > 0) {
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    box.replaceChildren();
+
+    document.getElementById("out").textContent =
+      "children=" + box.children.length +
+      "\ninnerHTML=" + box.innerHTML +
+      "\ninner id=" +
+      (document.getElementById("inner") === null ? "gone" : "still there");
+  }
+
+  requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>

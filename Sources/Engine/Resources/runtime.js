@@ -55,6 +55,13 @@ Node.prototype.removeChild = function (child) {
   return new Node(handle);
 };
 
+Node.prototype.replaceChildren = function () {
+  if (arguments.length !== 0) {
+    throw new TypeError("replaceChildren with arguments is not implemented");
+  }
+  _replaceChildren(this.handle);
+}
+
 Node.prototype.setAttribute = function (attr, value) {
   _setAttribute(this.handle, attr, value.toString());
 };
