@@ -99,8 +99,12 @@ class DocumentLayout: LayoutObject {
         yField.set(VSTEP * zoomField.read(notify: yField))
 
         child.layout()
-        heightField.setDependencies([child.heightField])
-        heightField.copy(from: child.heightField)
+        heightField.setDependencies([
+            child.heightField,
+            child.node.style.field("padding-top"),
+            child.node.style.field("padding-bottom"),
+        ])
+        heightField.set(child.boxHeight(notify: heightField))
     }
 
     func paint(into items: inout [any DisplayItem]) { }

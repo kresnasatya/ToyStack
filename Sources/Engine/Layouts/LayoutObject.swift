@@ -20,6 +20,7 @@ protocol LayoutObject: AnyObject {
 
     func layout()
     func layoutNeeded() -> Bool
+    func selfRect() -> Rect
     func paint(into items: inout [any DisplayItem])
     func shouldPaint() -> Bool
     func paintEffects(into items: inout [any DisplayItem], from start: Int)
@@ -63,7 +64,7 @@ extension LayoutObject {
             }
         }
 
-        if self.x <= x && x < self.x + width && self.y <= y && y < self.y + height {
+        if selfRect().containsPoint(x, y) {
             return self
         }
 

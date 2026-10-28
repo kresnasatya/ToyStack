@@ -44,12 +44,14 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
     if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
         let childStart: Int = displayList.count
         profiler.count("paint.scroll", by: 1)
-        let visibleTop: CGFloat = block.y + block.scrollOffset
-        let visibleBottom: CGFloat = visibleTop + block.height
+        let box: Rect = block.selfRect()
+        let visibleTop: CGFloat = box.top + block.scrollOffset
+        let visibleBottom: CGFloat = visibleTop + (box.bottom - box.top)
         var visibleChildren: [any LayoutObject] = []
         for child in obj.children {
-            if child.y + child.height < visibleTop { continue }
-            if child.y > visibleBottom { break }
+            let childBox: Rect = child.selfRect()
+            if childBox.bottom < visibleTop { continue }
+            if childBox.top > visibleBottom { break }
             visibleChildren.append(child)
         }
         for child in inPaintOrder(visibleChildren) {

@@ -97,12 +97,14 @@ class BlockLayout: LayoutObject {
         xField.setDependencies([
             parent.xField,
             zoomField,
+            node.style.field("padding-left"),
             node.style.field("position"),
             node.style.field("left"),
         ])
         var yInputs: [any InvalidatableField] = [
             parent.yField,
             zoomField,
+            node.style.field("padding-top"),
             node.style.field("top"),
             node.style.field("margin-top"),
         ]
@@ -110,11 +112,14 @@ class BlockLayout: LayoutObject {
             yInputs.append(previous.yField)
             yInputs.append(previous.heightField)
             yInputs.append(previous.node.style.field("margin-bottom"))
+            yInputs.append(previous.node.style.field("padding-bottom"))
         }
         yField.setDependencies(yInputs)
         widthField.setDependencies([
             parent.widthField,
             zoomField,
+            node.style.field("padding-left"),
+            node.style.field("padding-right"),
             node.style.field("width"),
         ])
         childrenField.setDependencies(childrenInputs())
@@ -178,6 +183,10 @@ class BlockLayout: LayoutObject {
             inputs.append(child.node.style.field("position"))
             inputs.append(child.node.style.field("margin-top"))
             inputs.append(child.node.style.field("margin-bottom"))
+            if child is BlockLayout {
+                inputs.append(child.node.style.field("padding-top"))
+                inputs.append(child.node.style.field("padding-bottom"))
+            }
         }
         heightField.setDependencies(inputs)
     }
@@ -219,26 +228,28 @@ class BlockLayout: LayoutObject {
             let isAbsolute: Bool = node.style.read("position", notify: xField) == "absolute"
 
             let parentX: CGFloat = parent!.xField.read(notify: xField)
+            let padLeft: CGFloat = padding("left", notify: xField)
             if isAbsolute,
                 let lStr = node.style.read("left", notify: xField),
                 lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
             {
                 let absoluteXZoom: CGFloat = zoomField.read(notify: xField)
-                xField.set(CGFloat(l) * absoluteXZoom)
+                xField.set(CGFloat(l) * absoluteXZoom + padLeft)
             } else {
-                xField.set(parentX)
+                xField.set(parentX + padLeft)
             }
 
             let parentWidth: CGFloat = parent!.widthField.read(notify: widthField)
             let zoom: CGFloat = zoomField.read(notify: widthField)
+            let padHorizontal: CGFloat = padding("left", notify: widthField) + padding("right", notify: widthField)
             if let wStr = node.style.read("width", notify: widthField),
                 wStr.hasSuffix("px"),
                 let w = Double(wStr.dropLast(2))
             {
                 widthField.set(CGFloat(w) * zoom)
             } else {
-                widthField.set(parentWidth)
+                widthField.set(max(0, parentWidth - padHorizontal))
             }
 
             if let el = node as? Element, el.tag == "li" {
@@ -251,18 +262,22 @@ class BlockLayout: LayoutObject {
                 let t = Double(tStr.dropLast(2))
             {
                 let absoluteYZoom: CGFloat = zoomField.read(notify: yField)
-                yField.set(CGFloat(t) * absoluteYZoom)
+                yField.set(CGFloat(t) * absoluteYZoom + padding("top", notify: yField))
             } else {
                 let ownTop: CGFloat = marginPx(node, "margin-top", notify: yField)
+                let padTop: CGFloat = padding("top", notify: yField)
                 if let prev = previous {
                     let prevY: CGFloat = prev.yField.read(notify: yField)
                     let prevHeight: CGFloat = prev.heightField.read(notify: yField)
+                    let prevPadBottom: CGFloat = (prev as? BlockLayout)?.padding("bottom", notify: yField) ?? 0
                     yField.set(
-                        prevY + prevHeight + marginPx(prev.node, "margin-bottom", notify: yField) + ownTop
+                        prevY + prevHeight + prevPadBottom
+                            + marginPx(prev.node, "margin-bottom", notify: yField)
+                            + ownTop + padTop
                     )
                 } else {
                     yField.copy(from: parent!.yField)
-                    yField.set(yField.get() + ownTop)
+                    yField.set(yField.get() + ownTop + padTop)
                 }
             }
 
@@ -350,7 +365,8 @@ class BlockLayout: LayoutObject {
                 let position: String = child.node.style.read("position", notify: heightField) ?? "static"
                 if position == "absolute" { return total }
                 var h: CGFloat = child.heightField.read(notify: heightField)
-                if child is BlockLayout {
+                if let block = child as? BlockLayout {
+                    h += block.paddingVertical(notify: heightField)
                     h += marginPx(child.node, "margin-top", notify: heightField)
                     h += marginPx(child.node, "margin-bottom", notify: heightField)
                 }
@@ -396,6 +412,34 @@ class BlockLayout: LayoutObject {
     private func marginPx(_ n: any DOMNode, _ prop: String, notify: any InvalidatableField) -> CGFloat {
         guard let s = n.style.read(prop, notify: notify), s.hasSuffix("px"), let v = Double(s.dropLast(2)) else { return 0 }
         return scaled(CGFloat(v))
+    }
+
+    // MARK: - Padding
+
+    private func padding(_ side: String, notify: any InvalidatableField) -> CGFloat {
+        guard extraNodes.isEmpty else { return 0 }
+        guard let raw: String = node.style.read("padding-\(side)", notify: notify),
+            raw.hasSuffix("px"),
+            let value: Double = Double(raw.dropLast(2))
+        else { return 0 }
+        return scaled(CGFloat(max(0, value)))
+    }
+
+    private func paintedPadding(_ side: String) -> CGFloat {
+        guard extraNodes.isEmpty else { return 0 }
+        guard let raw: String = node.style["padding-\(side)"],
+            raw.hasSuffix("px"),
+            let value: Double = Double(raw.dropLast(2))
+        else { return 0 }
+        return scaled(CGFloat(max(0, value)))
+    }
+
+    func paddingVertical(notify: any InvalidatableField) -> CGFloat {
+        padding("top", notify: notify) + padding("bottom", notify: notify)
+    }
+
+    func boxHeight(notify: any InvalidatableField) -> CGFloat {
+        heightField.read(notify: notify) + paddingVertical(notify: notify)
     }
 
     // MARK: - Inline items
@@ -709,7 +753,30 @@ class BlockLayout: LayoutObject {
     }
 
     func selfRect() -> Rect {
-        Rect(left: x, top: y, right: x + width, bottom: y + height)
+        let top: CGFloat = paintedPadding("top")
+        let right: CGFloat = paintedPadding("right")
+        let bottom: CGFloat = paintedPadding("bottom")
+        let left: CGFloat = paintedPadding("left")
+        return Rect(
+            left: x - left,
+            top: y - top,
+            right: x + width + right,
+            bottom: y + height + bottom
+        )
+    }
+
+    private func borderPaintRect() -> Rect {
+        let rect: Rect = selfRect()
+        guard let width: CGFloat = CSSValueParser.outlineWidth(node.style["border-width"] ?? "medium"),
+            width > 0
+        else { return rect }
+        let half: CGFloat = width / 2
+        return Rect(
+            left: rect.left - half,
+            top: rect.top - half,
+            right: rect.right + half,
+            bottom: rect.bottom + half
+        )
     }
 
     func paint(into items: inout [any DisplayItem]) {
@@ -737,7 +804,7 @@ class BlockLayout: LayoutObject {
             items.append(DrawClippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
         }
 
-        if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: selfRect()) {
+        if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: borderPaintRect()) {
             items.append(border)
         }
 
