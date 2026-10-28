@@ -91,7 +91,7 @@ func fontInputs(for node: any DOMNode) -> [any InvalidatableField] {
 func fontForElement(_ node: any DOMNode, zoom: CGFloat, notify: any InvalidatableField) -> BrowserFont {
     let owner: any DOMNode = node.inheritedStyleOwner
     let weight: String = owner.style.read("font-weight", notify: notify) ?? "normal"
-    var style: String = owner.style.read("font-weight", notify: notify) ?? "normal"
+    var style: String = owner.style.read("font-style", notify: notify) ?? "normal"
     if style == "normal" { style = "roman" }
     let sizePx: Double = Double(owner.style.read("font-size", notify: notify)?.dropLast(2) ?? "16") ?? 16.0
     let sizeInt: Int = Int(sizePx * zoom)
