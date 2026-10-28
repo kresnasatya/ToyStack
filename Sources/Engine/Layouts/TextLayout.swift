@@ -93,7 +93,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             if let override = fontOverride {
                 resolvedFont = override
             } else {
-                resolvedFont = fontForElement(node, zoom: zoomField.read(notify: fontField))
+                resolvedFont = fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField)
             }
             fontField.set(resolvedFont)
 
@@ -117,7 +117,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func paint(into items: inout [any DisplayItem]) {
-        let color: String = node.style["color"] ?? "black"
+        let color: String = node.inheritedStyleOwner.style["color"] ?? "black"
         items.append(
             DrawText(
                 rect: Rect(

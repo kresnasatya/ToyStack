@@ -1,3 +1,4 @@
+@MainActor
 enum StyleTransitions {
     static func diff(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String: Animation]
     {

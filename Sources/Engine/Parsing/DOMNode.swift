@@ -5,7 +5,7 @@ import Foundation
 protocol DOMNode: AnyObject {
     var children: [any DOMNode] { get set }
     var parent: (any DOMNode)? { get set }
-    var style: [String: String] { get set }
+    var style: StyleFields { get }
     var isFocused: Bool { get set }
     var isFocusVisible: Bool { get set }
     var satisfiedHas: Set<Int> { get set }
@@ -14,13 +14,20 @@ protocol DOMNode: AnyObject {
     var layoutDirty: Bool { get set }
 }
 
+extension DOMNode {
+    var inheritedStyleOwner: any DOMNode {
+        if self is TextNode, let parent { return parent }
+        return self
+    }
+}
+
 // MARK: - Element
 class Element: DOMNode {
     let tag: String
     var attributes: [String: String]
     var children: [any DOMNode] = []
     var parent: (any DOMNode)?
-    var style: [String: String] = [:]
+    var style: StyleFields = StyleFields()
     var isFocused: Bool = false
     var isFocusVisible: Bool = false
     var isChecked: Bool = false
@@ -52,7 +59,7 @@ class TextNode: DOMNode {
     private(set) var text: String
     var children: [any DOMNode] = []
     var parent: (any DOMNode)?
-    var style: [String: String] = [:]
+    var style: StyleFields = StyleFields()
     var isFocused: Bool = false
     var isFocusVisible: Bool = false
     var satisfiedHas: Set<Int> = []

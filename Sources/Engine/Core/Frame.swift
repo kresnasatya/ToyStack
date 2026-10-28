@@ -716,7 +716,7 @@ class Frame {
             browser?.measure.start("BrowserTab.style.snapshot")
             var oldStyles: [ObjectIdentifier: [String: String]] = [:]
             for node in allNodes {
-                oldStyles[ObjectIdentifier(node)] = node.style
+                oldStyles[ObjectIdentifier(node)] = node.style.snapshot()
             }
             browser?.measure.stop("BrowserTab.style.snapshot")
 
@@ -746,7 +746,7 @@ class Frame {
             browser?.measure.start("BrowserTab.style.diff")
             for node in cascade.appliedNodes {
                 let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
-                let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style)
+                let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style.snapshot())
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
                 }
@@ -788,26 +788,6 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.visited")
 
             loadBackgroundImages(allNodes)
-
-            browser?.measure.start("BrowserTab.style.invalidate")
-            var markedDirty: Int = 0
-            var markedDirtyText: Int = 0
-            for node in cascade.appliedNodes {
-                let old: [String: String] = oldStyles[ObjectIdentifier(node)] ?? [:]
-                if layoutInputsChanged(old, node.style) {
-                    markLayoutDirty(node)
-                    LayoutInvalidation.styleChanged(
-                        node,
-                        old: old,
-                        new: node.style
-                    )
-                    markedDirty += 1
-                    if node is TextNode { markedDirtyText += 1 }
-                }
-            }
-            profiler.count("layout.markedDirty", by: markedDirty)
-            profiler.count("layout.markedDirtyText", by: markedDirtyText)
-            browser?.measure.stop("BrowserTab.style.invalidate")
 
             needsStyle = false
             needsLayout = true
@@ -884,25 +864,8 @@ class Frame {
         "image-rendering", "object-fit"
     ]
 
-    private func layoutInputsChanged(
-        _ old: [String: String],
-        _ new: [String: String]
-    ) -> Bool {
-        return Self.layoutInputsDiffer(old, new)
-    }
-
     static func affectsLayout(_ property: String) -> Bool {
         return !paintOnlyProperties.contains(property)
-    }
-
-    private static func layoutInputsDiffer(_ old: [String: String], _ new: [String: String]) -> Bool {
-        for (key, value) in new where affectsLayout(key) {
-            if (old[key] ?? "") != value { return true }
-        }
-        for (key, value) in old where affectsLayout(key) {
-            if (new[key] ?? "") != value { return true }
-        }
-        return false
     }
 
     func paint() {
@@ -931,6 +894,7 @@ class Frame {
         var needsAnotherFrame: Bool = false
         needsComposite = needsStyle || needsLayout || needsPaint
         var needsLayoutUpdate: Bool = false
+        var animationFallbacks: Int = 0
         var layoutDirtyMarked: Int = 0
         browser?.measure.start("BrowserTab.animScan")
         let animated: [any DOMNode] = activeAnimations > 0 ? treeToList(nodes) : []
@@ -950,9 +914,18 @@ class Frame {
                         }
                     } else if Self.affectsLayout(property) {
                         node.style[property] = value
-                        LayoutInvalidation.animatedPropertyChanged(node, property: property)
-                        layoutDirtyMarked += markLayoutDirty(node)
-                        needsLayoutUpdate = true
+                        if document?.layoutNeeded() == true {
+                            layoutDirtyMarked += markLayoutDirty(node)
+                            needsLayoutUpdate = true
+                        } else {
+                            // A layout property that marked no field is missing edge.
+                            // Trap in debug; keep the old coarse signal in release so a page does not freeze.
+                            assertionFailure("Animation for \(property) did not dirty a layout field")
+                            LayoutInvalidation.animatedPropertyChanged(node, property: property)
+                            layoutDirtyMarked += markLayoutDirty(node)
+                            needsLayoutUpdate = true
+                            animationFallbacks += 1
+                        }
                     } else {
                         node.style[property] = value
                         needsCompositeForPaint = true
@@ -966,6 +939,7 @@ class Frame {
             }
         }
         browser?.measure.counter("layout.markedDirtyAnimation", ["nodes" : layoutDirtyMarked])
+        browser?.measure.counter("layout.animation.fallback", ["nodes": animationFallbacks])
         browser?.measure.stop("BrowserTab.animScan")
 
         if needsPaint {
@@ -1296,6 +1270,7 @@ class Frame {
         guard let previous = focus else { return }
         previous.isFocused = false
         previous.isFocusVisible = false
+        previous.style.markAll()
         _ = js?.dispatchEvent(type: "blur", elt: previous)
         focus = nil
         setNeedsRender()
@@ -1307,12 +1282,14 @@ class Frame {
         if let previous = focus {
             previous.isFocused = false
             previous.isFocusVisible = false
+            previous.style.markAll()
             _ = js?.dispatchEvent(type: "blur", elt: previous)
         }
         focus = node
         if let node = node {
             node.isFocused = true
             node.isFocusVisible = showRing
+            node.style.markAll()
             needsFocusScroll = true
             _ = js?.dispatchEvent(type: "focus", elt: node)
         }

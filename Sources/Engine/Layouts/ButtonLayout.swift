@@ -60,14 +60,17 @@ class ButtonLayout: EmbedLayout {
     }
 
     private func addWord(node: any DOMNode, word: String) {
-        let weight: String = node.style["font-weight"] ?? "normal"
-        var style: String = node.style["font-style"] ?? "normal"
+        let owner: any DOMNode = node.inheritedStyleOwner
+        let weight: String = owner.style.read("font-weight", notify: fontField) ?? "normal"
+        var style: String = owner.style.read("font-style", notify: fontField) ?? "normal"
         if style == "normal" { style = "roman" }
-        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizePx: Double = Double(owner.style.read("font-size", notify: fontField)?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt: Int = Int(scaled(sizePx))
         let font: BrowserFont = getFont(
-            size: sizeInt, weight: weight, style: style,
-            family: node.style["font-family"] ?? "serif"
+            size: sizeInt,
+            weight: weight,
+            style: style,
+            family: owner.style.read("font-family", notify: fontField) ?? "serif"
         )
         let w: CGFloat = font.measure(word)
         if cursorX + w > width { newLine() }
@@ -80,7 +83,7 @@ class ButtonLayout: EmbedLayout {
     }
 
     private func addInput(_ node: Element) {
-        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: fontField)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : scaled(InputLayout.inputWidthPx)
         if cursorX + w > width { newLine() }

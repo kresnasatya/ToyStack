@@ -15,13 +15,6 @@ enum LayoutInvalidation {
         childrenChanged(node)
     }
 
-    static func styleChanged(_ node: any DOMNode, old: [String: String], new: [String: String]) {
-        let affectsSiblings: Bool = old["display"] != new["display"]
-            || old["position"] != new["position"]
-            || old["margin-bottom"] != new["margin-bottom"]
-        markLayoutInput(node, affectsSiblings: affectsSiblings)
-    }
-
     static func animatedPropertyChanged(_ node: any DOMNode, property: String) {
         let affectsSiblings: Bool = property == "display"
             || property == "position"

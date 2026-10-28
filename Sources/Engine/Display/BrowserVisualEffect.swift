@@ -30,6 +30,7 @@ public class BrowserVisualEffect: DisplayItem {
     }
 }
 
+@MainActor
 func paintBrowserVisualEffects(style: PaintEffectStyle, node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
     var displayItems: [any DisplayItem] = items
     if style.blurRadius > 0 {
@@ -53,6 +54,7 @@ func paintBrowserVisualEffects(style: PaintEffectStyle, node: DOMNode, items: [a
     return [transform]
 }
 
+@MainActor
 func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
     guard let style: PaintEffectStyle = paintEffectStyle(node: node) else { return items }
     return paintBrowserVisualEffects(style: style, node: node, items: items, rect: rect)

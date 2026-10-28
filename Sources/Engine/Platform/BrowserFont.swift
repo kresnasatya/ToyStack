@@ -76,11 +76,18 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
     })
 }
 
-func fontForElement(_ node: any DOMNode, zoom: CGFloat) -> BrowserFont {
-    let weight: String = node.style["font-weight"] ?? "normal"
-    var style: String = node.style["font-style"] ?? "normal"
+@MainActor
+func fontForElement(_ node: any DOMNode, zoom: CGFloat, notify: any InvalidatableField) -> BrowserFont {
+    let owner: any DOMNode = node.inheritedStyleOwner
+    let weight: String = owner.style.read("font-weight", notify: notify) ?? "normal"
+    var style: String = owner.style.read("font-weight", notify: notify) ?? "normal"
     if style == "normal" { style = "roman" }
-    let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+    let sizePx: Double = Double(owner.style.read("font-size", notify: notify)?.dropLast(2) ?? "16") ?? 16.0
     let sizeInt: Int = Int(sizePx * zoom)
-    return getFont(size: sizeInt, weight: weight, style: style, family: node.style["font-family"] ?? "serif")
+    return getFont(
+        size: sizeInt,
+        weight: weight,
+        style: style,
+        family: owner.style.read("font-family", notify: notify) ?? "serif"
+    )
 }

@@ -80,7 +80,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
         zoomField.set(resolvedZoom())
-        fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField)))
+        fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField))
 
         if let prev = previous as? InlineLayoutItem {
             let prevX: CGFloat = prev.xField.read(notify: xField)

@@ -11,6 +11,7 @@ struct PaintEffectStyle {
 
 // MARK: - Resolution
 
+@MainActor
 func paintEffectStyle(node: DOMNode) -> PaintEffectStyle? {
     if node.animations.isEmpty,
         node.style["opacity"] == nil,

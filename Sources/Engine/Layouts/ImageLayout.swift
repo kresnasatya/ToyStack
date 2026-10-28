@@ -4,10 +4,10 @@ import CoreGraphics
 final class ImageLayout: EmbedLayout {
     var imgHeight: CGFloat = 0
 
-    static func displaySize(for el: Element) -> (width: Double, height: Double) {
+    static func displaySize(for el: Element, notify: any InvalidatableField) -> (width: Double, height: Double) {
         let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
         let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0
-        let ratio: AspectRatio? = AspectRatio(css: el.style["aspect-ratio"]) ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
+        let ratio: AspectRatio? = AspectRatio(css: el.style.read("aspect-ratio", notify: notify)) ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
         let wAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
         let hAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
         if let w = wAttr, let h = hAttr { return (w, h) }
@@ -16,17 +16,22 @@ final class ImageLayout: EmbedLayout {
         return (intrinsicW, intrinsicH)
     }
 
-    static func usedWidth(for el: Element, available: CGFloat, zoom: CGFloat) -> CGFloat {
-        let intrinsic: CGFloat = CGFloat(displaySize(for: el).width) * zoom
-        guard let limit = lengthPx(el.style["max-width"], available: available, zoom: zoom) else {
+    static func usedWidth(
+        for el: Element,
+        available: CGFloat,
+        zoom: CGFloat,
+        notify: any InvalidatableField
+    ) -> CGFloat {
+        let intrinsic: CGFloat = CGFloat(displaySize(for: el, notify: notify).width) * zoom
+        guard let limit = lengthPx(el.style.read("max-width", notify: notify), available: available, zoom: zoom) else {
             return intrinsic
         }
         return min(intrinsic, limit)
     }
 
-    static func usedHeight(for el: Element, usedWidth: CGFloat, zoom: CGFloat) -> CGFloat {
-        let size: (width: Double, height: Double) = displaySize(for: el)
-        let ratio: AspectRatio? = AspectRatio(css: el.style["aspect-ratio"]) ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
+    static func usedHeight(for el: Element, usedWidth: CGFloat, zoom: CGFloat, notify: any InvalidatableField) -> CGFloat {
+        let size: (width: Double, height: Double) = displaySize(for: el, notify: notify)
+        let ratio: AspectRatio? = AspectRatio(css: el.style.read("aspect-ratio", notify: notify)) ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
         guard let height = ratio?.height(forWidth: Double(usedWidth / zoom)) else {
             return CGFloat(size.height) * zoom
         }
@@ -39,12 +44,18 @@ final class ImageLayout: EmbedLayout {
         guard let el = node as? Element else { return }
         let available: CGFloat = parent!.widthField.read(notify: widthField)
         let zoom: CGFloat = zoomField.read(notify: widthField)
-        let usedWidth: CGFloat = ImageLayout.usedWidth(for: el, available: available, zoom: zoom)
+        let usedWidth: CGFloat = ImageLayout.usedWidth(
+            for: el,
+            available: available,
+            zoom: zoom,
+            notify: widthField
+        )
         widthField.set(usedWidth)
         imgHeight = ImageLayout.usedHeight(
             for: el,
             usedWidth: widthField.read(notify: heightField),
-            zoom: zoomField.read(notify: heightField)
+            zoom: zoomField.read(notify: heightField),
+            notify: heightField
         )
         heightField.set(max(imgHeight, fontField.read(notify: heightField).linespace))
         setAscentFromHeight()

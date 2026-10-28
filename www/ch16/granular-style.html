@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — granular style invalidation</title>
+</head>
+<body>
+
+<h1>Granular style invalidation</h1>
+
+<p class="note">opacity and color are paint-only. width and font-size must reflow only their own block and the boxes below them. Colors used here all exist in BrowserColor.swift.</p>
+
+<div id="opacity" class="paint">opacity 0.3 ↔ 1.0 — paint only, no layout work.</div>
+
+<div id="color" class="paint">color purple ↔ tomato — paint only, no layout work.</div>
+
+<div id="width">width 240px ↔ 420px — this sentence rewraps as the box grows, so its own inline block must rebuild and the boxes below move.</div>
+
+<p id="font">font-size 14px ↔ 24px — this paragraph's line height grows, so the text metrics and the boxes below must update.</p>
+
+<div class="static" id="static-a">static box A — layout must be skipped unless a box above changes height.</div>
+
+<div class="static" id="static-b">static box B — no style change, so no child-list rebuild.</div>
+
+<div class="static" id="static-c">static box C — identity and position are the oracle for the trace.</div>
+
+<style>
+  body {
+    font-family: monospace;
+    font-size: 16px;
+    margin: 12px;
+  }
+  h1 {
+    font-size: 18px;
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+  .note {
+    color: gray;
+    width: 700px;
+    margin-top: 0;
+    margin-bottom: 10px;
+  }
+  .paint {
+    width: 420px;
+    border: 1px solid black;
+    margin-top: 8px;
+  }
+  #opacity {
+    background-color: khaki;
+    animation: fade 2s infinite alternate;
+  }
+  #color {
+    color: purple;
+    background-color: whitesmoke;
+    animation: tint 2s infinite alternate;
+  }
+  #width {
+    width: 240px;
+    background-color: lightgreen;
+    border: 1px solid black;
+    margin-top: 8px;
+    animation: grow 3s infinite alternate;
+  }
+  #font {
+    width: 420px;
+    font-size: 14px;
+    background-color: lightblue;
+    border: 1px solid black;
+    margin-top: 8px;
+    animation: type 3s infinite alternate;
+  }
+  .static {
+    width: 420px;
+    border: 1px dashed gray;
+    margin-top: 6px;
+  }
+  @keyframes fade {
+    0% { opacity: 0.3; }
+    100% { opacity: 1.0; }
+  }
+  @keyframes tint {
+    0% { color: purple; }
+    100% { color: tomato; }
+  }
+  @keyframes grow {
+    0% { width: 240px; }
+    100% { width: 420px; }
+  }
+  @keyframes type {
+    0% { font-size: 14px; }
+    100% { font-size: 24px; }
+  }
+</style>
+
+</body>
+</html>

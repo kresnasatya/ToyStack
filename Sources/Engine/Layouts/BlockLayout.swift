@@ -115,11 +115,11 @@ class BlockLayout: LayoutObject {
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
             zoom = resolvedZoom()
-            let isAbsolute: Bool = node.style["position"] == "absolute"
+            let isAbsolute: Bool = node.style.read("position", notify: xField) == "absolute"
 
             let parentX: CGFloat = parent!.xField.read(notify: xField)
             if isAbsolute,
-                let lStr = node.style["left"],
+                let lStr = node.style.read("left", notify: xField),
                 lStr.hasSuffix("px"),
                 let l = Double(lStr.dropLast(2))
             {
@@ -131,7 +131,10 @@ class BlockLayout: LayoutObject {
 
             let parentWidth: CGFloat = parent!.widthField.read(notify: widthField)
             let zoom: CGFloat = zoomField.read(notify: widthField)
-            if let wStr = node.style["width"], wStr.hasSuffix("px"), let w = Double(wStr.dropLast(2)) {
+            if let wStr = node.style.read("width", notify: widthField),
+                wStr.hasSuffix("px"),
+                let w = Double(wStr.dropLast(2))
+            {
                 widthField.set(CGFloat(w) * zoom)
             } else {
                 widthField.set(parentWidth)
@@ -142,18 +145,19 @@ class BlockLayout: LayoutObject {
                 width -= BlockLayout.liIndent
             }
 
-            if isAbsolute, let tStr = node.style["top"], tStr.hasSuffix("px"),
+            if isAbsolute, let tStr = node.style.read("top", notify: yField),
+                tStr.hasSuffix("px"),
                 let t = Double(tStr.dropLast(2))
             {
                 let absoluteYZoom: CGFloat = zoomField.read(notify: yField)
                 yField.set(CGFloat(t) * absoluteYZoom)
             } else {
-                let ownTop: CGFloat = marginPx(node, "margin-top")
+                let ownTop: CGFloat = marginPx(node, "margin-top", notify: yField)
                 if let prev = previous {
                     let prevY: CGFloat = prev.yField.read(notify: yField)
                     let prevHeight: CGFloat = prev.heightField.read(notify: yField)
                     yField.set(
-                        prevY + prevHeight + marginPx(prev.node, "margin-bottom") + ownTop
+                        prevY + prevHeight + marginPx(prev.node, "margin-bottom", notify: yField) + ownTop
                     )
                 } else {
                     yField.copy(from: parent!.yField)
@@ -178,7 +182,7 @@ class BlockLayout: LayoutObject {
                         if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
                             continue
                         }
-                        let isBlock: Bool = child.style["display"] == "block"
+                        let isBlock: Bool = child.style.read("display", notify: childrenField) == "block"
                         if isBlock {
                             if let el = child as? Element, el.tag == "h6" {
                                 if !inlineRun.isEmpty {
@@ -206,7 +210,7 @@ class BlockLayout: LayoutObject {
                                 } else {
                                     let next: BlockLayout = BlockLayout(node: child, parent: self, previous: prev)
                                     built.append(next)
-                                    if child.style["position"] != "absolute" { prev = next }
+                                    if child.style.read("position", notify: childrenField) != "absolute" { prev = next }
                                 }
                             }
                         } else {
@@ -226,6 +230,11 @@ class BlockLayout: LayoutObject {
                 }
             } else {
                 profiler.count("layout.mode.inline")
+                // Inline layout consumes these inputs but has no field of its own;
+                // route them to the child list that would have to be rebuilt.
+                _ = widthField.read(notify: childrenField)
+                _ = zoomField.read(notify: childrenField)
+                _ = node.style.read("direction", notify: childrenField)
                 profiler.measure("layout.inline.refresh", { refreshInlineItems() })
                 profiler.measure("layout.inline.place", { placeInlineItems() })
             }
@@ -236,18 +245,19 @@ class BlockLayout: LayoutObject {
         let heightChildren: [any LayoutObject] = childrenField.read(notify: heightField)
         let sumHeight: Double = profiler.measure("layout.height", {
             heightChildren.reduce(0) { total, child in
-                let position: String = child.node.style["position"] ?? "static"
+                let position: String = child.node.style.read("position", notify: heightField) ?? "static"
                 if position == "absolute" { return total }
                 var h: CGFloat = child.heightField.read(notify: heightField)
                 if child is BlockLayout {
-                    h += marginPx(child.node, "margin-top")
-                    h += marginPx(child.node, "margin-bottom")
+                    h += marginPx(child.node, "margin-top", notify: heightField)
+                    h += marginPx(child.node, "margin-bottom", notify: heightField)
                 }
                 return total + h
             }
         })
 
-        if let hStr = node.style["height"], hStr.hasSuffix("px"),
+        if let hStr = node.style.read("height", notify: heightField),
+            hStr.hasSuffix("px"),
             let h = Double(hStr.dropLast(2))
         {
             contentHeight = sumHeight
@@ -272,7 +282,7 @@ class BlockLayout: LayoutObject {
         if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
         let hasBlockChild: Bool = node.children.contains(where: {
-            $0.style["display"] == "block"
+            $0.style.read("display", notify: childrenField) == "block"
         })
         if hasBlockChild { return "block" }
         if let el = node as? Element {
@@ -281,8 +291,8 @@ class BlockLayout: LayoutObject {
         return "inline"
     }
 
-    private func marginPx(_ n: any DOMNode, _ prop: String) -> CGFloat {
-        guard let s = n.style[prop], s.hasSuffix("px"), let v = Double(s.dropLast(2)) else { return 0 }
+    private func marginPx(_ n: any DOMNode, _ prop: String, notify: any InvalidatableField) -> CGFloat {
+        guard let s = n.style.read(prop, notify: notify), s.hasSuffix("px"), let v = Double(s.dropLast(2)) else { return 0 }
         return scaled(CGFloat(v))
     }
 
@@ -377,9 +387,9 @@ class BlockLayout: LayoutObject {
     }
 
     private func addTextNode(_ textNode: TextNode, into items: inout [InlineItem]) {
-        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.style["white-space"])
+        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.inheritedStyleOwner.style.read("white-space", notify: childrenField))
         let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let font: BrowserFont = fontForElement(textNode, zoom: zoom)
+        let font: BrowserFont = fontForElement(textNode, zoom: zoom, notify: childrenField)
         let run: InlineTextRun = InlineTextRun(
             node: textNode,
             font: font,
@@ -468,7 +478,7 @@ class BlockLayout: LayoutObject {
             previous: line.children.last
         )
         text.font = font
-        text.fontOverride = font
+        text.fontOverride = item.fontOverride
         text.displayWord = item.display
         text.whiteSpace = item.run.whiteSpace
         line.children.append(text)
@@ -495,7 +505,7 @@ class BlockLayout: LayoutObject {
 
         let available: CGFloat = widthField.read(notify: childrenField)
         let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : InputLayout.inputWidthPx * zoom
         if cursorX + w > available { newLine() }
@@ -516,35 +526,35 @@ class BlockLayout: LayoutObject {
         let prevItem: (any LayoutObject)? = line.children.last
         let button: ButtonLayout = ButtonLayout(node: node, parent: line, previous: prevItem)
         line.children.append(button)
-        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         cursorX += w + font.spaceWidth
     }
 
     private func addImage(_ node: Element) {
         let available: CGFloat = widthField.read(notify: childrenField)
         let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let w: CGFloat = ImageLayout.usedWidth(for: node, available: available, zoom: zoom)
+        let w: CGFloat = ImageLayout.usedWidth(for: node, available: available, zoom: zoom, notify: childrenField)
         if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let image: ImageLayout = ImageLayout(node: node, parent: line, previous: prevItem)
         line.children.append(image)
 
-        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         cursorX += w + font.spaceWidth
     }
 
     private func addIframe(_ node: Element) {
         let available: CGFloat = widthField.read(notify: childrenField)
         let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let w: CGFloat = IframeLayout.displaySize(for: node).width * zoom
+        let w: CGFloat = IframeLayout.displaySize(for: node, notify: childrenField).width * zoom
         if cursorX + w > available { newLine() }
         let line: any LayoutObject = children.last!
         let prevItem: (any LayoutObject)? = line.children.last
         let iframe: IframeLayout = IframeLayout(node: node, parent: line, previous: prevItem)
         line.children.append(iframe)
 
-        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         cursorX += w + font.spaceWidth
     }
 
@@ -558,7 +568,7 @@ class BlockLayout: LayoutObject {
         let canvas: CanvasLayout = CanvasLayout(node: node, parent: line, previous: prevItem)
         line.children.append(canvas)
 
-        let font: BrowserFont = fontForElement(node, zoom: zoom)
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         cursorX += w + font.spaceWidth
     }
 
@@ -583,13 +593,14 @@ class BlockLayout: LayoutObject {
         }
 
         let node: any DOMNode = run.node
-        let weight: String = node.style["font-weight"] ?? "normal"
-        var styleStr: String = node.style["font-style"] ?? "normal"
+        let owner: any DOMNode = node.inheritedStyleOwner
+        let weight: String = owner.style.read("font-weight", notify: childrenField) ?? "normal"
+        var styleStr: String = owner.style.read("font-style", notify: childrenField) ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
-        let sizePx: Double = Double(node.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
+        let sizePx: Double = Double(owner.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt: Int = Int(sizePx)
         let smallSize: Int = Int(Double(sizeInt))
-        let family: String = node.style["font-family"] ?? "serif"
+        let family: String = owner.style.read("font-family", notify: childrenField) ?? "serif"
 
         for (text, isLower) in runs {
             let displayText: String = isLower ? text.uppercased() : text

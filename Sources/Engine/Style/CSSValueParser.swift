@@ -68,7 +68,8 @@ enum CSSValueParser {
         return radii.isZero ? nil : radii
     }
 
-    static func cornerRadii(_ style: [String: String]) -> CornerRadii? {
+    @MainActor
+    static func cornerRadii(_ style: StyleFields) -> CornerRadii? {
         let shorthand: CornerRadii = shorthandCornerRadii(style["border-radius"]) ?? .zero
         let corners: [CornerRadius] = [
             cornerRadius(style["border-top-left-radius"]) ?? shorthand.topLeft,

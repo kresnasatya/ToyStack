@@ -8,8 +8,11 @@ final class IframeLayout: EmbedLayout {
 
     private var frame: Frame? { (node as? Element)?.frame }
 
-    static func displaySize(for el: Element) -> (width: CGFloat, height: CGFloat) {
-        let ratio: AspectRatio? = AspectRatio(css: el.style["aspect-ratio"])
+    static func displaySize(
+        for el: Element,
+        notify: any InvalidatableField
+    ) -> (width: CGFloat, height: CGFloat) {
+        let ratio: AspectRatio? = AspectRatio(css: el.style.read("aspect-ratio", notify: notify))
         let widthAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
         let heightAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
         let content: (width: Double, height: Double)
@@ -32,7 +35,7 @@ final class IframeLayout: EmbedLayout {
         super.layout()
         guard let el = node as? Element else { return }
 
-        let size: (width: CGFloat, height: CGFloat) = IframeLayout.displaySize(for: el)
+        let size: (width: CGFloat, height: CGFloat) = IframeLayout.displaySize(for: el, notify: widthField)
         widthField.set(size.width * zoomField.read(notify: widthField))
         heightField.set(size.height * zoomField.read(notify: heightField))
         setAscentFromHeight()

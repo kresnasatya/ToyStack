@@ -29,6 +29,8 @@ public struct DrawOutline: DisplayCommand {
 }
 
 extension DrawOutline {
+
+    @MainActor
     static func fromStyle(_ node: any DOMNode, rect: Rect) -> DrawOutline? {
         let style: String = node.style["outline-style"] ?? "none"
         guard style != "none", style != "hidden" else { return nil }
@@ -39,6 +41,7 @@ extension DrawOutline {
         return DrawOutline(rect: rect, color: color, thickness: thickness)
     }
 
+    @MainActor
     static func fromBorderStyle(_ node: any DOMNode, rect: Rect) -> DrawOutline? {
         let style: String = node.style["border-style"] ?? "none"
         guard style != "none", style != "hidden" else { return nil }

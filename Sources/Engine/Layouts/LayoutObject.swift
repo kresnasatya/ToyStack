@@ -100,7 +100,7 @@ extension LayoutObject {
 
     func resolvedZoom() -> CGFloat {
         let parentZoom: CGFloat = parent?.zoomField.read(notify: zoomField) ?? 1.0
-        guard let zoomStr = node.style["zoom"] else {
+        guard let zoomStr = node.style.read("zoom", notify: zoomField) else {
             return parentZoom
         }
         let trimmed: String = zoomStr.trimmingCharacters(in: .whitespaces)

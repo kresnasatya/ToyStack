@@ -46,20 +46,19 @@ private func applyNodeStyle(
     cascade: StyleCascade
 ) {
 
-    let parentStyle: [String: String]? = node.parent?.style
+    let parentStyle: StyleFields? = node.parent?.style
+    var newStyle: [String: String] = [:]
     profiler.measure("style.apply.reset") {
-        var newStyle: [String: String] = [:]
         newStyle.reserveCapacity(inheritedPropertyDefaults.count)
         for (property, defaultValue) in inheritedPropertyDefaults {
             newStyle[property] = parentStyle?[property] ?? defaultValue
         }
-        node.style = newStyle
     }
 
     if let element = node as? Element {
         profiler.count("style.elements")
         if let direction = TextDirectionResolver.resolve(element) {
-            node.style["direction"] = direction.rawValue
+            newStyle["direction"] = direction.rawValue
         }
 
         let candidates: [Int] = profiler.measure("style.apply.flags", {
@@ -81,7 +80,7 @@ private func applyNodeStyle(
                 matchesTrue += 1
                 if isDescendant { descendantTrue += 1 }
                 for (property, value) in body {
-                    node.style[property] = value
+                    newStyle[property] = value
                     bodyWrites += 1
                 }
             }
@@ -97,29 +96,31 @@ private func applyNodeStyle(
             let inlineStyle = element.attributes["style"]
         {
             for (property, value) in CSSParser(inlineStyle).body() {
-                node.style[property] = value
+                newStyle[property] = value
             }
         }
     })
 
     profiler.measure("style.apply.post", {
-        if cascade.media.preferences.usesForcedColors { applyForcedColors(node: node) }
+        if cascade.media.preferences.usesForcedColors { applyForcedColors(to: &newStyle, node: node) }
 
-        if node.style["overflow"] == nil {
-            let scrolls: Bool = node.style["overflow-y"] == "scroll" || node.style["overflow-x"] == "scroll"
-            let hides: Bool = node.style["overflow-y"] == "hidden" || node.style["overflow-x"] == "hidden"
+        if newStyle["overflow"] == nil {
+            let scrolls: Bool = newStyle["overflow-y"] == "scroll" || newStyle["overflow-x"] == "scroll"
+            let hides: Bool = newStyle["overflow-y"] == "hidden" || newStyle["overflow-x"] == "hidden"
             if scrolls {
-                node.style["overflow"] = "scroll"
+                newStyle["overflow"] = "scroll"
             } else if hides {
-                node.style["overflow"] = "hidden"
+                newStyle["overflow"] = "hidden"
             }
         }
 
-        if let fontSize = node.style["font-size"], fontSize.hasSuffix("%") {
+        if let fontSize = newStyle["font-size"], fontSize.hasSuffix("%") {
             let parentFontSize: String = node.parent?.style["font-size"] ?? inheritedPropertyDefaults["font-size"]!
             let percentage: Double = Double(fontSize.dropLast()) ?? 100.0
             let parentPx: Double = Double(parentFontSize.dropLast(2)) ?? 16.0
-            node.style["font-size"] = "\(percentage / 100.0 * parentPx)px"
+            newStyle["font-size"] = "\(percentage / 100.0 * parentPx)px"
         }
+
+        node.style.apply(newStyle)
     })
 }

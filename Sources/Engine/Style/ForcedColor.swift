@@ -14,35 +14,36 @@ public enum ForcedColor {
 
 let forcedColorsAppliedKey: String = "-forced-colors"
 
+@MainActor
 func usesForcedColors(_ node: any DOMNode) -> Bool {
     node.style[forcedColorsAppliedKey] == "active"
 }
 
-func applyForcedColors(node: any DOMNode) {
-    node.style[forcedColorsAppliedKey] = "active"
+func applyForcedColors(to style: inout [String: String], node: any DOMNode) {
+    style[forcedColorsAppliedKey] = "active"
 
     guard let element = node as? Element else { return }
 
-    element.style["color"] = ForcedColor.canvasText
+    style["color"] = ForcedColor.canvasText
 
-    if let bg = element.style["background-color"], bg != "transparent" {
-        element.style["background-color"] = ForcedColor.canvas
+    if let bg = style["background-color"], bg != "transparent" {
+        style["background-color"] = ForcedColor.canvas
     }
 
-    if element.style["border-color"] != nil {
-        element.style["border-color"] = ForcedColor.buttonBorder
+    if style["border-color"] != nil {
+        style["border-color"] = ForcedColor.buttonBorder
     }
 
-    if element.style["outline-color"] != nil {
-        element.style["outline-color"] = ForcedColor.highlight
+    if style["outline-color"] != nil {
+        style["outline-color"] = ForcedColor.highlight
     }
 
     switch element.tag {
         case "a":
-            element.style["color"] = ForcedColor.linkText
+            style["color"] = ForcedColor.linkText
         case "input", "button":
-            element.style["color"] = ForcedColor.buttonText
-            element.style["background-color"] = ForcedColor.buttonFace
+            style["color"] = ForcedColor.buttonText
+            style["background-color"] = ForcedColor.buttonFace
         default:
             break
     }
