@@ -67,6 +67,27 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         self.parent = parent;
         self.previous = previous
         node.layoutObject = self
+
+        zoomField.setDependencies([parent.zoomField, node.style.field("zoom")])
+        fontField.setDependencies([zoomField] + fontInputs(for: node))
+        ascentField.setDependencies([heightField])
+        descentField.setDependencies([])
+
+        var xInputs: [any InvalidatableField] = [parent.xField]
+        if let previous {
+            xInputs.append(previous.xField)
+            xInputs.append(previous.widthField)
+            if let prev = previous as? any InlineLayoutItem {
+                xInputs.append(prev.fontField)
+            }
+        }
+        xField.setDependencies(xInputs)
+        var yInputs: [any InvalidatableField] = [parent.yField, ascentField]
+        if let line = parent as? LineLayout {
+            yInputs.append(line.ascentField)
+        }
+        yField.setDependencies(yInputs)
+        // width and height are frozen by each subclass: their inputs differ per embed.
     }
 
     func layoutNeeded() -> Bool {

@@ -24,6 +24,16 @@ final class CanvasLayout: EmbedLayout {
         (node as? Element)?.frame?.tab?.browser?.displayScale ?? 1
     }
 
+    override init(
+        node: any DOMNode,
+        parent: any LayoutObject,
+        previous: (any LayoutObject)?
+    ) {
+        super.init(node: node, parent: parent, previous: previous)
+        widthField.setDependencies([zoomField])
+        heightField.setDependencies([zoomField])
+    }
+
     override func layout() {
         if !layoutNeeded() { return }
         super.layout()

@@ -52,6 +52,11 @@ class DocumentLayout: LayoutObject {
             }
         )
         self.node = node
+        zoomField.setDependencies([])
+        widthField.setDependencies([zoomField])
+        xField.setDependencies([zoomField])
+        yField.setDependencies([zoomField])
+        childrenField.setDependencies([])
     }
 
     func layout() {
@@ -91,6 +96,7 @@ class DocumentLayout: LayoutObject {
         yField.set(VSTEP * zoomField.read(notify: yField))
 
         child.layout()
+        heightField.setDependencies([child.heightField])
         heightField.copy(from: child.heightField)
     }
 

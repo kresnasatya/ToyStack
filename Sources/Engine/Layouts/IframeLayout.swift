@@ -8,6 +8,22 @@ final class IframeLayout: EmbedLayout {
 
     private var frame: Frame? { (node as? Element)?.frame }
 
+    override init(
+        node: any DOMNode,
+        parent: any LayoutObject,
+        previous: (any LayoutObject)?
+    ) {
+        super.init(node: node, parent: parent, previous: previous)
+        widthField.setDependencies([
+            zoomField,
+            node.style.field("aspect-ratio"),
+        ])
+        heightField.setDependencies([
+            zoomField,
+            node.style.field("aspect-ratio"),
+        ])
+    }
+
     static func displaySize(
         for el: Element,
         notify: any InvalidatableField

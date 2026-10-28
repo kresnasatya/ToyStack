@@ -75,6 +75,33 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         self.parent = parent
         self.previous = previous
         node.layoutObject = self
+
+        var zoomInputs: [any InvalidatableField] = [node.style.field("zoom")]
+        if let parent { zoomInputs.append(parent.zoomField) }
+        zoomField.setDependencies(zoomInputs)
+
+        fontField.setDependencies([zoomField] + fontInputs(for: node))
+        widthField.setDependencies([fontField])
+        heightField.setDependencies([fontField])
+        ascentField.setDependencies([fontField])
+        descentField.setDependencies([fontField])
+
+        var xInputs: [any InvalidatableField] = []
+        if let parent { xInputs.append(parent.xField) }
+        if let previous {
+            xInputs.append(previous.xField)
+            xInputs.append(previous.widthField)
+        }
+        xField.setDependencies(xInputs)
+
+        var yInputs: [any InvalidatableField] = [ascentField]
+        if let parent {
+            yInputs.append(parent.yField)
+            if let line = parent as? LineLayout {
+                yInputs.append(line.ascentField)
+            }
+        }
+        yField.setDependencies(yInputs)
     }
 
     func layoutNeeded() -> Bool {

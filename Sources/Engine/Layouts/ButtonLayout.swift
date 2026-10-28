@@ -15,11 +15,20 @@ class ButtonLayout: EmbedLayout {
         // Seed a known y so that pass does not read a dirty field;
         // the line overwrites it, then re-lays out this button.
         yField.set(0)
+        widthField.setDependencies([zoomField])
+        heightField.setDependencies([fontField])
+        ascentField.setDependencies([fontField])
+        descentField.setDependencies([fontField])
     }
 
     override func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
+        // The containing line places this button after its children lay out.
+        // Seed a known y so the inner line can lay out before that placement.
+        if yField.isDirty {
+            yField.set(0)
+        }
         super.layout()
 
         widthField.set(InputLayout.inputWidthPx * zoomField.read(notify: widthField))
@@ -29,6 +38,7 @@ class ButtonLayout: EmbedLayout {
         for child in node.children { recurse(child) }
         for child in children { child.layout() }
 
+        heightField.setDependencies([fontField] + children.map({ $0.heightField }))
         let contentHeight: CGFloat = children.reduce(0) { $0 + $1.height }
         heightField.set(contentHeight == 0 ? fontField.read(notify: heightField).linespace : contentHeight)
 

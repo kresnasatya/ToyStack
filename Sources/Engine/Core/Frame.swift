@@ -76,6 +76,11 @@ class Frame {
     private var needsComposite: Bool = false
     var needsFocusScroll: Bool = false
 
+    #if DEBUG
+    // Print the frozen field graph after a layout pass. Test-only escape hatch.
+    var debugDumpDependencies: Bool = false
+    #endif
+
     private(set) var interestTop: CGFloat = 0
     private var interestBottom: CGFloat { interestTop + 4 * frameHeight }
     private var scrollFocusNode: Element? = nil
@@ -823,6 +828,11 @@ class Frame {
                 pageZoom: pageZoom
             )
             document = doc
+            #if DEBUG
+            if debugDumpDependencies {
+                dumpDependencies(doc)
+            }
+            #endif
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
             if scrollTargetsNeedRebuild || !scrollTargetsValid {
                 rebuildScrollTargets(doc)

@@ -69,6 +69,7 @@ class BlockLayout: LayoutObject {
         self.parent = parent
         self.previous = previous
         node.layoutObject = self
+        freezeGeometry(parent: parent, previous: previous)
     }
 
     init(nodes: [any DOMNode], parent: any LayoutObject, previous: (any LayoutObject)?) {
@@ -88,6 +89,97 @@ class BlockLayout: LayoutObject {
         self.extraNodes = nodes
         self.parent = parent
         self.previous = previous
+        freezeGeometry(parent: parent, previous: previous)
+    }
+
+    private func freezeGeometry(parent: any LayoutObject, previous: (any LayoutObject)?) {
+        zoomField.setDependencies([parent.zoomField, node.style.field("zoom")])
+        xField.setDependencies([
+            parent.xField,
+            zoomField,
+            node.style.field("position"),
+            node.style.field("left"),
+        ])
+        var yInputs: [any InvalidatableField] = [
+            parent.yField,
+            zoomField,
+            node.style.field("top"),
+            node.style.field("margin-top"),
+        ]
+        if let previous {
+            yInputs.append(previous.yField)
+            yInputs.append(previous.heightField)
+            yInputs.append(previous.node.style.field("margin-bottom"))
+        }
+        yField.setDependencies(yInputs)
+        widthField.setDependencies([
+            parent.widthField,
+            zoomField,
+            node.style.field("width"),
+        ])
+        childrenField.setDependencies(childrenInputs())
+    }
+
+    private func childrenInputs() -> [any InvalidatableField] {
+        var inputs: [any InvalidatableField] = [
+            widthField,
+            zoomField,
+            node.style.field("display"),
+            node.style.field("position"),
+            node.style.field("direction"),
+        ]
+        if extraNodes.isEmpty {
+            for child in node.children {
+                inputs.append(child.style.field("display"))
+                inputs.append(child.style.field("position"))
+            }
+        }
+        let leaves: [any DOMNode] = inlineLeaves()
+        for leaf in leaves {
+            let owner: any DOMNode = leaf.inheritedStyleOwner
+            inputs.append(owner.style.field("white-space"))
+            inputs.append(contentsOf: fontInputs(for: leaf))
+            if let el = leaf as? Element {
+                inputs.append(el.style.field("aspect-ratio"))
+                inputs.append(el.style.field("max-width"))
+            }
+        }
+        return inputs
+    }
+
+    // Only leaves this block lays out inline. Nested blocks own their own inputs.
+    private func inlineLeaves() -> [any DOMNode] {
+        var leaves: [any DOMNode] = []
+        if !extraNodes.isEmpty {
+            for n in extraNodes { collectLeaves(n, into: &leaves) }
+            return leaves
+        }
+        let hasBlockChild: Bool = node.children.contains(where: {
+            $0.style["display"] == "block"
+        })
+        if !hasBlockChild {
+            collectLeaves(node, into: &leaves)
+            return leaves
+        }
+        for child in node.children where child.style["display"] != "block" {
+            collectLeaves(child, into: &leaves)
+        }
+        return leaves
+    }
+
+    private func setHeightInputs() {
+        var inputs: [any InvalidatableField] = [
+            childrenField,
+            zoomField,
+            node.style.field("height"),
+        ]
+        for child in children {
+            inputs.append(child.heightField)
+            inputs.append(child.node.style.field("position"))
+            inputs.append(child.node.style.field("margin-top"))
+            inputs.append(child.node.style.field("margin-bottom"))
+        }
+        heightField.setDependencies(inputs)
     }
 
     func markChildrenDirty() {
@@ -242,6 +334,7 @@ class BlockLayout: LayoutObject {
 
         for child in children { child.layout() }
 
+        setHeightInputs()
         let heightChildren: [any LayoutObject] = childrenField.read(notify: heightField)
         let sumHeight: Double = profiler.measure("layout.height", {
             heightChildren.reduce(0) { total, child in
@@ -326,14 +419,8 @@ class BlockLayout: LayoutObject {
     }
 
     private func refreshInlineItems() {
-        var leaves: [any DOMNode] = []
-        if extraNodes.isEmpty {
-            collectLeaves(node, into: &leaves)
-        } else {
-            for n in extraNodes { collectLeaves(n, into: &leaves) }
-        }
+        let leaves: [any DOMNode] = inlineLeaves()
         var items: [InlineItem] = []
-
         for leaf in leaves {
             items.append(contentsOf: makeItems(for: leaf))
         }

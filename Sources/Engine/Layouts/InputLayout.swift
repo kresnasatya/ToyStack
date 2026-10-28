@@ -6,6 +6,16 @@ class InputLayout: EmbedLayout {
 
     static let inputWidthPx: CGFloat = 200
 
+    override init(
+        node: any DOMNode,
+        parent: any LayoutObject,
+        previous: (any LayoutObject)?
+    ) {
+        super.init(node: node, parent: parent, previous: previous)
+        widthField.setDependencies([fontField, zoomField])
+        heightField.setDependencies([fontField])
+    }
+
     override func layout() {
         if !layoutNeeded() { return }
         super.layout()

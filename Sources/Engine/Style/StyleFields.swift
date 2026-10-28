@@ -11,13 +11,13 @@ final class StyleFields {
             return field.peek() ?? nil
         }
         set {
-            field(for: key).set(newValue)
+            field(key).set(newValue)
         }
     }
 
     @MainActor
     func read(_ key: String, notify: any InvalidatableField) -> String? {
-        return field(for: key).read(notify: notify)
+        return field(key).read(notify: notify)
     }
 
     @MainActor
@@ -42,7 +42,7 @@ final class StyleFields {
         }
 
         for (key, value) in values {
-            let field: ProtectedField<String?> = field(for: key)
+            let field: ProtectedField<String?> = field(key)
             let before: String? = field.peek() ?? nil
             field.set(value)
             written += 1
@@ -77,7 +77,7 @@ final class StyleFields {
     }
 
     @MainActor
-    private func field(for key: String) -> ProtectedField<String?> {
+    func field(_ key: String) -> ProtectedField<String?> {
         if let field = fields[key] { return field }
         let field: ProtectedField<String?> = ProtectedField("style.\(key)", cleanValue: nil)
         fields[key] = field

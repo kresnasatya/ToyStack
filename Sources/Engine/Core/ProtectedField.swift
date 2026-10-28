@@ -26,6 +26,7 @@ protocol InvalidatableField: AnyObject {
     var fieldName: String { get }
     var isDirty: Bool { get }
     var frozenDependencies: Bool { get }
+    var invalidationNames: [String] { get }
     func mark()
     func addInvalidation(_ field: any InvalidatableField)
     func containsInvalidation(_ field: any InvalidatableField) -> Bool
@@ -65,6 +66,7 @@ final class ProtectedField<Value>: InvalidatableField {
     var fieldName: String { owner.name }
     var frozenDependencies: Bool { behavior.frozen }
     var isDirty: Bool { dirty }
+    var invalidationNames: [String] { behavior.dependencies.names }
 
     func get() -> Value {
         if dirty {
@@ -102,7 +104,12 @@ final class ProtectedField<Value>: InvalidatableField {
 
     func read(notify: any InvalidatableField) -> Value {
         if notify.frozenDependencies {
-            assert(containsInvalidation(notify), "Undeclared dependency: \(self) -> \(notify)")
+            if !containsInvalidation(notify) {
+                assertionFailure("Undeclared dependency: \(self) -> \(notify)")
+                // Release builds keep the edge so a missed declaration degrades to
+                // dynamic discovery instead of a silently stale layout.
+                addInvalidation(notify)
+            }
         } else {
             addInvalidation(notify)
         }
@@ -113,6 +120,8 @@ final class ProtectedField<Value>: InvalidatableField {
         set(field.read(notify: self))
     }
 
+    // Declares the fields this field depends on and freezes later reads.
+    // Calling it again adds inputs; it never removes earlier ones.
     func setDependencies(_ fields: [any InvalidatableField]) {
         for field in fields {
             field.addInvalidation(self)
@@ -196,6 +205,10 @@ private final class FieldDependencies {
 
     func contains(_ field: any InvalidatableField) -> Bool {
         return fields[ObjectIdentifier(field)]?.field != nil
+    }
+
+    var names: [String] {
+        return fields.values.compactMap({ $0.field?.fieldName }).sorted()
     }
 
     func notify() {

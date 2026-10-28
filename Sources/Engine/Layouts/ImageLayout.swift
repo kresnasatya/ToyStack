@@ -4,6 +4,26 @@ import CoreGraphics
 final class ImageLayout: EmbedLayout {
     var imgHeight: CGFloat = 0
 
+    override init(
+        node: any DOMNode,
+        parent: any LayoutObject,
+        previous: (any LayoutObject)?
+    ) {
+        super.init(node: node, parent: parent, previous: previous)
+        widthField.setDependencies([
+            parent.widthField,
+            zoomField,
+            node.style.field("aspect-ratio"),
+            node.style.field("max-width"),
+        ])
+        heightField.setDependencies([
+            widthField,
+            zoomField,
+            fontField,
+            node.style.field("aspect-ratio"),
+        ])
+    }
+
     static func displaySize(for el: Element, notify: any InvalidatableField) -> (width: Double, height: Double) {
         let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
         let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0

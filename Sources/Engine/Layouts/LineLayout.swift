@@ -52,6 +52,16 @@ class LineLayout: LayoutObject {
         self.node = node
         self.parent = parent
         self.previous = previous
+        zoomField.setDependencies([parent.zoomField])
+        widthField.setDependencies([parent.widthField])
+        xField.setDependencies([parent.xField])
+        var yInputs: [any InvalidatableField] = [parent.yField]
+        if let previous {
+            yInputs.append(previous.yField)
+            yInputs.append(previous.heightField)
+        }
+        yField.setDependencies(yInputs)
+        heightField.setDependencies([ascentField, descentField])
     }
 
     func layoutNeeded() -> Bool {
@@ -76,6 +86,7 @@ class LineLayout: LayoutObject {
 
         for child in children { child.layout() }
 
+        setInlineInputs()
         profiler.measure("layout.line.place", {
 
             guard !children.isEmpty else {
@@ -129,6 +140,18 @@ class LineLayout: LayoutObject {
 
             heightField.set(ascentField.read(notify: heightField) + descentField.read(notify: heightField))
         })
+    }
+
+    private func setInlineInputs() {
+        var ascents: [any InvalidatableField] = []
+        var descents: [any InvalidatableField] = []
+        for child in children {
+            guard let inline = child as? InlineLayoutItem else { continue }
+            ascents.append(inline.ascentField)
+            descents.append(inline.descentField)
+        }
+        ascentField.setDependencies(ascents)
+        descentField.setDependencies(descents)
     }
 
     private func shiftChildren(by offset: CGFloat) {
