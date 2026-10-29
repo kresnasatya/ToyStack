@@ -387,6 +387,21 @@ class CSSParser {
         return parts.count == 1 ? parts[0] : DescendantSelector(selectors: parts)
     }
 
+    private func selectorList() throws -> [any CSSSelector] {
+        var selectors: [any CSSSelector] = [selector()]
+        skipWhitespace()
+        while i < chars.count && chars[i] == "," {
+            i += 1
+            skipWhitespace()
+            guard i < chars.count, chars[i] != "{", chars[i] != "}", chars[i] != "," else {
+                throw CSSParseError.parseError
+            }
+            selectors.append(selector())
+            skipWhitespace()
+        }
+        return selectors
+    }
+
     private func mediaQuery() throws -> String {
         try literal("@")
         skipWhitespace()
@@ -502,17 +517,19 @@ class CSSParser {
                     media = nil
                     skipWhitespace()
                 } else {
-                    let sel: any CSSSelector = selector()
+                    let selectors: [any CSSSelector] = try selectorList()
                     try literal("{")
                     skipWhitespace()
                     let parts: (normal: [String : String], important: [String : String]) = bodyParts()
                     try literal("}")
                     skipWhitespace()
-                    if !parts.normal.isEmpty {
-                        rules.append((media, sel, parts.normal))
-                    }
-                    if !parts.important.isEmpty {
-                        rules.append((media, ImportantSelector(base: sel), parts.important))
+                    for sel in selectors {
+                        if !parts.normal.isEmpty {
+                            rules.append((media, sel, parts.normal))
+                        }
+                        if !parts.important.isEmpty {
+                            rules.append((media, ImportantSelector(base: sel), parts.important))
+                        }
                     }
                 }
             } catch {

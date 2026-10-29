@@ -50,6 +50,40 @@ import Testing
         #expect(declarations["color"] == "blue")
     }
 
+    @Test func parseSelectorListAsOneRulePerSelector() {
+        let css = "#source, #target { width: 420px; border: 1px solid black; }"
+        let rules = CSSParser(css).parse().rules
+        #expect(rules.count == 2)
+        #expect(rules.allSatisfy({ $0.2["width"] == "420px" }))
+        #expect(rules.allSatisfy({ $0.2["border-width"] == "1px" }))
+        #expect(rules.allSatisfy({ $0.2["border-style"] == "solid" }))
+        #expect(rules.allSatisfy({ $0.2["border-color"] == "black" }))
+        let ids: [String] = rules.compactMap({ ($0.1 as? IDSelector)?.id })
+        #expect(ids == ["source", "target"])
+    }
+
+    @Test func selectorListKeepsEachSpecificity() {
+        let css = "#source, p { color: red; }"
+        let rules = CSSParser(css).parse().rules
+        #expect(rules.count == 2)
+        #expect(rules[0].1.priority == 100)
+        #expect(rules[1].1.priority == 1)
+    }
+
+    @Test func selectorListWithImportantWrapsEverySelector() {
+        let css = "p, .note { color: red !important; }"
+        let rules = CSSParser(css).parse().rules
+        #expect(rules.count == 2)
+        #expect(rules.allSatisfy({ $0.1 is ImportantSelector }))
+    }
+
+    @Test func malformedSelectorListRecoversWithoutUniversalRule() {
+        let css = "p, { color: red; } div { color: blue; }"
+        let rules = CSSParser(css).parse().rules
+        #expect(rules.count == 1)
+        #expect(rules[0].2["color"] == "blue")
+    }
+
     // MARK: - CSSParser.body()
 
     @Test func bodyMalformedDeclarationRecovery() {
