@@ -176,4 +176,61 @@ struct StyleInvalidationTests {
             #expect(!node.style.isDirty)
         }
     }
+
+    @Test func stylePhaseSkipsCleanSubtrees() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: """
+                <div id="left"><p id="target">one</p></div>
+                <div id="right"><p id="clean">two</p></div>
+                """,
+            rules: """
+                html { width: 600px; }
+                body { display: block; }
+                div, p { display: block; }
+                #target { color: blue; }
+                """
+        )
+        let target: Element = try #require(page.firstElement(id: "target"))
+        let clean: Element = try #require(page.firstElement(id: "clean"))
+
+        // The cascade inherits black here. If the clean subtree is visited,
+        // applyNodeStyle overwrites this value.
+        clean.style["color"] = "red"
+
+        page.frame.setNeedsStyle(target)
+        #expect(page.frame.nodes.style.hasDirtyDescendant)
+        page.frame.render()
+
+        #expect(target.style["color"] == "blue")
+        #expect(clean.style["color"] == "red")
+        #expect(!clean.style.hasDirtyDescendant)
+
+        for node in treeToList(page.frame.nodes) {
+            #expect(!node.style.hasDirtyDescendant)
+        }
+    }
+
+    @Test func focusRestylesDescendantsThatMatchAFocusSeelctor() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: """
+                <div id="box">
+                    <p id="child">text</p>
+                </div>
+            """,
+            rules: """
+                html { width: 600px; }
+                body { display: block; }
+                div { display: block; }
+                p { display: block; color: black; }
+                div:focus p { color: purple; }
+            """
+        )
+        let box: Element = try #require(page.firstElement(id: "box"))
+        let child: Element = try #require(page.firstElement(id: "child"))
+
+        page.frame.focusElement(box)
+        page.frame.render()
+
+        #expect(child.style["color"] == "purple")
+    }
 }

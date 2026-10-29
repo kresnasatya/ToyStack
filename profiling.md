@@ -215,9 +215,9 @@ measured outside a window is discarded at the next reset.
 | Event | Window | Contains |
 |---|---|---|
 | `profile.load` | `Frame.load`, around `parseHTML` (`Frame.swift:150-152`) | `load.*`, `jsc.*` |
-| `profile.style` | `Frame.render`, `needsStyle` block (`Frame.swift:697-698`) | `style.*` |
-| `profile.layout` | `Frame.render`, `needsLayout` block (`Frame.swift:809-810`) | `layout.*`, `text.*`, `scrollTargets.reused`, `scrollTargets.rebuilt` |
-| `profile.paint` | `Frame.paint` (`Frame.swift:864-865`) | `paint.*`, canvas `text.font*` |
+| `profile.style` | `Frame.render`, style block (`Frame.swift:712-810`) | `style.*` |
+| `profile.layout` | `Frame.render`, layout block (`Frame.swift:817-856`) | `layout.*`, `text.*`, `scrollTargets.reused`, `scrollTargets.rebuilt` |
+| `profile.paint` | `Frame.paint` (`Frame.swift:877-884`) | `paint.*`, canvas `text.font*` |
 
 A window must not contain an `await`; the reset→emit pair would then include
 unrelated work. The `parseHTML` window is synchronous. `BrowserTab.load` itself
@@ -250,8 +250,10 @@ pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 | Metric | Kind | Meaning |
 |---|---|---|
 | `style.apply.reset`, `.flags`, `.test`, `.inline`, `.post`, `.push`, `.pop` | duration | phases of `applyStyle` |
-| `style.nodes` | count | nodes in the pass |
-| `style.elements` | count | elements (vs text nodes) |
+| `style.visited` | count | nodes that passed the clean-subtree gate |
+| `style.skipped` | count | child entries rejected by the clean-subtree gate |
+| `style.dirtyDescendants` | count | gate entries reached through an ancestor flag |
+| `style.elements` | count | applied nodes that are elements (vs text nodes) |
 | `style.rules` | count | sorted rules |
 | `style.candidates` | count | rules that passed the selector pre-filter |
 | `style.universalCandidates` | count | universal-rule candidates |
@@ -262,8 +264,25 @@ pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 | `style.scope.direct`, `style.scope.rules`, `style.flipped.queries` | count | reusable-style scope |
 
 The seven `style.apply.*` phases are the measured subset; the enclosing
-`BrowserTab.style` span also contains rules, snapshot, scope, keyframes, and
-invalidation.
+`BrowserTab.style` span also contains rules, `:has` precompute, scope, keyframes,
+and invalidation. There is no longer an all-node style snapshot pass.
+
+`style.visited` counts a node once its clean-subtree gate passes.
+`style.applied` counts nodes the cascade actually recomputed and recorded. On a
+full pass (`scope == nil`) every visited node applies, so the two counts match.
+On a viewport/media-query scope, ancestors are visited to push selector keys but
+only matching nodes apply, so `style.applied < style.visited`.
+
+`style.skipped` counts a child entry rejected by the gate, not the nodes inside
+that subtree. A clean container with 200 descendants contributes **one** skip.
+`style.dirtyDescendants` is the coarse path: the node was entered because an
+ancestor flag was set, not because its own fields were dirty.
+
+A style pass is immediately followed by the layout window in `Frame.render`.
+Layout starts with `profiler.reset()` (`Frame.swift:819`), so a
+`profiler.snapshot()` taken after `render()` shows layout metrics, not style
+metrics. Read `profile.style` from the trace, or assert style counters only from
+a test that runs the style phase without `render()`.
 
 ### `profile.layout` — durations and counts
 

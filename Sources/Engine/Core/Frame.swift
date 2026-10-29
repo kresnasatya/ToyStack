@@ -241,6 +241,7 @@ class Frame {
             nodes = profiler.measure("load.parse", {
                 HTMLParser(body: body).parse()
             })
+            activeAnimations = 0
 
             profiler.measure("load.checkboxes", {
                 for node in treeToList(nodes) {
@@ -485,14 +486,14 @@ class Frame {
         lazyImages = remaining
     }
 
-    private func loadBackgroundImages(_ allNodes: [any DOMNode]) {
+    private func loadBackgroundImages(_ nodes: [any DOMNode]) {
         guard let tab, let runner = tab.networkTaskRunner, let base = url else { return }
 
         var order: [String] = []
         var urlByKey: [String: WebURL] = [:]
         var elementsByKey: [String: [Element]] = [:]
 
-        for node in allNodes {
+        for node in nodes {
             guard let el = node as? Element,
                 let value = el.style["background-image"],
                 let raw = CSSValueParser.backgroundImageURL(value)
@@ -528,8 +529,10 @@ class Frame {
                 let image: CGImage? = await runner.schedule(name: "bg-image", {
                     await self.decodeImage(url: resolved, referrer: referrer)
                 })
-                if let image { self.backgroundImageCache[key] = image }
-                self.setNeedsRender()
+                guard let image else { return }
+                self.backgroundImageCache[key] = image
+                for el in elements { el.backgroundImage = image }
+                self.setNeedsPaint()
             }
         }
     }
@@ -694,6 +697,7 @@ class Frame {
                 keyframes.merge(parsed.keyframes) { _, new in new }
             }
         }
+        StyleInvalidation.markDocument(nodes)
     }
 
     // MARK: - Render
@@ -704,15 +708,13 @@ class Frame {
             viewportStyle && !styleInvalidatedByOther
         styleInvalidatedByViewport = false
         styleInvalidatedByOther = false
-        let stylesDirty: Bool = nodes.style.isDirty
+        let stylesDirty: Bool = nodes.style.isDirty || nodes.style.hasDirtyDescendant
         if stylesDirty || viewportStyle {
             paintEpoch += 1
             browser?.measure.start("BrowserTab.style")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.style") }
             defer { browser?.measure.stop("BrowserTab.style") }
-
-            let allNodes: [any DOMNode] = treeToList(nodes)
 
             browser?.measure.start("BrowserTab.style.rules")
             if indexedRulesRevision != rulesRevision {
@@ -731,28 +733,22 @@ class Frame {
             }
             browser?.measure.stop("BrowserTab.style.has")
 
-            browser?.measure.start("BrowserTab.style.snapshot")
-            var oldStyles: [ObjectIdentifier: [String: String]] = [:]
-            for node in allNodes {
-                oldStyles[ObjectIdentifier(node)] = node.style.snapshot()
-            }
-            browser?.measure.stop("BrowserTab.style.snapshot")
-
             browser?.measure.start("BrowserTab.style.apply")
             let media: MediaFeatures = currentMedia()
             let hasBaseline: Bool = !mediaMatches.isEmpty
             let flipped: Set<String> = flippedMediaQueries(media)
             recordMediaMatches(media)
             browser?.measure.start("BrowserTab.style.scope")
-            let scope: StyleScope? = (reusableStyle && hasBaseline) ? scopedStyleScope(flipped, allNodes: allNodes) : nil
+            let scope: StyleScope? = (reusableStyle && hasBaseline) ? scopedStyleScope(flipped) : nil
+            if viewportStyle, scope == nil {
+                StyleInvalidation.markDocument(nodes)
+            }
             browser?.measure.stop("BrowserTab.style.scope")
             profiler.count("style.flipped.queries", by: flipped.count)
             profiler.count("style.scope.direct", by: scope?.direct.count ?? 0)
-            profiler.count("style.nodes", by: allNodes.count)
             let cascade: StyleCascade = StyleCascade(
                 index: ruleIndex,
                 media: media,
-                oldStyles: oldStyles,
                 scope: scope
             )
             if scope?.isEmpty != true {
@@ -762,8 +758,9 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.apply")
 
             browser?.measure.start("BrowserTab.style.diff")
+            let animationsBefore: Int = cascade.appliedNodes.reduce(0) { $0 + $1.animations.count }
             for node in cascade.appliedNodes {
-                let old: [String : String] = oldStyles[ObjectIdentifier(node)] ?? [:]
+                let old: [String : String] = cascade.oldStyle(for: node)
                 // Scroll targets are collected by layout class and computed overflow.
                 // A style-only change to either changes the target set, not just rects.
                 if old["display"] != node.style["display"]
@@ -795,7 +792,7 @@ class Frame {
             }
             browser?.measure.stop("BrowserTab.style.keyframes")
 
-            activeAnimations = allNodes.reduce(0) { $0 + $1.animations.count }
+            activeAnimations += cascade.appliedNodes.reduce(0) { $0 + $1.animations.count } - animationsBefore
 
             browser?.measure.start("BrowserTab.style.visited")
             if tab?.hasVisitedURLs == true {
@@ -812,7 +809,7 @@ class Frame {
             }
             browser?.measure.stop("BrowserTab.style.visited")
 
-            loadBackgroundImages(allNodes)
+            loadBackgroundImages(cascade.appliedNodes)
 
             documentField.mark()
         }
@@ -1257,13 +1254,13 @@ class Frame {
                 f.children.append(text)
             }
             text.append(char)
+            setNeedsStyle(f)
         } else if f.tag == "input" {
             f.attributes["value", default: ""] += char
+            setNeedsStyle(f)
         } else {
             return
         }
-
-        setNeedsRender()
     }
 
     func blur() {
@@ -1274,10 +1271,9 @@ class Frame {
         guard let previous = focus else { return }
         previous.isFocused = false
         previous.isFocusVisible = false
-        previous.style.markAll()
+        setNeedsStyleSubtree(previous)
         _ = js?.dispatchEvent(type: "blur", elt: previous)
         focus = nil
-        setNeedsRender()
     }
 
     func focusElement(_ node: Element?, showRing: Bool = true) {
@@ -1286,18 +1282,17 @@ class Frame {
         if let previous = focus {
             previous.isFocused = false
             previous.isFocusVisible = false
-            previous.style.markAll()
+            setNeedsStyleSubtree(previous)
             _ = js?.dispatchEvent(type: "blur", elt: previous)
         }
         focus = node
         if let node = node {
             node.isFocused = true
             node.isFocusVisible = showRing
-            node.style.markAll()
+            setNeedsStyleSubtree(node)
             needsFocusScroll = true
             _ = js?.dispatchEvent(type: "focus", elt: node)
         }
-        setNeedsRender()
     }
 
     func click(x: CGFloat, y: CGFloat) {
@@ -1305,7 +1300,7 @@ class Frame {
         let clickY: CGFloat = y + scroll
 
         guard let source = document?.hitTest(x: x, y: clickY) else {
-            setNeedsRender()
+            setNeedsPaint()
             return
         }
 
@@ -1338,16 +1333,15 @@ class Frame {
                 } else if let el = node as? Element, el.tag == "input" {
                     if el.attributes["type"] == "checkbox" {
                         el.isChecked.toggle()
-                        setNeedsRender()
+                        setNeedsStyle(el)
                         return
                     }
                     el.attributes["value"] = ""
                     focusElement(el, showRing: true)
-                    setNeedsRender()
+                    setNeedsStyle(el)
                     return
                 } else if let el = node as? Element, el.attributes["contenteditable"] != nil {
                     focusElement(el, showRing: true)
-                    setNeedsRender()
                     return
                 } else if let el = node as? Element, el.tag == "button" {
                     focusElement(el, showRing: false)
@@ -1364,7 +1358,7 @@ class Frame {
                 elt = node.parent
             }
         }
-        setNeedsRender()
+        setNeedsPaint()
     }
 
     func enterKey() {
@@ -1419,6 +1413,19 @@ class Frame {
     // MARK: - Invalidation
 
     func setNeedsRender() {
+        StyleInvalidation.markDocument(nodes)
+        needsHasPrecompute = true
+        invalidateStyle()
+    }
+
+    func setNeedsStyle(_ node: any DOMNode) {
+        StyleInvalidation.markNodeAndAncestors(node)
+        needsHasPrecompute = true
+        invalidateStyle()
+    }
+
+    func setNeedsStyleSubtree(_ node: any DOMNode) {
+        StyleInvalidation.markSubtreeAndAncestors(node)
         needsHasPrecompute = true
         invalidateStyle()
     }
@@ -1428,7 +1435,6 @@ class Frame {
             styleInvalidatedByViewport = true
         } else {
             styleInvalidatedByOther = true
-            nodes.style.markAll()
         }
         documentField.mark()
         needsRender = true
@@ -1511,8 +1517,7 @@ class Frame {
     }
 
     private func scopedStyleScope(
-        _ flipped: Set<String>,
-        allNodes: [any DOMNode]
+        _ flipped: Set<String>
     ) -> StyleScope? {
         var rules: [(selector: any CSSSelector, body: [String: String])] = []
         for rule in sortedRules {
@@ -1524,10 +1529,11 @@ class Frame {
         guard rules.count <= 64 else { return nil } // NOTE: why 64?
 
         var direct: Set<ObjectIdentifier> = []
-        for node in allNodes {
+        for node in treeToList(nodes) {
             guard let element: Element = node as? Element else { continue }
             for rule in rules {
                 if rule.selector.matches(element) {
+                    StyleInvalidation.markNode(node)
                     direct.insert(ObjectIdentifier(node))
                     break
                 }

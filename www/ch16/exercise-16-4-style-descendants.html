@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Exercise 16-4: descendant flags for style</title>
+<style>
+  body { margin: 12px; font-family: monospace; }
+  .row { display: block; width: 480px; padding: 4px; margin-bottom: 3px; background-color: whitesmoke; }
+  .hot { color: purple; }
+  .cold { color: black; }
+  #target { background-color: khaki; }
+</style>
+</head>
+<body>
+  <h1>Descendant style flags</h1>
+  <p>Click the button. Only the target row changes class; the other 200 rows have
+  no dirty style field and their subtrees should be skipped.</p>
+  <button id="toggle">Toggle target row</button>
+  <div id="target" class="row cold">target row</div>
+  <div id="rows"></div>
+  <script>
+    var rows = document.getElementById("rows");
+    for (var i = 0; i < 200; i++) {
+      var row = document.createElement("div");
+      row.setAttribute("class", "row cold");
+      row.textContent = "row " + i;
+      rows.appendChild(row);
+    }
+
+    var hot = false;
+    document.getElementById("toggle").addEventListener("click", function () {
+      hot = !hot;
+      document.getElementById("target").setAttribute(
+        "class", hot ? "row hot" : "row cold"
+      );
+    });
+  </script>
+</body>
+</html>

@@ -17,6 +17,16 @@ func applyStyle(node: any DOMNode, cascade: StyleCascade) {
 
 @MainActor
 private func applyStyle(node: any DOMNode, cascade: StyleCascade, force: Bool) {
+    guard force || node.style.isDirty || node.style.hasDirtyDescendant else {
+        profiler.count("style.skipped")
+        return
+    }
+    profiler.count("style.visited")
+    if node.style.hasDirtyDescendant {
+        profiler.count("style.dirtyDescendants")
+    }
+    defer { node.style.clearDirtyDescendants() }
+
     let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
     let applies: Bool = force || direct
     if applies {

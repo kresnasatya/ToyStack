@@ -3,6 +3,7 @@ import Foundation
 final class StyleFields {
     private var fields: [String: ProtectedField<String?>] = [:]
     private var needsRestyle: Bool = true
+    private var descendantsDirty: Bool = false
 
     @MainActor
     subscript(_ key: String) -> String? {
@@ -26,6 +27,21 @@ final class StyleFields {
         for field in fields.values {
             field.mark()
         }
+    }
+
+    @MainActor
+    var hasDirtyDescendant: Bool {
+        return descendantsDirty
+    }
+
+    @MainActor
+    func markDirtyDescendants() {
+        descendantsDirty = true
+    }
+
+    @MainActor
+    func clearDirtyDescendants() {
+        descendantsDirty = false
     }
 
     @MainActor

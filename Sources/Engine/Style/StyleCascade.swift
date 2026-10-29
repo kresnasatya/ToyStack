@@ -20,23 +20,26 @@ final class StyleCascade {
     let media: MediaFeatures
     let scope: StyleScope?
     let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
-    private let oldStyles: [ObjectIdentifier: [String: String]]
+    private var oldStyles: [ObjectIdentifier: [String: String]] = [:]
     private(set) var appliedNodes: [any DOMNode] = []
 
     init(
         index: RuleIndex,
         media: MediaFeatures,
-        oldStyles: [ObjectIdentifier: [String: String]],
         scope: StyleScope?
     ) {
         self.index = index
         self.media = media
-        self.oldStyles = oldStyles
         self.scope = scope
     }
 
     func record(_ node: any DOMNode) {
         appliedNodes.append(node)
+        oldStyles[ObjectIdentifier(node)] = node.style.snapshot()
+    }
+
+    func oldStyle(for node: any DOMNode) -> [String: String] {
+        return oldStyles[ObjectIdentifier(node)] ?? [:]
     }
 
     func inheritedChanged(_ node: any DOMNode) -> Bool {

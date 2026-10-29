@@ -111,7 +111,7 @@ class JSRuntime: @unchecked Sendable {
                 if attr == "src", elt.tag == "iframe" {
                     self.frame?.syncIframes()
                 }
-                self.frame?.setNeedsRender()
+                self.frame?.setNeedsStyleSubtree(elt)
             })
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_setAttribute" as NSString)
 
@@ -207,7 +207,7 @@ class JSRuntime: @unchecked Sendable {
                 elt.children = [TextNode(text: value, parent: elt)]
                 LayoutInvalidation.childrenChanged(elt)
                 self.frame?.syncIframes()
-                self.frame?.setNeedsRender()
+                self.frame?.setNeedsStyle(elt)
             })
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_setTextContent" as NSString)
 
@@ -226,7 +226,7 @@ class JSRuntime: @unchecked Sendable {
                 frame.runNewScripts(in: elt)
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsRender()
+                frame.setNeedsStyle(elt)
             })
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_innerHTML" as NSString)
 
@@ -256,6 +256,7 @@ class JSRuntime: @unchecked Sendable {
                     oldParent.children.removeAll { $0 === child }
                     if oldParent !== parent {
                         LayoutInvalidation.childrenChanged(oldParent)
+                        frame.setNeedsStyle(oldParent)
                     }
                 }
                 child.parent = parent
@@ -265,7 +266,7 @@ class JSRuntime: @unchecked Sendable {
                 frame.runNewScripts(in: child)
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsRender()
+                frame.setNeedsStyleSubtree(child)
             })
         } as @convention(block) (Int, Int) -> Void, forKeyedSubscript: "_appendChild" as NSString)
 
@@ -282,7 +283,7 @@ class JSRuntime: @unchecked Sendable {
                 frame.markStructureChanged()
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsRender()
+                frame.setNeedsStyle(parent)
                 return childHandle
             })
         } as @convention(block) (Int, Int) -> Int, forKeyedSubscript: "_removeChild" as NSString)
@@ -319,7 +320,10 @@ class JSRuntime: @unchecked Sendable {
                 for child in newChildren { frame.runNewScripts(in: child) }
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsRender()
+                frame.setNeedsStyle(elt)
+                for child in newChildren {
+                    frame.setNeedsStyleSubtree(child)
+                }
             })
         } as @convention(block) (Int, [Int]) -> Void, forKeyedSubscript: "_replaceChildren" as NSString)
 
@@ -336,7 +340,7 @@ class JSRuntime: @unchecked Sendable {
                 parent.children.insert(child, at: idx)
                 LayoutInvalidation.childrenChanged(parent)
                 frame.markStructureChanged()
-                frame.setNeedsRender()
+                frame.setNeedsStyleSubtree(child)
                 frame.runNewScripts(in: child)
                 frame.reloadStylesheets()
                 frame.syncIframes()
@@ -463,7 +467,7 @@ class JSRuntime: @unchecked Sendable {
             Task {
                 @MainActor in
                 InlineStyle.set(elt, property: attr, value: value)
-                self.frame?.setNeedsRender()
+                self.frame?.setNeedsStyleSubtree(elt)
             }
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "__styleSet__" as NSString)
 
