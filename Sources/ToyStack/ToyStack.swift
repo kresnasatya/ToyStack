@@ -75,6 +75,8 @@ public struct BrowserView: View {
         .background(
             WindowReader { window in
                 browserWindow = window
+                window.styleMask.insert(.resizable)
+                window.contentMinSize = NSSize(width: 320, height: 240)
             }
         )
         .onAppear {

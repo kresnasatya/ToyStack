@@ -36,6 +36,7 @@ struct SessionOptions {
 struct ScheduledEvent {
     enum Action {
         case scroll(x: CGFloat, y: CGFloat, deltaY: CGFloat)
+        case resize(width: CGFloat, height: CGFloat)
         case screenshot(path: String)
     }
 
@@ -54,6 +55,7 @@ func usage() -> Never {
                   --screenshot <path>            capture when the run ends
                   --screenshot-at <t> <path>     capture after t seconds of animation time
                   --scroll-at <t>:<x>:<y>:<dy>   scroll at t seconds (repeatable)
+                  --resize-at <t>:<w>:<h>        resize at t seconds (repeatable)
                   --force-full-layout            rebuild every box on every layout pass
                   --no-incremental-layout        pre-0b name for --force-full-layout
                   --width <px>                   viewport width (default 800)
@@ -103,6 +105,9 @@ func parseArguments() -> HeadlessOptions? {
             events.append(ScheduledEvent(time: time, action: .screenshot(path: next(arg))))
         case "--scroll-at":
             guard let event: ScheduledEvent = parseScrollEvent(next(arg)) else { return nil }
+            events.append(event)
+        case "--resize-at":
+            guard let event: ScheduledEvent = parseResizeEvent(next(arg)) else { return nil }
             events.append(event)
         case "--trace":
             tracePath = next(arg)
@@ -160,6 +165,20 @@ private func parseScrollEvent(_ value: String) -> ScheduledEvent? {
     return ScheduledEvent(
         time: time,
         action: .scroll(x: CGFloat(x), y: CGFloat(y), deltaY: CGFloat(deltaY))
+    )
+}
+
+private func parseResizeEvent(_ value: String) -> ScheduledEvent? {
+    let parts: [String] = value.split(separator: ":", omittingEmptySubsequences: false)
+        .map(String.init)
+    guard parts.count == 3,
+        let time: Double = Double(parts[0]), time >= 0,
+        let width: Double = Double(parts[1]), width > 0,
+        let height: Double = Double(parts[2]), height > 0
+    else { return nil }
+    return ScheduledEvent(
+        time: time,
+        action: .resize(width: CGFloat(width), height: CGFloat(height))
     )
 }
 

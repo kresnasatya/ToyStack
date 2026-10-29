@@ -4,18 +4,19 @@ import ImageIO
 import UniformTypeIdentifiers
 
 @MainActor
-func capture(_ browser: Browser, viewport: ViewportOptions, to path: String) -> Bool {
-    guard let image: CGImage = renderImage(browser, viewport: viewport) else {
+func capture(_ browser: Browser, scale: CGFloat, to path: String) -> Bool {
+    guard let image: CGImage = renderImage(browser, scale: scale) else {
         return false
     }
     return savePNG(image, to: path)
 }
 
 @MainActor
-private func renderImage(_ browser: Browser, viewport: ViewportOptions) -> CGImage? {
+private func renderImage(_ browser: Browser, scale: CGFloat) -> CGImage? {
+    let size: CGSize = browser.windowSize
     return CGRenderer.renderBitmap(
-        size: CGSize(width: viewport.width, height: viewport.height),
-        scale: viewport.scale,
+        size: size,
+        scale: scale,
         backgroundColor: BrowserColor(cssName: "white")
     ) { renderer in
         guard let tab: BrowserTab = browser.activeTab else { return }

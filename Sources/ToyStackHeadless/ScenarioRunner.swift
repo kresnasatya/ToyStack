@@ -62,7 +62,7 @@ func runScene(_ options: HeadlessOptions) -> Never {
     }
 
     if let path: String = options.output.screenshotPath {
-        guard capture(browser, viewport: options.viewport, to: path) else {
+        guard capture(browser, scale: options.viewport.scale, to: path) else {
             print("Failed to write PNG to \(path)")
             browser.stopAnimationTimer()
             exit(1)
@@ -85,8 +85,10 @@ private func apply(
     case let .scroll(x, y, deltaY):
         tab.scrollAt(x: x, y: y, deltaY: deltaY)
         pumpRenderIdle(browser)
+    case let .resize(width, height):
+        browser.resize(to: CGSize(width: width, height: height))
     case let .screenshot(path):
-        if capture(browser, viewport: viewport, to: path) {
+        if capture(browser, scale: viewport.scale, to: path) {
             print("Saved: \(path)")
         } else {
             print("Failed to write PNG to \(path)")
@@ -108,4 +110,3 @@ private func pump(_ condition: () -> Bool, timeout: TimeInterval) -> Bool {
     }
     return true
 }
-

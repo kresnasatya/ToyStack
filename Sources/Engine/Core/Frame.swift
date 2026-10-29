@@ -983,6 +983,7 @@ class Frame {
 
     func commitFrame() {
         guard let tab else { return }
+        scroll = min(scroll, maxScroll)
         let updates: [ObjectIdentifier: BrowserVisualEffect]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),

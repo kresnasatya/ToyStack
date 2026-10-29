@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>16-5 resize invalidation</title>
+<style>
+  body { display: block; margin: 0; font-family: monospace; font-size: 14px; }
+  h1 { display: block; }
+  p { display: block; }
+  .card { display: block; width: 420px; padding: 8px; background-color: whitesmoke; }
+  .badge { display: block; background-color: lightblue; }
+  .tall { display: block; height: 2400px; background-color: lightgray; }
+  @media (min-width: 900px) { .badge { background-color: lightgreen; } }
+</style>
+</head>
+<body>
+<h1>Resize me</h1>
+<p class="badge">Narrow: lightblue. Wider than 900px: lightgreen.</p>
+<p>This paragraph wraps to the window. Drag the window narrower and wider; the
+line count changes, so the box and its text must be laid out again.</p>
+<div class="card">
+  <p>This card is 420 CSS pixels wide.</p>
+  <p>Its paragraphs keep the same wrapping when the window changes, so their
+  boxes and lines must not be rebuilt.</p>
+  <p>Compare layout.visited with --force-full-layout.</p>
+</div>
+<div class="tall"></div>
+<p>Bottom marker: scroll here, then shrink the window height. The scroll
+position must clamp instead of showing blank space.</p>
+</body>
+</html>

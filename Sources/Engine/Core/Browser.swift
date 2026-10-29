@@ -152,7 +152,9 @@ public class Browser: ObservableObject {
 
     public func resize(to size: CGSize) {
         windowSize = size
-        activeTab?.resize(width: size.width, height: size.height - topInset)
+        for tab in tabs {
+            tab.resize(width: size.width, height: size.height - topInset)
+        }
     }
 
     public func startAnimationTimer() {

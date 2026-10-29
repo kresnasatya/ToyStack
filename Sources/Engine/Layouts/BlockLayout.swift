@@ -127,7 +127,6 @@ class BlockLayout: LayoutObject {
 
     private func childrenInputs() -> [any InvalidatableField] {
         var inputs: [any InvalidatableField] = [
-            widthField,
             zoomField,
             node.style.field("display"),
             node.style.field("position"),
@@ -138,6 +137,13 @@ class BlockLayout: LayoutObject {
                 inputs.append(child.style.field("display"))
                 inputs.append(child.style.field("position"))
             }
+        }
+        // A block-only container's child list does not depend on its width.
+        // Width only matters when this block lays out lines or anonymous runs;
+        // their own width fields carry the dependency.
+        let hasBlockChild: Bool = node.children.contains(where: { $0.style["display"] == "block" })
+        if !hasBlockChild {
+            inputs.append(widthField)
         }
         let leaves: [any DOMNode] = inlineLeaves()
         for leaf in leaves {

@@ -207,9 +207,20 @@ public class BrowserTab {
     }
 
     public func resize(width: CGFloat, height: CGFloat) {
-        guard width != tabWidth || height != tabHeight else { return }
+        let widthChanged: Bool = width != tabWidth
+        let heightChanged: Bool = height != tabHeight
+        guard widthChanged || heightChanged else { return }
         tabWidth = width
         tabHeight = height
+        browser?.measure.counter(
+            "BrowserTab.resize",
+            [
+                "width": Int(width),
+                "height": Int(height),
+                "widthChanged": widthChanged ? 1 : 0,
+                "heightChanged": heightChanged ? 1 : 0,
+            ]
+        )
         rootFrame.frameWidth = width / rootFrame.pageZoom
         rootFrame.frameHeight = height / rootFrame.pageZoom
         rootFrame.setNeedsViewportResize()

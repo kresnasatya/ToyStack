@@ -233,7 +233,7 @@ public final class MeasureTime: @unchecked Sendable {
         if name.hasPrefix("view.") || name == "view" || name == "present.main" || name == "present" { return .present }
         if name.hasPrefix("profile.load") || name.hasPrefix("BrowserTab.load") || name.hasPrefix("load.") { return .load }
         if name == "composite_raster_and_draw" || name.hasPrefix("BrowserTab.anim") || name.hasPrefix("BrowserTab.raf") { return .frame }
-        if name.hasPrefix("BrowserTab.scroll") { return .input }
+        if name.hasPrefix("BrowserTab.scroll") || name.hasPrefix("BrowserTab.resize") { return .input }
         return .engine
     }
 }
