@@ -12,7 +12,7 @@ struct LayoutTestPage {
         let frame: Frame = tab.rootFrame
         frame.nodes = HTMLParser(body: html).parse()
         frame.rules = CSSParser(rules).parse().rules
-        frame.needsStyle = true
+        frame.setNeedsRender()
         frame.render()
         self.tab = tab
         self.frame = frame

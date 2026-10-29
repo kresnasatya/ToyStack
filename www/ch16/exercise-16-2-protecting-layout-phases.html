@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Exercise 16-2: protecting layout phases</title>
+<style>
+  body { margin: 24px; font-family: sans-serif; line-height: 1.4; }
+  .box { width: 140px; padding: 12px; margin-bottom: 16px; color: white; }
+  .opacity { background-color: blue; animation: fade 2s infinite alternate; }
+  .transform { background-color: green; transition: transform 1s linear; }
+  .width { background-color: blue; animation: grow 2s infinite alternate; }
+  @keyframes fade {
+    from { opacity: 1; }
+    to { opacity: 0.25; }
+  }
+  @keyframes grow {
+    from { width: 140px; }
+    to { width: 280px; }
+  }
+  #witness { max-width: 520px; }
+</style>
+</head>
+<body>
+  <h1>Protecting layout phases</h1>
+  <p>The opacity box animates on its own. The transform box moves when you press the button. Neither should run layout.</p>
+  <div class="box opacity">opacity</div>
+  <div class="box transform" id="slide" style="transform: translate(0px, 0px)">transform</div>
+  <button id="move">Move transform box</button>
+  <p>The next box animates width. Its text should rewrap, which changes its height and moves the witness line below.</p>
+  <div class="box width">width changes this text and wraps it onto more lines</div>
+  <p id="witness">Witness line: it should move only while the width animation runs.</p>
+  <script>
+    var moved = false;
+    document.getElementById("move").addEventListener("click", function () {
+      moved = !moved;
+      document.getElementById("slide").style.transform =
+        moved ? "translate(160px, 0px)" : "translate(0px, 0px)";
+    });
+  </script>
+</body>
+</html>

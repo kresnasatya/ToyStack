@@ -21,7 +21,11 @@ class Frame {
 
     var url: WebURL!
     var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
-    var document: DocumentLayout?
+    private let documentField: ProtectedField<DocumentLayout?>
+    var document: DocumentLayout? {
+        get { documentField.peek() ?? nil }
+        set { documentField.set(newValue) }
+    }
     var displayList: [any DisplayItem] = []
     var paintRevision: UInt = 0
     // Bumped when anything that paint reads may have changed.
@@ -61,8 +65,6 @@ class Frame {
     private var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
 
     var needsRender: Bool = false
-    var needsStyle: Bool = false
-    var needsLayout: Bool = false
     var needsPaint: Bool = false
     private var styleInvalidatedByViewport: Bool = false
     private var styleInvalidatedByOther: Bool = false
@@ -121,6 +123,10 @@ class Frame {
     private var browser: Browser? { tab?.browser }
 
     init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
+        self.documentField = ProtectedField<DocumentLayout?>(
+            owner: FieldOwner(name: "document"),
+            equals: { (lhs: DocumentLayout?, rhs: DocumentLayout?) -> Bool in lhs === rhs }
+        )
         self.tab = tab
         self.parentFrame = parent?.frame
         self.frameElement = parent?.element
@@ -693,11 +699,13 @@ class Frame {
     // MARK: - Render
 
     func render() {
+        let viewportStyle: Bool = styleInvalidatedByViewport
         let reusableStyle: Bool =
-            needsStyle && styleInvalidatedByViewport && !styleInvalidatedByOther
+            viewportStyle && !styleInvalidatedByOther
         styleInvalidatedByViewport = false
         styleInvalidatedByOther = false
-        if needsStyle {
+        let stylesDirty: Bool = nodes.style.isDirty
+        if stylesDirty || viewportStyle {
             paintEpoch += 1
             browser?.measure.start("BrowserTab.style")
             profiler.reset()
@@ -806,11 +814,10 @@ class Frame {
 
             loadBackgroundImages(allNodes)
 
-            needsStyle = false
-            needsLayout = true
+            documentField.mark()
         }
 
-        if needsLayout {
+        if documentField.isDirty {
             browser?.measure.start("BrowserTab.layout")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
@@ -845,7 +852,6 @@ class Frame {
             }
             browser?.measure.stop("BrowserTab.rebuildScrollTargets")
 
-            needsLayout = false
             tab?.needsAccessibility = true
             needsPaint = true
         }
@@ -893,7 +899,7 @@ class Frame {
         js.run(script: "raf", code: "__runRAFHandlers()")
         browser?.measure.stop("BrowserTab.raf")
         var needsAnotherFrame: Bool = false
-        needsComposite = needsStyle || needsLayout || needsPaint
+        needsComposite = nodes.style.isDirty || documentField.isDirty || needsPaint
         var needsLayoutUpdate: Bool = false
         var animationFallbacks: Int = 0
         browser?.measure.start("BrowserTab.animScan")
@@ -1422,15 +1428,16 @@ class Frame {
             styleInvalidatedByViewport = true
         } else {
             styleInvalidatedByOther = true
+            nodes.style.markAll()
         }
-        needsStyle = true
+        documentField.mark()
         needsRender = true
         parentFrame?.setNeedsLayout()
         requestAnimationFrame()
     }
 
     func setNeedsLayout() {
-        needsLayout = true
+        documentField.mark()
         needsRender = true
         parentFrame?.setNeedsLayout()
         requestAnimationFrame()

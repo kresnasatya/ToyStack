@@ -23,7 +23,7 @@ struct InlineTextLayoutTests {
         let beforeHeight: CGFloat = try #require(page.lines(in: p).first).height
 
         p.attributes["style"] = "font-size: 32px;"
-        page.frame.needsStyle = true
+        page.frame.setNeedsRender()
         page.frame.render()
 
         let afterWidth: CGFloat = page.textWidth(in: p)
@@ -42,7 +42,7 @@ struct InlineTextLayoutTests {
         #expect(linesBefore > 1)
 
         p.attributes["style"] = "white-space: nowrap"
-        page.frame.needsStyle = true
+        page.frame.setNeedsRender()
         page.frame.render()
 
         let linesAfter: Int = page.lines(in: p).count

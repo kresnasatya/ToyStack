@@ -60,7 +60,7 @@ struct EmbedLayoutTests {
         #expect(before.height == inlineDefaultFont.linespace)
 
         input.attributes["style"] = "font-size: 32px"
-        page.frame.needsStyle = true
+        page.frame.setNeedsRender()
         page.frame.render()
 
         let after: InputLayout = try #require(page.firstLayout(InputLayout.self, in: input))

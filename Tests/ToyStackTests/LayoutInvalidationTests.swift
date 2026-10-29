@@ -91,7 +91,7 @@ struct LayoutInvalidationTests {
             body { display: block; }
             div { display: block; width: 120px; }
             """).parse().rules
-        fixture.frame.needsStyle = true
+        fixture.frame.setNeedsRender()
         fixture.frame.render()
 
         let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
@@ -167,7 +167,7 @@ struct LayoutInvalidationTests {
             timing: FrameTiming(totalFrames: 60, easing: .linear)
         )
 
-        page.frame.needsStyle = true
+        page.frame.setNeedsRender()
         page.frame.render()
 
         page.frame.js = JSRuntime(frame: page.frame)
@@ -185,7 +185,7 @@ struct LayoutInvalidationTests {
     @Test func animatingOpacityDoesNotRebuildLayout() {
         let fixture = makeFixture()
         fixture.narrow.animations["opacity"] = NumericAnimation(animatedProperty: "opacity", oldValue: 1, newValue: 0.5, timing: FrameTiming(totalFrames: 60, easing: .linear))
-        fixture.frame.needsStyle = true
+        fixture.frame.setNeedsRender()
         fixture.frame.render()
 
         fixture.frame.js = JSRuntime(frame: fixture.frame)
@@ -194,6 +194,25 @@ struct LayoutInvalidationTests {
 
         #expect(profiler.snapshot()["layout.rebuilt"] == nil)
         #expect(fixture.narrow.style["opacity"] != nil)
+    }
+
+    @Test func animatingTransformDoesNotRebuiltLayout() {
+        let fixture = makeFixture()
+        fixture.narrow.animations["transform"] = TransformAnimation(
+            animatedProperty: "transform",
+            oldPoint: CGPoint.zero,
+            newPoint: CGPoint(x: 20, y: 0),
+            timing: FrameTiming(totalFrames: 60, easing: .linear)
+        )
+        fixture.frame.setNeedsRender()
+        fixture.frame.render()
+
+        fixture.frame.js = JSRuntime(frame: fixture.frame)
+        profiler.reset()
+        fixture.frame.runAnimationFrame()
+
+        #expect(profiler.snapshot()["layout.rebuilt"] == nil)
+        #expect(fixture.narrow.style["transform"] != nil)
     }
 }
 
@@ -237,7 +256,7 @@ private func makeFixture(mediaBody: String = "margin-bottom: 50px;") -> Fixture 
         div { display: block; width: 100px; }
         @media (min-width: 600px) { div.narrow { \(mediaBody) } }
         """).parse().rules
-    frame.needsStyle = true
+    frame.setNeedsRender()
     frame.render()
     return Fixture(tab: tab, frame: frame, body: body, narrow: narrow)
 }

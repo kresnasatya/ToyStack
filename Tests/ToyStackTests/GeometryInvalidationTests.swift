@@ -125,7 +125,7 @@ private func makeParagraphFixture() -> ParagraphFixture {
         body { display: block; }
         p { display: block; width: 120px; }
         """).parse().rules
-    frame.needsStyle = true
+    frame.setNeedsRender()
     frame.render()
     return ParagraphFixture(tab: tab, html: html, first: first, second: second)
 }
@@ -174,7 +174,7 @@ private func makeAbsoluteFixture() -> AbsoluteFixture {
             height: 40px;
         }
         """).parse().rules
-    frame.needsStyle = true
+    frame.setNeedsRender()
     frame.render()
     return AbsoluteFixture(
         tab: tab, html: html, header: header, absolute: absolute
@@ -218,7 +218,7 @@ private func makeNestedListFixture() -> NestedListFixture {
         ul { display: block; }
         li { display: block; height: 20px; }
         """).parse().rules
-    frame.needsStyle = true
+    frame.setNeedsRender()
     frame.render()
     return NestedListFixture(
         tab: tab, html: html, firstItem: firstItem, secondItem: secondItem
@@ -264,7 +264,7 @@ private func makeRTLFixture() -> RTLFixture {
         div.header { height: 10px; }
         div.rtl { width: 200px; }
         """).parse().rules
-    frame.needsStyle = true
+    frame.setNeedsRender()
     frame.render()
     return RTLFixture(tab: tab, html: html, header: header, rtl: rtl)
 }

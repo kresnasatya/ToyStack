@@ -28,7 +28,7 @@ struct ReplaceChildrenTests {
         #expect(box.children.isEmpty)
         #expect(removed.count == 2)
         #expect(removed.allSatisfy({ $0.parent == nil }))
-        #expect(page.frame.needsStyle)
+        #expect(page.frame.nodes.style.isDirty)
 
         page.frame.render()
         #expect((box.layoutObject?.height ?? 0) < heightBefore)

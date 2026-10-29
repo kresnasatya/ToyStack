@@ -108,7 +108,7 @@ private func makeFixture() -> Fixture {
         section { display: block; }
         article { display: block; }
         """).parse().rules
-    frame.needsStyle = true
+    frame.setNeedsRender()
     frame.render()
     return Fixture(tab: tab, frame: frame, button: button)
 }

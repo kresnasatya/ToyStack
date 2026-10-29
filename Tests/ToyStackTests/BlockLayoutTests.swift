@@ -24,7 +24,7 @@ struct BlockLayoutTests {
             body { display: block; }
             p { display: block; }
             """).parse().rules
-        frame.needsStyle = true
+        frame.setNeedsRender()
         frame.render()
 
         let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
