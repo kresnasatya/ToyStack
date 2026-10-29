@@ -252,6 +252,12 @@ class JSRuntime: @unchecked Sendable {
                     let parent = self.handleToNode[parentHandle],
                     let child = self.handleToNode[childHandle]
                 else { return }
+                if let oldParent = child.parent {
+                    oldParent.children.removeAll { $0 === child }
+                    if oldParent !== parent {
+                        LayoutInvalidation.childrenChanged(oldParent)
+                    }
+                }
                 child.parent = parent
                 parent.children.append(child)
                 LayoutInvalidation.childrenChanged(parent)
