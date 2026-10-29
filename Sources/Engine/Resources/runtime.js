@@ -56,10 +56,16 @@ Node.prototype.removeChild = function (child) {
 };
 
 Node.prototype.replaceChildren = function () {
-  if (arguments.length !== 0) {
-    throw new TypeError("replaceChildren with arguments is not implemented");
+  var handles = [];
+  for (var i = 0; i < arguments.length; i++) {
+    var child = arguments[i];
+    if (!(child instanceof Node)) {
+      throw new TypeError("replaceChildren only accepts Node arguments");
+    }
+    handles.push(child.handle);
   }
-  _replaceChildren(this.handle);
+
+  _replaceChildren(this.handle, handles);
 }
 
 Node.prototype.setAttribute = function (attr, value) {

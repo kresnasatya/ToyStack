@@ -18,6 +18,15 @@ extension DOMNode {
         if self is TextNode, let parent { return parent }
         return self
     }
+
+    func isInclusiveAncestor(of node: any DOMNode) -> Bool {
+        var current: (any DOMNode)? = node
+        while let candidate = current {
+            if candidate === self { return true }
+            current = candidate.parent
+        }
+        return false
+    }
 }
 
 // MARK: - Element

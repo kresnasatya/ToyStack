@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — replaceChildren(nodes)</title>
+  <style>
+    body { font-family: monospace; font-size: 16px; margin: 12px; }
+    h1 { font-size: 20px; }
+    #source, #target { width: 420px; border: 1px solid black; padding: 8px; margin-bottom: 8px; }
+    #target { background-color: lightblue; }
+  </style>
+</head>
+<body>
+
+<h1>Chapter 16: transferring children</h1>
+
+<p>After 60 animation frames the target replaces its own child with the
+source's two paragraphs plus a detached element made by
+<code>createElement</code>. The source must become empty and shorter, and
+the target must grow.</p>
+
+<div id="source">
+  <p>one, moved from the source</p>
+  <p>two, moved from the source</p>
+</div>
+
+<div id="target"><p id="old">the target's old child</p></div>
+
+<pre id="out">before replaceChildren(nodes)</pre>
+
+<script>
+  var framesLeft = 60;
+
+  function tick() {
+    framesLeft = framesLeft - 1;
+    if (framesLeft > 0) {
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    var source = document.getElementById("source");
+    var target = document.getElementById("target");
+
+    var fresh = document.createElement("p");
+    fresh.textContent = "three, created detached";
+
+    target.replaceChildren(source.children[0], source.children[1], fresh);
+
+    document.getElementById("out").textContent =
+      "source children=" + source.children.length +
+      "\ntarget children=" + target.children.length +
+      "\nold child=" + (document.getElementById("old") === null ? "detached" : "still there");
+  }
+
+  requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>

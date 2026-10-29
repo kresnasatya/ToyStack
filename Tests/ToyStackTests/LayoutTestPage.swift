@@ -24,6 +24,12 @@ struct LayoutTestPage {
             .first(where: { $0.tag == tag })
     }
 
+    func firstElement(id: String) -> Element? {
+        return treeToList(frame.nodes)
+            .compactMap({ $0 as? Element })
+            .first(where: { $0.attributes["id"] == id })
+    }
+
     func firstLayout<T: LayoutObject>(_ type: T.Type, in element: Element) -> T? {
         guard let object: any LayoutObject = element.layoutObject else { return nil }
         return treeToList(object).compactMap({ $0 as? T }).first

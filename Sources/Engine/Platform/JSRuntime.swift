@@ -282,21 +282,40 @@ class JSRuntime: @unchecked Sendable {
         } as @convention(block) (Int, Int) -> Int, forKeyedSubscript: "_removeChild" as NSString)
 
         jsContext.setObject({
-            [weak self] (handle: Int) in
+            [weak self] (handle: Int, childHandles: [Int]) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,
                     let elt = self.handleToNode[handle] as? Element
                 else { return }
+
+                let newChildren: [any DOMNode] = childHandles.compactMap({ self.handleToNode[$0] })
+                guard newChildren.allSatisfy({ !$0.isInclusiveAncestor(of: elt) }) else {
+                    return
+                }
+
                 let removed: [any DOMNode] = elt.children
                 elt.children = []
                 for child in removed { child.parent = nil }
+
+                for child in newChildren {
+                    if let parent = child.parent {
+                        parent.children.removeAll { $0 === child }
+                        if parent !== elt {
+                            LayoutInvalidation.childrenChanged(parent)
+                        }
+                    }
+                    child.parent = elt
+                    elt.children.append(child)
+                }
+
                 LayoutInvalidation.childrenChanged(elt)
                 frame.markStructureChanged()
+                for child in newChildren { frame.runNewScripts(in: child) }
                 frame.reloadStylesheets()
                 frame.syncIframes()
                 frame.setNeedsRender()
             })
-        } as @convention(block) (Int) -> Void, forKeyedSubscript: "_replaceChildren" as NSString)
+        } as @convention(block) (Int, [Int]) -> Void, forKeyedSubscript: "_replaceChildren" as NSString)
 
         jsContext.setObject({
             [weak self] (parentHandle: Int, childHandle: Int, refHandle: Int) in
