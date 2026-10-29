@@ -13,3 +13,4 @@ browser.trace
 !www/**/*.png
 !benchmark/baseline/*.png
 *.mov
+/ToyStack.app

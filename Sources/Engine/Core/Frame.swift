@@ -1544,7 +1544,7 @@ class Frame {
 }
 
 let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = {
-    guard let url = Bundle.module.url(forResource: "browser", withExtension: "css"),
+    guard let url = EngineResources.bundle.url(forResource: "browser", withExtension: "css"),
         let source = try? String(contentsOf: url, encoding: .utf8)
     else { return [] }
     return CSSParser(source).parse().rules

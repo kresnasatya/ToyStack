@@ -526,7 +526,7 @@ class JSRuntime: @unchecked Sendable {
 
     private func loadRuntime() {
         let source: String? = profiler.measure("jsc.runtimeHead", {
-            guard let url = Bundle.module.url(forResource: "runtime", withExtension: "js") else { return nil }
+            guard let url = EngineResources.bundle.url(forResource: "runtime", withExtension: "js") else { return nil }
             return try? String(contentsOf: url, encoding: .utf8)
         })
         guard let source else { fatalError("runtime.js not found in bundle") }
