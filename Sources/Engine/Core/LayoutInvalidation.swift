@@ -7,6 +7,14 @@ enum LayoutInvalidation {
         nearestBlock(node)?.markChildrenDirty()
     }
 
+    static func childrenAppend(_ parent: any DOMNode, _ child: any DOMNode) {
+        guard let block = parent.layoutObject as? BlockLayout else {
+            childrenChanged(parent)
+            return
+        }
+        block.noteAppendedChildren([child])
+    }
+
     static func textChanged(_ node: TextNode) {
         childrenChanged(node)
     }

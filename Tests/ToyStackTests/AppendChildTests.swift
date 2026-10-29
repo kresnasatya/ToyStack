@@ -79,4 +79,98 @@ struct AppendChildTests {
         #expect(one.parent === box)
         #expect(two.parent === box)
     }
+
+    @Test func appendKeepsExistingLayoutChildren() throws {
+        let css: String = """
+            body { display: block; }
+            div { display: block; }
+            p { display: block; height: 20px; }
+        """
+        let page: LayoutTestPage = LayoutTestPage(
+            html: """
+                <div id="box">
+                    <p id="one">one</p>
+                    <p id="two">two</p>
+                </div>
+            """,
+            rules: css
+        )
+        let box: Element = try #require(page.firstElement(id: "box"))
+        let one: Element = try #require(page.firstElement(id: "one"))
+        let two: Element = try #require(page.firstElement(id: "two"))
+        let boxLayout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
+        let oneLayout: BlockLayout = try #require(one.layoutObject as? BlockLayout)
+        let twoLayout: BlockLayout = try #require(two.layoutObject as? BlockLayout)
+        let beforeChildren: [any LayoutObject] = boxLayout.children
+        #expect(beforeChildren.count == 5)
+        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.js.run(
+            script: "appendChild",
+            code: """
+                var box = document.getElementById('box');
+                var fresh = document.createElement('p');
+                fresh.textContent = 'three';
+                box.appendChild(fresh);
+            """
+        )
+        page.frame.rules = CSSParser(css).parse().rules
+
+        profiler.reset()
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        #expect(boxLayout.children.count == 6)
+        #expect(boxLayout.children[0] === beforeChildren[0])
+        #expect(boxLayout.children[1] === oneLayout)
+        #expect(boxLayout.children[2] === beforeChildren[2])
+        #expect(boxLayout.children[3] === twoLayout)
+        #expect(boxLayout.children[4] === beforeChildren[4])
+
+        let appended: BlockLayout = try #require(boxLayout.children.last as? BlockLayout)
+        #expect((appended.node as? Element)?.tag == "p")
+        #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
+        #expect((profiler.snapshot()["layout.children.appended"]?.count ?? 0) == 1)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func appendMergesIntoTailingInlineRun() throws {
+        let css: String = """
+            body { display: block; }
+            div { display: block; }
+            p { display: block; height: 20px; }
+        """
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><p id="one">one</p>tail</div>"#,
+            rules: css
+        )
+        let box: Element = try #require(page.firstElement(id: "box"))
+        let one: Element = try #require(page.firstElement(id: "one"))
+        let boxLayout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
+        let oneLayout: BlockLayout = try #require(one.layoutObject as? BlockLayout)
+        #expect(boxLayout.children.count == 2)
+        page.frame.js = JSRuntime(frame: page.frame)
+
+        page.frame.js.run(
+            script: "appendChild",
+            code: """
+                var box = document.getElementById('box');
+                var fresh = document.createElement('span');
+                fresh.textContent = ' more';
+                box.appendChild(fresh);
+            """
+        )
+        page.frame.rules = CSSParser(css).parse().rules
+        profiler.reset()
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        #expect(boxLayout.children.count == 2)
+        #expect(boxLayout.children[0] === oneLayout)
+        let run: BlockLayout = try #require(boxLayout.children[1] as? BlockLayout)
+        #expect(run.extraNodes.count == 2)
+        #expect((run.extraNodes[1] as? Element)?.tag == "span")
+        #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
+        #expect((profiler.snapshot()["layout.children.appended"]?.count ?? 0) == 1)
+        expectIncrementalMatchesFull(page)
+    }
 }

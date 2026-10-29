@@ -17,6 +17,7 @@ class BlockLayout: LayoutObject {
         set { childrenField.set(newValue) }
     }
     var hasDirtyDescendants: Bool = false
+    private var appendedChildren: [any DOMNode] = []
     let extraNodes: [any DOMNode]
     let xField: ProtectedField<CGFloat>
     var x: CGFloat {
@@ -198,7 +199,21 @@ class BlockLayout: LayoutObject {
     }
 
     func markChildrenDirty() {
+        appendedChildren.removeAll()
         childrenField.mark()
+    }
+
+    func noteAppendedChildren(_ nodes: [any DOMNode]) {
+        appendedChildren.append(contentsOf: nodes)
+        markAncestorsDirty()
+    }
+
+    private func markAncestorsDirty() {
+        var current: (any LayoutObject)? = parent
+        while let object = current, !object.hasDirtyDescendants {
+            object.hasDirtyDescendants = true
+            current = object.parent
+        }
     }
 
     func layoutNeeded() -> Bool {
@@ -212,7 +227,7 @@ class BlockLayout: LayoutObject {
             return true
         }
 
-        return childrenField.dirty
+        return childrenField.dirty || !appendedChildren.isEmpty
     }
 
     func layout() {
@@ -225,7 +240,7 @@ class BlockLayout: LayoutObject {
         // A display change moves children between the block and inline paths, so
         // the leaves that inline layout will read were not known when the block
         // was built. Re-declare them before this pass reads them.
-        if childrenField.dirty {
+        if childrenField.dirty || !appendedChildren.isEmpty {
             childrenField.setDependencies(childrenInputs())
         }
         profiler.measure("layout.visit") {
@@ -295,63 +310,20 @@ class BlockLayout: LayoutObject {
             if mode == "block" {
                 profiler.count("layout.mode.block")
                 if childrenField.dirty {
-                    profiler.count("layout.children.rebuilt")
-                    var built: [any LayoutObject] = []
-                    var prev: (any LayoutObject)? = nil
-                    var inlineRun: [any DOMNode] = []
-                    var pendingRunIn: Element? = nil
-                    for child in node.children {
-                        if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
-                            continue
-                        }
-                        let isBlock: Bool = child.style.read("display", notify: childrenField) == "block"
-                        if isBlock {
-                            if let el = child as? Element, el.tag == "h6" {
-                                if !inlineRun.isEmpty {
-                                    let run: [any DOMNode] = inlineRun
-                                    let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
-                                    built.append(anon)
-                                    prev = anon
-                                    inlineRun = []
-                                }
-                                pendingRunIn = el
-                            } else {
-                                if !inlineRun.isEmpty {
-                                    let run: [any DOMNode] = inlineRun
-                                    let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
-                                    built.append(anon)
-                                    prev = anon
-                                    inlineRun = []
-                                }
-                                if let runIn = pendingRunIn {
-                                    let run: [any DOMNode] = [runIn, child]
-                                    let next: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
-                                    built.append(next)
-                                    prev = next
-                                    pendingRunIn = nil
-                                } else {
-                                    let next: BlockLayout = BlockLayout(node: child, parent: self, previous: prev)
-                                    built.append(next)
-                                    if child.style.read("position", notify: childrenField) != "absolute" { prev = next }
-                                }
-                            }
-                        } else {
-                            inlineRun.append(child)
-                        }
+                    childrenField.set(rebuildBlockChildren())
+                } else if !appendedChildren.isEmpty {
+                    let pending: [any DOMNode] = appendedChildren
+                    appendedChildren.removeAll()
+                    if let appended: [any LayoutObject] = appendBlockChildren(pending) {
+                        profiler.count("layout.children.appended")
+                        childrenField.set(appended)
+                    } else {
+                        childrenField.set(rebuildBlockChildren())
                     }
-                    if !inlineRun.isEmpty {
-                        let run: [any DOMNode] = inlineRun
-                        let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: prev)
-                        built.append(anon)
-                    }
-                    if let runIn = pendingRunIn {
-                        let next: BlockLayout = BlockLayout(node: runIn, parent: self, previous: prev)
-                        built.append(next)
-                    }
-                    childrenField.set(built)
                 }
             } else {
                 profiler.count("layout.mode.inline")
+                appendedChildren.removeAll()
                 // Inline layout consumes these inputs but has no field of its own;
                 // route them to the child list that would have to be rebuilt.
                 _ = widthField.read(notify: childrenField)
@@ -413,6 +385,117 @@ class BlockLayout: LayoutObject {
             return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
         }
         return "inline"
+    }
+
+    private func rebuildBlockChildren() -> [any LayoutObject] {
+        profiler.count("layout.children.rebuilt")
+        appendedChildren.removeAll()
+        var state: BlockChildBuild = BlockChildBuild()
+        consumeBlockChildren(node.children, state: &state)
+        finishBlockChildren(&state)
+        return state.built
+    }
+
+    private func appendBlockChildren(_ nodes: [any DOMNode]) -> [any LayoutObject]? {
+        guard extraNodes.isEmpty, children.allSatisfy({ $0 is BlockLayout }) else {
+            return nil
+        }
+        if let last: BlockLayout = children.last as? BlockLayout,
+            last.extraNodes.isEmpty,
+            (last.node as? Element)?.tag == "h6"
+        {
+            return nil
+        }
+        guard let first: any DOMNode = firstVisibleChild(in: nodes) else {
+            return nil
+        }
+
+        var state: BlockChildBuild = BlockChildBuild(
+            built: children,
+            previous: lastFlowChild(in: children)
+        )
+        let startsInline: Bool = first.style.read("display", notify: childrenField) != "block"
+        if startsInline,
+            let last: BlockLayout = state.built.last as? BlockLayout,
+            !last.extraNodes.isEmpty,
+            last.extraNodes.allSatisfy({ $0.style.read("display", notify: childrenField ) != "block" })
+        {
+            state.built.removeLast()
+            state.inlineRun = last.extraNodes
+            state.previous = last.previous
+        }
+
+        consumeBlockChildren(nodes, state: &state)
+        finishBlockChildren(&state)
+        return state.built
+    }
+
+    private func firstVisibleChild(in nodes: [any DOMNode]) -> (any DOMNode)? {
+        return nodes.first(where: { child in
+            guard let el = child as? Element else { return true }
+            return !BlockLayout.hiddenElements.contains(el.tag)
+        })
+    }
+
+    private func lastFlowChild(in children: [any LayoutObject]) -> (any LayoutObject)? {
+        for child in children.reversed() {
+            if let block = child as? BlockLayout, !block.extraNodes.isEmpty {
+                return child
+            }
+            if child.node.style.read("position", notify: childrenField) != "absolute" {
+                return child
+            }
+        }
+        return nil
+    }
+
+    private func consumeBlockChildren(_ nodes: [any DOMNode], state: inout BlockChildBuild) {
+        for child in nodes {
+            if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
+                continue
+            }
+            let isBlock: Bool = child.style.read("display", notify: childrenField) == "block"
+            if isBlock {
+                if let el = child as? Element, el.tag == "h6" {
+                    flushInlineRun(into: &state)
+                    state.pendingRunIn = el
+                } else {
+                    flushInlineRun(into: &state)
+                    if let runIn = state.pendingRunIn {
+                        let run: [any DOMNode] = [runIn, child]
+                        let next: BlockLayout = BlockLayout(nodes: run, parent: self, previous: state.previous)
+                        state.built.append(next)
+                        state.previous = next
+                        state.pendingRunIn = nil
+                    } else {
+                        let next: BlockLayout = BlockLayout(node: child, parent: self, previous: state.previous)
+                        state.built.append(next)
+                        if child.style.read("position", notify: childrenField) != "absolute" {
+                            state.previous = next
+                        }
+                    }
+                }
+            } else {
+                state.inlineRun.append(child)
+            }
+        }
+    }
+
+    private func flushInlineRun(into state: inout BlockChildBuild) {
+        guard !state.inlineRun.isEmpty else { return }
+        let run: [any DOMNode] = state.inlineRun
+        let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: state.previous)
+        state.built.append(anon)
+        state.previous = anon
+        state.inlineRun = []
+    }
+
+    private func finishBlockChildren(_ state: inout BlockChildBuild) {
+        flushInlineRun(into: &state)
+        if let runIn = state.pendingRunIn {
+            let next: BlockLayout = BlockLayout(node: runIn, parent: self, previous: state.previous)
+            state.built.append(next)
+        }
     }
 
     private func marginPx(_ n: any DOMNode, _ prop: String, notify: any InvalidatableField) -> CGFloat {
@@ -891,4 +974,14 @@ class BlockLayout: LayoutObject {
 
         return nil
     }
+}
+
+// MARK: - Block child build
+
+// Mutable cursor for one pass of the block child builder.
+private struct BlockChildBuild {
+    var built: [any LayoutObject] = []
+    var previous: (any LayoutObject)?
+    var inlineRun: [any DOMNode] = []
+    var pendingRunIn: Element?
 }

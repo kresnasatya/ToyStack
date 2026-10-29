@@ -252,7 +252,10 @@ class JSRuntime: @unchecked Sendable {
                     let parent = self.handleToNode[parentHandle],
                     let child = self.handleToNode[childHandle]
                 else { return }
+
+                var wasSameParent: Bool = false
                 if let oldParent = child.parent {
+                    wasSameParent = oldParent === parent
                     oldParent.children.removeAll { $0 === child }
                     if oldParent !== parent {
                         LayoutInvalidation.childrenChanged(oldParent)
@@ -261,7 +264,11 @@ class JSRuntime: @unchecked Sendable {
                 }
                 child.parent = parent
                 parent.children.append(child)
-                LayoutInvalidation.childrenChanged(parent)
+                if wasSameParent {
+                    LayoutInvalidation.childrenChanged(parent)
+                } else {
+                    LayoutInvalidation.childrenAppend(parent, child)
+                }
                 frame.markStructureChanged()
                 frame.runNewScripts(in: child)
                 frame.reloadStylesheets()

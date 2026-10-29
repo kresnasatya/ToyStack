@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — appendChild keeps matching children</title>
+  <style>
+    body { font-family: monospace; font-size: 16px; margin: 12px; }
+    h1 { font-size: 20px; }
+    #box { width: 420px; border: 1px solid black; padding: 8px; }
+    #box p { display: block; margin: 0 0 6px 0; padding: 4px; background-color: lightblue; }
+  </style>
+</head>
+<body>
+
+<h1>Chapter 16: appendChild matches existing children</h1>
+
+<p>After 60 frames a fourth paragraph is appended. The first three blocks must
+keep their layout objects; only the new paragraph is built.</p>
+
+<div id="box">
+  <p>one, laid out before the append</p>
+  <p>two, laid out before the append</p>
+  <p>three, laid out before the append</p>
+</div>
+
+<pre id="out">before appendChild</pre>
+
+<script>
+  var framesLeft = 60;
+
+  function tick() {
+    framesLeft = framesLeft - 1;
+    if (framesLeft > 0) {
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    var box = document.getElementById("box");
+    var fresh = document.createElement("p");
+    fresh.textContent = "four, appended after layout";
+    box.appendChild(fresh);
+
+    document.getElementById("out").textContent =
+      "children=" + box.children.length +
+      "\nlast=" + box.children[box.children.length - 1].textContent;
+  }
+
+  requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>
