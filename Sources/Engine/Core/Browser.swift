@@ -992,6 +992,7 @@ public class Browser: ObservableObject {
 
     public func selectTab(_ tab: BrowserTab) {
         guard tab !== activeTab else { return }
+        activeTab?.clearHover()
         if let oldID = activeFrameID {
             frames[oldID] = activeFrame
         }
@@ -1131,6 +1132,7 @@ public class Browser: ObservableObject {
     }
 
     public func handleHover(x: CGFloat, y: CGFloat) {
+        activeTab?.hover(x: x, y: y)
         guard accessibilityIsOn, activeTab?.accessibilityTree != nil else { return }
         pendingHover = CGPoint(x: x, y: y)
         setNeedsDrawOnly()

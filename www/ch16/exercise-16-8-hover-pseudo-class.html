@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — the :hover pseudo-class</title>
+  <style>
+    body { font-family: monospace; font-size: 16px; margin: 12px; }
+    h1 { font-size: 20px; }
+    p { display: block; margin: 0 0 10px 0; }
+    a { color: blue; font-size: 16px; }
+    a:hover { font-size: 20px; }
+    .card {
+      display: block;
+      width: 360px;
+      padding: 10px;
+      margin: 0 0 10px 0;
+      border: 1px solid lightgray;
+      background-color: whitesmoke;
+    }
+    .card:hover { padding: 14px; background-color: lightblue; }
+    ul { margin: 0 0 10px 0; padding: 0; }
+    li { padding: 4px; margin: 0 0 4px 0; background-color: white; }
+    li:hover { background-color: khaki; }
+    li:hover span { color: tomato; }
+    .hint { color: gray; }
+  </style>
+</head>
+<body>
+
+<h1>Chapter 16: :hover</h1>
+
+<p class="hint">Move the pointer over the page. Leaving an element restores it;
+nothing here changes without the pointer.</p>
+
+<p><a href="exercise-16-6-matching-children.html">hover this link</a></p>
+
+<div class="card" id="card">this box grows and turns blue while hovered</div>
+
+<ul>
+  <li id="first">the first row turns khaki <span>and this span turns tomato</span></li>
+  <li>the second row</li>
+</ul>
+
+</body>
+</html>

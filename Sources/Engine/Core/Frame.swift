@@ -86,6 +86,7 @@ class Frame {
     private(set) var interestTop: CGFloat = 0
     private var interestBottom: CGFloat { interestTop + 4 * frameHeight }
     private var scrollFocusNode: Element? = nil
+    private var hoveredElements: [Element] = []
     private var scrollTween: ScrollTween? = nil
     private var paintedBottom: CGFloat = 0
     private(set) var pageZoom: CGFloat = 1.0
@@ -242,6 +243,7 @@ class Frame {
                 HTMLParser(body: body).parse()
             })
             activeAnimations = 0
+            hoveredElements.removeAll()
 
             profiler.measure("load.checkboxes", {
                 for node in treeToList(nodes) {
@@ -853,6 +855,8 @@ class Frame {
             needsPaint = true
         }
 
+        resolveHover()
+
         requestAnimationFrame()
     }
 
@@ -1240,6 +1244,55 @@ class Frame {
         return false
     }
 
+    // MARK: - Hover
+
+    func clearHover() {
+        setHoveredElements([])
+    }
+
+    private func resolveHover() {
+        guard parentFrame == nil,
+            let pending = tab?.pendingHover,
+            let doc = document
+        else { return }
+        tab?.pendingHover = nil
+
+        var chain: [Element] = []
+        var current: (any DOMNode)? = doc.hitTest(x: pending.x, y: pending.y + scroll)?.node
+        while let node = current {
+            if let element = node as? Element {
+                chain.append(element)
+            }
+            current = node.parent
+        }
+        setHoveredElements(chain)
+    }
+
+    private func setHoveredElements(_ chain: [Element]) {
+        let entering: Set<ObjectIdentifier> = Set(chain.map({ ObjectIdentifier($0) }))
+        let leaving: Set<ObjectIdentifier> = Set(hoveredElements.map({ ObjectIdentifier($0) }))
+        guard entering != leaving else { return }
+
+        var changed: [Element] = []
+        for element in hoveredElements where !entering.contains(ObjectIdentifier(element)) {
+            element.isHovered = false
+            changed.append(element)
+        }
+
+        for element in chain where !leaving.contains(ObjectIdentifier(element)) {
+            element.isHovered = true
+            changed.append(element)
+        }
+        hoveredElements = chain
+
+        // A descendant (e.g. `li:hover span`) can be styled by an ancestor
+        // that is still hovered after the descendant left the chain.
+        // On exit that ancestor is the only path back to the descendant.
+        for element in changed {
+            setNeedsStyleSubtree(element)
+        }
+    }
+
     // MARK: - Interaction
 
     func keypress(_ char: String) {
@@ -1465,6 +1518,11 @@ class Frame {
         needsPaint = true
         needsRender = true
         parentFrame?.setNeedsPaint()
+        requestAnimationFrame()
+    }
+
+    func setNeedsHoverCheck() {
+        needsRender = true
         requestAnimationFrame()
     }
 

@@ -67,6 +67,7 @@ public class BrowserTab {
     public var isSecure: Bool { rootFrame.isSecure }
     public var isLoaded: Bool { rootFrame.loaded }
     var focus: Element? { focusedFrame.focus }
+    var pendingHover: CGPoint? = nil
     private(set) var accessibilityTree: AccessibilityNode? = nil
     var needsAccessibility: Bool = false
     public var hasScrollElement: Bool { focusedFrame.hasScrollElement }
@@ -366,6 +367,17 @@ public class BrowserTab {
     public func click(x: CGFloat, y: CGFloat) {
         let zoom: CGFloat = rootFrame.pageZoom
         rootFrame.click(x: x / zoom, y: y / zoom)
+    }
+
+    public func hover(x: CGFloat, y: CGFloat) {
+        let zoom: CGFloat = rootFrame.pageZoom
+        pendingHover = CGPoint(x: x / zoom, y: y / zoom)
+        rootFrame.setNeedsHoverCheck()
+    }
+
+    public func clearHover() {
+        pendingHover = nil
+        rootFrame.clearHover()
     }
 
     public func enterKey() {

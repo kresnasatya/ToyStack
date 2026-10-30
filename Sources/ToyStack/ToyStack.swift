@@ -228,7 +228,10 @@ public struct BrowserView: View {
                         let loc = event.locationInWindow
                         let x = loc.x
                         let y = app.windowSize.height - loc.y
-                        guard y >= chrome.bottom else { return }
+                        guard y >= chrome.bottom else {
+                            app.activeTab?.clearHover()
+                            return
+                        }
                         let tabY = y - chrome.bottom
                         app.handleHover(x: x, y: tabY)
                     }

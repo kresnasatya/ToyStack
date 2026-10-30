@@ -8,6 +8,7 @@ protocol DOMNode: AnyObject {
     var style: StyleFields { get }
     var isFocused: Bool { get set }
     var isFocusVisible: Bool { get set }
+    var isHovered: Bool { get set }
     var satisfiedHas: Set<Int> { get set }
     var layoutObject: LayoutObject? { get set }
     var animations: [String: Animation] { get set }
@@ -38,6 +39,7 @@ class Element: DOMNode {
     var style: StyleFields = StyleFields()
     var isFocused: Bool = false
     var isFocusVisible: Bool = false
+    var isHovered: Bool = false
     var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil
@@ -68,6 +70,7 @@ class TextNode: DOMNode {
     var parent: (any DOMNode)?
     var style: StyleFields = StyleFields()
     var isFocused: Bool = false
+    var isHovered: Bool = false
     var isFocusVisible: Bool = false
     var satisfiedHas: Set<Int> = []
     var layoutObject: LayoutObject? = nil

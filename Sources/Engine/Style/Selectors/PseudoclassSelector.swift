@@ -11,6 +11,7 @@ struct PseudoclassSelector: CSSSelector {
         switch pseudoclass {
         case "focus": return node.isFocused
         case "focus-visible": return node.isFocusVisible
+        case "hover": return node.isHovered
         default: return false
         }
     }
