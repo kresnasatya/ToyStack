@@ -10,14 +10,18 @@ class BlockLayout: LayoutObject {
 
     let node: any DOMNode
     var parent: (any LayoutObject)?
-    var previous: (any LayoutObject)?
+    private let previousField: ProtectedField<(any LayoutObject)?>
+    var previous: (any LayoutObject)? {
+        get { previousField.get() }
+        set { setPrevious(newValue) }
+    }
     private let childrenField: ProtectedField<[any LayoutObject]>
     var children: [any LayoutObject] {
         get { childrenField.get() }
         set { childrenField.set(newValue) }
     }
     var hasDirtyDescendants: Bool = false
-    private var appendedChildren: [any DOMNode] = []
+    private var childChanges: [BlockChildChange] = []
     let extraNodes: [any DOMNode]
     let xField: ProtectedField<CGFloat>
     var x: CGFloat {
@@ -65,11 +69,17 @@ class BlockLayout: LayoutObject {
         self.xField = ProtectedField("x", node: node, parent: parent)
         self.yField = ProtectedField("y", node: node, parent: parent)
         self.zoomField = ProtectedField("zoom", node: node, parent: parent)
+        self.previousField = ProtectedField(
+            owner: FieldOwner(name: "previous", node: node, parent: parent), equals: { (lhs: (any LayoutObject)?, rhs: (any LayoutObject)?) -> Bool in
+                lhs === rhs
+            },
+            cleanValue: previous
+        )
         self.node = node
         self.extraNodes = []
         self.parent = parent
-        self.previous = previous
         node.layoutObject = self
+        previousField.setDependencies([])
         freezeGeometry(parent: parent, previous: previous)
     }
 
@@ -86,10 +96,16 @@ class BlockLayout: LayoutObject {
         self.xField = ProtectedField("x", node: nodes[0], parent: parent)
         self.yField = ProtectedField("y", node: nodes[0], parent: parent)
         self.zoomField = ProtectedField("zoom", node: nodes[0], parent: parent)
+        self.previousField = ProtectedField(
+            owner: FieldOwner(name: "previous", node: nodes[0], parent: parent), equals: { (lhs: (any LayoutObject)?, rhs: (any LayoutObject)?) -> Bool in
+                lhs === rhs
+            },
+            cleanValue: previous
+        )
         self.node = nodes[0]
         self.extraNodes = nodes
         self.parent = parent
-        self.previous = previous
+        previousField.setDependencies([])
         freezeGeometry(parent: parent, previous: previous)
     }
 
@@ -104,6 +120,7 @@ class BlockLayout: LayoutObject {
         ])
         var yInputs: [any InvalidatableField] = [
             parent.yField,
+            previousField,
             zoomField,
             node.style.field("padding-top"),
             node.style.field("top"),
@@ -199,13 +216,30 @@ class BlockLayout: LayoutObject {
     }
 
     func markChildrenDirty() {
-        appendedChildren.removeAll()
+        childChanges.removeAll()
         childrenField.mark()
     }
 
     func noteAppendedChildren(_ nodes: [any DOMNode]) {
-        appendedChildren.append(contentsOf: nodes)
+        childChanges.append(.append(nodes))
         markAncestorsDirty()
+    }
+
+    func noteInsertedChildren(_ nodes: [any DOMNode], before reference: any DOMNode) {
+        childChanges.append(.insert(nodes, before: reference))
+        markAncestorsDirty()
+    }
+
+    private func setPrevious(_ newValue: (any LayoutObject)?) {
+        guard previous !== newValue else { return }
+        previousField.set(newValue)
+        guard let newValue else { return }
+        yField.setDependencies([
+            newValue.yField,
+            newValue.heightField,
+            newValue.node.style.field("margin-bottom"),
+            newValue.node.style.field("padding-bottom"),
+        ])
     }
 
     private func markAncestorsDirty() {
@@ -227,7 +261,7 @@ class BlockLayout: LayoutObject {
             return true
         }
 
-        return childrenField.dirty || !appendedChildren.isEmpty
+        return childrenField.dirty || !childChanges.isEmpty
     }
 
     func layout() {
@@ -240,7 +274,7 @@ class BlockLayout: LayoutObject {
         // A display change moves children between the block and inline paths, so
         // the leaves that inline layout will read were not known when the block
         // was built. Re-declare them before this pass reads them.
-        if childrenField.dirty || !appendedChildren.isEmpty {
+        if childrenField.dirty || !childChanges.isEmpty {
             childrenField.setDependencies(childrenInputs())
         }
         profiler.measure("layout.visit") {
@@ -311,19 +345,19 @@ class BlockLayout: LayoutObject {
                 profiler.count("layout.mode.block")
                 if childrenField.dirty {
                     childrenField.set(rebuildBlockChildren())
-                } else if !appendedChildren.isEmpty {
-                    let pending: [any DOMNode] = appendedChildren
-                    appendedChildren.removeAll()
-                    if let appended: [any LayoutObject] = appendBlockChildren(pending) {
-                        profiler.count("layout.children.appended")
-                        childrenField.set(appended)
+                } else if !childChanges.isEmpty {
+                    let changes: [BlockChildChange] = childChanges
+                    childChanges.removeAll()
+                    if let changed: [any LayoutObject] = applyBlockChanges(changes) {
+                        countChildChanges(changes)
+                        childrenField.set(changed)
                     } else {
                         childrenField.set(rebuildBlockChildren())
                     }
                 }
             } else {
                 profiler.count("layout.mode.inline")
-                appendedChildren.removeAll()
+                childChanges.removeAll()
                 // Inline layout consumes these inputs but has no field of its own;
                 // route them to the child list that would have to be rebuilt.
                 _ = widthField.read(notify: childrenField)
@@ -389,18 +423,18 @@ class BlockLayout: LayoutObject {
 
     private func rebuildBlockChildren() -> [any LayoutObject] {
         profiler.count("layout.children.rebuilt")
-        appendedChildren.removeAll()
+        childChanges.removeAll()
         var state: BlockChildBuild = BlockChildBuild()
         consumeBlockChildren(node.children, state: &state)
         finishBlockChildren(&state)
         return state.built
     }
 
-    private func appendBlockChildren(_ nodes: [any DOMNode]) -> [any LayoutObject]? {
-        guard extraNodes.isEmpty, children.allSatisfy({ $0 is BlockLayout }) else {
+    private func appendBlockChildren(_ nodes: [any DOMNode], to current: [any LayoutObject]) -> [any LayoutObject]? {
+        guard extraNodes.isEmpty, current.allSatisfy({ $0 is BlockLayout }) else {
             return nil
         }
-        if let last: BlockLayout = children.last as? BlockLayout,
+        if let last: BlockLayout = current.last as? BlockLayout,
             last.extraNodes.isEmpty,
             (last.node as? Element)?.tag == "h6"
         {
@@ -411,8 +445,8 @@ class BlockLayout: LayoutObject {
         }
 
         var state: BlockChildBuild = BlockChildBuild(
-            built: children,
-            previous: lastFlowChild(in: children)
+            built: current,
+            previous: lastFlowChild(in: current)
         )
         let startsInline: Bool = first.style.read("display", notify: childrenField) != "block"
         if startsInline,
@@ -428,6 +462,115 @@ class BlockLayout: LayoutObject {
         consumeBlockChildren(nodes, state: &state)
         finishBlockChildren(&state)
         return state.built
+    }
+
+    private func applyBlockChanges(_ changes: [BlockChildChange]) -> [any LayoutObject]? {
+        var current: [any LayoutObject] = children
+        for change in changes {
+            switch change {
+            case .append(let nodes):
+                guard let next: [any LayoutObject] = appendBlockChildren(nodes, to: current) else {
+                    return nil
+                }
+                current = next
+            case .insert(let nodes, let reference):
+                guard let next: [any LayoutObject] = insertBlockChildren(
+                    nodes,
+                    before: reference,
+                    in: current
+                ) else {
+                    return nil
+                }
+                current = next
+            }
+        }
+        return current
+    }
+
+    private func countChildChanges(_ changes: [BlockChildChange]) {
+        for change in changes {
+            switch change {
+            case .append(_):
+                profiler.count("layout.children.appended")
+            case .insert(_, _):
+                profiler.count("layout.children.inserted")
+            }
+        }
+    }
+
+    private func insertBlockChildren(
+        _ nodes: [any DOMNode],
+        before reference: any DOMNode,
+        in current: [any LayoutObject]
+    ) -> [any LayoutObject]? {
+        guard extraNodes.isEmpty, current.allSatisfy({ $0 is BlockLayout }) else {
+            return nil
+        }
+        guard let index: Int = blockChildIndex(of: reference, in: current) else {
+            return nil
+        }
+        guard !nodes.contains(where: { ($0 as? Element)?.tag == "h6" }) else {
+            return nil
+        }
+        if index > 0, let previous = current[index - 1] as? BlockLayout, isRunIn(previous) {
+            return nil
+        }
+        if let referenceBlock = current[index] as? BlockLayout, isRunIn(referenceBlock) {
+            return nil
+        }
+        guard let first: any DOMNode = firstVisibleChild(in: nodes) else {
+            return current
+        }
+
+        let startsInline: Bool = first.style.read("display", notify: childrenField) != "block"
+        if startsInline, index > 0,
+            let previous = current[index - 1] as? BlockLayout,
+            !previous.extraNodes.isEmpty
+        {
+            return nil
+        }
+
+        let prefix: [any LayoutObject] = Array(current[..<index])
+        var state: BlockChildBuild = BlockChildBuild(
+            built: prefix,
+            previous: lastFlowChild(in: prefix)
+        )
+        consumeBlockChildren(nodes, state: &state)
+        finishBlockChildren(&state)
+
+        var previous: (any LayoutObject)? = state.previous
+        for object in current[index...] {
+            guard let block = object as? BlockLayout else { return nil }
+            block.previous = previous
+            let isFlow: Bool = !block.extraNodes.isEmpty
+                || block.node.style.read("position", notify: childrenField) != "absolute"
+            if isFlow { previous = block }
+        }
+
+        var result: [any LayoutObject] = state.built
+        result.append(contentsOf: current[index...])
+        return result
+    }
+
+    private func blockChildIndex(
+        of reference: any DOMNode,
+        in current: [any LayoutObject]
+    ) -> Int? {
+        for (index, object) in current.enumerated() {
+            guard let block = object as? BlockLayout else { return nil }
+            if block.node === reference, block.extraNodes.isEmpty {
+                return index
+            }
+            if block.extraNodes.contains(where: { $0 === reference }) {
+                return nil
+            }
+        }
+        return nil
+    }
+
+    private func isRunIn(_ block: BlockLayout) -> Bool {
+        let first: (any DOMNode)? = block.extraNodes.first ?? block.node
+        return (first as? Element)?.tag == "h6"
     }
 
     private func firstVisibleChild(in nodes: [any DOMNode]) -> (any DOMNode)? {
@@ -984,4 +1127,9 @@ private struct BlockChildBuild {
     var previous: (any LayoutObject)?
     var inlineRun: [any DOMNode] = []
     var pendingRunIn: Element?
+}
+
+private enum BlockChildChange {
+    case append([any DOMNode])
+    case insert([any DOMNode], before: any DOMNode)
 }

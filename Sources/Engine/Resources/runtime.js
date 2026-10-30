@@ -47,7 +47,12 @@ Node.prototype.appendChild = function (child) {
 };
 
 Node.prototype.insertBefore = function (child, ref) {
+  if (ref === null || ref === undefined) {
+    _appendChild(this.handle, child.handle);
+    return child;
+  }
   _insertBefore(this.handle, child.handle, ref.handle);
+  return child;
 };
 
 Node.prototype.removeChild = function (child) {

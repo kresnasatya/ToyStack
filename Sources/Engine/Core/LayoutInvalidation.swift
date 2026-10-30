@@ -15,6 +15,18 @@ enum LayoutInvalidation {
         block.noteAppendedChildren([child])
     }
 
+    static func childrenInsert(
+        _ parent: any DOMNode,
+        _ child: any DOMNode,
+        before reference: any DOMNode
+    ) {
+        guard let block = parent.layoutObject as? BlockLayout else {
+            childrenChanged(parent)
+            return
+        }
+        block.noteInsertedChildren([child], before: reference)
+    }
+
     static func textChanged(_ node: TextNode) {
         childrenChanged(node)
     }

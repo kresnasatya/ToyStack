@@ -341,17 +341,33 @@ class JSRuntime: @unchecked Sendable {
                     let parent = self.handleToNode[parentHandle],
                     let child = self.handleToNode[childHandle],
                     let ref = self.handleToNode[refHandle],
-                    let idx = parent.children.firstIndex(where: { $0 === ref })
+                    child !== ref,
+                    !child.isInclusiveAncestor(of: parent),
+                    parent.children.contains(where: { $0 === ref })
                 else { return }
+                let wasSameParent: Bool = child.parent === parent
+                if let oldParent = child.parent {
+                    oldParent.children.removeAll { $0 === child }
+                    if oldParent !== parent {
+                        LayoutInvalidation.childrenChanged(oldParent)
+                        frame.setNeedsStyle(oldParent)
+                    }
+                }
+                guard let idx = parent.children.firstIndex(where: { $0 === ref }) else {
+                    return
+                }
                 child.parent = parent
                 parent.children.insert(child, at: idx)
-                LayoutInvalidation.childrenChanged(parent)
+                if wasSameParent {
+                    LayoutInvalidation.childrenChanged(parent)
+                } else {
+                    LayoutInvalidation.childrenInsert(parent, child, before: ref)
+                }
                 frame.markStructureChanged()
-                frame.setNeedsStyleSubtree(child)
                 frame.runNewScripts(in: child)
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.render()
+                frame.setNeedsStyleSubtree(child)
             })
         } as @convention(block) (Int, Int, Int) -> Void, forKeyedSubscript: "_insertBefore" as NSString)
 
