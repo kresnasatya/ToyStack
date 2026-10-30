@@ -10,44 +10,14 @@ class BlockLayout: LayoutObject {
 
     let node: any DOMNode
     var parent: (any LayoutObject)?
-    private let previousField: ProtectedField<(any LayoutObject)?>
+    var fields: LayoutFieldStore = LayoutFieldStore()
     var previous: (any LayoutObject)? {
         get { previousField.get() }
         set { setPrevious(newValue) }
     }
-    private let childrenField: ProtectedField<[any LayoutObject]>
-    var children: [any LayoutObject] {
-        get { childrenField.get() }
-        set { childrenField.set(newValue) }
-    }
     var hasDirtyDescendants: Bool = false
     private var childChanges: [BlockChildChange] = []
     let extraNodes: [any DOMNode]
-    let xField: ProtectedField<CGFloat>
-    var x: CGFloat {
-        get { xField.get() }
-        set { xField.set(newValue) }
-    }
-    let yField: ProtectedField<CGFloat>
-    var y: CGFloat {
-        get { yField.get() }
-        set { yField.set(newValue) }
-    }
-    let widthField: ProtectedField<CGFloat>
-    var width: CGFloat {
-        get { widthField.get() }
-        set { widthField.set(newValue) }
-    }
-    let heightField: ProtectedField<CGFloat>
-    var height: CGFloat {
-        get { heightField.get() }
-        set { heightField.set(newValue) }
-    }
-    let zoomField: ProtectedField<CGFloat>
-    var zoom: CGFloat {
-        get { zoomField.get() }
-        set { zoomField.set(newValue) }
-    }
     var paintCache: PaintCache = PaintCache()
 
     private var cursorX: CGFloat = 0
@@ -57,56 +27,28 @@ class BlockLayout: LayoutObject {
     var contentHeight: CGFloat = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
-        self.childrenField = ProtectedField(
-            owner: FieldOwner(name: "children", node: node, parent: parent),
-            equals: { lhs, rhs in
-                guard lhs.count == rhs.count else { return false }
-                return zip(lhs, rhs).allSatisfy({ pair in pair.0 === pair.1 })
-            }
-        )
-        self.widthField = ProtectedField("width", node: node, parent: parent)
-        self.heightField = ProtectedField("height", node: node, parent: parent)
-        self.xField = ProtectedField("x", node: node, parent: parent)
-        self.yField = ProtectedField("y", node: node, parent: parent)
-        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
-        self.previousField = ProtectedField(
-            owner: FieldOwner(name: "previous", node: node, parent: parent), equals: { (lhs: (any LayoutObject)?, rhs: (any LayoutObject)?) -> Bool in
-                lhs === rhs
-            },
-            cleanValue: previous
-        )
         self.node = node
         self.extraNodes = []
         self.parent = parent
         node.layoutObject = self
+        previousField.setClean(previous)
         previousField.setDependencies([])
+        markAncestorsDirty()
         freezeGeometry(parent: parent, previous: previous)
     }
 
     init(nodes: [any DOMNode], parent: any LayoutObject, previous: (any LayoutObject)?) {
-        self.childrenField = ProtectedField(
-            owner: FieldOwner(name: "children", node: nodes[0], parent: parent),
-            equals: { lhs, rhs in
-                guard lhs.count == rhs.count else { return false }
-                return zip(lhs, rhs).allSatisfy({ pair in pair.0 === pair.1 })
-            }
-        )
-        self.widthField = ProtectedField("width", node: nodes[0], parent: parent)
-        self.heightField = ProtectedField("height", node: nodes[0], parent: parent)
-        self.xField = ProtectedField("x", node: nodes[0], parent: parent)
-        self.yField = ProtectedField("y", node: nodes[0], parent: parent)
-        self.zoomField = ProtectedField("zoom", node: nodes[0], parent: parent)
-        self.previousField = ProtectedField(
-            owner: FieldOwner(name: "previous", node: nodes[0], parent: parent), equals: { (lhs: (any LayoutObject)?, rhs: (any LayoutObject)?) -> Bool in
-                lhs === rhs
-            },
-            cleanValue: previous
-        )
         self.node = nodes[0]
         self.extraNodes = nodes
         self.parent = parent
+        previousField.setClean(previous)
         previousField.setDependencies([])
+        markAncestorsDirty()
         freezeGeometry(parent: parent, previous: previous)
+    }
+
+    private var previousField: LayoutFieldHandle<(any LayoutObject)?> {
+        layoutField(.previous, \.previous, equals: { $0 === $1 })
     }
 
     private func freezeGeometry(parent: any LayoutObject, previous: (any LayoutObject)?) {
@@ -231,7 +173,6 @@ class BlockLayout: LayoutObject {
     }
 
     private func setPrevious(_ newValue: (any LayoutObject)?) {
-        guard previous !== newValue else { return }
         previousField.set(newValue)
         guard let newValue else { return }
         yField.setDependencies([
@@ -240,14 +181,6 @@ class BlockLayout: LayoutObject {
             newValue.node.style.field("margin-bottom"),
             newValue.node.style.field("padding-bottom"),
         ])
-    }
-
-    private func markAncestorsDirty() {
-        var current: (any LayoutObject)? = parent
-        while let object = current, !object.hasDirtyDescendants {
-            object.hasDirtyDescendants = true
-            current = object.parent
-        }
     }
 
     func layoutNeeded() -> Bool {

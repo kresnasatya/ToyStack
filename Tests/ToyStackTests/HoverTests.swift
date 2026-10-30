@@ -138,7 +138,7 @@ struct HoverTests {
         )
         let card: Element = try #require(page.firstElement(id: "card"))
         let label: Element = try #require(page.firstElement(id: "label"))
-        let after: Element = try #require(page.firstElement(id: "label"))
+        let after: Element = try #require(page.firstElement(id: "after"))
         let labelPoint: CGPoint = center(try textLayout(of: label, in: page).absoluteBounds())
         let cardPoint: CGPoint = center(try bounds(card))
         let afterPoint: CGPoint = center(try bounds(after))

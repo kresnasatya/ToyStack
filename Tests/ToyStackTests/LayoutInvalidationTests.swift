@@ -160,12 +160,12 @@ struct LayoutInvalidationTests {
         let p: Element = try #require(page.firstElement(tag: "p"))
         let before: CGFloat = try #require(page.lines(in: p).first).height
 
-        p.animations["font-size"] = PixelAnimation(
+        page.frame.addAnimation(PixelAnimation(
             animatedProperty: "font-size",
             oldValue: 14,
             newValue: 28,
             timing: FrameTiming(totalFrames: 60, easing: .linear)
-        )
+        ), to: p)
 
         page.frame.setNeedsRender()
         page.frame.render()
@@ -184,7 +184,12 @@ struct LayoutInvalidationTests {
 
     @Test func animatingOpacityDoesNotRebuildLayout() {
         let fixture = makeFixture()
-        fixture.narrow.animations["opacity"] = NumericAnimation(animatedProperty: "opacity", oldValue: 1, newValue: 0.5, timing: FrameTiming(totalFrames: 60, easing: .linear))
+        fixture.frame.addAnimation(NumericAnimation(
+            animatedProperty: "opacity",
+            oldValue: 1,
+            newValue: 0.5,
+            timing: FrameTiming(totalFrames: 60, easing: .linear)
+        ), to: fixture.narrow)
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
@@ -198,12 +203,12 @@ struct LayoutInvalidationTests {
 
     @Test func animatingTransformDoesNotRebuiltLayout() {
         let fixture = makeFixture()
-        fixture.narrow.animations["transform"] = TransformAnimation(
+        fixture.frame.addAnimation(TransformAnimation(
             animatedProperty: "transform",
             oldPoint: CGPoint.zero,
             newPoint: CGPoint(x: 20, y: 0),
             timing: FrameTiming(totalFrames: 60, easing: .linear)
-        )
+        ), to: fixture.narrow)
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 

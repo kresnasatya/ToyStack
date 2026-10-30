@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chapter 16 — no per-field objects</title>
+  <style>
+    body { font-family: monospace; font-size: 16px; margin: 12px; }
+    h1 { font-size: 20px; }
+    #box { width: 420px; border: 1px solid black; padding: 8px; }
+    #box p { display: block; margin: 0 0 6px 0; padding: 4px; background-color: lightblue; }
+    #edit { width: 420px; border: 1px solid black; padding: 6px; }
+  </style>
+</head>
+<body>
+
+<h1>Chapter 16: field storage without per-field objects</h1>
+
+<p>Every paragraph keeps one inline field store instead of ten
+<code>ProtectedField</code> objects. The dependency graph is unchanged, so
+typing in the editable block should still recompute only the affected
+blocks.</p>
+
+<div id="box">
+  <p>row 0</p><p>row 1</p><p>row 2</p><p>row 3</p><p>row 4</p>
+  <p>row 5</p><p>row 6</p><p>row 7</p><p>row 8</p><p>row 9</p>
+  <p>row 10</p><p>row 11</p><p>row 12</p><p>row 13</p><p>row 14</p>
+  <p>row 15</p><p>row 16</p><p>row 17</p><p>row 18</p><p>row 19</p>
+  <p>row 20</p><p>row 21</p><p>row 22</p><p>row 23</p><p>row 24</p>
+  <p>row 25</p><p>row 26</p><p>row 27</p><p>row 28</p><p>row 29</p>
+  <p>row 30</p><p>row 31</p><p>row 32</p><p>row 33</p><p>row 34</p>
+  <p>row 35</p><p>row 36</p><p>row 37</p><p>row 38</p><p>row 39</p>
+</div>
+
+<p id="edit" contenteditable="true">Click here and type. Only the edited block
+should re-lay out.</p>
+
+<pre id="out">layout loaded</pre>
+
+<script>
+  var box = document.getElementById("box");
+  document.getElementById("out").textContent =
+    "paragraphs=" + box.children.length;
+</script>
+
+</body>
+</html>

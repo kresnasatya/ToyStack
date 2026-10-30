@@ -10,7 +10,7 @@ struct StyleFieldsTests {
     @Test func sameValueDoesNotMark() {
         let style = StyleFields()
         style.apply(["width": "10px"])
-        let target = ProtectedField<CGFloat>("target", cleanValue: 1)
+        let target = StyleTestTarget()
         _ = style.read("width", notify: target)
 
         style["width"] = "10px"
@@ -20,7 +20,7 @@ struct StyleFieldsTests {
     @Test func differentValueMarks() {
         let style = StyleFields()
         style.apply(["width": "10px"])
-        let target = ProtectedField<CGFloat>("target", cleanValue: 1)
+        let target = StyleTestTarget()
         _ = style.read("width", notify: target)
 
         style["width"] = "20px"
@@ -29,7 +29,7 @@ struct StyleFieldsTests {
 
     @Test func absentPropertyGetsALiveEdge() {
         let style = StyleFields()
-        let target = ProtectedField<CGFloat>("target", cleanValue: 1)
+        let target = StyleTestTarget()
 
         #expect(style.read("width", notify: target) == nil)
         style["width"] = "20px"
@@ -40,7 +40,7 @@ struct StyleFieldsTests {
     @Test func removingAPropertyMarksAndKeepsTheEdge() {
         let style = StyleFields()
         style.apply(["width": "10px"])
-        let target = ProtectedField<CGFloat>("target", cleanValue: 1)
+        let target = StyleTestTarget()
         _ = style.read("width", notify: target)
 
         style.apply(["height": "5px"])
@@ -54,7 +54,7 @@ struct StyleFieldsTests {
     @Test func identicalApplyDoesNotMark() {
         let style = StyleFields()
         style.apply(["width": "10px"])
-        let target = ProtectedField<CGFloat>("target", cleanValue: 1)
+        let target = StyleTestTarget()
         _ = style.read("width", notify: target)
 
         profiler.reset()
@@ -75,4 +75,26 @@ struct StyleFieldsTests {
         style.apply(["width": "10px"])
         #expect(style.snapshot() == ["width": "10px"])
     }
+}
+
+@MainActor
+private final class StyleTestTarget: FieldOwner, InvalidatableField {
+    var dirty: Bool = false
+    var fieldName: String { "target" }
+    var isDirty: Bool { dirty }
+    var frozenDependencies: Bool { false }
+    var invalidationNames: [String] { [] }
+    var ref: FieldRef { FieldRef(owner: self, name: .style("target")) }
+
+    func mark() { dirty = true }
+    func set(_ value: CGFloat) { dirty = false }
+    func addInvalidation(_ field: any InvalidatableField) {}
+    func containsInvalidation(_ field: any InvalidatableField) -> Bool { false }
+
+    func markField(_ name: FieldName) { dirty = true }
+    func addDependency(_ name: FieldName, _ field: FieldRef) {}
+    func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool { false }
+    func fieldIsDirty(_ name: FieldName) -> Bool { dirty }
+    func fieldIsFrozen(_ name: FieldName) -> Bool { false }
+    func dependencyNames(_ name: FieldName) -> [String] { [] }
 }

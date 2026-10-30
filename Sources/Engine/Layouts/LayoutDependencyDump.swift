@@ -2,16 +2,9 @@ import Foundation
 
 @MainActor
 func layoutFields(of object: any LayoutObject) -> [(String, any InvalidatableField)] {
-    var result: [(String, any InvalidatableField)] = []
-    var mirror: Mirror? = Mirror(reflecting: object)
-    while let current = mirror {
-        for child in current.children {
-            guard let field = child.value as? any InvalidatableField else { continue }
-            result.append((child.label ?? field.fieldName, field))
-        }
-        mirror = current.superclassMirror
-    }
-    return result
+    return LayoutField.allCases
+        .filter({ object.fields.isUsed($0) })
+        .map({ ($0.rawValue, object.fieldRef($0) )})
 }
 
 #if DEBUG

@@ -1,18 +1,24 @@
 import Foundation
 
-final class StyleFields {
-    private var fields: [String: ProtectedField<String?>] = [:]
+nonisolated final class StyleFields: FieldOwner {
+    private(set) var values: [String: String] = [:]
+    private var dirtyKeys: Set<String> = []
+    private var dependents: [String: [FieldRef]] = [:]
     private var needsRestyle: Bool = true
     private var descendantsDirty: Bool = false
 
     @MainActor
     subscript(_ key: String) -> String? {
         get {
-            guard let field = fields[key] else { return nil }
-            return field.peek() ?? nil
+            return values[key]
         }
         set {
-            field(key).set(newValue)
+            let before: String? = values[key]
+            values[key] = newValue
+            dirtyKeys.remove(key)
+            if before != newValue {
+                notifyDependents(key)
+            }
         }
     }
 
@@ -24,8 +30,8 @@ final class StyleFields {
     @MainActor
     func markAll() {
         needsRestyle = true
-        for field in fields.values {
-            field.mark()
+        for key in values.keys {
+            dirtyKeys.insert(key)
         }
     }
 
@@ -45,24 +51,27 @@ final class StyleFields {
     }
 
     @MainActor
-    func apply(_ values: [String: String]) {
+    func apply(_ newValues: [String: String]) {
         var written: Int = 0
         var changed: Int = 0
 
-        for key in Array(fields.keys) where values[key] == nil {
-            guard let field = fields[key] else { continue }
-            let before: String? = field.peek() ?? nil
-            field.set(nil)
+        for key in Array(values.keys) where newValues[key] == nil {
+            values.removeValue(forKey: key)
+            dirtyKeys.remove(key)
             written += 1
-            if before != nil { changed += 1 }
+            changed += 1
+            notifyDependents(key)
         }
 
-        for (key, value) in values {
-            let field: ProtectedField<String?> = field(key)
-            let before: String? = field.peek() ?? nil
-            field.set(value)
+        for (key, value) in newValues {
+            let before: String? = values[key]
+            values[key] = value
+            dirtyKeys.remove(key)
             written += 1
-            if before != value { changed += 1 }
+            if before != value {
+                changed += 1
+                notifyDependents(key)
+            }
         }
 
         needsRestyle = false
@@ -72,31 +81,74 @@ final class StyleFields {
 
     @MainActor
     func snapshot() -> [String: String] {
-        var result: [String: String] = [:]
-        for (key, field) in fields {
-            if let value = field.peek() ?? nil {
-                result[key] = value
-            }
-        }
-        return result
+        return values
     }
 
     @MainActor
     var isEmpty: Bool {
-        return fields.values.allSatisfy({ ($0.peek() ?? nil) == nil })
+        return values.isEmpty
     }
 
     @MainActor
     var isDirty: Bool {
         if needsRestyle { return true }
-        return fields.values.contains(where: { $0.isDirty })
+        return !dirtyKeys.isEmpty
     }
 
     @MainActor
-    func field(_ key: String) -> ProtectedField<String?> {
-        if let field = fields[key] { return field }
-        let field: ProtectedField<String?> = ProtectedField("style.\(key)", cleanValue: nil)
-        fields[key] = field
-        return field
+    func field(_ key: String) -> StyleFieldRef {
+        return StyleFieldRef(owner: self, key: key)
+    }
+
+    @MainActor
+    private func notifyDependents(_ key: String) {
+        guard var fields = dependents[key] else { return }
+        fields.removeAll(where: { $0.owner == nil })
+        dependents[key] = fields
+        for field in fields {
+            field.mark()
+        }
+    }
+
+    @MainActor
+    func markField(_ name: FieldName) {
+        guard case .style(let key) = name else { return }
+        dirtyKeys.insert(key)
+        notifyDependents(key)
+    }
+
+    @MainActor
+    func addDependency(_ name: FieldName, _ field: FieldRef) {
+        guard case .style(let key) = name else { return }
+        var fields: [FieldRef] = dependents[key] ?? []
+        if !fields.contains(where: { $0.sameTarget(as: field) }) {
+            fields.append(field)
+        }
+        dependents[key] = fields
+    }
+
+    @MainActor
+    func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool {
+        guard case .style(let key) = name else { return false }
+        return dependents[key]?.contains(where: { $0.sameTarget(as: field) }) ?? false
+    }
+
+    @MainActor
+    func fieldIsDirty(_ name: FieldName) -> Bool {
+        guard case .style(let key) = name else { return false }
+        return dirtyKeys.contains(key)
+    }
+
+    @MainActor
+    func fieldIsFrozen(_ name: FieldName) -> Bool {
+        return false
+    }
+
+    @MainActor
+    func dependencyNames(_ name: FieldName) -> [String] {
+        guard case .style(let key) = name else { return [] }
+        return (dependents[key] ?? [])
+            .compactMap({ $0.owner == nil ? nil : $0.fieldName })
+            .sorted()
     }
 }

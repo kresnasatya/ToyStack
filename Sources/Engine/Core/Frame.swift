@@ -21,10 +21,14 @@ class Frame {
 
     var url: WebURL!
     var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
-    private let documentField: ProtectedField<DocumentLayout?>
+    private var documentValue: DocumentLayout?
+    private var documentDirty: Bool = true
     var document: DocumentLayout? {
-        get { documentField.peek() ?? nil }
-        set { documentField.set(newValue) }
+        get { documentValue }
+        set {
+            documentValue = newValue
+            documentDirty = false
+        }
     }
     var displayList: [any DisplayItem] = []
     var paintRevision: UInt = 0
@@ -124,10 +128,6 @@ class Frame {
     private var browser: Browser? { tab?.browser }
 
     init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
-        self.documentField = ProtectedField<DocumentLayout?>(
-            owner: FieldOwner(name: "document"),
-            equals: { (lhs: DocumentLayout?, rhs: DocumentLayout?) -> Bool in lhs === rhs }
-        )
         self.tab = tab
         self.parentFrame = parent?.frame
         self.frameElement = parent?.element
@@ -813,10 +813,10 @@ class Frame {
 
             loadBackgroundImages(cascade.appliedNodes)
 
-            documentField.mark()
+            markDocumentDirty()
         }
 
-        if documentField.isDirty {
+        if documentDirty {
             browser?.measure.start("BrowserTab.layout")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
@@ -900,7 +900,7 @@ class Frame {
         js.run(script: "raf", code: "__runRAFHandlers()")
         browser?.measure.stop("BrowserTab.raf")
         var needsAnotherFrame: Bool = false
-        needsComposite = nodes.style.isDirty || documentField.isDirty || needsPaint
+        needsComposite = nodes.style.isDirty || documentDirty || needsPaint
         var needsLayoutUpdate: Bool = false
         var animationFallbacks: Int = 0
         browser?.measure.start("BrowserTab.animScan")
@@ -1490,14 +1490,25 @@ class Frame {
         } else {
             styleInvalidatedByOther = true
         }
-        documentField.mark()
+        markDocumentDirty()
         needsRender = true
         parentFrame?.setNeedsLayout()
         requestAnimationFrame()
     }
 
+    private func markDocumentDirty() {
+        documentDirty = true
+    }
+
+    func addAnimation(_ animation: any Animation, to node: any DOMNode) {
+        let key: String = animation.animatedProperty
+        if node.animations.updateValue(animation, forKey: key) == nil {
+            activeAnimations += 1
+        }
+    }
+
     func setNeedsLayout() {
-        documentField.mark()
+        markDocumentDirty()
         needsRender = true
         parentFrame?.setNeedsLayout()
         requestAnimationFrame()

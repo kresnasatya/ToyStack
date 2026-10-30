@@ -7,74 +7,29 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     let word: String
     var parent: (any LayoutObject)?
     var previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []
+    var fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
-    let xField: ProtectedField<CGFloat>
-    var x: CGFloat {
-        get { xField.get() }
-        set { xField.set(newValue) }
-    }
-    let yField: ProtectedField<CGFloat>
-    var y: CGFloat {
-        get { yField.get() }
-        set { yField.set(newValue) }
-    }
-    let widthField: ProtectedField<CGFloat>
-    var width: CGFloat {
-        get { widthField.get() }
-        set { widthField.set(newValue) }
-    }
-    let heightField: ProtectedField<CGFloat>
-    var height: CGFloat {
-        get { heightField.get() }
-        set { heightField.set(newValue) }
-    }
-    let zoomField: ProtectedField<CGFloat>
-    var zoom: CGFloat {
-        get { zoomField.get() }
-        set { zoomField.set(newValue) }
-    }
-
-    let fontField: ProtectedField<BrowserFont>
     var font: BrowserFont {
         get { fontField.get() }
         set { fontField.set(newValue) }
     }
-    let ascentField: ProtectedField<CGFloat>
-    let descentField: ProtectedField<CGFloat>
     var fontOverride: BrowserFont? = nil
     var displayWord: String? = nil
     var textWidth: CGFloat = 0
     var whiteSpace: WhiteSpaceMode = .normal
 
     init(node: any DOMNode, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
-        self.widthField = ProtectedField("width", node: node, parent: parent)
-        self.heightField = ProtectedField("height", node: node, parent: parent)
-        self.xField = ProtectedField("x", node: node, parent: parent)
-        self.yField = ProtectedField("y", node: node, parent: parent)
-        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
-        self.fontField = ProtectedField(
-            owner: FieldOwner(name: "font", node: node, parent: parent),
-            equals: { lhs, rhs in CFEqual(lhs.ctFont, rhs.ctFont) },
-            cleanValue: inlineDefaultFont
-        )
-        self.ascentField = ProtectedField(
-            "ascent",
-            cleanValue: inlineDefaultFont.ascent,
-            node: node,
-            parent: parent
-        )
-        self.descentField = ProtectedField(
-            "descent",
-            cleanValue: inlineDefaultFont.descent,
-            node: node,
-            parent: parent
-        )
         self.node = node
         self.word = word
         self.parent = parent
         self.previous = previous
         node.layoutObject = self
+        childrenField.setClean([])
+        childrenField.setDependencies([])
+        fontField.setClean(inlineDefaultFont)
+        ascentField.setClean(inlineDefaultFont.ascent)
+        descentField.setClean(inlineDefaultFont.descent)
+        markAncestorsDirty()
 
         var zoomInputs: [any InvalidatableField] = [node.style.field("zoom")]
         if let parent { zoomInputs.append(parent.zoomField) }

@@ -7,51 +7,22 @@ class LineLayout: LayoutObject {
     let node: any DOMNode
     let parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
-    var children: [any LayoutObject] = []
+    var fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
-    let xField: ProtectedField<CGFloat>
-    var x: CGFloat {
-        get { xField.get() }
-        set { xField.set(newValue) }
-    }
-    let yField: ProtectedField<CGFloat>
-    var y: CGFloat {
-        get { yField.get() }
-        set { yField.set(newValue) }
-    }
-    let widthField: ProtectedField<CGFloat>
-    var width: CGFloat {
-        get { widthField.get() }
-        set { widthField.set(newValue) }
-    }
-    let heightField: ProtectedField<CGFloat>
-    var height: CGFloat {
-        get { heightField.get() }
-        set { heightField.set(newValue) }
-    }
     var centered: Bool = false
-    let zoomField: ProtectedField<CGFloat>
-    var zoom: CGFloat {
-        get { zoomField.get() }
-        set { zoomField.set(newValue) }
-    }
-    let ascentField: ProtectedField<CGFloat>
-    let descentField: ProtectedField<CGFloat>
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
     var paintGeneration: UInt = 0
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
-        self.widthField = ProtectedField("width", node: node, parent: parent)
-        self.heightField = ProtectedField("height", node: node, parent: parent)
-        self.xField = ProtectedField("x", node: node, parent: parent)
-        self.yField = ProtectedField("y", node: node, parent: parent)
-        self.zoomField = ProtectedField("zoom", node: node, parent: parent)
-        self.ascentField = ProtectedField("ascent", cleanValue: 0, node: node, parent: parent)
-        self.descentField = ProtectedField("descent", cleanValue: 0, node: node, parent: parent)
         self.node = node
         self.parent = parent
         self.previous = previous
+        childrenField.setClean([])
+        childrenField.setDependencies([])
+        ascentField.setClean(0)
+        descentField.setClean(0)
+        markAncestorsDirty()
         zoomField.setDependencies([parent.zoomField])
         widthField.setDependencies([parent.widthField])
         xField.setDependencies([parent.xField])

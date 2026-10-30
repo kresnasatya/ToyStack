@@ -53,9 +53,12 @@ struct LayoutDependencyTests {
     }
 
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
-        let source: ProtectedField<CGFloat> = ProtectedField("source", cleanValue: 1)
-        let missing: ProtectedField<CGFloat> = ProtectedField("missing", cleanValue: 1)
-        let declared: ProtectedField<CGFloat> = ProtectedField("declared", cleanValue: 1)
+        let node = Element(tag: "html", attributes: [:], parent: nil)
+        let document = DocumentLayout(node: node)
+
+        let source = document.xField
+        let missing = document.yField
+        let declared = document.widthField
 
         missing.setDependencies([])
         declared.setDependencies([source])
