@@ -54,7 +54,7 @@ struct ViewportResizeTests {
 
     @Test func horizontalResizeRebuildsAutoWidthBlocks() throws {
         let page: LayoutTestPage = LayoutTestPage(
-            html: #"<p id="para">one two three four five six seven eight</p>"#,
+            html: #"<p id="para">one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen</p>"#,
             rules: """
                 body { display: block; }
                 p { display: block; }
@@ -117,7 +117,7 @@ struct ViewportResizeTests {
 
     @Test func horizontalResizeReusesInlineItems() throws {
         let page: LayoutTestPage = LayoutTestPage(
-            html: #"<p id="para">one two three four five six seven eight nine ten</p>"#,
+            html: #"<p id="para">one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen</p>"#,
             rules: """
                 body { display: block; }
                 p { display: block; }
@@ -132,6 +132,55 @@ struct ViewportResizeTests {
         #expect((profile["layout.inline.refresh"]?.count ?? 0) == 0)
         #expect((profile["text.words"]?.count ?? 0) == 0)
         #expect((profile["layout.inline.place"]?.count ?? 0) > 0)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func widthResizeWithoutBreakChangeKeepsInlineTree() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para" style="white-space: nowrap;">one two three four</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: Element = try #require(page.firstElement(id: "para"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+
+        let linesBefore: [ObjectIdentifier] = block.children.map { ObjectIdentifier($0 as AnyObject) }
+        let textsBefore: [ObjectIdentifier] = treeToList(block)
+            .compactMap({ $0 as? TextLayout })
+            .map({ ObjectIdentifier($0) })
+
+        page.frame.frameWidth = 400
+        page.frame.setNeedsViewportResize()
+        page.frame.render()
+
+        #expect(block.children.map { ObjectIdentifier($0 as AnyObject) } == linesBefore)
+        #expect(treeToList(block).compactMap({ $0 as? TextLayout }).map { ObjectIdentifier($0) } == textsBefore)
+        #expect((profiler.snapshot()["layout.inline.place"]?.count ?? 0) == 0)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func widthResizeWithBreakChangeReusesTextObjects() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five six seven eight nine ten</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: Element = try #require(page.firstElement(id: "para"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+
+        let textsBefore: [ObjectIdentifier] = treeToList(block)
+            .compactMap({ $0 as? TextLayout })
+            .map { ObjectIdentifier($0) }
+
+        page.frame.frameWidth = 300
+        page.frame.setNeedsViewportResize()
+        page.frame.render()
+
+        #expect(treeToList(block).compactMap { $0 as? TextLayout }.map { ObjectIdentifier($0) } == textsBefore)
         expectIncrementalMatchesFull(page)
     }
 }

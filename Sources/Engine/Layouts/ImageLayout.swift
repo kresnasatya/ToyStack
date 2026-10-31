@@ -60,7 +60,9 @@ final class ImageLayout: EmbedLayout {
 
     override func layout() {
         if !layoutNeeded() { return }
+        let sizeDirty: Bool = widthField.dirty || heightField.dirty || zoomField.dirty || fontField.dirty
         super.layout()
+        guard sizeDirty else { return }
         guard let el = node as? Element else { return }
         let available: CGFloat = parent!.widthField.read(notify: widthField)
         let zoom: CGFloat = zoomField.read(notify: widthField)

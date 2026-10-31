@@ -62,4 +62,31 @@ struct InlineTextLayoutTests {
 
         #expect((profiler.snapshot()["layout.inline.refresh"]?.count ?? 0) > 0)
     }
+
+    @Test func widthChangeKeepsTextObjectsButTextChangeReplacesThem() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five</p>"#,
+            rules: textPageRules
+        )
+        let p: Element = try #require(page.firstElement(tag: "p"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+
+        let before: [ObjectIdentifier] = treeToList(block)
+            .compactMap({ $0 as? TextLayout })
+            .map { ObjectIdentifier($0) }
+
+        page.frame.frameWidth = 300
+        page.frame.setNeedsViewportResize()
+        page.frame.render()
+
+        #expect(treeToList(block).compactMap { $0 as? TextLayout }.map { ObjectIdentifier($0) } == before)
+
+        let text: TextNode = try #require(p.children.first as? TextNode)
+        text.append(" six")
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        #expect((profiler.snapshot()["layout.inline.refresh"]?.count ?? 0) > 0)
+        expectIncrementalMatchesFull(page)
+    }
 }

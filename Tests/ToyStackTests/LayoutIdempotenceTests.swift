@@ -32,6 +32,8 @@ struct LayoutIdempotenceTests {
         let document: DocumentLayout = try #require(fixture.frame.document)
 
         let objectsBefore: [ObjectIdentifier] = blockIDs(of: document)
+        let textsBefore: [TextLayout] = blockTexts(in: document)
+        let textIDsBefore: [ObjectIdentifier] = textsBefore.map({ ObjectIdentifier($0) })
         let first: [Snapshot] = snapshot(of: document)
 
         let zoom: CGFloat = document.zoom
@@ -46,7 +48,9 @@ struct LayoutIdempotenceTests {
 
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
         #expect(blockIDs(of: document) == objectsBefore)
+        #expect(blockTextIDs(of: document) == textIDsBefore)
         #expect(snapshot(of: document) == first)
+        withExtendedLifetime(textsBefore) {}
     }
 
     @Test func buttonKeepsOneLinePerLayout() throws {
@@ -143,6 +147,26 @@ private func appendSnapshot(
 @MainActor
 private func blockIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
     return treeToList(object).compactMap({ $0 as? BlockLayout }).map({ ObjectIdentifier($0) })
+}
+
+@MainActor
+private func textIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
+    return treeToList(object).compactMap({ $0 as? TextLayout }).map({ ObjectIdentifier($0) })
+}
+
+@MainActor
+private func blockTexts(in object: any LayoutObject) -> [TextLayout] {
+    return treeToList(object)
+        .compactMap({ $0 as? TextLayout })
+        .filter { text in
+            guard let line = text.parent as? LineLayout else { return false }
+            return line.parent is BlockLayout
+        }
+}
+
+@MainActor
+private func blockTextIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
+    return blockTexts(in: object).map { ObjectIdentifier($0) }
 }
 
 @MainActor

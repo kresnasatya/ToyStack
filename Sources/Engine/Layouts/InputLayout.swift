@@ -18,8 +18,9 @@ class InputLayout: EmbedLayout {
 
     override func layout() {
         if !layoutNeeded() { return }
+        let sizeDirty: Bool = widthField.dirty || heightField.dirty || zoomField.dirty || fontField.dirty
         super.layout()
-
+        guard sizeDirty else { return }
         let isCheckbox: Bool = (node as? Element)?.attributes["type"] == "checkbox"
         if isCheckbox {
             widthField.set(fontField.read(notify: widthField).linespace)

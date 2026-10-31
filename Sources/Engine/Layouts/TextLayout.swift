@@ -36,6 +36,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         zoomField.setDependencies(zoomInputs)
 
         fontField.setDependencies([zoomField] + fontInputs(for: node))
+        fontField.mark()
         widthField.setDependencies([fontField])
         heightField.setDependencies([fontField])
         ascentField.setDependencies([fontField])
@@ -73,30 +74,46 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
         profiler.measure("layout.text", {
-            zoomField.set(resolvedZoom())
-            let resolvedFont: BrowserFont
-            if let override = fontOverride {
-                resolvedFont = override
-            } else {
-                resolvedFont = fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField)
+            if zoomField.dirty {
+                zoomField.set(resolvedZoom())
             }
-            fontField.set(resolvedFont)
 
-            let measuredFont: BrowserFont = fontField.read(notify: widthField)
-            let measured: CGFloat = measuredFont.measure(displayWord ?? word)
-            textWidth = measured
-            widthField.set(measured + measuredFont.spaceWidth)
+            let fontChanged: Bool = fontField.dirty
+            if fontChanged {
+                let resolvedFont: BrowserFont
+                if let override = fontOverride {
+                    resolvedFont = override
+                } else {
+                    resolvedFont = fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField)
+                }
+                fontField.set(resolvedFont)
+            }
 
-            heightField.set(fontField.read(notify: heightField).linespace)
-            ascentField.set(fontField.read(notify: ascentField).ascent)
-            descentField.set(fontField.read(notify: descentField).descent)
+            if fontChanged || widthField.dirty {
+                let measuredFont: BrowserFont = fontField.read(notify: widthField)
+                let measured: CGFloat = measuredFont.measure(displayWord ?? word)
+                textWidth = measured
+                widthField.set(measured + measuredFont.spaceWidth)
+            }
 
-            if let previous {
-                let prevX: CGFloat = previous.xField.read(notify: xField)
-                let prevWidth: CGFloat = previous.widthField.read(notify: xField)
-                xField.set(prevX + prevWidth)
-            } else {
-                xField.copy(from: parent!.xField)
+            if fontChanged || heightField.dirty {
+                heightField.set(fontField.read(notify: heightField).linespace)
+            }
+            if fontChanged || ascentField.dirty {
+                ascentField.set(fontField.read(notify: ascentField).ascent)
+            }
+            if fontChanged || descentField.dirty {
+                descentField.set(fontField.read(notify: descentField).descent)
+            }
+
+            if xField.dirty {
+                if let previous {
+                    let prevX: CGFloat = previous.xField.read(notify: xField)
+                    let prevWidth: CGFloat = previous.widthField.read(notify: xField)
+                    xField.set(prevX + prevWidth)
+                } else {
+                    xField.copy(from: parent!.xField)
+                }
             }
         })
     }
@@ -120,5 +137,43 @@ class TextLayout: LayoutObject, InlineLayoutItem {
 
     func shouldPaint() -> Bool {
         true
+    }
+
+    func detach() {
+        if let oldParent: (any LayoutObject) = parent {
+            oldParent.xField.removeInvalidation(self.xField)
+            oldParent.yField.removeInvalidation(self.yField)
+            oldParent.zoomField.removeInvalidation(self.zoomField)
+            if let oldLine = oldParent as? LineLayout {
+                oldLine.ascentField.removeInvalidation(self.yField)
+            }
+        }
+        if let oldPrevious: (any LayoutObject) = previous {
+            oldPrevious.xField.removeInvalidation(self.xField)
+            oldPrevious.widthField.removeInvalidation(self.xField)
+        }
+        parent = nil
+        previous = nil
+    }
+
+    func attach(to line: LineLayout, previous: (any LayoutObject)?) {
+        detach()
+
+        self.parent = line
+        self.previous = previous
+
+        zoomField.setDependencies([node.style.field("zoom"), line.zoomField])
+
+        var xInputs: [any InvalidatableField] = [line.xField]
+        if let previous {
+            xInputs.append(previous.xField)
+            xInputs.append(previous.widthField)
+        }
+        xField.setDependencies(xInputs)
+
+        yField.setDependencies([ascentField, line.yField, line.ascentField])
+
+        xField.mark()
+        yField.mark()
     }
 }

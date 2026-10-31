@@ -4,7 +4,7 @@ import CoreGraphics
 class EmbedLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     weak var parent: (any LayoutObject)?
-    let previous: (any LayoutObject)?
+    var previous: (any LayoutObject)?
     var fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
     var font: BrowserFont {
@@ -26,6 +26,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
 
         zoomField.setDependencies([parent.zoomField, node.style.field("zoom")])
         fontField.setDependencies([zoomField] + fontInputs(for: node))
+        fontField.mark()
         ascentField.setDependencies([heightField])
         descentField.setDependencies([])
 
@@ -59,16 +60,23 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
-        zoomField.set(resolvedZoom())
-        fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField))
 
-        if let prev = previous as? InlineLayoutItem {
-            let prevX: CGFloat = prev.xField.read(notify: xField)
-            let prevWidth: CGFloat = prev.widthField.read(notify: xField)
-            let space: CGFloat = prev.fontField.read(notify: xField).spaceWidth
-            xField.set(prevX + prevWidth + space)
-        } else {
-            xField.copy(from: parent!.xField)
+        if zoomField.dirty {
+            zoomField.set(resolvedZoom())
+        }
+        if fontField.dirty {
+            fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField))
+        }
+
+        if xField.dirty {
+            if let prev = previous as? InlineLayoutItem {
+                let prevX: CGFloat = prev.xField.read(notify: xField)
+                let prevWidth: CGFloat = prev.widthField.read(notify: xField)
+                let space: CGFloat = prev.fontField.read(notify: xField).spaceWidth
+                xField.set(prevX + prevWidth + space)
+            } else {
+                xField.copy(from: parent!.xField)
+            }
         }
     }
 
@@ -81,5 +89,48 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     func paint(into items: inout [any DisplayItem]) {}
     func paintEffects(into items: inout [any DisplayItem], from start: Int) {
         applyPaintEffects(into: &items, from: start)
+    }
+
+    func detach() {
+        if let oldParent: (any LayoutObject) = parent {
+            oldParent.xField.removeInvalidation(self.xField)
+            oldParent.yField.removeInvalidation(self.yField)
+            oldParent.zoomField.removeInvalidation(self.zoomField)
+            if let oldLine = oldParent as? LineLayout {
+                oldLine.ascentField.removeInvalidation(self.yField)
+            }
+        }
+        if let oldPrevious: (any LayoutObject) = previous {
+            oldPrevious.xField.removeInvalidation(self.xField)
+            oldPrevious.widthField.removeInvalidation(self.xField)
+            if let prev = oldPrevious as? any InlineLayoutItem {
+                prev.fontField.removeInvalidation(self.xField)
+            }
+        }
+        parent = nil
+        previous = nil
+    }
+
+    func attach(to line: LineLayout, previous: (any LayoutObject)?) {
+        detach()
+
+        self.parent = line
+        self.previous = previous
+
+        zoomField.setDependencies([line.zoomField, node.style.field("zoom")])
+
+        var xInputs: [any InvalidatableField] = [line.xField]
+        if let previous {
+            xInputs.append(previous.xField)
+            xInputs.append(previous.widthField)
+            if let prev = previous as? InlineLayoutItem {
+                xInputs.append(prev.fontField)
+            }
+        }
+        xField.setDependencies(xInputs)
+        yField.setDependencies([line.yField, ascentField, line.ascentField])
+
+        xField.mark()
+        yField.mark()
     }
 }

@@ -29,7 +29,9 @@ class ButtonLayout: EmbedLayout {
         if yField.isDirty {
             yField.set(0)
         }
+        let contentDirty: Bool = hasDirtyDescendants || widthField.dirty || heightField.dirty || zoomField.dirty || fontField.dirty
         super.layout()
+        guard contentDirty else { return }
 
         widthField.set(InputLayout.inputWidthPx * zoomField.read(notify: widthField))
 
