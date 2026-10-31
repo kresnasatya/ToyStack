@@ -4,6 +4,8 @@ struct RuleIndex {
     typealias Rule = (String?, any CSSSelector, [String: String])
 
     let orderedRules: [Rule]
+    let hoverAncestorSelectors: [any CSSSelector]
+    var hoverStylesDescendants: Bool { !hoverAncestorSelectors.isEmpty }
     private let byTag: [String: [Int]]
     private let byClass: [String: [Int]]
     private let byID: [String: [Int]]
@@ -18,6 +20,7 @@ struct RuleIndex {
         var byID: [String: [Int]] = [:]
         var universal: [Int] = []
         var descendantRequirements: [Int: Set<SelectorKey>] = [:]
+        self.hoverAncestorSelectors = rules.map(\.1).filter(selectorHoversAncestor)
         for (index, rule) in rules.enumerated() {
             let requirements: Set<SelectorKey> = ancestorRequirements(rule.1)
             if !requirements.isEmpty { descendantRequirements[index] = requirements }
@@ -94,5 +97,35 @@ private func necessaryKeys(_ selector: any CSSSelector) -> Set<SelectorKey> {
         case let pseudoclass as PseudoclassSelector: return necessaryKeys(pseudoclass.base)
         case let important as ImportantSelector: return necessaryKeys(important.base)
         default: return []
+    }
+}
+
+private func selectorHoversAncestor(_ selector: any CSSSelector) -> Bool {
+    if let descendant = selector as? DescendantSelector {
+        return descendant.selectors.dropLast().contains(where: selectorContainsHover)
+    }
+    if let important = selector as? ImportantSelector {
+        return selectorHoversAncestor(important.base)
+    }
+    if let has = selector as? HasSelector {
+        return selectorHoversAncestor(has.inner)
+    }
+    return false
+}
+
+private func selectorContainsHover(_ selector: any CSSSelector) -> Bool {
+    switch selector {
+    case let pseudo as PseudoclassSelector:
+        return pseudo.pseudoclass == "hover" || selectorContainsHover(pseudo.base)
+    case let sequence as SelectorSequence:
+        return sequence.selectors.contains(where: selectorContainsHover)
+    case let descendant as DescendantSelector:
+        return descendant.selectors.contains(where: selectorContainsHover)
+    case let important as ImportantSelector:
+        return selectorContainsHover(important.base)
+    case let has as HasSelector:
+        return selectorContainsHover(has.inner)
+    default:
+        return false
     }
 }

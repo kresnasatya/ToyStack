@@ -111,6 +111,7 @@ class JSRuntime: @unchecked Sendable {
                 if attr == "src", elt.tag == "iframe" {
                     self.frame?.syncIframes()
                 }
+                self.frame?.noteStyleInvalidation("style.invalidate.js.attribute")
                 self.frame?.setNeedsStyleSubtree(elt)
             })
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_setAttribute" as NSString)
@@ -490,6 +491,7 @@ class JSRuntime: @unchecked Sendable {
             Task {
                 @MainActor in
                 InlineStyle.set(elt, property: attr, value: value)
+                self.frame?.noteStyleInvalidation("style.invalidate.js.style")
                 self.frame?.setNeedsStyleSubtree(elt)
             }
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "__styleSet__" as NSString)

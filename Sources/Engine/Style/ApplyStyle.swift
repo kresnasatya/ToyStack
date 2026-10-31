@@ -28,7 +28,7 @@ private func applyStyle(node: any DOMNode, cascade: StyleCascade, force: Bool) {
     defer { node.style.clearDirtyDescendants() }
 
     let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
-    let applies: Bool = force || direct
+    let applies: Bool = force || direct || node.style.isDirty
     if applies {
         cascade.record(node)
         applyNodeStyle(node: node, cascade: cascade)

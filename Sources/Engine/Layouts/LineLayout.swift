@@ -13,6 +13,7 @@ class LineLayout: LayoutObject {
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
     var paintGeneration: UInt = 0
+    private var paintedChildCount: Int = -1
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -48,7 +49,10 @@ class LineLayout: LayoutObject {
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
-        paintGeneration += 1
+        if children.count != paintedChildCount {
+            paintGeneration += 1
+            paintedChildCount = children.count
+        }
         zoomField.copy(from: parent!.zoomField)
         widthField.copy(from: parent!.widthField)
         xField.copy(from: parent!.xField)
@@ -130,6 +134,7 @@ class LineLayout: LayoutObject {
 
     private func shiftChildren(by offset: CGFloat) {
         guard offset != 0 else { return }
+        paintGeneration += 1
         let shifted: [CGFloat] = children.map { $0.x + offset }
 
         for (child, x) in zip(children, shifted) {

@@ -72,6 +72,7 @@ class Frame {
     var needsPaint: Bool = false
     private var styleInvalidatedByViewport: Bool = false
     private var styleInvalidatedByOther: Bool = false
+    private var pendingStyleInvalidations: [String: Int] = [:]
     private var needsHasPrecompute: Bool = true
     private var mediaQueries: Set<String> = []
     private var mediaMatches: [String: Bool] = [:]
@@ -705,14 +706,16 @@ class Frame {
     // MARK: - Render
 
     func render() {
+        if !pendingStyleInvalidations.isEmpty {
+            browser?.measure.counter("style.invalidation", pendingStyleInvalidations)
+            pendingStyleInvalidations.removeAll(keepingCapacity: true)
+        }
         let viewportStyle: Bool = styleInvalidatedByViewport
-        let reusableStyle: Bool =
-            viewportStyle && !styleInvalidatedByOther
+        let reusableStyle: Bool = viewportStyle
         styleInvalidatedByViewport = false
         styleInvalidatedByOther = false
         let stylesDirty: Bool = nodes.style.isDirty || nodes.style.hasDirtyDescendant
         if stylesDirty || viewportStyle {
-            paintEpoch += 1
             browser?.measure.start("BrowserTab.style")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.style") }
@@ -742,6 +745,7 @@ class Frame {
             recordMediaMatches(media)
             browser?.measure.start("BrowserTab.style.scope")
             let scope: StyleScope? = (reusableStyle && hasBaseline) ? scopedStyleScope(flipped) : nil
+            profiler.count(scope == nil ? "style.scope.none" : "style.scope.used")
             if viewportStyle, scope == nil {
                 StyleInvalidation.markDocument(nodes)
             }
@@ -761,8 +765,12 @@ class Frame {
 
             browser?.measure.start("BrowserTab.style.diff")
             let animationsBefore: Int = cascade.appliedNodes.reduce(0) { $0 + $1.animations.count }
+            var paintedChanged: Bool = false
             for node in cascade.appliedNodes {
                 let old: [String : String] = cascade.oldStyle(for: node)
+                if Self.paintStyleChanged(old: old, new: node.style.snapshot()) {
+                    paintedChanged = true
+                }
                 // Scroll targets are collected by layout class and computed overflow.
                 // A style-only change to either changes the target set, not just rects.
                 if old["display"] != node.style["display"]
@@ -774,6 +782,9 @@ class Frame {
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
                 }
+            }
+            if paintedChanged {
+                paintEpoch += 1
             }
             browser?.measure.stop("BrowserTab.style.diff")
 
@@ -874,6 +885,30 @@ class Frame {
 
     static func affectsLayout(_ property: String) -> Bool {
         return !paintOnlyProperties.contains(property)
+    }
+
+    private static let paintStyleProperties: Set<String> = [
+        "background-color", "background-image", "background-size",
+        "border-color", "border-style", "border-width", "border-radius",
+        "border-top-left-radius", "border-top-right-radius",
+        "border-bottom-left-radius", "border-bottom-right-radius",
+        "color", "filter", "image-rendering", "mix-blend-mode",
+        "object-fit", "opacity",
+        "outline-color", "outline-style", "outline-width",
+        "transform", "z-index",
+    ]
+
+    private static func paintStyleChanged(
+        old: [String: String],
+        new: [String: String]
+    ) -> Bool {
+        for (key, value) in new where old[key] != value {
+            if paintStyleProperties.contains(key) { return true }
+        }
+        for key in old.keys where new[key] == nil {
+            if paintStyleProperties.contains(key) { return true }
+        }
+        return false
     }
 
     func paint() {
@@ -1289,7 +1324,14 @@ class Frame {
         // that is still hovered after the descendant left the chain.
         // On exit that ancestor is the only path back to the descendant.
         for element in changed {
-            setNeedsStyleSubtree(element)
+            if ruleIndex.hoverStylesDescendants {
+                noteStyleInvalidation("style.invalidate.hover.node")
+                setNeedsStyle(element)
+                markHoverDescendants(of: element)
+            } else {
+                noteStyleInvalidation("style.invalidate.hover.node")
+                setNeedsStyle(element)
+            }
         }
     }
 
@@ -1467,18 +1509,22 @@ class Frame {
     // MARK: - Invalidation
 
     func setNeedsRender() {
+        noteStyleInvalidation("style.invalidate.render")
         StyleInvalidation.markDocument(nodes)
         needsHasPrecompute = true
         invalidateStyle()
     }
 
     func setNeedsStyle(_ node: any DOMNode) {
+        noteStyleInvalidation("style.invalidate.node")
         StyleInvalidation.markNodeAndAncestors(node)
         needsHasPrecompute = true
         invalidateStyle()
     }
 
     func setNeedsStyleSubtree(_ node: any DOMNode) {
+        noteStyleInvalidation("style.invalidate.subtree")
+        noteStyleInvalidation("style.invalidate.subtree.nodes", by: treeToList(node).count)
         StyleInvalidation.markSubtreeAndAncestors(node)
         needsHasPrecompute = true
         invalidateStyle()
@@ -1486,8 +1532,10 @@ class Frame {
 
     private func invalidateStyle(fromViewport: Bool = false) {
         if fromViewport {
+            noteStyleInvalidation("style.invalidate.viewport")
             styleInvalidatedByViewport = true
         } else {
+            noteStyleInvalidation("style.invalidate.other")
             styleInvalidatedByOther = true
         }
         markDocumentDirty()
@@ -1498,6 +1546,51 @@ class Frame {
 
     private func markDocumentDirty() {
         documentDirty = true
+    }
+
+    private func markHoverDescendants(of element: Element) {
+        let selectors: [any CSSSelector] = ruleIndex.hoverAncestorSelectors
+        guard !selectors.isEmpty else { return }
+
+        let newState: Bool = element.isHovered
+        var matched: [ObjectIdentifier: any DOMNode] = [:]
+        element.isHovered = !newState
+        collectHoverMatches(under: element, selectors: selectors, into: &matched)
+        element.isHovered = newState
+        collectHoverMatches(under: element, selectors: selectors, into: &matched)
+
+        for node in matched.values {
+            StyleInvalidation.markNode(node)
+        }
+
+        noteStyleInvalidation("style.invalidate.hover.matched", by: matched.count)
+    }
+
+    private func collectHoverMatches(
+        under element: Element,
+        selectors: [any CSSSelector],
+        into matched: inout [ObjectIdentifier: any DOMNode]
+    ) {
+        for child in element.children {
+            guard let childElement: Element = child as? Element else { continue }
+            if selectors.contains(where: { subjectCanMatch($0, childElement) && $0.matches(childElement) }) {
+                matched[ObjectIdentifier(childElement)] = childElement
+            }
+            collectHoverMatches(under: childElement, selectors: selectors, into: &matched)
+        }
+    }
+
+    private func subjectCanMatch(_ selector: any CSSSelector, _ element: Element) -> Bool {
+        switch selector.key {
+        case .tag(let tag):
+            return element.tag == tag
+        case .className(let cls):
+            return element.attributes["class"]?.split(separator: " ").contains(where: { $0 == cls }) == true
+        case .id(let id):
+            return element.attributes["id"] == id
+        case .universal:
+            return true
+        }
     }
 
     func addAnimation(_ animation: any Animation, to node: any DOMNode) {
@@ -1535,6 +1628,10 @@ class Frame {
     func setNeedsHoverCheck() {
         needsRender = true
         requestAnimationFrame()
+    }
+
+    func noteStyleInvalidation(_ name: String, by amount: Int = 1) {
+        pendingStyleInvalidations[name, default: 0] += amount
     }
 
     // MARK: - Zoom

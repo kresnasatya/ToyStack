@@ -26,6 +26,7 @@ enum StyleInvalidation {
 
     private static func markSubtree(_ node: any DOMNode) {
         for target in treeToList(node) {
+            profiler.count("style.invalidate.subtree.nodes")
             target.style.markAll()
         }
     }
