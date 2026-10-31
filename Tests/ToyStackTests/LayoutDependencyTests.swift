@@ -78,6 +78,17 @@ struct LayoutDependencyTests {
         root.removeDependency(.layout(.ascent), root.fieldRef(.width))
         #expect(root.fields.dependentCount(.ascent) == 0)
     }
+
+    @Test func widthMarksLinesButNotInlineContent() throws {
+        let page: LayoutTestPage = makeDependencyPage()
+        let p: Element = try #require(page.firstElement(tag: "p"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+
+        #expect(block.widthField.containsInvalidation(block.childrenField))
+        #expect(!block.widthField.containsInvalidation(block.inlineContentField))
+        #expect(block.inlineContentField.containsInvalidation(block.childrenField))
+        #expect(p.style.field("font-size").containsInvalidation(block.inlineContentField))
+    }
 }
 
 @MainActor

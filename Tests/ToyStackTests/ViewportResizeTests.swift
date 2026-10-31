@@ -114,4 +114,24 @@ struct ViewportResizeTests {
         page.frame.render()
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func horizontalResizeReusesInlineItems() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five six seven eight nine ten</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+
+        page.frame.frameWidth = 400
+        page.frame.setNeedsViewportResize()
+        page.frame.render()
+
+        let profile = profiler.snapshot()
+        #expect((profile["layout.inline.refresh"]?.count ?? 0) == 0)
+        #expect((profile["text.words"]?.count ?? 0) == 0)
+        #expect((profile["layout.inline.place"]?.count ?? 0) > 0)
+        expectIncrementalMatchesFull(page)
+    }
 }

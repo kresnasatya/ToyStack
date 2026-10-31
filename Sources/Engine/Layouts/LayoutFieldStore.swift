@@ -14,6 +14,7 @@ struct LayoutFieldStore {
     var font: BrowserFont = inlineDefaultFont
     var ascent: CGFloat = 0
     var descent: CGFloat = 0
+    var inlineContent: UInt64 = 0
 
     private var usedBits: UInt16 = 0
     private var dirtyBits: UInt16 = LayoutField.allMask

@@ -22,6 +22,7 @@ class BlockLayout: LayoutObject {
 
     private var cursorX: CGFloat = 0
     private var inlineItems: [InlineItem] = []
+    private var inlineContentRevision: UInt64 = 0
 
     var scrollOffset: CGFloat = 0
     var contentHeight: CGFloat = 0
@@ -82,10 +83,11 @@ class BlockLayout: LayoutObject {
             node.style.field("padding-right"),
             node.style.field("width"),
         ])
+        inlineContentField.setDependencies(inlineContentInputs())
         childrenField.setDependencies(childrenInputs())
     }
 
-    private func childrenInputs() -> [any InvalidatableField] {
+    private func inlineContentInputs() -> [any InvalidatableField] {
         var inputs: [any InvalidatableField] = [
             zoomField,
             node.style.field("display"),
@@ -98,13 +100,6 @@ class BlockLayout: LayoutObject {
                 inputs.append(child.style.field("position"))
             }
         }
-        // A block-only container's child list does not depend on its width.
-        // Width only matters when this block lays out lines or anonymous runs;
-        // their own width fields carry the dependency.
-        let hasBlockChild: Bool = node.children.contains(where: { $0.style["display"] == "block" })
-        if !hasBlockChild {
-            inputs.append(widthField)
-        }
         let leaves: [any DOMNode] = inlineLeaves()
         for leaf in leaves {
             let owner: any DOMNode = leaf.inheritedStyleOwner
@@ -114,6 +109,17 @@ class BlockLayout: LayoutObject {
                 inputs.append(el.style.field("aspect-ratio"))
                 inputs.append(el.style.field("max-width"))
             }
+        }
+        return inputs
+    }
+
+    private func childrenInputs() -> [any InvalidatableField] {
+        var inputs: [any InvalidatableField] = inlineContentInputs()
+        inputs.append(inlineContentField)
+
+        let hasBlockChild: Bool = node.children.contains(where: { $0.style["display"] == "block" })
+        if !hasBlockChild {
+            inputs.append(widthField)
         }
         return inputs
     }
@@ -159,7 +165,7 @@ class BlockLayout: LayoutObject {
 
     func markChildrenDirty() {
         childChanges.removeAll()
-        childrenField.mark()
+        inlineContentField.mark()
     }
 
     func noteAppendedChildren(_ nodes: [any DOMNode]) {
@@ -194,7 +200,7 @@ class BlockLayout: LayoutObject {
             return true
         }
 
-        return childrenField.dirty || !childChanges.isEmpty
+        return inlineContentField.dirty || childrenField.dirty || !childChanges.isEmpty
     }
 
     func layout() {
@@ -207,7 +213,8 @@ class BlockLayout: LayoutObject {
         // A display change moves children between the block and inline paths, so
         // the leaves that inline layout will read were not known when the block
         // was built. Re-declare them before this pass reads them.
-        if childrenField.dirty || !childChanges.isEmpty {
+        if inlineContentField.dirty || childrenField.dirty || !childChanges.isEmpty {
+            inlineContentField.setDependencies(inlineContentInputs())
             childrenField.setDependencies(childrenInputs())
         }
         profiler.measure("layout.visit") {
@@ -288,15 +295,21 @@ class BlockLayout: LayoutObject {
                         childrenField.set(rebuildBlockChildren())
                     }
                 }
+
+                if inlineContentField.dirty {
+                    inlineContentRevision += 1
+                    inlineContentField.setClean(inlineContentRevision)
+                }
             } else {
                 profiler.count("layout.mode.inline")
+                let inlineContentChanged: Bool = inlineContentField.dirty || !childChanges.isEmpty
                 childChanges.removeAll()
-                // Inline layout consumes these inputs but has no field of its own;
-                // route them to the child list that would have to be rebuilt.
                 _ = widthField.read(notify: childrenField)
                 _ = zoomField.read(notify: childrenField)
                 _ = node.style.read("direction", notify: childrenField)
-                profiler.measure("layout.inline.refresh", { refreshInlineItems() })
+                if inlineContentChanged {
+                    profiler.measure("layout.inline.refresh", { refreshInlineItems() })
+                }
                 profiler.measure("layout.inline.place", { placeInlineItems() })
             }
         }
@@ -608,15 +621,6 @@ class BlockLayout: LayoutObject {
     }
 
     // MARK: - Inline items
-    private func buildInlineItems() -> [InlineItem] {
-        var items: [InlineItem] = []
-        if extraNodes.isEmpty {
-            collect(node, into: &items)
-        } else {
-            for n in extraNodes { collect(n, into: &items) }
-        }
-        return items
-    }
 
     private func placeInlineItems() {
 
@@ -643,6 +647,8 @@ class BlockLayout: LayoutObject {
             items.append(contentsOf: makeItems(for: leaf))
         }
         inlineItems = items
+        inlineContentRevision += 1
+        inlineContentField.set(inlineContentRevision)
     }
 
     private func collectLeaves(_ n: any DOMNode, into leaves: inout [any DOMNode]) {
@@ -692,9 +698,9 @@ class BlockLayout: LayoutObject {
     }
 
     private func addTextNode(_ textNode: TextNode, into items: inout [InlineItem]) {
-        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.inheritedStyleOwner.style.read("white-space", notify: childrenField))
-        let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let font: BrowserFont = fontForElement(textNode, zoom: zoom, notify: childrenField)
+        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.inheritedStyleOwner.style.read("white-space", notify: inlineContentField))
+        let zoom: CGFloat = zoomField.read(notify: inlineContentField)
+        let font: BrowserFont = fontForElement(textNode, zoom: zoom, notify: inlineContentField)
         let run: InlineTextRun = InlineTextRun(
             node: textNode,
             font: font,
@@ -899,13 +905,13 @@ class BlockLayout: LayoutObject {
 
         let node: any DOMNode = run.node
         let owner: any DOMNode = node.inheritedStyleOwner
-        let weight: String = owner.style.read("font-weight", notify: childrenField) ?? "normal"
-        var styleStr: String = owner.style.read("font-style", notify: childrenField) ?? "normal"
+        let weight: String = owner.style.read("font-weight", notify: inlineContentField) ?? "normal"
+        var styleStr: String = owner.style.read("font-style", notify: inlineContentField) ?? "normal"
         if styleStr == "normal" { styleStr = "roman" }
         let sizePx: Double = Double(owner.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
         let sizeInt: Int = Int(sizePx)
         let smallSize: Int = Int(Double(sizeInt))
-        let family: String = owner.style.read("font-family", notify: childrenField) ?? "serif"
+        let family: String = owner.style.read("font-family", notify: inlineContentField) ?? "serif"
 
         for (text, isLower) in runs {
             let displayText: String = isLower ? text.uppercased() : text

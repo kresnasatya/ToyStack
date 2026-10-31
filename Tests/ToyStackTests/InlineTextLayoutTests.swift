@@ -48,4 +48,18 @@ struct InlineTextLayoutTests {
         let linesAfter: Int = page.lines(in: p).count
         #expect(linesAfter == 1)
     }
+
+    @Test func fontSizeChangeRebuildsInlineItems() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>one two three four five</p>"#,
+            rules: textPageRules
+        )
+        let p: Element = try #require(page.firstElement(tag: "p"))
+
+        p.attributes["style"] = "font-size: 32px;"
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        #expect((profiler.snapshot()["layout.inline.refresh"]?.count ?? 0) > 0)
+    }
 }

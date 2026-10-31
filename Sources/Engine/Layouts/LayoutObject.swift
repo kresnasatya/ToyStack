@@ -75,6 +75,10 @@ extension LayoutObject {
         })
     }
 
+    var inlineContentField: LayoutFieldHandle<UInt64> {
+        layoutField(.inlineContent, \.inlineContent, equals: { $0 == $1 })
+    }
+
     var fontField: LayoutFieldHandle<BrowserFont> {
         layoutField(.font, \.font, equals: { lhs, rhs in
             CFEqual(lhs.ctFont, rhs.ctFont)

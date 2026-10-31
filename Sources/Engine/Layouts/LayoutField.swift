@@ -14,6 +14,7 @@ enum LayoutField: String, CaseIterable {
     case font
     case ascent
     case descent
+    case inlineContent
 
     var mask: UInt16 {
         switch self {
@@ -27,6 +28,7 @@ enum LayoutField: String, CaseIterable {
         case .font: return 1 << 7
         case .ascent: return 1 << 8
         case .descent: return 1 << 9
+        case .inlineContent: return 1 << 10
         }
     }
 
