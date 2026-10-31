@@ -3,7 +3,7 @@ import Foundation
 nonisolated final class StyleFields: FieldOwner {
     private(set) var values: [String: String] = [:]
     private var dirtyKeys: Set<String> = []
-    private var dependents: [String: [FieldRef]] = [:]
+    private var dependents: [String: [FieldDependencyKey: FieldRef]] = [:]
     private var needsRestyle: Bool = true
     private var descendantsDirty: Bool = false
 
@@ -103,10 +103,21 @@ nonisolated final class StyleFields: FieldOwner {
     @MainActor
     private func notifyDependents(_ key: String) {
         guard var fields = dependents[key] else { return }
-        fields.removeAll(where: { $0.owner == nil })
-        dependents[key] = fields
-        for field in fields {
-            field.mark()
+        var dead: [FieldDependencyKey] = []
+        for (id, field) in fields {
+            if field.owner == nil {
+                dead.append(id)
+            } else {
+                field.mark()
+            }
+        }
+        for id in dead {
+            fields.removeValue(forKey: id)
+        }
+        if fields.isEmpty {
+            dependents.removeValue(forKey: key)
+        } else {
+            dependents[key] = fields
         }
     }
 
@@ -119,19 +130,15 @@ nonisolated final class StyleFields: FieldOwner {
 
     @MainActor
     func addDependency(_ name: FieldName, _ field: FieldRef) {
-        guard case .style(let key) = name else { return }
-        var fields: [FieldRef] = dependents[key] ?? []
-        fields.removeAll(where: { $0.owner == nil })
-        if !fields.contains(where: { $0.sameTarget(as: field) }) {
-            fields.append(field)
-        }
-        dependents[key] = fields
+        guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
+        dependents[key, default: [:]][id] = field
     }
 
     @MainActor
     func removeDependency(_ name: FieldName, _ field: FieldRef) {
-        guard case .style(let key) = name, var fields = dependents[key] else { return }
-        fields.removeAll(where: { $0.owner == nil || $0.sameTarget(as: field) })
+        guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
+        guard var fields = dependents[key] else { return }
+        fields.removeValue(forKey: id)
         if fields.isEmpty {
             dependents.removeValue(forKey: key)
         } else {
@@ -139,14 +146,17 @@ nonisolated final class StyleFields: FieldOwner {
         }
     }
 
+    @MainActor
     func dependentCount(for key: String) -> Int {
-        return dependents[key]?.count ?? 0
+        return dependents[key]?.values.reduce(0, { total, field in
+            total + (field.owner == nil ? 0 : 1)
+        }) ?? 0
     }
 
     @MainActor
     func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool {
-        guard case .style(let key) = name else { return false }
-        return dependents[key]?.contains(where: { $0.sameTarget(as: field) }) ?? false
+        guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return false }
+        return dependents[key]?[id]?.owner != nil
     }
 
     @MainActor
@@ -163,8 +173,8 @@ nonisolated final class StyleFields: FieldOwner {
     @MainActor
     func dependencyNames(_ name: FieldName) -> [String] {
         guard case .style(let key) = name else { return [] }
-        return (dependents[key] ?? [])
-            .compactMap({ $0.owner == nil ? nil : $0.fieldName })
+        return (dependents[key] ?? [:])
+            .compactMap({ $0.value.owner == nil ? nil : $0.value.fieldName })
             .sorted()
     }
 }

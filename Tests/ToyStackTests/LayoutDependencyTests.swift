@@ -84,7 +84,7 @@ struct LayoutDependencyTests {
         let p: Element = try #require(page.firstElement(tag: "p"))
         let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
 
-        #expect(block.widthField.containsInvalidation(block.childrenField))
+        #expect(!block.widthField.containsInvalidation(block.childrenField))
         #expect(!block.widthField.containsInvalidation(block.inlineContentField))
         #expect(block.inlineContentField.containsInvalidation(block.childrenField))
         #expect(p.style.field("font-size").containsInvalidation(block.inlineContentField))

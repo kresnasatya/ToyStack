@@ -190,3 +190,17 @@ Goal: make a width-only resize a reflow, not a content rebuild. Culprit #3 is fi
 - Line-break edge cases: hard breaks, `white-space: nowrap/pre`, soft hyphens, `<abbr>`, embeds affecting line width.
 - Image intrinsic size/load changes must invalidate item widths, not just line geometry.
 - `ButtonLayout` and anonymous inline runs are easy to miss; they need the same treatment.
+
+## Follow-up after phases 1–3 (2026-10-31)
+
+The inline churn is fixed: on `www/bench/large.html` a width-only resize now does no `inline.refresh`, no `inline.place`, and no `layout.text`, and 40 resizes stay flat at 750–780 ms each. Ten identical media-query flips on a 1,200-block page stay flat at 1.58 s each. See [resize-phase-4-dependency-registration.md](./resize-phase-4-dependency-registration.md) for the measurements.
+
+What remains is the *dependency graph*, not layout content. In a release `sample` of the resize workload, 64% of main-thread samples sit in the two `setDependencies` calls at `BlockLayout.swift:251-252`, and 77% of samples are weak-reference copy/load/release inside `StyleFields.addDependency` (`StyleFields.swift:121-135`). Every resize re-declares every inline block's field edges because `childrenInputs()` (`BlockLayout.swift:118-126`) declares `widthField`, and every registration copy-on-writes and linearly scans the dependents array.
+
+The traced page still shows 3.4 s → 7.3 s → 11.4 s for identical full rebuilds; flat counters plus growing wall time points at retained dependents [INFERENCE] — the trace records counters, not object lifetimes. Phase 4 replaces the arrays with keyed registries (further details and diffs in the linked plan) and stops the width-driven re-declaration. Paint (155–174 ms/frame) and full-document restyles (125–271 ms) are the follow-ups after that.
+
+### Phase 4 measured (2026-10-31)
+
+Applied. `www/bench/large.html` resize tick: 750–780 ms → **213–216 ms** (`layout.visit.us` 773 ms → 61 ms). Traced page full rebuilds: 3.39 → 7.32 → 11.37 s (growing) → **1.098 → 1.091 → 1.071 s (flat)**. Ordinary resize ticks on the traced page: 1.29–1.41 s → 0.70–0.78 s. The per-burst growth is gone.
+
+Remaining per-tick costs in the new trace: line paint 155–159 ms with 2 line-cache hits out of ~2,800 stores, eight full-document style passes at ~250 ms with no media-query flip, and layout's constant factor (line layout 185 ms, placement 143–218 ms, 41–46k word measures). [Phase 5](./resize-phase-5-paint-reuse.md) targets paint reuse and the style invalidation source.

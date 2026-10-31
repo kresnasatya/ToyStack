@@ -85,8 +85,9 @@ class BlockLayout: LayoutObject {
             node.style.field("padding-right"),
             node.style.field("width"),
         ])
-        inlineContentField.setDependencies(inlineContentInputs())
-        childrenField.setDependencies(childrenInputs())
+        let contentInputs: [any InvalidatableField] = inlineContentInputs()
+        inlineContentField.setDependencies(contentInputs)
+        childrenField.setDependencies(contentInputs + [inlineContentField])
     }
 
     private func inlineContentInputs() -> [any InvalidatableField] {
@@ -111,17 +112,6 @@ class BlockLayout: LayoutObject {
                 inputs.append(el.style.field("aspect-ratio"))
                 inputs.append(el.style.field("max-width"))
             }
-        }
-        return inputs
-    }
-
-    private func childrenInputs() -> [any InvalidatableField] {
-        var inputs: [any InvalidatableField] = inlineContentInputs()
-        inputs.append(inlineContentField)
-
-        let hasBlockChild: Bool = node.children.contains(where: { $0.style["display"] == "block" })
-        if !hasBlockChild {
-            inputs.append(widthField)
         }
         return inputs
     }
@@ -248,8 +238,9 @@ class BlockLayout: LayoutObject {
         // the leaves that inline layout will read were not known when the block
         // was built. Re-declare them before this pass reads them.
         if inlineContentField.dirty || childrenField.dirty || !childChanges.isEmpty {
-            inlineContentField.setDependencies(inlineContentInputs())
-            childrenField.setDependencies(childrenInputs())
+            let contentInputs: [any InvalidatableField] = inlineContentInputs()
+            inlineContentField.setDependencies(contentInputs)
+            childrenField.setDependencies(contentInputs + [inlineContentField])
         }
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
@@ -340,7 +331,6 @@ class BlockLayout: LayoutObject {
                 profiler.count("layout.mode.inline")
                 let inlineContentChanged: Bool = inlineContentField.dirty || !childChanges.isEmpty
                 childChanges.removeAll()
-                _ = widthField.read(notify: childrenField)
                 _ = zoomField.read(notify: childrenField)
                 _ = node.style.read("direction", notify: childrenField)
                 if inlineContentChanged {
@@ -871,7 +861,7 @@ class BlockLayout: LayoutObject {
     private func addInput(_ node: Element, index: Int) {
         if node.attributes["type"] == "hidden" { return }
 
-        let available: CGFloat = widthField.read(notify: childrenField)
+        let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
@@ -893,7 +883,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addButton(_ node: Element, index: Int) {
-        let available: CGFloat = widthField.read(notify: childrenField)
+        let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = InputLayout.inputWidthPx * zoom
         if cursorX + w > available { newLine() }
@@ -913,7 +903,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addImage(_ node: Element, index: Int) {
-        let available: CGFloat = widthField.read(notify: childrenField)
+        let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = ImageLayout.usedWidth(for: node, available: available, zoom: zoom, notify: childrenField)
         if cursorX + w > available { newLine() }
@@ -934,7 +924,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addIframe(_ node: Element, index: Int) {
-        let available: CGFloat = widthField.read(notify: childrenField)
+        let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = IframeLayout.displaySize(for: node, notify: childrenField).width * zoom
         if cursorX + w > available { newLine() }
@@ -955,7 +945,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func addCanvas(_ node: Element, index: Int) {
-        let available: CGFloat = widthField.read(notify: childrenField)
+        let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = CanvasLayout.contentSize(for: node).width * zoom
         if cursorX + w > available { newLine() }
