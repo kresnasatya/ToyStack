@@ -127,6 +127,11 @@ extension LayoutObject {
         fields.addDependent(layoutField, field)
     }
 
+    func removeDependency(_ name: FieldName, _ field: FieldRef) {
+        guard case .layout(let layoutField) = name else { return }
+        fields.removeDependent(layoutField, field)
+    }
+
     func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool {
         guard case .layout(let layoutField) = name else { return false }
         return fields.containsDependent(layoutField, field)

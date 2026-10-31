@@ -29,6 +29,7 @@ protocol InvalidatableField {
 
     func mark()
     func addInvalidation(_ field: any InvalidatableField)
+    func removeInvalidation(_ field: any InvalidatableField)
     func containsInvalidation(_ field: any InvalidatableField) -> Bool
 }
 
@@ -38,6 +39,7 @@ protocol InvalidatableField {
 protocol FieldOwner: AnyObject {
     func markField(_ name: FieldName)
     func addDependency(_ name: FieldName, _ field: FieldRef)
+    func removeDependency(_ name: FieldName, _ field: FieldRef)
     func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool
     func fieldIsDirty(_ name: FieldName) -> Bool
     func fieldIsFrozen(_ name: FieldName) -> Bool
@@ -63,6 +65,10 @@ struct FieldRef: InvalidatableField {
 
     func addInvalidation(_ field: any InvalidatableField) {
         owner?.addDependency(name, field.ref)
+    }
+
+    func removeInvalidation(_ field: any InvalidatableField) {
+        owner?.removeDependency(name, field.ref)
     }
 
     func containsInvalidation(_ field: any InvalidatableField) -> Bool {

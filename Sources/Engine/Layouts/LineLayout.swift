@@ -5,7 +5,7 @@ import CoreGraphics
 @MainActor
 class LineLayout: LayoutObject {
     let node: any DOMNode
-    let parent: (any LayoutObject)?
+    weak var parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
     var fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false

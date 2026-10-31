@@ -34,6 +34,10 @@ struct StyleFieldRef: InvalidatableField {
         owner?.addDependency(.style(key), field.ref)
     }
 
+    func removeInvalidation(_ field: any InvalidatableField) {
+        owner?.removeDependency(.style(key), field.ref)
+    }
+
     func containsInvalidation(_ field: any InvalidatableField) -> Bool {
         return owner?.containsDependency(.style(key), field.ref) ?? false
     }

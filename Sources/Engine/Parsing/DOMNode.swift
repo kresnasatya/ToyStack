@@ -42,7 +42,7 @@ class Element: DOMNode {
     var isHovered: Bool = false
     var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
-    var layoutObject: LayoutObject? = nil
+    weak var layoutObject: LayoutObject? = nil
     var animations: [String: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
@@ -73,7 +73,7 @@ class TextNode: DOMNode {
     var isHovered: Bool = false
     var isFocusVisible: Bool = false
     var satisfiedHas: Set<Int> = []
-    var layoutObject: LayoutObject? = nil
+    weak var layoutObject: LayoutObject? = nil
     var animations: [String: Animation] = [:]
 
     init(text: String, parent: (any DOMNode)?) {

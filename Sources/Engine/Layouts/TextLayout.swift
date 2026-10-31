@@ -5,7 +5,7 @@ import CoreGraphics
 class TextLayout: LayoutObject, InlineLayoutItem {
     let node: any DOMNode
     let word: String
-    var parent: (any LayoutObject)?
+    weak var parent: (any LayoutObject)?
     var previous: (any LayoutObject)?
     var fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false

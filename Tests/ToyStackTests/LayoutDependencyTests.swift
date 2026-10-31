@@ -66,6 +66,18 @@ struct LayoutDependencyTests {
         #expect(!source.containsInvalidation(missing))
         #expect(source.containsInvalidation(declared))
     }
+
+    @Test func removingALayoutEdgeRemovesTheDependent() throws {
+        let page: LayoutTestPage = makeDependencyPage()
+        let document: DocumentLayout = try #require(page.frame.document)
+        let root: BlockLayout = try #require(document.children.first as? BlockLayout)
+
+        root.addDependency(.layout(.ascent), root.fieldRef(.width))
+        #expect(root.fields.dependentCount(.ascent) == 1)
+
+        root.removeDependency(.layout(.ascent), root.fieldRef(.width))
+        #expect(root.fields.dependentCount(.ascent) == 0)
+    }
 }
 
 @MainActor

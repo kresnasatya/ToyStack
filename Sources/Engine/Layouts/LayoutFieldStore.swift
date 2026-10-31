@@ -50,10 +50,25 @@ struct LayoutFieldStore {
 
     mutating func addDependent(_ field: LayoutField, _ dependent: FieldRef) {
         var current: [FieldRef] = dependents[field] ?? []
+        current.removeAll(where: { $0.owner == nil })
         if !current.contains(where: { $0.sameTarget(as: dependent) }) {
             current.append(dependent)
         }
         dependents[field] = current
+    }
+
+    mutating func removeDependent(_ field: LayoutField, _ dependent: FieldRef) {
+        guard var current = dependents[field] else { return }
+        current.removeAll(where: { $0.owner == nil || $0.sameTarget(as: dependent) })
+        if current.isEmpty {
+            dependents.removeValue(forKey: field)
+        } else {
+            dependents[field] = current
+        }
+    }
+
+    func dependentCount(_ field: LayoutField) -> Int {
+        return dependents[field]?.count ?? 0
     }
 
     func containsDependent(_ field: LayoutField, _ dependent: FieldRef) -> Bool {

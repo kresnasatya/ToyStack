@@ -75,6 +75,35 @@ struct StyleFieldsTests {
         style.apply(["width": "10px"])
         #expect(style.snapshot() == ["width": "10px"])
     }
+
+    @Test func deadDependentsDoNotAccumulate() {
+        let style = StyleFields()
+        style.apply(["width": "10px"])
+
+        for _ in 0..<50 {
+            registerDeadDependency(style)
+        }
+
+        let live = StyleTestTarget()
+        _ = style.read("width", notify: live)
+
+        withExtendedLifetime(live) {
+            #expect(style.dependentCount(for: "width") == 1)
+        }
+    }
+
+    @Test func removingAPropertyEdgeStopsMarking() {
+        let style = StyleFields()
+        style.apply(["width": "10px"])
+        let target = StyleTestTarget()
+        _ = style.read("width", notify: target)
+
+        style.removeDependency(.style("width"), target.ref)
+        style["width"] = "20px"
+
+        #expect(!target.dirty)
+        #expect(style.dependentCount(for: "width") == 0)
+    }
 }
 
 @MainActor
@@ -89,12 +118,20 @@ private final class StyleTestTarget: FieldOwner, InvalidatableField {
     func mark() { dirty = true }
     func set(_ value: CGFloat) { dirty = false }
     func addInvalidation(_ field: any InvalidatableField) {}
+    func removeInvalidation(_ field: any InvalidatableField) {}
     func containsInvalidation(_ field: any InvalidatableField) -> Bool { false }
 
     func markField(_ name: FieldName) { dirty = true }
     func addDependency(_ name: FieldName, _ field: FieldRef) {}
+    func removeDependency(_ name: FieldName, _ field: FieldRef) {}
     func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool { false }
     func fieldIsDirty(_ name: FieldName) -> Bool { dirty }
     func fieldIsFrozen(_ name: FieldName) -> Bool { false }
     func dependencyNames(_ name: FieldName) -> [String] { [] }
+}
+
+@MainActor
+private func registerDeadDependency(_ style: StyleFields) {
+    let dead = StyleTestTarget()
+    _ = style.read("width", notify: dead)
 }

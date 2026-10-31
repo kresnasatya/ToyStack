@@ -121,10 +121,26 @@ nonisolated final class StyleFields: FieldOwner {
     func addDependency(_ name: FieldName, _ field: FieldRef) {
         guard case .style(let key) = name else { return }
         var fields: [FieldRef] = dependents[key] ?? []
+        fields.removeAll(where: { $0.owner == nil })
         if !fields.contains(where: { $0.sameTarget(as: field) }) {
             fields.append(field)
         }
         dependents[key] = fields
+    }
+
+    @MainActor
+    func removeDependency(_ name: FieldName, _ field: FieldRef) {
+        guard case .style(let key) = name, var fields = dependents[key] else { return }
+        fields.removeAll(where: { $0.owner == nil || $0.sameTarget(as: field) })
+        if fields.isEmpty {
+            dependents.removeValue(forKey: key)
+        } else {
+            dependents[key] = fields
+        }
+    }
+
+    func dependentCount(for key: String) -> Int {
+        return dependents[key]?.count ?? 0
     }
 
     @MainActor

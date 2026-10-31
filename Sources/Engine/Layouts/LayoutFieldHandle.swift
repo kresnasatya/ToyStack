@@ -84,6 +84,10 @@ struct LayoutFieldHandle<Value>: InvalidatableField {
         owner?.fields.addDependent(self.field, field.ref)
     }
 
+    func removeInvalidation(_ field: any InvalidatableField) {
+        owner?.removeDependency(.layout(self.field), field.ref)
+    }
+
     func containsInvalidation(_ field: any InvalidatableField) -> Bool {
         return owner?.fields.containsDependent(self.field, field.ref) ?? false
     }
