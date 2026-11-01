@@ -52,7 +52,7 @@ class BlockLayout: LayoutObject {
     }
 
     private var previousField: LayoutFieldHandle<(any LayoutObject)?> {
-        layoutField(.previous, \.previous, equals: { $0 === $1 })
+        layoutField(.previous)
     }
 
     private func freezeGeometry(parent: any LayoutObject, previous: (any LayoutObject)?) {
@@ -231,13 +231,14 @@ class BlockLayout: LayoutObject {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        if zoomField.dirty || xField.dirty || yField.dirty
-            || widthField.dirty || heightField.dirty
+        let fields: LayoutFieldStore = self.fields
+        if fields.isDirty(.zoom) || fields.isDirty(.x) || fields.isDirty(.y)
+            || fields.isDirty(.width) || fields.isDirty(.height)
         {
             return true
         }
 
-        return inlineContentField.dirty || childrenField.dirty || !childChanges.isEmpty
+        return fields.isDirty(.inlineContent) || fields.isDirty(.children) || !childChanges.isEmpty
     }
 
     func layout() {
@@ -250,7 +251,7 @@ class BlockLayout: LayoutObject {
         // A display change moves children between the block and inline paths, so
         // the leaves that inline layout will read were not known when the block
         // was built. Re-declare them before this pass reads them.
-        if inlineContentField.dirty || childrenField.dirty || !childChanges.isEmpty {
+        if fields.isDirty(.inlineContent) || fields.isDirty(.children) || !childChanges.isEmpty {
             let contentInputs: [any InvalidatableField] = inlineContentInputs()
             inlineContentField.setDependencies(contentInputs)
             childrenField.setDependencies(contentInputs + [inlineContentField])
@@ -321,7 +322,7 @@ class BlockLayout: LayoutObject {
             let mode: String = profiler.measure("layout.mode", { layoutMode() })
             if mode == "block" {
                 profiler.count("layout.mode.block")
-                if childrenField.dirty {
+                if fields.isDirty(.children) {
                     childrenField.set(rebuildBlockChildren())
                 } else if !childChanges.isEmpty {
                     let changes: [BlockChildChange] = childChanges
@@ -334,7 +335,7 @@ class BlockLayout: LayoutObject {
                     }
                 }
 
-                if inlineContentField.dirty {
+                if fields.isDirty(.inlineContent) {
                     inlineContentRevision += 1
                     inlineContentField.setClean(inlineContentRevision)
                     inlineObjects.removeAll(keepingCapacity: true)
@@ -342,7 +343,7 @@ class BlockLayout: LayoutObject {
                 }
             } else {
                 profiler.count("layout.mode.inline")
-                let inlineContentChanged: Bool = inlineContentField.dirty || !childChanges.isEmpty
+                let inlineContentChanged: Bool = fields.isDirty(.inlineContent) || !childChanges.isEmpty
                 childChanges.removeAll()
                 _ = zoomField.read(notify: childrenField)
                 _ = node.style.read("direction", notify: childrenField)

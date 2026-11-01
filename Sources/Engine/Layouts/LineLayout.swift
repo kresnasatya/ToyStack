@@ -42,9 +42,9 @@ class LineLayout: LayoutObject {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        return zoomField.dirty || xField.dirty || yField.dirty
-            || widthField.dirty || heightField.dirty
-            || ascentField.dirty || descentField.dirty
+        return fields.isDirty(.zoom) || fields.isDirty(.x) || fields.isDirty(.y)
+            || fields.isDirty(.width) || fields.isDirty(.height)
+            || fields.isDirty(.ascent) || fields.isDirty(.descent)
     }
 
     func layout() {

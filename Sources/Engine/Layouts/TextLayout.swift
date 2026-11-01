@@ -51,19 +51,19 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        return zoomField.dirty || widthField.dirty || heightField.dirty
-            || fontField.dirty || ascentField.dirty || descentField.dirty
+        return fields.isDirty(.zoom) || fields.isDirty(.width) || fields.isDirty(.height)
+            || fields.isDirty(.font) || fields.isDirty(.ascent) || fields.isDirty(.descent)
     }
 
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
         profiler.measure("layout.text", {
-            if zoomField.dirty {
+            if fields.isDirty(.zoom) {
                 zoomField.set(resolvedZoom())
             }
 
-            let fontChanged: Bool = fontField.dirty
+            let fontChanged: Bool = fields.isDirty(.font)
             if fontChanged {
                 let resolvedFont: BrowserFont
                 if let override = fontOverride {
@@ -74,20 +74,20 @@ class TextLayout: LayoutObject, InlineLayoutItem {
                 fontField.set(resolvedFont)
             }
 
-            if fontChanged || widthField.dirty {
+            if fontChanged || fields.isDirty(.width) {
                 let measuredFont: BrowserFont = fontField.read(notify: widthField)
                 let measured: CGFloat = measuredFont.measure(displayWord ?? word)
                 textWidth = measured
                 widthField.set(measured + measuredFont.spaceWidth)
             }
 
-            if fontChanged || heightField.dirty {
+            if fontChanged || fields.isDirty(.height) {
                 heightField.set(fontField.read(notify: heightField).linespace)
             }
-            if fontChanged || ascentField.dirty {
+            if fontChanged || fields.isDirty(.ascent) {
                 ascentField.set(fontField.read(notify: ascentField).ascent)
             }
-            if fontChanged || descentField.dirty {
+            if fontChanged || fields.isDirty(.descent) {
                 descentField.set(fontField.read(notify: descentField).descent)
             }
         })

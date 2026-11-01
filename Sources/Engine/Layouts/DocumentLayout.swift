@@ -27,12 +27,12 @@ class DocumentLayout: LayoutObject {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        if zoomField.dirty || xField.dirty || yField.dirty
-            || widthField.dirty || heightField.dirty
+        if fields.isDirty(.zoom) || fields.isDirty(.x) || fields.isDirty(.y)
+            || fields.isDirty(.width) || fields.isDirty(.height)
         {
             return true
         }
-        return childrenField.dirty
+        return fields.isDirty(.children)
     }
 
     func layout(availableWidth: CGFloat = WIDTH, zoom: CGFloat = 1.0, pageZoom: CGFloat = 1.0) {

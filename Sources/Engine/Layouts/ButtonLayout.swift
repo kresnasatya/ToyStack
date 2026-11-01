@@ -33,7 +33,9 @@ class ButtonLayout: EmbedLayout {
         if yField.isDirty {
             yField.set(0)
         }
-        let contentDirty: Bool = hasDirtyDescendants || widthField.dirty || heightField.dirty || zoomField.dirty || fontField.dirty
+        let contentDirty: Bool = hasDirtyDescendants
+            || fields.isDirty(.width) || fields.isDirty(.height)
+            || fields.isDirty(.zoom) || fields.isDirty(.font)
         super.layout()
         guard contentDirty else { return }
 

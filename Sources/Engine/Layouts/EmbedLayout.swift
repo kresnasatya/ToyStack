@@ -39,18 +39,18 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        return zoomField.dirty || widthField.dirty || heightField.dirty
-            || fontField.dirty || ascentField.dirty || descentField.dirty
+        return fields.isDirty(.zoom) || fields.isDirty(.width) || fields.isDirty(.height)
+            || fields.isDirty(.font) || fields.isDirty(.ascent) || fields.isDirty(.descent)
     }
 
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
 
-        if zoomField.dirty {
+        if fields.isDirty(.zoom) {
             zoomField.set(resolvedZoom())
         }
-        if fontField.dirty {
+        if fields.isDirty(.font) {
             fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField))
         }
     }

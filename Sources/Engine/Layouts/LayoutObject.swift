@@ -49,61 +49,47 @@ extension LayoutObject {
     }
 
     var xField: LayoutFieldHandle<CGFloat> {
-        layoutField(.x, \.x, equals: { $0 == $1 })
+        layoutField(.x)
     }
 
     var yField: LayoutFieldHandle<CGFloat> {
-        layoutField(.y, \.y, equals: { $0 == $1 })
+        layoutField(.y)
     }
 
     var widthField: LayoutFieldHandle<CGFloat> {
-        layoutField(.width, \.width, equals: { $0 == $1 })
+        layoutField(.width)
     }
 
     var heightField: LayoutFieldHandle<CGFloat> {
-        layoutField(.height, \.height, equals: { $0 == $1 })
+        layoutField(.height)
     }
 
     var zoomField: LayoutFieldHandle<CGFloat> {
-        layoutField(.zoom, \.zoom, equals: { $0 == $1 })
+        layoutField(.zoom)
     }
 
     var childrenField: LayoutFieldHandle<[any LayoutObject]> {
-        layoutField(.children, \.children, equals: { lhs, rhs in
-            guard lhs.count == rhs.count else { return false }
-            return zip(lhs, rhs).allSatisfy({ $0 === $1 })
-        })
+        layoutField(.children)
     }
 
     var inlineContentField: LayoutFieldHandle<UInt64> {
-        layoutField(.inlineContent, \.inlineContent, equals: { $0 == $1 })
+        layoutField(.inlineContent)
     }
 
     var fontField: LayoutFieldHandle<BrowserFont> {
-        layoutField(.font, \.font, equals: { lhs, rhs in
-            CFEqual(lhs.ctFont, rhs.ctFont)
-        })
+        layoutField(.font)
     }
 
     var ascentField: LayoutFieldHandle<CGFloat> {
-        layoutField(.ascent, \.ascent, equals: { $0 == $1 })
+        layoutField(.ascent)
     }
 
     var descentField: LayoutFieldHandle<CGFloat> {
-        layoutField(.descent, \.descent, equals: { $0 == $1 })
+        layoutField(.descent)
     }
 
-    func layoutField<Value>(
-        _ field: LayoutField,
-        _ valuePath: ReferenceWritableKeyPath<LayoutFieldStore, Value>,
-        equals: @escaping (Value, Value) -> Bool
-    ) -> LayoutFieldHandle<Value> {
-        return LayoutFieldHandle(
-            owner: self,
-            field: field,
-            valuePath: valuePath,
-            equals: equals
-        )
+    func layoutField<Value: LayoutFieldValue>(_ field: LayoutField) -> LayoutFieldHandle<Value> {
+        return LayoutFieldHandle(owner: self, fields: fields, field: field)
     }
 
     func fieldRef(_ field: LayoutField) -> FieldRef {

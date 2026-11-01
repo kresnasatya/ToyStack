@@ -36,7 +36,8 @@ final class CanvasLayout: EmbedLayout {
 
     override func layout() {
         if !layoutNeeded() { return }
-        let sizeDirty: Bool = widthField.dirty || heightField.dirty || zoomField.dirty || fontField.dirty
+        let sizeDirty: Bool = fields.isDirty(.width) || fields.isDirty(.height)
+            || fields.isDirty(.zoom) || fields.isDirty(.font)
         super.layout()
         guard sizeDirty else { return }
         guard let el = node as? Element else { return }

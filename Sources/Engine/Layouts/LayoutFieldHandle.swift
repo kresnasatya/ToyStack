@@ -3,65 +3,62 @@ import CoreGraphics
 // MARK: - LayoutFieldHandle
 
 @MainActor
-struct LayoutFieldHandle<Value>: InvalidatableField {
-    weak var owner: (any LayoutObject)?
+struct LayoutFieldHandle<Value: LayoutFieldValue>: InvalidatableField {
+    unowned let owner: any LayoutObject
+    unowned let fields: LayoutFieldStore
     let field: LayoutField
-    let valuePath: ReferenceWritableKeyPath<LayoutFieldStore, Value>
-    let equals: (Value, Value) -> Bool
+
+    init(owner: any LayoutObject, fields: LayoutFieldStore, field: LayoutField) {
+        self.owner = owner
+        self.fields = fields
+        self.field = field
+    }
 
     var fieldName: String { field.rawValue }
     var dirty: Bool { isDirty }
-    var isDirty: Bool { owner?.fields.isDirty(field) ?? false }
-    var frozenDependencies: Bool { owner?.fields.isFrozen(field) ?? false }
-    var invalidationNames: [String] { owner?.fields.dependencyNames(field) ?? [] }
+    var isDirty: Bool { fields.isDirty(field) }
+    var frozenDependencies: Bool { fields.isFrozen(field) }
+    var invalidationNames: [String] { fields.dependencyNames(field) }
     var ref: FieldRef { FieldRef(owner: owner, name: .layout(field)) }
 
     func get() -> Value {
-        guard let owner else {
-            fatalError("Read detached field \(field.rawValue)")
-        }
-        let fields: LayoutFieldStore = owner.fields
         if fields.isDirty(field) {
             assertionFailure("Read dirty field \(owner).\(field.rawValue)")
         }
         guard fields.isUsed(field) else {
             fatalError("Read unset field \(owner).\(field.rawValue)")
         }
-        return fields[keyPath: valuePath]
+        return fields.value(of: field)
     }
 
     func peek() -> Value? {
-        guard let owner, owner.fields.isUsed(field) else { return nil }
-        return owner.fields[keyPath: valuePath]
+        guard fields.isUsed(field) else { return nil }
+        return fields.value(of: field)
     }
 
     func set(_ newValue: Value) {
-        guard let owner else { return }
-        let fields: LayoutFieldStore = owner.fields
         let wasUsed: Bool = fields.isUsed(field)
-        let old: Value = fields[keyPath: valuePath]
-        let changed: Bool = !wasUsed || !equals(old, newValue)
+        let old: Value = fields.value(of: field)
+        let changed: Bool = !wasUsed || !Value.equals(old, newValue)
         fields.markUsed(field)
-        fields[keyPath: valuePath] = newValue
+        fields.setValue(of: field, to: newValue)
         fields.markClean(field)
-        let hasDependents: Bool = fields.hasDependents(field)
         if changed {
             profiler.count("layout.field.set")
-            if hasDependents {
+            if fields.hasDependents(field) {
                 fields.markDependents(field)
             }
         }
     }
 
     func setClean(_ newValue: Value) {
-        guard let owner else { return }
-        owner.fields.markUsed(field)
-        owner.fields[keyPath: valuePath] = newValue
-        owner.fields.markClean(field)
+        fields.markUsed(field)
+        fields.setValue(of: field, to: newValue)
+        fields.markClean(field)
     }
 
     func mark() {
-        owner?.markField(.layout(field))
+        owner.markField(.layout(field))
     }
 
     func copy(from field: LayoutFieldHandle<Value>) {
@@ -69,36 +66,40 @@ struct LayoutFieldHandle<Value>: InvalidatableField {
     }
 
     func read(notify: any InvalidatableField) -> Value {
+        #if DEBUG
         if notify.frozenDependencies {
-            #if DEBUG
             if !containsInvalidation(notify) {
                 assertionFailure("Undeclared dependency: \(fieldName) -> \(notify.fieldName)")
             }
-            #endif
         } else {
             addInvalidation(notify)
         }
+        #else
+        if !notify.frozenDependencies {
+            addInvalidation(notify)
+        }
+        #endif
 
         return get()
     }
 
     func addInvalidation(_ field: any InvalidatableField) {
-        owner?.fields.addDependent(self.field, field.ref)
+        fields.addDependent(self.field, field.ref)
     }
 
     func removeInvalidation(_ field: any InvalidatableField) {
-        owner?.removeDependency(.layout(self.field), field.ref)
+        fields.removeDependent(self.field, field.ref)
     }
 
     func containsInvalidation(_ field: any InvalidatableField) -> Bool {
-        return owner?.fields.containsDependent(self.field, field.ref) ?? false
+        return fields.containsDependent(self.field, field.ref)
     }
 
     func setDependencies(_ fields: [any InvalidatableField]) {
         for field in fields {
             field.addInvalidation(self)
         }
-        owner?.fields.markUsed(self.field)
-        owner?.fields.markFrozen(self.field)
+        self.fields.markUsed(self.field)
+        self.fields.markFrozen(self.field)
     }
 }

@@ -49,6 +49,14 @@ final class LayoutFieldStore {
         frozenBits |= field.mask
     }
 
+    func value<Value: LayoutFieldValue>(of field: LayoutField) -> Value {
+        return Value.read(self, field)
+    }
+
+    func setValue<Value: LayoutFieldValue>(of field: LayoutField, to newValue: Value) {
+        Value.write(self, field, newValue)
+    }
+
     func markDependents(_ field: LayoutField) {
         guard let refs = dependents[field], !refs.isEmpty else { return }
         for ref in refs.values {
