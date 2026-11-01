@@ -6,7 +6,7 @@ import CoreGraphics
 struct LayoutFieldHandle<Value>: InvalidatableField {
     weak var owner: (any LayoutObject)?
     let field: LayoutField
-    let valuePath: WritableKeyPath<LayoutFieldStore, Value>
+    let valuePath: ReferenceWritableKeyPath<LayoutFieldStore, Value>
     let equals: (Value, Value) -> Bool
 
     var fieldName: String { field.rawValue }
@@ -20,13 +20,14 @@ struct LayoutFieldHandle<Value>: InvalidatableField {
         guard let owner else {
             fatalError("Read detached field \(field.rawValue)")
         }
-        if owner.fields.isDirty(field) {
+        let fields: LayoutFieldStore = owner.fields
+        if fields.isDirty(field) {
             assertionFailure("Read dirty field \(owner).\(field.rawValue)")
         }
-        guard owner.fields.isUsed(field) else {
+        guard fields.isUsed(field) else {
             fatalError("Read unset field \(owner).\(field.rawValue)")
         }
-        return owner.fields[keyPath: valuePath]
+        return fields[keyPath: valuePath]
     }
 
     func peek() -> Value? {
@@ -36,15 +37,14 @@ struct LayoutFieldHandle<Value>: InvalidatableField {
 
     func set(_ newValue: Value) {
         guard let owner else { return }
-        let wasUsed: Bool = owner.fields.isUsed(field)
-        let old: Value = owner.fields[keyPath: valuePath]
+        let fields: LayoutFieldStore = owner.fields
+        let wasUsed: Bool = fields.isUsed(field)
+        let old: Value = fields[keyPath: valuePath]
         let changed: Bool = !wasUsed || !equals(old, newValue)
-        var fields: LayoutFieldStore = owner.fields
         fields.markUsed(field)
         fields[keyPath: valuePath] = newValue
         fields.markClean(field)
         let dependents: [FieldRef] = fields.takeDependents(field)
-        owner.fields = fields
         if changed {
             profiler.count("layout.field.set")
             for dependent in dependents {
@@ -70,13 +70,15 @@ struct LayoutFieldHandle<Value>: InvalidatableField {
 
     func read(notify: any InvalidatableField) -> Value {
         if notify.frozenDependencies {
+            #if DEBUG
             if !containsInvalidation(notify) {
                 assertionFailure("Undeclared dependency: \(fieldName) -> \(notify.fieldName)")
-                addInvalidation(notify)
             }
+            #endif
         } else {
             addInvalidation(notify)
         }
+
         return get()
     }
 

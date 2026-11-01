@@ -7,13 +7,14 @@ class LineLayout: LayoutObject {
     let node: any DOMNode
     weak var parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
-    var fields: LayoutFieldStore = LayoutFieldStore()
+    let fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
     var centered: Bool = false
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
     var paintGeneration: UInt = 0
     private var paintedChildCount: Int = -1
+    private var declaredInlineChildCount: Int = -1
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -64,7 +65,11 @@ class LineLayout: LayoutObject {
 
         for child in children { child.layout() }
 
-        setInlineInputs()
+        if children.count != declaredInlineChildCount {
+            setInlineInputs()
+            declaredInlineChildCount = children.count
+        }
+
         profiler.measure("layout.line.place", {
 
             guard !children.isEmpty else {

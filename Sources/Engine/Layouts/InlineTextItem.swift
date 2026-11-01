@@ -5,6 +5,8 @@ struct InlineTextItem {
     let word: String
     let display: String?
     let fontOverride: BrowserFont?
+    var measuredWidth: CGFloat? = nil
+    let hasSoftHypen: Bool
 
     init(
         run: InlineTextRun,
@@ -16,5 +18,17 @@ struct InlineTextItem {
         self.word = word
         self.display = display
         self.fontOverride = fontOverride
+        self.hasSoftHypen = inlineTextItemHasSoftHypen(word)
     }
+}
+
+// U+00AD is `C2 AD` in UTF-8; a byte scan avoids Foundation's general
+// string search on every word of every layout pass.
+private func inlineTextItemHasSoftHypen(_ word: String) -> Bool {
+    var previous: UInt8 = 0
+    for byte in word.utf8 {
+        if previous == 0xC2 && byte == 0xAD { return true }
+        previous = byte
+    }
+    return false
 }

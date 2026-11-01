@@ -204,3 +204,13 @@ The traced page still shows 3.4 s → 7.3 s → 11.4 s for identical full rebuil
 Applied. `www/bench/large.html` resize tick: 750–780 ms → **213–216 ms** (`layout.visit.us` 773 ms → 61 ms). Traced page full rebuilds: 3.39 → 7.32 → 11.37 s (growing) → **1.098 → 1.091 → 1.071 s (flat)**. Ordinary resize ticks on the traced page: 1.29–1.41 s → 0.70–0.78 s. The per-burst growth is gone.
 
 Remaining per-tick costs in the new trace: line paint 155–159 ms with 2 line-cache hits out of ~2,800 stores, eight full-document style passes at ~250 ms with no media-query flip, and layout's constant factor (line layout 185 ms, placement 143–218 ms, 41–46k word measures). [Phase 5](./resize-phase-5-paint-reuse.md) targets paint reuse and the style invalidation source.
+
+### Phase 5 measured (2026-11-01)
+
+Applied. Hover is no longer expensive: a 3–6 element hover restyle is 0.7–0.9 ms of style and 26.8–27.7 ms of paint with every line and block cache hitting (was 250 ms + 155 ms). A plain resize tick paints in 76–114 ms with 2,250–2,537 line hits. The big page now has only two intentional style passes: initial load and one scoped media flip (2,080 elements, 124 ms). Incremental and full-layout screenshots are byte-identical after a resize, and 41 style/paint/resize/oracle tests pass. Full record: [resize-phase-5-paint-reuse.md](./resize-phase-5-paint-reuse.md).
+
+Layout is now the dominant cost: 215 ms per resize tick on the bench page (`layout.visit` 62 ms, line placement 65 ms), 625–788 ms on the traced page. [Phase 6](./resize-phase-6-layout-cost.md) removes the per-read `LayoutFieldStore` copying, the release-mode dependency check, per-word string/measure work in the line plan, and per-pass input declarations.
+
+### Phase 6 measured (2026-11-01)
+
+Applied. Bench `large.html` plain resize tick: layout wall 215 ms → **110 ms**, `layout.visit.us` 62 → **32 ms**, line placement 65 → **43 ms**, height 15 → **6.7 ms**, measure calls 20,040 → **10,020**. The traced page improved less: 625–788 ms → **561–720 ms**, because it re-breaks lines for all 14,775 words on every resize, while the bench widths rarely change breaks. A narrow 300 ↔ 450 px reflow scenario exposes that work: layout median **324 ms**, with placement at 139–153 ms and `appendToLine`/`TextLayout.attach` dominating the sample. [Phase 7](./resize-phase-7-inline-placement.md) targets inline placement: in-place dependency removal, no detach from discarded lines, one children assignment per line, and a cached space width.

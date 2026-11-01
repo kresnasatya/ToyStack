@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - LayoutFieldStore
 
 @MainActor
-struct LayoutFieldStore {
+final class LayoutFieldStore {
     var x: CGFloat = 0
     var y: CGFloat = 0
     var width: CGFloat = 0
@@ -33,28 +33,28 @@ struct LayoutFieldStore {
         return frozenBits & field.mask != 0
     }
 
-    mutating func markUsed(_ field: LayoutField) {
+    func markUsed(_ field: LayoutField) {
         usedBits |= field.mask
     }
 
-    mutating func markDirty(_ field: LayoutField) {
+    func markDirty(_ field: LayoutField) {
         dirtyBits |= field.mask
     }
 
-    mutating func markClean(_ field: LayoutField) {
+    func markClean(_ field: LayoutField) {
         dirtyBits &= ~field.mask
     }
 
-    mutating func markFrozen(_ field: LayoutField) {
+    func markFrozen(_ field: LayoutField) {
         frozenBits |= field.mask
     }
 
-    mutating func addDependent(_ field: LayoutField, _ dependent: FieldRef) {
+    func addDependent(_ field: LayoutField, _ dependent: FieldRef) {
         guard let id = FieldDependencyKey(dependent) else { return }
         dependents[field, default: [:]][id] = dependent
     }
 
-    mutating func removeDependent(_ field: LayoutField, _ dependent: FieldRef) {
+    func removeDependent(_ field: LayoutField, _ dependent: FieldRef) {
         guard let id = FieldDependencyKey(dependent), var current = dependents[field] else {
             return
         }
@@ -83,7 +83,7 @@ struct LayoutFieldStore {
             .sorted()
     }
 
-    mutating func takeDependents(_ field: LayoutField) -> [FieldRef] {
+    func takeDependents(_ field: LayoutField) -> [FieldRef] {
         guard let current = dependents[field] else { return [] }
         var live: [FieldRef] = []
         live.reserveCapacity(current.count)

@@ -5,7 +5,7 @@ import CoreGraphics
 class DocumentLayout: LayoutObject {
     let node: any DOMNode
     let parent: (any LayoutObject)? = nil
-    var fields: LayoutFieldStore = LayoutFieldStore()
+    let fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
     var pageZoom: CGFloat = 1.0
 

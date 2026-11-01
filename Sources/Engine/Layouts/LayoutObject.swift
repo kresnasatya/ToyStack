@@ -5,7 +5,7 @@ import CoreGraphics
 protocol LayoutObject: AnyObject, FieldOwner {
     var node: any DOMNode { get }
     var parent: (any LayoutObject)? { get }
-    var fields: LayoutFieldStore { get set }
+    var fields: LayoutFieldStore { get }
     var hasDirtyDescendants: Bool { get set }
 
     func layout()
@@ -95,7 +95,7 @@ extension LayoutObject {
 
     func layoutField<Value>(
         _ field: LayoutField,
-        _ valuePath: WritableKeyPath<LayoutFieldStore, Value>,
+        _ valuePath: ReferenceWritableKeyPath<LayoutFieldStore, Value>,
         equals: @escaping (Value, Value) -> Bool
     ) -> LayoutFieldHandle<Value> {
         return LayoutFieldHandle(

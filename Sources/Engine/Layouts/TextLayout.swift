@@ -7,7 +7,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     let word: String
     weak var parent: (any LayoutObject)?
     var previous: (any LayoutObject)?
-    var fields: LayoutFieldStore = LayoutFieldStore()
+    let fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
     var font: BrowserFont {
         get { fontField.get() }

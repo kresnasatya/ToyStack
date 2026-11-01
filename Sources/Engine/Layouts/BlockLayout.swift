@@ -10,7 +10,7 @@ class BlockLayout: LayoutObject {
 
     let node: any DOMNode
     var parent: (any LayoutObject)?
-    var fields: LayoutFieldStore = LayoutFieldStore()
+    let fields: LayoutFieldStore = LayoutFieldStore()
     var previous: (any LayoutObject)? {
         get { previousField.get() }
         set { setPrevious(newValue) }
@@ -28,6 +28,8 @@ class BlockLayout: LayoutObject {
 
     var scrollOffset: CGFloat = 0
     var contentHeight: CGFloat = 0
+
+    private var declaredHeightChildren: [any LayoutObject] = []
 
     init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
@@ -140,20 +142,29 @@ class BlockLayout: LayoutObject {
         var plan: [[Int]] = []
         var current: [Int] = []
         var cursorX: CGFloat = 0
+        let availableWidth: CGFloat = width
 
-        for (index, item) in inlineItems.enumerated() {
-            switch item {
+        for index in inlineItems.indices {
+            switch inlineItems[index] {
             case .lineBreak:
                 plan.append(current)
                 current = []
                 cursorX = 0
             case .embed:
                 return nil
-            case .text(let text):
-                if text.word.contains("\u{00AD}") { return nil }
+            case .text(var text):
+                if text.hasSoftHypen { return nil }
                 let font: BrowserFont = text.fontOverride ?? text.run.font
-                let width: CGFloat = font.measure(text.display ?? text.word) + font.spaceWidth
-                if cursorX + width > self.width && text.run.whiteSpace.wraps {
+                let wordWidth: CGFloat
+                if let cached: CGFloat = text.measuredWidth {
+                    wordWidth = cached
+                } else {
+                    wordWidth = font.measure(text.display ?? text.word)
+                    text.measuredWidth = wordWidth
+                    inlineItems[index] = .text(text)
+                }
+                let width: CGFloat = wordWidth + font.spaceWidth
+                if cursorX + width > availableWidth && text.run.whiteSpace.wraps {
                     plan.append(current)
                     current = []
                     cursorX = 0
@@ -168,6 +179,9 @@ class BlockLayout: LayoutObject {
     }
 
     private func setHeightInputs() {
+        let unchanged: Bool = children.count == declaredHeightChildren.count && zip(children, declaredHeightChildren).allSatisfy({ $0 === $1 })
+        if unchanged { return }
+        declaredHeightChildren = children
         var inputs: [any InvalidatableField] = [
             childrenField,
             zoomField,
@@ -787,7 +801,7 @@ class BlockLayout: LayoutObject {
 
     private func placeText(_ item: InlineTextItem, index: Int?) {
         let font: BrowserFont = item.fontOverride ?? item.run.font
-        let measured: CGFloat = font.measure(item.display ?? item.word)
+        let measured: CGFloat = item.measuredWidth ?? font.measure(item.display ?? item.word)
         let w: CGFloat = measured + font.spaceWidth
         if cursorX + w > width && item.run.whiteSpace.wraps {
             if item.word.contains("\u{00AD}") {

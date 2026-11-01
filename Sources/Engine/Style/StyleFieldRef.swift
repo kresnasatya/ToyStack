@@ -16,10 +16,11 @@ struct StyleFieldRef: InvalidatableField {
 
     func read(notify: any InvalidatableField) -> String? {
         if notify.frozenDependencies {
+            #if DEBUG
             if !containsInvalidation(notify) {
                 assertionFailure("Undeclared dependency: \(fieldName) -> \(notify.fieldName)")
-                addInvalidation(notify)
             }
+            #endif
         } else {
             addInvalidation(notify)
         }
