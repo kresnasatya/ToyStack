@@ -13,6 +13,8 @@ class LineLayout: LayoutObject {
     var hasEmbed: Bool = false
     var paintCache: LinePaintCache = LinePaintCache()
     var paintGeneration: UInt = 0
+    private(set) var inlineYOffset: CGFloat = 0
+    private var childOriginY: CGFloat? = nil
     private var paintedChildCount: Int = -1
     private var declaredInlineChildCount: Int = -1
 
@@ -50,6 +52,15 @@ class LineLayout: LayoutObject {
     func layout() {
         if !layoutNeeded() { return }
         defer { hasDirtyDescendants = false }
+        let xWasDirty: Bool = fields.isDirty(.x)
+        let yWasDirty: Bool = fields.isDirty(.y)
+        let zoomWasDirty: Bool = fields.isDirty(.zoom)
+        let childCountChanged: Bool = children.count != declaredInlineChildCount
+        var childWidthChanged: Bool = false
+        for child in children where child.fields.isDirty(.width) {
+            childWidthChanged = true
+            break
+        }
         if children.count != paintedChildCount {
             paintGeneration += 1
             paintedChildCount = children.count
@@ -70,6 +81,35 @@ class LineLayout: LayoutObject {
             declaredInlineChildCount = children.count
         }
 
+        let widthMovesChildren: Bool = centered
+            || TextDirection(cssValue: node.style["direction"]) == .rtl
+        let needsPlacement: Bool = xWasDirty || yWasDirty || childCountChanged
+            || childWidthChanged
+            || fields.isDirty(.ascent) || fields.isDirty(.descent)
+            || fields.isDirty(.height) || fields.isDirty(.children)
+            || widthMovesChildren
+
+        let textOnly: Bool = children.allSatisfy({ $0 is TextLayout })
+        let verticalOnly: Bool = yWasDirty && !xWasDirty && !zoomWasDirty
+            && !childCountChanged && !childWidthChanged && !widthMovesChildren
+            && !fields.isDirty(.ascent) && !fields.isDirty(.descent)
+            && !fields.isDirty(.height) && !fields.isDirty(.children)
+            && textOnly && childOriginY != nil
+
+        if verticalOnly, let childOriginY {
+            profiler.count("layout.line.place.verticalOnly")
+            profiler.measure("layout.line.place.vertical", {
+                inlineYOffset = yField.get() - childOriginY
+            })
+            return
+        }
+
+        guard needsPlacement else {
+            profiler.count("layout.line.place.skipped")
+            return
+        }
+
+        profiler.count("layout.line.place.placed")
         profiler.measure("layout.line.place", {
 
             guard !children.isEmpty else {
@@ -132,6 +172,8 @@ class LineLayout: LayoutObject {
             }
 
             heightField.set(ascentField.read(notify: heightField) + descentField.read(notify: heightField))
+            childOriginY = yField.get()
+            inlineYOffset = 0
         })
     }
 
@@ -173,10 +215,8 @@ class LineLayout: LayoutObject {
         for child in children {
             guard let ancestor = focusVisibleInlineAncestor(child.node) else { continue }
             focused = ancestor
-            let childRect: Rect = Rect(
-                left: child.x, top: child.y, right: child.x + child.width,
-                bottom: child.y + child.height)
-                outlineRect = outlineRect?.union(childRect) ?? childRect
+            let childRect: Rect = child.selfRect()
+            outlineRect = outlineRect?.union(childRect) ?? childRect
         }
         if let rect = outlineRect, let focused = focused {
             if let outline = DrawOutline.fromStyle(focused, rect: rect) {

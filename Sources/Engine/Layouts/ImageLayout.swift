@@ -100,4 +100,20 @@ final class ImageLayout: EmbedLayout {
             clip: box
         ))
     }
+
+    override func attach(to line: LineLayout, previous: (any LayoutObject)?) {
+        super.attach(to: line, previous: previous)
+        widthField.setDependencies([
+            line.widthField,
+            zoomField,
+            node.style.field("aspect-ratio"),
+            node.style.field("max-width")
+        ])
+        heightField.setDependencies([
+            widthField,
+            zoomField,
+            fontField,
+            node.style.field("aspect-ratio")
+        ])
+    }
 }

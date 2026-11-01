@@ -183,4 +183,119 @@ struct ViewportResizeTests {
         #expect(treeToList(block).compactMap { $0 as? TextLayout }.map { ObjectIdentifier($0) } == textsBefore)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func widthOnlyResizeSkipsLinePlacementWhenPlanUnchanged() throws {
+        // <br> keeps the line plan deterministic. The paragraph is
+        // multi-line and left-aligned, so a width-only change must not
+        // reposition children.
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three<br>four five six</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: Element = try #require(page.firstElement(id: "para"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+        #expect(block.children.count == 2)
+
+        page.frame.frameWidth = 400
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let profile = profiler.snapshot()
+        #expect((profile["layout.line.place.skipped"]?.count ?? 0) > 0)
+        #expect((profile["layout.line.place.placed"]?.count ?? 0) == 0)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func centeredLineStillPlacesOnWidthChange() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three<br>four five six</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: Element = try #require(page.firstElement(id: "para"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+        let lines: [LineLayout] = block.children.compactMap({ $0 as? LineLayout })
+        #expect(lines.count == 2)
+        for line in lines {
+            line.centered = true
+        }
+
+        page.frame.frameWidth = 400
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let profile = profiler.snapshot()
+        #expect((profile["layout.line.place.placed"]?.count ?? 0) > 0)
+    }
+
+    @Test func rtlLineStillPlacesOnWidthChange() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para" dir="rtl">one two three<br>four five six</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: Element = try #require(page.firstElement(id: "para"))
+        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+        #expect(block.children.count == 2)
+
+        page.frame.frameWidth = 400
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let profile = profiler.snapshot()
+        #expect((profile["layout.line.place.placed"]?.count ?? 0) > 0)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func percentWidthImageStillPlacesOnWidthChange() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">before <img id="photo"> after</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+                img { max-width: 50%; }
+            """
+        )
+        let image: Element = try #require(page.firstElement(id: "photo"))
+        image.image = makeTestImage(width: 200, height: 100)
+        LayoutInvalidation.imageChanged(image)
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        let before: ImageLayout = try #require(page.firstLayout(ImageLayout.self, in: image))
+        let beforeWidth: CGFloat = before.width
+
+        page.frame.frameWidth = 300
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let after: ImageLayout = try #require(page.firstLayout(ImageLayout.self, in: image))
+        #expect(after.width < beforeWidth)
+        #expect((profiler.snapshot()["layout.line.place.placed"]?.count ?? 0) > 0)
+        expectIncrementalMatchesFull(page)
+    }
+}
+
+private func makeTestImage(width: Int, height: Int) -> CGImage {
+    let context: CGContext = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )!
+    return context.makeImage()!
 }

@@ -93,15 +93,25 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         })
     }
 
+    var absoluteY: CGFloat {
+        return y + ((parent as? LineLayout)?.inlineYOffset ?? 0)
+    }
+
+    func selfRect() -> Rect {
+        let top: CGFloat = absoluteY
+        return Rect(left: x, top: top, right: x + width, bottom: top + height)
+    }
+
     func paint(into items: inout [any DisplayItem]) {
         let color: String = node.inheritedStyleOwner.style["color"] ?? "black"
+        let top: CGFloat = absoluteY
         items.append(
             DrawText(
                 rect: Rect(
                     left: x,
-                    top: y,
+                    top: top,
                     right: x + textWidth,
-                    bottom: y + font.linespace
+                    bottom: top + font.linespace
                 ),
                 text: displayWord ?? word,
                 font: font,
