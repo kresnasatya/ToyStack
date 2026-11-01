@@ -94,6 +94,7 @@ class Frame {
     private var hoveredElements: [Element] = []
     private var scrollTween: ScrollTween? = nil
     private var paintedBottom: CGFloat = 0
+    private var paintedWindow: PaintWindow = .full
     private(set) var pageZoom: CGFloat = 1.0
 
     private var activeAnimations: Int = 0
@@ -911,20 +912,51 @@ class Frame {
         return false
     }
 
+    private func windowForScroll() -> PaintWindow {
+        let overscan: CGFloat = 2 * frameHeight
+        return PaintWindow(
+            top: scroll - overscan,
+            bottom: scroll + frameHeight + overscan
+        )
+    }
+
+    private func viewportFitsInPaintedWindow() -> Bool {
+        guard paintedWindow != .full else { return true }
+
+        let margin: CGFloat = frameHeight / 2
+        return scroll >= paintedWindow.top + margin
+            && scroll + frameHeight <= paintedWindow.bottom - margin
+    }
+
     func paint() {
+        paint(window: windowForScroll())
+    }
+
+    func paint(window: PaintWindow) {
         guard needsPaint else { return }
+
+        paintedWindow = window
+
         browser?.measure.start("BrowserTab.paint")
         profiler.reset()
-        defer { profiler.emitProfile(into: browser?.measure, named: "profile.paint") }
-        defer { browser?.measure.stop("BrowserTab.paint") }
+        defer {
+            profiler.emitProfile(into: browser?.measure, named: "profile.paint")
+            browser?.measure.stop("BrowserTab.paint")
+        }
         guard let doc = document else { return }
+
         var list: [any DisplayItem] = []
         list.reserveCapacity(displayList.count)
-        paintTree(doc, into: &list, epoch: paintEpoch)
+        paintTree(doc, into: &list, epoch: paintEpoch, window: window)
+
         displayList = list
-        paintedBottom = maxRectBottom(list)
+        paintedBottom = contentBottom
         paintRevision += 1
         needsPaint = false
+    }
+
+    private var contentBottom: CGFloat {
+        return document?.selfRect().bottom ?? 0
     }
 
     func runAnimationFrame() {
@@ -1081,6 +1113,16 @@ class Frame {
     }
 
     // MARK: - Scroll
+
+    @discardableResult
+    func repaintForScroll() -> Bool {
+        guard !viewportFitsInPaintedWindow() else { return false }
+
+        needsPaint = true
+        paint(window: windowForScroll())
+        commitFrame()
+        return true
+    }
 
     private func scrollTo(_ elt: Element) {
         scrollTween = nil

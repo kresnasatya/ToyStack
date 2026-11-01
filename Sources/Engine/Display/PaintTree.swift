@@ -1,7 +1,16 @@
 import CoreGraphics
 
 @MainActor
-func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt) {
+func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt, window: PaintWindow) {
+    if let line = obj as? LineLayout, !window.intersects(line.selfRect()) {
+        profiler.count("paint.nodes.culled")
+        return
+    }
+    if obj is TextLayout, !window.intersects(obj.selfRect()) {
+        profiler.count("paint.nodes.culled")
+        return
+    }
+
     let start: Int = displayList.count
     profiler.count("paint.nodes", by: 1)
 
@@ -55,7 +64,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             visibleChildren.append(child)
         }
         for child in inPaintOrder(visibleChildren) {
-            paintTree(child, into: &displayList, epoch: epoch)
+            paintTree(child, into: &displayList, epoch: epoch, window: window)
         }
         let childItems: [any DisplayItem] = profiler.measure("paint.range.copy", {
             Array(displayList[childStart...])
@@ -76,16 +85,16 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             rect: block.selfRect(),
             shape: ClipShape(rect: block.selfRect(), radii: radii),
             node: block.node,
-            children: clippedChildren(of: obj, into: &displayList, epoch: epoch)
+            children: clippedChildren(of: obj, into: &displayList, epoch: epoch, window: window)
         )
         displayList.append(clip)
     } else if let iframe = obj as? IframeLayout,
         let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
         let childDoc = childFrame.document {
-        paintTree(childDoc, into: &displayList, epoch: childFrame.paintEpoch)
+        paintTree(childDoc, into: &displayList, epoch: childFrame.paintEpoch, window: window)
     } else {
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &displayList, epoch: epoch)
+            paintTree(child, into: &displayList, epoch: epoch, window: window)
         }
     }
 
@@ -107,10 +116,10 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
 }
 
 @MainActor
-private func clippedChildren(of obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt) -> [any DisplayItem] {
+private func clippedChildren(of obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt, window: PaintWindow) -> [any DisplayItem] {
     let start: Int = displayList.count
     for child in inPaintOrder(obj.children) {
-        paintTree(child, into: &displayList, epoch: epoch)
+        paintTree(child, into: &displayList, epoch: epoch, window: window)
     }
     let items: [any DisplayItem] = Array(displayList[start...])
     displayList.removeSubrange(start..<displayList.count)

@@ -929,7 +929,12 @@ public class Browser: ObservableObject {
             frames[id]?.scroll.scroll = scroll
         }
 
+        let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
+
         if activeFrame.render.content.usesSublayers {
+            if didRepaint {
+                setNeedsComposite()
+            }
             dispatchPresent(frameID: currentFrameID)
             let step: CGFloat = CompositedLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
@@ -951,6 +956,10 @@ public class Browser: ObservableObject {
             frames[id]?.scroll.scroll = scroll
             frames[id]?.scroll.interestTop = interestTop
             frames[id]?.scroll.interestBottom = interestBottom
+        }
+        let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
+        if didRepaint && activeFrame.render.content.usesSublayers {
+            setNeedsComposite()
         }
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
