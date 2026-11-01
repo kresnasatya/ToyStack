@@ -8,11 +8,7 @@ There are three reasons why I want to make the toy browser engine with Swift pro
 
 1. Curiousity and learning how hard it is make the browser engine.
 
-2. Everything is object.
-
-The web has Document Object Model (DOM). Swift has Object Oriented Programming. There's correlation between those terms.
-
-> How does the DOM relate to Swift’s OOP model in the context of building a browser engine?
+2. Getting familiar with Swift programming language and it's paradigm. Then, use it to build browser engine.
 
 3. SwiftUI
 
