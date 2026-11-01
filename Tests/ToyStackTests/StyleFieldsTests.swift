@@ -104,6 +104,50 @@ struct StyleFieldsTests {
         #expect(!target.dirty)
         #expect(style.dependentCount(for: "width") == 0)
     }
+
+    @Test func applyBumpsRevisionOnceWhenValuesChange() {
+        let style: StyleFields = StyleFields()
+        let before: UInt64 = style.revision
+
+        style.apply(["width": "10px", "height": "5px"])
+
+        #expect(style.revision == before + 1)
+    }
+
+    @Test func identicalApplyDoesNotBumpRevision() {
+        let style: StyleFields = StyleFields()
+        style.apply(["width": "10px"])
+        let before: UInt64 = style.revision
+
+        style.apply(["width": "10px"])
+
+        #expect(style.revision == before)
+    }
+
+    @Test func subscriptBumpsRevisionOnlyWhenValueChanges() {
+        let style: StyleFields = StyleFields()
+        let before: UInt64 = style.revision
+
+        style["width"] = "10px"
+        #expect(style.revision == before + 1)
+
+        let afterFirstWrite: UInt64 = style.revision
+        style["width"] = "10px"
+        #expect(style.revision == afterFirstWrite)
+
+        style["width"] = "20px"
+        #expect(style.revision == afterFirstWrite + 1)
+    }
+
+    @Test func removingAValueBumpsRevision() {
+        let style: StyleFields = StyleFields()
+        style.apply(["width": "10px", "height": "5px"])
+        let before: UInt64 = style.revision
+
+        style.apply(["width": "10px"])
+
+        #expect(style.revision == before + 1)
+    }
 }
 
 @MainActor

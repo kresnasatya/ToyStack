@@ -2,6 +2,7 @@ import Foundation
 
 nonisolated final class StyleFields: FieldOwner {
     private(set) var values: [String: String] = [:]
+    private(set) var revision: UInt64 = 0
     private var dirtyKeys: Set<String> = []
     private var dependents: [String: [FieldDependencyKey: FieldRef]] = [:]
     private var needsRestyle: Bool = true
@@ -17,6 +18,7 @@ nonisolated final class StyleFields: FieldOwner {
             values[key] = newValue
             dirtyKeys.remove(key)
             if before != newValue {
+                revision += 1
                 notifyDependents(key)
             }
         }
@@ -75,6 +77,9 @@ nonisolated final class StyleFields: FieldOwner {
         }
 
         needsRestyle = false
+        if changed > 0 {
+            revision += 1
+        }
         profiler.count("style.fields.set", by: written)
         profiler.count("style.fields.changed", by: changed)
     }

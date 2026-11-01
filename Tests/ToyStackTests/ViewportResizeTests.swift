@@ -285,6 +285,55 @@ struct ViewportResizeTests {
         #expect((profiler.snapshot()["layout.line.place.placed"]?.count ?? 0) > 0)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func widthResizeHitsBlockStyleCache() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five six seven eight</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+
+        page.frame.frameWidth = 400
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let profile = profiler.snapshot()
+        #expect((profile["layout.block.style.cache.hit"]?.count ?? 0) > 0)
+        #expect((profile["layout.block.style.cache.miss"]?.count ?? 0) == 0)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func styleChangeMissesThenNextResizeHits() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five six seven eight</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: Element = try #require(page.firstElement(id: "para"))
+
+        InlineStyle.set(p, property: "width", value: "200px")
+        page.frame.setNeedsRender()
+        profiler.reset()
+        page.frame.render()
+
+        let changed = profiler.snapshot()
+        #expect((changed["layout.block.style.cache.miss"]?.count ?? 0) > 0)
+
+        page.frame.frameWidth = 350
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let resized = profiler.snapshot()
+        #expect((resized["layout.block.style.cache.miss"]?.count ?? 0) == 0)
+        #expect((resized["layout.block.style.cache.hit"]?.count ?? 0) > 0)
+        expectIncrementalMatchesFull(page)
+    }
 }
 
 private func makeTestImage(width: Int, height: Int) -> CGImage {

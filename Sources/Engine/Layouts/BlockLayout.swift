@@ -19,6 +19,8 @@ class BlockLayout: LayoutObject {
     private var childChanges: [BlockChildChange] = []
     let extraNodes: [any DOMNode]
     var paintCache: PaintCache = PaintCache()
+    private var cachedStyle: BlockStyle? = nil
+    private var cachedStyleRevision: UInt64 = .max
 
     private var inlineItems: [InlineItem] = []
     private var inlineContentRevision: UInt64 = 0
@@ -185,6 +187,7 @@ class BlockLayout: LayoutObject {
             childrenField,
             zoomField,
             node.style.field("height"),
+            node.style.field("overflow"),
         ]
         for child in children {
             inputs.append(child.heightField)
@@ -192,6 +195,7 @@ class BlockLayout: LayoutObject {
             inputs.append(child.node.style.field("margin-top"))
             inputs.append(child.node.style.field("margin-bottom"))
             if child is BlockLayout {
+                inputs.append(child.zoomField)
                 inputs.append(child.node.style.field("padding-top"))
                 inputs.append(child.node.style.field("padding-bottom"))
             }
@@ -256,32 +260,27 @@ class BlockLayout: LayoutObject {
             inlineContentField.setDependencies(contentInputs)
             childrenField.setDependencies(contentInputs + [inlineContentField])
         }
+
+        let style: BlockStyle = blockStyle()
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
             zoom = resolvedZoom()
-            let isAbsolute: Bool = node.style.read("position", notify: xField) == "absolute"
+            let isAbsolute: Bool = style.position == "absolute"
 
             let parentX: CGFloat = parent!.xField.read(notify: xField)
-            let padLeft: CGFloat = padding("left", notify: xField)
-            if isAbsolute,
-                let lStr = node.style.read("left", notify: xField),
-                lStr.hasSuffix("px"),
-                let l = Double(lStr.dropLast(2))
-            {
+            let padLeft: CGFloat = extraNodes.isEmpty ? style.box.padding.left * zoom : 0
+            if isAbsolute, let l = style.flags.left {
                 let absoluteXZoom: CGFloat = zoomField.read(notify: xField)
-                xField.set(CGFloat(l) * absoluteXZoom + padLeft)
+                xField.set(l * absoluteXZoom + padLeft)
             } else {
                 xField.set(parentX + padLeft)
             }
 
             let parentWidth: CGFloat = parent!.widthField.read(notify: widthField)
             let zoom: CGFloat = zoomField.read(notify: widthField)
-            let padHorizontal: CGFloat = padding("left", notify: widthField) + padding("right", notify: widthField)
-            if let wStr = node.style.read("width", notify: widthField),
-                wStr.hasSuffix("px"),
-                let w = Double(wStr.dropLast(2))
-            {
-                widthField.set(CGFloat(w) * zoom)
+            let padHorizontal: CGFloat = extraNodes.isEmpty ? (style.box.padding.left + style.box.padding.right) * zoom : 0
+            if let w = style.box.width {
+                widthField.set(w * zoom)
             } else {
                 widthField.set(max(0, parentWidth - padHorizontal))
             }
@@ -291,22 +290,20 @@ class BlockLayout: LayoutObject {
                 width -= BlockLayout.liIndent
             }
 
-            if isAbsolute, let tStr = node.style.read("top", notify: yField),
-                tStr.hasSuffix("px"),
-                let t = Double(tStr.dropLast(2))
-            {
+            if isAbsolute, let t = style.flags.top {
                 let absoluteYZoom: CGFloat = zoomField.read(notify: yField)
-                yField.set(CGFloat(t) * absoluteYZoom + padding("top", notify: yField))
+                let padTop: CGFloat = extraNodes.isEmpty ? style.box.padding.left * zoom : 0
+                yField.set(t * absoluteYZoom + padTop)
             } else {
-                let ownTop: CGFloat = marginPx(node, "margin-top", notify: yField)
-                let padTop: CGFloat = padding("top", notify: yField)
+                let ownTop: CGFloat = style.box.margin.top * zoom
+                let padTop: CGFloat = style.box.padding.top * zoom
                 if let prev = previous {
                     let prevY: CGFloat = prev.yField.read(notify: yField)
                     let prevHeight: CGFloat = prev.heightField.read(notify: yField)
                     let prevPadBottom: CGFloat = (prev as? BlockLayout)?.padding("bottom", notify: yField) ?? 0
                     yField.set(
                         prevY + prevHeight + prevPadBottom
-                            + marginPx(prev.node, "margin-bottom", notify: yField)
+                            + ((prev as? BlockLayout)?.blockStyle().box.margin.bottom ?? 0) * zoom
                             + ownTop + padTop
                     )
                 } else {
@@ -371,9 +368,10 @@ class BlockLayout: LayoutObject {
                 if position == "absolute" { return total }
                 var h: CGFloat = child.heightField.read(notify: heightField)
                 if let block = child as? BlockLayout {
-                    h += block.paddingVertical(notify: heightField)
-                    h += marginPx(child.node, "margin-top", notify: heightField)
-                    h += marginPx(child.node, "margin-bottom", notify: heightField)
+                    let childStyle: BlockStyle = block.blockStyle()
+                    let childZoom: CGFloat = child.zoomField.read(notify: heightField)
+                    h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
+                    h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
                 }
                 return total + h
             }
@@ -395,7 +393,7 @@ class BlockLayout: LayoutObject {
             height += VSTEP
         }
 
-        if let el = node as? Element, el.style["overflow"] == "scroll" {
+        if style.flags.overflowScroll, let el = node as? Element {
             let maxScroll: CGFloat = max(0, contentHeight - height)
             scrollOffset = min(el.scrollOffsetY, maxScroll)
         }
@@ -1150,6 +1148,19 @@ class BlockLayout: LayoutObject {
         if node is TextNode { return true }
         guard let el = node as? Element else { return true }
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
+    }
+
+    func blockStyle() -> BlockStyle {
+        let revision: UInt64 = node.style.revision
+        if let cachedStyle, cachedStyleRevision == revision {
+            profiler.count("layout.block.style.cache.hit")
+            return cachedStyle
+        }
+        profiler.count("layout.block.style.cache.miss")
+        let style: BlockStyle = BlockStyle(node: node)
+        cachedStyle = style
+        cachedStyleRevision = revision
+        return style
     }
 
     // MARK: - Cursor
