@@ -14,6 +14,7 @@ public struct BrowserFont {
     let ascent: CGFloat
     let descent: CGFloat
     let leading: CGFloat
+    let spaceWidth: CGFloat
 
     init(ctFont: CTFont) {
         self.ctFont = ctFont
@@ -21,9 +22,16 @@ public struct BrowserFont {
         self.ascent = CTFontGetAscent(ctFont)
         self.descent = CTFontGetDescent(ctFont)
         self.leading = CTFontGetLeading(ctFont)
+        self.spaceWidth = BrowserFont.spaceWidth(for: ctFont)
     }
 
-    var spaceWidth: CGFloat { measure(" ") }
+    private static func spaceWidth(for ctFont: CTFont) -> CGFloat {
+        let attr: NSAttributedString = NSAttributedString(string: " ", attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): ctFont
+        ])
+        let line: CTLine = CTLineCreateWithAttributedString(attr)
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+    }
 
     public var linespace: CGFloat { ascent + descent + leading }
 

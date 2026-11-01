@@ -44,11 +44,11 @@ struct LayoutFieldHandle<Value>: InvalidatableField {
         fields.markUsed(field)
         fields[keyPath: valuePath] = newValue
         fields.markClean(field)
-        let dependents: [FieldRef] = fields.takeDependents(field)
+        let hasDependents: Bool = fields.hasDependents(field)
         if changed {
             profiler.count("layout.field.set")
-            for dependent in dependents {
-                dependent.mark()
+            if hasDependents {
+                fields.markDependents(field)
             }
         }
     }

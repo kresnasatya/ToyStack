@@ -20,7 +20,6 @@ class BlockLayout: LayoutObject {
     let extraNodes: [any DOMNode]
     var paintCache: PaintCache = PaintCache()
 
-    private var cursorX: CGFloat = 0
     private var inlineItems: [InlineItem] = []
     private var inlineContentRevision: UInt64 = 0
     private var inlineObjects: [Int: any LayoutObject] = [:]
@@ -670,20 +669,20 @@ class BlockLayout: LayoutObject {
     // MARK: - Inline items
 
     private func placeInlineItems() {
-
-        children = []
-        newLine()
+        var placement: InlinePlacement = InlinePlacement()
+        placement.start(parent: self)
         for (index, item) in inlineItems.enumerated() {
             switch item {
             case .lineBreak:
-                newLine()
+                placement.endLine(parent: self)
             case .text(let text):
-                placeText(text, index: index)
+                placeText(text, index: index, into: &placement)
             case .embed(let element):
-                placeEmbed(element, index: index)
+                placeEmbed(element, index: index, into: &placement)
             }
         }
-
+        placement.finish()
+        children = placement.lines
         profiler.count("layout.lines.total", by: children.count)
     }
 
@@ -787,51 +786,55 @@ class BlockLayout: LayoutObject {
         items.append(.text(InlineTextItem(run: run, word: word, display: nil)))
     }
 
-    private func placeEmbed(_ element: Element, index: Int) {
-        if let line = children.last as? LineLayout { line.hasEmbed = true }
+    private func placeEmbed(_ element: Element, index: Int, into placement: inout InlinePlacement) {
+        placement.currentLine?.hasEmbed = true
         switch element.tag {
-        case "input": addInput(element, index: index)
-        case "button": addButton(element, index: index)
-        case "img": addImage(element, index: index)
-        case "iframe": addIframe(element, index: index)
-        case "canvas": addCanvas(element, index: index)
+        case "input": addInput(element, index: index, into: &placement)
+        case "button": addButton(element, index: index, into: &placement)
+        case "img": addImage(element, index: index, into: &placement)
+        case "iframe": addIframe(element, index: index, into: &placement)
+        case "canvas": addCanvas(element, index: index, into: &placement)
         default: break
         }
     }
 
-    private func placeText(_ item: InlineTextItem, index: Int?) {
+    private func placeText(_ item: InlineTextItem, index: Int?, into placement: inout InlinePlacement) {
         let font: BrowserFont = item.fontOverride ?? item.run.font
         let measured: CGFloat = item.measuredWidth ?? font.measure(item.display ?? item.word)
         let w: CGFloat = measured + font.spaceWidth
-        if cursorX + w > width && item.run.whiteSpace.wraps {
+        if placement.cursorX + w > width && item.run.whiteSpace.wraps {
             if item.word.contains("\u{00AD}") {
                 let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
                 var chunk: String = ""
                 var breakIdx: Int = -1
                 for (i, part) in parts.dropLast().enumerated() {
                     let candidate: String = chunk + part + "-"
-                    if cursorX + font.measure(candidate) <= width {
+                    if placement.cursorX + font.measure(candidate) <= width {
                         chunk = chunk + part
                         breakIdx = i
                     }
                 }
                 if breakIdx >= 0 {
-                    appendToLine(clone(item, word: chunk + "-"), font: font, index: nil)
-                    newLine()
-                    placeText(clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")), index: nil)
+                    appendToLine(clone(item, word: chunk + "-"), font: font, index: nil, into: &placement)
+                    placement.endLine(parent: self)
+                    placeText(
+                        clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")),
+                        index: nil,
+                        into: &placement
+                    )
                     return
                 }
             }
-            newLine()
+            placement.endLine(parent: self)
         }
 
-        appendToLine(item, font: font, index: index)
-        cursorX += w
+        appendToLine(item, font: font, index: index, into: &placement)
+        placement.cursorX += w
     }
 
-    private func appendToLine(_ item: InlineTextItem, font: BrowserFont, index: Int?) {
-        let line: LineLayout = children.last as! LineLayout
-        let previous: (any LayoutObject)? = line.children.last
+    private func appendToLine(_ item: InlineTextItem, font: BrowserFont, index: Int?, into placement: inout InlinePlacement) {
+        let line: LineLayout = placement.currentLine!
+        let previous: (any LayoutObject)? = placement.children.last
         let text: TextLayout
         if let index,
             let cached = cachedText(at: index, node: item.run.node, word: item.word)
@@ -853,7 +856,7 @@ class BlockLayout: LayoutObject {
                 inlineObjects[index] = text
             }
         }
-        line.children.append(text)
+        placement.append(text)
     }
 
     private func clone(_ item: InlineTextItem, word: String) -> InlineTextItem {
@@ -865,14 +868,7 @@ class BlockLayout: LayoutObject {
         )
     }
 
-    private func newLine() {
-        cursorX = 0
-        let lastLine: (any LayoutObject)? = children.last
-        let line: LineLayout = LineLayout(node: node, parent: self, previous: lastLine)
-        children.append(line)
-    }
-
-    private func addInput(_ node: Element, index: Int) {
+    private func addInput(_ node: Element, index: Int, into placement: inout InlinePlacement) {
         if node.attributes["type"] == "hidden" { return }
 
         let available: CGFloat = widthField.get()
@@ -880,103 +876,103 @@ class BlockLayout: LayoutObject {
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : InputLayout.inputWidthPx * zoom
-        if cursorX + w > available { newLine() }
-        let line: any LayoutObject = children.last!
-        let prevItem: (any LayoutObject)? = line.children.last
+        if placement.cursorX + w > available { placement.endLine(parent: self) }
+        let line: LineLayout = placement.currentLine!
+        let prevItem: (any LayoutObject)? = placement.children.last
         let input: InputLayout
         if let cached = cachedEmbed(InputLayout.self, at: index, node: node) {
             input = cached
-            input.attach(to: line as! LineLayout, previous: prevItem)
+            input.attach(to: line, previous: prevItem)
         } else {
             input = InputLayout(node: node, parent: line, previous: prevItem)
             inlineObjects[index] = input
         }
-        line.children.append(input)
+        placement.append(input)
 
-        cursorX += w + font.spaceWidth
+        placement.cursorX += w + font.spaceWidth
     }
 
-    private func addButton(_ node: Element, index: Int) {
+    private func addButton(_ node: Element, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = InputLayout.inputWidthPx * zoom
-        if cursorX + w > available { newLine() }
-        let line: any LayoutObject = children.last!
-        let prevItem: (any LayoutObject)? = line.children.last
+        if placement.cursorX + w > available { placement.endLine(parent: self) }
+        let line: LineLayout = placement.currentLine!
+        let prevItem: (any LayoutObject)? = placement.children.last
         let button: ButtonLayout
         if let cached = cachedEmbed(ButtonLayout.self, at: index, node: node) {
             button = cached
-            button.attach(to: line as! LineLayout, previous: prevItem)
+            button.attach(to: line, previous: prevItem)
         } else {
             button = ButtonLayout(node: node, parent: line, previous: prevItem)
             inlineObjects[index] = button
         }
-        line.children.append(button)
+        placement.append(button)
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
-        cursorX += w + font.spaceWidth
+        placement.cursorX += w + font.spaceWidth
     }
 
-    private func addImage(_ node: Element, index: Int) {
+    private func addImage(_ node: Element, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = ImageLayout.usedWidth(for: node, available: available, zoom: zoom, notify: childrenField)
-        if cursorX + w > available { newLine() }
-        let line: any LayoutObject = children.last!
-        let prevItem: (any LayoutObject)? = line.children.last
+        if placement.cursorX + w > available { placement.endLine(parent: self) }
+        let line: LineLayout = placement.currentLine!
+        let prevItem: (any LayoutObject)? = placement.children.last
         let image: ImageLayout
         if let cached = cachedEmbed(ImageLayout.self, at: index, node: node) {
             image = cached
-            image.attach(to: line as! LineLayout, previous: prevItem)
+            image.attach(to: line, previous: prevItem)
         } else {
             image = ImageLayout(node: node, parent: line, previous: prevItem)
             inlineObjects[index] = image
         }
-        line.children.append(image)
+        placement.append(image)
 
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
-        cursorX += w + font.spaceWidth
+        placement.cursorX += w + font.spaceWidth
     }
 
-    private func addIframe(_ node: Element, index: Int) {
+    private func addIframe(_ node: Element, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = IframeLayout.displaySize(for: node, notify: childrenField).width * zoom
-        if cursorX + w > available { newLine() }
-        let line: any LayoutObject = children.last!
-        let prevItem: (any LayoutObject)? = line.children.last
+        if placement.cursorX + w > available { placement.endLine(parent: self) }
+        let line: LineLayout = placement.currentLine!
+        let prevItem: (any LayoutObject)? = placement.children.last
         let iframe: IframeLayout
         if let cached = cachedEmbed(IframeLayout.self, at: index, node: node) {
             iframe = cached
-            iframe.attach(to: line as! LineLayout, previous: prevItem)
+            iframe.attach(to: line, previous: prevItem)
         } else {
             iframe = IframeLayout(node: node, parent: line, previous: prevItem)
             inlineObjects[index] = iframe
         }
-        line.children.append(iframe)
+        placement.append(iframe)
 
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
-        cursorX += w + font.spaceWidth
+        placement.cursorX += w + font.spaceWidth
     }
 
-    private func addCanvas(_ node: Element, index: Int) {
+    private func addCanvas(_ node: Element, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = CanvasLayout.contentSize(for: node).width * zoom
-        if cursorX + w > available { newLine() }
-        let line: any LayoutObject = children.last!
-        let prevItem: (any LayoutObject)? = line.children.last
+        if placement.cursorX + w > available { placement.endLine(parent: self) }
+        let line: LineLayout = placement.currentLine!
+        let prevItem: (any LayoutObject)? = placement.children.last
         let canvas: CanvasLayout
         if let cached = cachedEmbed(CanvasLayout.self, at: index, node: node) {
             canvas = cached
-            canvas.attach(to: line as! LineLayout, previous: prevItem)
+            canvas.attach(to: line, previous: prevItem)
         } else {
             canvas = CanvasLayout(node: node, parent: line, previous: prevItem)
             inlineObjects[index] = canvas
         }
-        line.children.append(canvas)
+        placement.append(canvas)
 
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
-        cursorX += w + font.spaceWidth
+        placement.cursorX += w + font.spaceWidth
     }
 
     private func isInsideAbbr(_ node: any DOMNode) -> Bool {

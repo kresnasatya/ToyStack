@@ -49,20 +49,23 @@ final class LayoutFieldStore {
         frozenBits |= field.mask
     }
 
+    func markDependents(_ field: LayoutField) {
+        guard let refs = dependents[field], !refs.isEmpty else { return }
+        for ref in refs.values {
+            ref.mark()
+        }
+    }
+
     func addDependent(_ field: LayoutField, _ dependent: FieldRef) {
         guard let id = FieldDependencyKey(dependent) else { return }
         dependents[field, default: [:]][id] = dependent
     }
 
     func removeDependent(_ field: LayoutField, _ dependent: FieldRef) {
-        guard let id = FieldDependencyKey(dependent), var current = dependents[field] else {
-            return
-        }
-        current.removeValue(forKey: id)
-        if current.isEmpty {
+        guard let id = FieldDependencyKey(dependent) else { return }
+        dependents[field]?[id] = nil
+        if dependents[field]?.isEmpty == true {
             dependents.removeValue(forKey: field)
-        } else {
-            dependents[field] = current
         }
     }
 
@@ -94,5 +97,9 @@ final class LayoutFieldStore {
             dependents[field] = current.filter({ $0.value.owner != nil })
         }
         return live
+    }
+
+    func hasDependents(_ field: LayoutField) -> Bool {
+        return !(dependents[field]?.isEmpty ?? true)
     }
 }

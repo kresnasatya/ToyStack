@@ -96,14 +96,24 @@ class LineLayout: LayoutObject {
             }.max() ?? 0
             descentField.set(maxDescent)
 
+            var nextX: CGFloat = xField.get()
+            var previousFont: BrowserFont? = nil
             for child in inlineChildren {
-                let lineY: CGFloat = yField.read(notify: child.yField)
-                let baseline: CGFloat = lineY + ascentField.read(notify: child.yField)
+                if let previousFont, child is EmbedLayout {
+                    nextX += previousFont.spaceWidth
+                }
+                child.xField.set(nextX)
+                nextX += child.widthField.get()
+                previousFont = child.fontField.get()
+            }
+
+            let lineY: CGFloat = yField.get()
+            let baseline: CGFloat = lineY + ascentField.get()
+            for child in inlineChildren {
                 if let el = child.node as? Element, el.tag == "sup" {
                     child.yField.set(baseline - maxAscent)
                 } else {
-                    let ascent: CGFloat = child.ascentField.read(notify: child.yField)
-                    child.yField.set(baseline - ascent)
+                    child.yField.set(baseline - child.ascentField.get())
                 }
             }
 

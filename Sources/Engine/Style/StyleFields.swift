@@ -137,12 +137,9 @@ nonisolated final class StyleFields: FieldOwner {
     @MainActor
     func removeDependency(_ name: FieldName, _ field: FieldRef) {
         guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
-        guard var fields = dependents[key] else { return }
-        fields.removeValue(forKey: id)
-        if fields.isEmpty {
+        dependents[key]?[id] = nil
+        if dependents[key]?.isEmpty == true {
             dependents.removeValue(forKey: key)
-        } else {
-            dependents[key] = fields
         }
     }
 

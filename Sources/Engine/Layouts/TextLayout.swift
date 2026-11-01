@@ -41,23 +41,9 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         heightField.setDependencies([fontField])
         ascentField.setDependencies([fontField])
         descentField.setDependencies([fontField])
-
-        var xInputs: [any InvalidatableField] = []
-        if let parent { xInputs.append(parent.xField) }
-        if let previous {
-            xInputs.append(previous.xField)
-            xInputs.append(previous.widthField)
-        }
-        xField.setDependencies(xInputs)
-
-        var yInputs: [any InvalidatableField] = [ascentField]
-        if let parent {
-            yInputs.append(parent.yField)
-            if let line = parent as? LineLayout {
-                yInputs.append(line.ascentField)
-            }
-        }
-        yField.setDependencies(yInputs)
+        // Position is assigned by the containing line; there are no inputs.
+        xField.setDependencies([])
+        yField.setDependencies([])
     }
 
     func layoutNeeded() -> Bool {
@@ -65,8 +51,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        return zoomField.dirty || xField.dirty || yField.dirty
-            || widthField.dirty || heightField.dirty
+        return zoomField.dirty || widthField.dirty || heightField.dirty
             || fontField.dirty || ascentField.dirty || descentField.dirty
     }
 
@@ -105,16 +90,6 @@ class TextLayout: LayoutObject, InlineLayoutItem {
             if fontChanged || descentField.dirty {
                 descentField.set(fontField.read(notify: descentField).descent)
             }
-
-            if xField.dirty {
-                if let previous {
-                    let prevX: CGFloat = previous.xField.read(notify: xField)
-                    let prevWidth: CGFloat = previous.widthField.read(notify: xField)
-                    xField.set(prevX + prevWidth)
-                } else {
-                    xField.copy(from: parent!.xField)
-                }
-            }
         })
     }
 
@@ -140,18 +115,6 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func detach() {
-        if let oldParent: (any LayoutObject) = parent {
-            oldParent.xField.removeInvalidation(self.xField)
-            oldParent.yField.removeInvalidation(self.yField)
-            oldParent.zoomField.removeInvalidation(self.zoomField)
-            if let oldLine = oldParent as? LineLayout {
-                oldLine.ascentField.removeInvalidation(self.yField)
-            }
-        }
-        if let oldPrevious: (any LayoutObject) = previous {
-            oldPrevious.xField.removeInvalidation(self.xField)
-            oldPrevious.widthField.removeInvalidation(self.xField)
-        }
         parent = nil
         previous = nil
     }
@@ -163,17 +126,5 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         self.previous = previous
 
         zoomField.setDependencies([node.style.field("zoom"), line.zoomField])
-
-        var xInputs: [any InvalidatableField] = [line.xField]
-        if let previous {
-            xInputs.append(previous.xField)
-            xInputs.append(previous.widthField)
-        }
-        xField.setDependencies(xInputs)
-
-        yField.setDependencies([ascentField, line.yField, line.ascentField])
-
-        xField.mark()
-        yField.mark()
     }
 }

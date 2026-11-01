@@ -14,6 +14,7 @@ class ButtonLayout: EmbedLayout {
         // The first inner-line pass runs before the containing line can place this button.
         // Seed a known y so that pass does not read a dirty field;
         // the line overwrites it, then re-lays out this button.
+        xField.set(0)
         yField.set(0)
         widthField.setDependencies([zoomField])
         heightField.setDependencies([fontField])
@@ -26,6 +27,9 @@ class ButtonLayout: EmbedLayout {
         defer { hasDirtyDescendants = false }
         // The containing line places this button after its children lay out.
         // Seed a known y so the inner line can lay out before that placement.
+        if xField.isDirty {
+            xField.set(0)
+        }
         if yField.isDirty {
             yField.set(0)
         }

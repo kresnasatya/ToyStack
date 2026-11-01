@@ -29,22 +29,9 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         fontField.mark()
         ascentField.setDependencies([heightField])
         descentField.setDependencies([])
-
-        var xInputs: [any InvalidatableField] = [parent.xField]
-        if let previous {
-            xInputs.append(previous.xField)
-            xInputs.append(previous.widthField)
-            if let prev = previous as? any InlineLayoutItem {
-                xInputs.append(prev.fontField)
-            }
-        }
-        xField.setDependencies(xInputs)
-        var yInputs: [any InvalidatableField] = [parent.yField, ascentField]
-        if let line = parent as? LineLayout {
-            yInputs.append(line.ascentField)
-        }
-        yField.setDependencies(yInputs)
-        // width and height are frozen by each subclass: their inputs differ per embed.
+        // Position is assigned by the containing line; there are no inputs.
+        xField.setDependencies([])
+        yField.setDependencies([])
     }
 
     func layoutNeeded() -> Bool {
@@ -52,8 +39,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        return zoomField.dirty || xField.dirty || yField.dirty
-            || widthField.dirty || heightField.dirty
+        return zoomField.dirty || widthField.dirty || heightField.dirty
             || fontField.dirty || ascentField.dirty || descentField.dirty
     }
 
@@ -66,17 +52,6 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         }
         if fontField.dirty {
             fontField.set(fontForElement(node, zoom: zoomField.read(notify: fontField), notify: fontField))
-        }
-
-        if xField.dirty {
-            if let prev = previous as? InlineLayoutItem {
-                let prevX: CGFloat = prev.xField.read(notify: xField)
-                let prevWidth: CGFloat = prev.widthField.read(notify: xField)
-                let space: CGFloat = prev.fontField.read(notify: xField).spaceWidth
-                xField.set(prevX + prevWidth + space)
-            } else {
-                xField.copy(from: parent!.xField)
-            }
         }
     }
 
@@ -118,19 +93,5 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         self.previous = previous
 
         zoomField.setDependencies([line.zoomField, node.style.field("zoom")])
-
-        var xInputs: [any InvalidatableField] = [line.xField]
-        if let previous {
-            xInputs.append(previous.xField)
-            xInputs.append(previous.widthField)
-            if let prev = previous as? InlineLayoutItem {
-                xInputs.append(prev.fontField)
-            }
-        }
-        xField.setDependencies(xInputs)
-        yField.setDependencies([line.yField, ascentField, line.ascentField])
-
-        xField.mark()
-        yField.mark()
     }
 }

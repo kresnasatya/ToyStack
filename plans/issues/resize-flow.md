@@ -214,3 +214,11 @@ Layout is now the dominant cost: 215 ms per resize tick on the bench page (`layo
 ### Phase 6 measured (2026-11-01)
 
 Applied. Bench `large.html` plain resize tick: layout wall 215 ms → **110 ms**, `layout.visit.us` 62 → **32 ms**, line placement 65 → **43 ms**, height 15 → **6.7 ms**, measure calls 20,040 → **10,020**. The traced page improved less: 625–788 ms → **561–720 ms**, because it re-breaks lines for all 14,775 words on every resize, while the bench widths rarely change breaks. A narrow 300 ↔ 450 px reflow scenario exposes that work: layout median **324 ms**, with placement at 139–153 ms and `appendToLine`/`TextLayout.attach` dominating the sample. [Phase 7](./resize-phase-7-inline-placement.md) targets inline placement: in-place dependency removal, no detach from discarded lines, one children assignment per line, and a cached space width.
+
+### Phase 7 measured (2026-11-01)
+
+Applied. Bench 300 ↔ 450 px reflow: layout wall 324 → **264 ms**, `layout.visit.us` 177–190 → **118–129 ms**, `inline.place` 139–153 → **90–100 ms**, `field.set` 39k–46k → **29k–36k**, measure calls 20,020 → **0** on reflow ticks. Traced page: layout wall 561–720 → **514–618 ms**, `inline.place` 143–266 → **121–182 ms**, measure calls 19–24k → **11**. Sampling now shows `attach` at 127 samples with 98 of them in `setDependencies` → `addInvalidation`: reused words still add eight edges each time a line is rebuilt. [Phase 8](./resize-phase-8-line-owned-inline-geometry.md) moves x ownership from each text/embed to its line, leaving two edges per item and no text layout for items that only moved.
+
+### Phase 8 measured (2026-11-01)
+
+Applied. Bench 300 ↔ 450 px reflow: layout wall 264 → **183 ms** (median), `layout.visit.us` 118–129 → **58–68 ms**, `inline.place` 90–100 → **29–40 ms** (target met), `text.count` 10,018 → **0** (target met), `field.mark` 29–31k → **9–11k** (the graph win: no per-word edges), while `field.set` stays 29–36k because the line writes x and y for every moved word. 47 tests pass; incremental and full-layout screenshots are identical after two resizes. Remaining on the bench: line placement 46–52 ms and paint; on the traced page, line placement dominates height-only drags.
