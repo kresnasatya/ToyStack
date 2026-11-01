@@ -51,7 +51,7 @@ class BlockLayout: LayoutObject {
         freezeGeometry(parent: parent, previous: previous)
     }
 
-    private var previousField: LayoutFieldHandle<(any LayoutObject)?> {
+    private var previousField: LayoutFieldHandle<PreviousFieldAccess> {
         layoutField(.previous)
     }
 

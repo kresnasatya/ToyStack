@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - LayoutFieldHandle
 
 @MainActor
-struct LayoutFieldHandle<Value: LayoutFieldValue>: InvalidatableField {
+struct LayoutFieldHandle<Access: LayoutFieldAccess>: InvalidatableField {
     unowned let owner: any LayoutObject
     unowned let fields: LayoutFieldStore
     let field: LayoutField
@@ -21,27 +21,27 @@ struct LayoutFieldHandle<Value: LayoutFieldValue>: InvalidatableField {
     var invalidationNames: [String] { fields.dependencyNames(field) }
     var ref: FieldRef { FieldRef(owner: owner, name: .layout(field)) }
 
-    func get() -> Value {
+    func get() -> Access.Value {
         if fields.isDirty(field) {
             assertionFailure("Read dirty field \(owner).\(field.rawValue)")
         }
         guard fields.isUsed(field) else {
             fatalError("Read unset field \(owner).\(field.rawValue)")
         }
-        return fields.value(of: field)
+        return Access.read(fields, field)
     }
 
-    func peek() -> Value? {
+    func peek() -> Access.Value? {
         guard fields.isUsed(field) else { return nil }
-        return fields.value(of: field)
+        return Access.read(fields, field)
     }
 
-    func set(_ newValue: Value) {
+    func set(_ newValue: Access.Value) {
         let wasUsed: Bool = fields.isUsed(field)
-        let old: Value = fields.value(of: field)
-        let changed: Bool = !wasUsed || !Value.equals(old, newValue)
+        let old: Access.Value = Access.read(fields, field)
+        let changed: Bool = !wasUsed || !Access.equals(old, newValue)
         fields.markUsed(field)
-        fields.setValue(of: field, to: newValue)
+        Access.write(fields, field, newValue)
         fields.markClean(field)
         if changed {
             profiler.count("layout.field.set")
@@ -51,9 +51,9 @@ struct LayoutFieldHandle<Value: LayoutFieldValue>: InvalidatableField {
         }
     }
 
-    func setClean(_ newValue: Value) {
+    func setClean(_ newValue: Access.Value) {
         fields.markUsed(field)
-        fields.setValue(of: field, to: newValue)
+        Access.write(fields, field, newValue)
         fields.markClean(field)
     }
 
@@ -61,11 +61,11 @@ struct LayoutFieldHandle<Value: LayoutFieldValue>: InvalidatableField {
         owner.markField(.layout(field))
     }
 
-    func copy(from field: LayoutFieldHandle<Value>) {
+    func copy(from field: LayoutFieldHandle<Access>) {
         set(field.read(notify: self))
     }
 
-    func read(notify: any InvalidatableField) -> Value {
+    func read(notify: any InvalidatableField) -> Access.Value {
         #if DEBUG
         if notify.frozenDependencies {
             if !containsInvalidation(notify) {

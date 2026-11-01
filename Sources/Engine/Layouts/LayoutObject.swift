@@ -48,47 +48,47 @@ extension LayoutObject {
         set { zoomField.set(newValue) }
     }
 
-    var xField: LayoutFieldHandle<CGFloat> {
+    var xField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.x)
     }
 
-    var yField: LayoutFieldHandle<CGFloat> {
+    var yField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.y)
     }
 
-    var widthField: LayoutFieldHandle<CGFloat> {
+    var widthField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.width)
     }
 
-    var heightField: LayoutFieldHandle<CGFloat> {
+    var heightField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.height)
     }
 
-    var zoomField: LayoutFieldHandle<CGFloat> {
+    var zoomField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.zoom)
     }
 
-    var childrenField: LayoutFieldHandle<[any LayoutObject]> {
+    var childrenField: LayoutFieldHandle<ChildrenFieldAccess> {
         layoutField(.children)
     }
 
-    var inlineContentField: LayoutFieldHandle<UInt64> {
+    var inlineContentField: LayoutFieldHandle<InlineContentFieldAccess> {
         layoutField(.inlineContent)
     }
 
-    var fontField: LayoutFieldHandle<BrowserFont> {
+    var fontField: LayoutFieldHandle<FontFieldAccess> {
         layoutField(.font)
     }
 
-    var ascentField: LayoutFieldHandle<CGFloat> {
+    var ascentField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.ascent)
     }
 
-    var descentField: LayoutFieldHandle<CGFloat> {
+    var descentField: LayoutFieldHandle<CGFloatFieldAccess> {
         layoutField(.descent)
     }
 
-    func layoutField<Value: LayoutFieldValue>(_ field: LayoutField) -> LayoutFieldHandle<Value> {
+    func layoutField<Access: LayoutFieldAccess>(_ field: LayoutField) -> LayoutFieldHandle<Access> {
         return LayoutFieldHandle(owner: self, fields: fields, field: field)
     }
 
