@@ -12,7 +12,7 @@ struct PaintEffectStyle {
 // MARK: - Resolution
 
 @MainActor
-func paintEffectStyle(node: DOMNode) -> PaintEffectStyle? {
+func paintEffectStyle(node: DOMRef) -> PaintEffectStyle? {
     let effects: VisualStyle.Effects = node.style.computed.visual.effects
     let animated: Bool = node.animations[.property(.transform)] != nil
         || node.animations[.property(.opacity)] != nil

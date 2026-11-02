@@ -136,7 +136,7 @@ extension DisplayOp {
     // MARK: - Outline factories
 
     @MainActor
-    static func fromStyle(_ node: any DOMNode, rect: Rect) -> DisplayOp? {
+    static func fromStyle(_ node: DOMRef, rect: Rect) -> DisplayOp? {
         let computed: ComputedStyle = node.style.computed
         let outline: BoxStyle.Decoration.Outline = computed.box.decoration.outline
         guard outline.style != .none, outline.style != .hidden,
@@ -150,7 +150,7 @@ extension DisplayOp {
     }
 
     @MainActor
-    static func fromBorderStyle(_ node: any DOMNode, rect: Rect) -> DisplayOp? {
+    static func fromBorderStyle(_ node: DOMRef, rect: Rect) -> DisplayOp? {
         let border: BoxStyle.Decoration.Border = node.style.computed.box.decoration.border
         guard border.style != .none, border.style != .hidden,
             border.width > 0

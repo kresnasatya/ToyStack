@@ -4,7 +4,7 @@ import CoreGraphics
 
 @MainActor
 class LineLayout: LayoutObject {
-    let node: any DOMNode
+    let node: DOMRef
     weak var parent: (any LayoutObject)?
     let previous: (any LayoutObject)?
     let fields: LayoutFieldStore = LayoutFieldStore()
@@ -18,7 +18,7 @@ class LineLayout: LayoutObject {
     private var paintedChildCount: Int = -1
     private var declaredInlineChildCount: Int = -1
 
-    init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+    init(node: DOMRef, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
         self.parent = parent
         self.previous = previous
@@ -150,7 +150,7 @@ class LineLayout: LayoutObject {
             let lineY: CGFloat = yField.get()
             let baseline: CGFloat = lineY + ascentField.get()
             for child in inlineChildren {
-                if let el = child.node as? Element, el.tag == "sup" {
+                if let el = child.node.element, el.tag == "sup" {
                     child.yField.set(baseline - maxAscent)
                 } else {
                     child.yField.set(baseline - child.ascentField.get())
@@ -211,7 +211,7 @@ class LineLayout: LayoutObject {
 
     func paint(into items: inout [DisplayOp]) {
         var outlineRect: Rect? = nil
-        var focused: (any DOMNode)? = nil
+        var focused: DOMRef? = nil
         for child in children {
             guard let ancestor = focusVisibleInlineAncestor(child.node) else { continue }
             focused = ancestor
@@ -229,9 +229,9 @@ class LineLayout: LayoutObject {
         }
     }
 
-    private func focusVisibleInlineAncestor(_ start: any DOMNode) -> (any DOMNode)? {
-        var current: (any DOMNode)? = start.parent
-        while let ancestor = current, ancestor !== node {
+    private func focusVisibleInlineAncestor(_ start: DOMRef) -> DOMRef? {
+        var current: DOMRef? = start.parent
+        while let ancestor = current, ancestor.id != node.id {
             if ancestor.isFocusVisible { return ancestor }
             current = ancestor.parent
         }

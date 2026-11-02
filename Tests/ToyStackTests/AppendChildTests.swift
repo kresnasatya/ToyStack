@@ -127,7 +127,7 @@ struct AppendChildTests {
         #expect(boxLayout.children[4] === beforeChildren[4])
 
         let appended: BlockLayout = try #require(boxLayout.children.last as? BlockLayout)
-        #expect((appended.node as? Element)?.tag == "p")
+        #expect(appended.node.element?.tag == "p")
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         #expect((profiler.snapshot()["layout.children.appended"]?.count ?? 0) == 1)
         expectIncrementalMatchesFull(page)
@@ -168,7 +168,7 @@ struct AppendChildTests {
         #expect(boxLayout.children[0] === oneLayout)
         let run: BlockLayout = try #require(boxLayout.children[1] as? BlockLayout)
         #expect(run.extraNodes.count == 2)
-        #expect((run.extraNodes[1] as? Element)?.tag == "span")
+        #expect(run.extraNodes[1].element?.tag == "span")
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         #expect((profiler.snapshot()["layout.children.appended"]?.count ?? 0) == 1)
         expectIncrementalMatchesFull(page)

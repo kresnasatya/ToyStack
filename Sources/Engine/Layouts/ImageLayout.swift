@@ -5,7 +5,7 @@ final class ImageLayout: EmbedLayout {
     var imgHeight: CGFloat = 0
 
     override init(
-        node: any DOMNode,
+        node: DOMRef,
         parent: any LayoutObject,
         previous: (any LayoutObject)?
     ) {
@@ -24,7 +24,7 @@ final class ImageLayout: EmbedLayout {
         ])
     }
 
-    static func displaySize(for el: Element, notify: any InvalidatableField) -> (width: Double, height: Double) {
+    static func displaySize(for el: ElementRef, notify: any InvalidatableField) -> (width: Double, height: Double) {
         let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
         let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0
         el.style.field(.aspectRatio).touch(notify)
@@ -39,7 +39,7 @@ final class ImageLayout: EmbedLayout {
     }
 
     static func usedWidth(
-        for el: Element,
+        for el: ElementRef,
         available: CGFloat,
         zoom: CGFloat,
         notify: any InvalidatableField
@@ -53,7 +53,7 @@ final class ImageLayout: EmbedLayout {
         return min(intrinsic, limit)
     }
 
-    static func usedHeight(for el: Element, usedWidth: CGFloat, zoom: CGFloat, notify: any InvalidatableField) -> CGFloat {
+    static func usedHeight(for el: ElementRef, usedWidth: CGFloat, zoom: CGFloat, notify: any InvalidatableField) -> CGFloat {
         let size: (width: Double, height: Double) = displaySize(for: el, notify: notify)
         el.style.field(.aspectRatio).touch(notify)
         let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
@@ -70,7 +70,7 @@ final class ImageLayout: EmbedLayout {
             || fields.isDirty(.zoom) || fields.isDirty(.font)
         super.layout()
         guard sizeDirty else { return }
-        guard let el = node as? Element else { return }
+        guard let el = node.element else { return }
         let available: CGFloat = parent!.widthField.read(notify: widthField)
         let zoom: CGFloat = zoomField.read(notify: widthField)
         let usedWidth: CGFloat = ImageLayout.usedWidth(
@@ -91,7 +91,7 @@ final class ImageLayout: EmbedLayout {
     }
 
     override func paint(into items: inout [DisplayOp]) {
-        guard let image = (node as? Element)?.image else { return }
+        guard let image = node.element?.image else { return }
         let box = Rect(left: x, top: y + height - imgHeight, right: x + width, bottom: y + height)
         let computed: ComputedStyle = node.style.computed
         let content: Rect = ObjectFit(

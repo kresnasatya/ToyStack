@@ -54,7 +54,8 @@ struct LayoutDependencyTests {
 
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
         let node = Element(tag: "html", attributes: [:], parent: nil)
-        let document = DocumentLayout(node: node)
+        let dom: DOMTree = DOMTree(root: node)
+        let document = DocumentLayout(node: DOMRef(id: dom.root, dom: dom))
 
         let source = document.xField
         let missing = document.yField

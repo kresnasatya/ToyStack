@@ -8,7 +8,7 @@ class BlockLayout: LayoutObject {
     static let liIndent: CGFloat = 20.0
     static let bulletSize: CGFloat = 8.0
 
-    let node: any DOMNode
+    let node: DOMRef
     var parent: (any LayoutObject)?
     let fields: LayoutFieldStore = LayoutFieldStore()
     var previous: (any LayoutObject)? {
@@ -17,7 +17,7 @@ class BlockLayout: LayoutObject {
     }
     var hasDirtyDescendants: Bool = false
     private var childChanges: [BlockChildChange] = []
-    let extraNodes: [any DOMNode]
+    let extraNodes: [DOMRef]
     var paintCache: PaintCache = PaintCache()
     private var cachedStyle: BlockStyle? = nil
     private var cachedStyleRevision: UInt64 = .max
@@ -32,7 +32,7 @@ class BlockLayout: LayoutObject {
 
     private var declaredHeightChildren: [any LayoutObject] = []
 
-    init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+    init(node: DOMRef, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
         self.extraNodes = []
         self.parent = parent
@@ -43,7 +43,7 @@ class BlockLayout: LayoutObject {
         freezeGeometry(parent: parent, previous: previous)
     }
 
-    init(nodes: [any DOMNode], parent: any LayoutObject, previous: (any LayoutObject)?) {
+    init(nodes: [DOMRef], parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = nodes[0]
         self.extraNodes = nodes
         self.parent = parent
@@ -106,12 +106,12 @@ class BlockLayout: LayoutObject {
                 inputs.append(child.style.field(.position))
             }
         }
-        let leaves: [any DOMNode] = inlineLeaves()
+        let leaves: [DOMRef] = inlineLeaves()
         for leaf in leaves {
-            let owner: any DOMNode = leaf.inheritedStyleOwner
+            let owner: DOMRef = leaf.inheritedStyleOwner
             inputs.append(owner.style.field(.whiteSpace))
             inputs.append(contentsOf: fontInputs(for: leaf))
-            if let el = leaf as? Element {
+            if let el = leaf.element {
                 inputs.append(el.style.field(.aspectRatio))
                 inputs.append(el.style.field(.maxWidth))
             }
@@ -120,8 +120,8 @@ class BlockLayout: LayoutObject {
     }
 
     // Only leaves this block lays out inline. Nested blocks own their own inputs.
-    private func inlineLeaves() -> [any DOMNode] {
-        var leaves: [any DOMNode] = []
+    private func inlineLeaves() -> [DOMRef] {
+        var leaves: [DOMRef] = []
         if !extraNodes.isEmpty {
             for n in extraNodes { collectLeaves(n, into: &leaves) }
             return leaves
@@ -210,12 +210,12 @@ class BlockLayout: LayoutObject {
     }
 
     func noteAppendedChildren(_ nodes: [any DOMNode]) {
-        childChanges.append(.append(nodes))
+        childChanges.append(.append(nodes.map({ node.dom.ref($0) })))
         markAncestorsDirty()
     }
 
     func noteInsertedChildren(_ nodes: [any DOMNode], before reference: any DOMNode) {
-        childChanges.append(.insert(nodes, before: reference))
+        childChanges.append(.insert(nodes.map({ node.dom.ref($0) }), before: node.dom.ref(reference)))
         markAncestorsDirty()
     }
 
@@ -285,7 +285,7 @@ class BlockLayout: LayoutObject {
                 widthField.set(max(0, parentWidth - padHorizontal))
             }
 
-            if let el = node as? Element, el.tag == "li" {
+            if let el = node.element, el.tag == "li" {
                 x += BlockLayout.liIndent
                 width -= BlockLayout.liIndent
             }
@@ -312,7 +312,7 @@ class BlockLayout: LayoutObject {
                 }
             }
 
-            if let el = node as? Element, el.attributes["id"] == "toc" {
+            if let el = node.element, el.attributes["id"] == "toc" {
                 y += VSTEP
             }
 
@@ -388,11 +388,11 @@ class BlockLayout: LayoutObject {
             heightField.set(sumHeight)
         }
 
-        if let el = node as? Element, el.attributes["id"] == "toc" {
+        if let el = node.element, el.attributes["id"] == "toc" {
             height += VSTEP
         }
 
-        if style.flags.overflowScroll, let el = node as? Element {
+        if style.flags.overflowScroll, let el = node.element {
             let maxScroll: CGFloat = max(0, contentHeight - height)
             scrollOffset = min(el.scrollOffsetY, maxScroll)
         }
@@ -400,12 +400,12 @@ class BlockLayout: LayoutObject {
 
     private func layoutMode() -> String {
         if !extraNodes.isEmpty { return "inline" }
-        if node is TextNode { return "inline" }
+        if node.text != nil { return "inline" }
         let hasBlockChild: Bool = node.children.contains(where: {
             $0.style.computed.layout.display == .block
         })
         if hasBlockChild { return "block" }
-        if let el = node as? Element {
+        if let el = node.element {
             return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
         }
         return "inline"
@@ -420,17 +420,17 @@ class BlockLayout: LayoutObject {
         return state.built
     }
 
-    private func appendBlockChildren(_ nodes: [any DOMNode], to current: [any LayoutObject]) -> [any LayoutObject]? {
+    private func appendBlockChildren(_ nodes: [DOMRef], to current: [any LayoutObject]) -> [any LayoutObject]? {
         guard extraNodes.isEmpty, current.allSatisfy({ $0 is BlockLayout }) else {
             return nil
         }
         if let last: BlockLayout = current.last as? BlockLayout,
             last.extraNodes.isEmpty,
-            (last.node as? Element)?.tag == "h6"
+            last.node.element?.tag == "h6"
         {
             return nil
         }
-        guard let first: any DOMNode = firstVisibleChild(in: nodes) else {
+        guard let first: DOMRef = firstVisibleChild(in: nodes) else {
             return nil
         }
 
@@ -489,8 +489,8 @@ class BlockLayout: LayoutObject {
     }
 
     private func insertBlockChildren(
-        _ nodes: [any DOMNode],
-        before reference: any DOMNode,
+        _ nodes: [DOMRef],
+        before reference: DOMRef,
         in current: [any LayoutObject]
     ) -> [any LayoutObject]? {
         guard extraNodes.isEmpty, current.allSatisfy({ $0 is BlockLayout }) else {
@@ -499,7 +499,7 @@ class BlockLayout: LayoutObject {
         guard let index: Int = blockChildIndex(of: reference, in: current) else {
             return nil
         }
-        guard !nodes.contains(where: { ($0 as? Element)?.tag == "h6" }) else {
+        guard !nodes.contains(where: { $0.element?.tag == "h6" }) else {
             return nil
         }
         if index > 0, let previous = current[index - 1] as? BlockLayout, isRunIn(previous) {
@@ -508,7 +508,7 @@ class BlockLayout: LayoutObject {
         if let referenceBlock = current[index] as? BlockLayout, isRunIn(referenceBlock) {
             return nil
         }
-        guard let first: any DOMNode = firstVisibleChild(in: nodes) else {
+        guard let first: DOMRef = firstVisibleChild(in: nodes) else {
             return current
         }
 
@@ -543,15 +543,15 @@ class BlockLayout: LayoutObject {
     }
 
     private func blockChildIndex(
-        of reference: any DOMNode,
+        of reference: DOMRef,
         in current: [any LayoutObject]
     ) -> Int? {
         for (index, object) in current.enumerated() {
             guard let block = object as? BlockLayout else { return nil }
-            if block.node === reference, block.extraNodes.isEmpty {
+            if block.node.id == reference.id, block.extraNodes.isEmpty {
                 return index
             }
-            if block.extraNodes.contains(where: { $0 === reference }) {
+            if block.extraNodes.contains(where: { $0.id == reference.id }) {
                 return nil
             }
         }
@@ -559,13 +559,13 @@ class BlockLayout: LayoutObject {
     }
 
     private func isRunIn(_ block: BlockLayout) -> Bool {
-        let first: (any DOMNode)? = block.extraNodes.first ?? block.node
-        return (first as? Element)?.tag == "h6"
+        let first: DOMRef = block.extraNodes.first ?? block.node
+        return first.element?.tag == "h6"
     }
 
-    private func firstVisibleChild(in nodes: [any DOMNode]) -> (any DOMNode)? {
+    private func firstVisibleChild(in nodes: [DOMRef]) -> DOMRef? {
         return nodes.first(where: { child in
-            guard let el = child as? Element else { return true }
+            guard let el = child.element else { return true }
             return !BlockLayout.hiddenElements.contains(el.tag)
         })
     }
@@ -582,20 +582,20 @@ class BlockLayout: LayoutObject {
         return nil
     }
 
-    private func consumeBlockChildren(_ nodes: [any DOMNode], state: inout BlockChildBuild) {
+    private func consumeBlockChildren(_ nodes: [DOMRef], state: inout BlockChildBuild) {
         for child in nodes {
-            if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
+            if let el = child.element, BlockLayout.hiddenElements.contains(el.tag) {
                 continue
             }
             let isBlock: Bool = child.style.computed.layout.display == .block
             if isBlock {
-                if let el = child as? Element, el.tag == "h6" {
+                if let el = child.element, el.tag == "h6" {
                     flushInlineRun(into: &state)
                     state.pendingRunIn = el
                 } else {
                     flushInlineRun(into: &state)
                     if let runIn = state.pendingRunIn {
-                        let run: [any DOMNode] = [runIn, child]
+                        let run: [DOMRef] = [runIn.ref, child]
                         let next: BlockLayout = BlockLayout(nodes: run, parent: self, previous: state.previous)
                         state.built.append(next)
                         state.previous = next
@@ -616,7 +616,7 @@ class BlockLayout: LayoutObject {
 
     private func flushInlineRun(into state: inout BlockChildBuild) {
         guard !state.inlineRun.isEmpty else { return }
-        let run: [any DOMNode] = state.inlineRun
+        let run: [DOMRef] = state.inlineRun
         let anon: BlockLayout = BlockLayout(nodes: run, parent: self, previous: state.previous)
         state.built.append(anon)
         state.previous = anon
@@ -626,7 +626,7 @@ class BlockLayout: LayoutObject {
     private func finishBlockChildren(_ state: inout BlockChildBuild) {
         flushInlineRun(into: &state)
         if let runIn = state.pendingRunIn {
-            let next: BlockLayout = BlockLayout(node: runIn, parent: self, previous: state.previous)
+            let next: BlockLayout = BlockLayout(node: runIn.ref, parent: self, previous: state.previous)
             state.built.append(next)
         }
     }
@@ -684,7 +684,7 @@ class BlockLayout: LayoutObject {
     }
 
     private func refreshInlineItems() {
-        let leaves: [any DOMNode] = inlineLeaves()
+        let leaves: [DOMRef] = inlineLeaves()
         var items: [InlineItem] = []
         for leaf in leaves {
             items.append(contentsOf: makeItems(for: leaf))
@@ -696,29 +696,29 @@ class BlockLayout: LayoutObject {
         inlineContentField.set(inlineContentRevision)
     }
 
-    private func collectLeaves(_ n: any DOMNode, into leaves: inout [any DOMNode]) {
-        if n is TextNode {
+    private func collectLeaves(_ n: DOMRef, into leaves: inout [DOMRef]) {
+        if n.text != nil {
             leaves.append(n)
             return
         }
-        guard let el = n as? Element else { return }
+        guard let el = n.element else { return }
         if el.tag == "br" || isEmbed(el) {
-            leaves.append(el)
+            leaves.append(n)
             return
         }
-        for child in el.children { collectLeaves(child, into: &leaves) }
+        for child in n.children { collectLeaves(child, into: &leaves) }
     }
 
-    private func isEmbed(_ el: Element) -> Bool {
+    private func isEmbed(_ el: ElementRef) -> Bool {
         el.tag == "input" || el.tag == "button" || el.tag == "img"
         || el.tag == "iframe" || el.tag == "canvas"
     }
 
-    private func makeItems(for leaf: any DOMNode) -> [InlineItem] {
+    private func makeItems(for leaf: DOMRef) -> [InlineItem] {
         var items: [InlineItem] = []
-        if let text = leaf as? TextNode {
+        if let text = leaf.text {
             addTextNode(text, into: &items)
-        } else if let el = leaf as? Element {
+        } else if let el = leaf.element {
             if el.tag == "br" {
                 items.append(.lineBreak)
             } else {
@@ -728,30 +728,30 @@ class BlockLayout: LayoutObject {
         return items
     }
 
-    private func collect(_ n: any DOMNode, into items: inout [InlineItem]) {
-        if let textNode = n as? TextNode {
+    private func collect(_ n: DOMRef, into items: inout [InlineItem]) {
+        if let textNode = n.text {
             addTextNode(textNode, into: &items)
-        } else if let el = n as? Element {
+        } else if let el = n.element {
             if el.tag == "br" {
                 items.append(.lineBreak)
             } else if el.tag == "input" || el.tag == "button" || el.tag == "img" || el.tag == "iframe" || el.tag == "canvas" {
                 items.append(.embed(el))
             } else {
-                for child in el.children { collect(child, into: &items) }
+                for child in n.children { collect(child, into: &items) }
             }
         }
     }
 
-    private func addTextNode(_ textNode: TextNode, into items: inout [InlineItem]) {
-        textNode.inheritedStyleOwner.style.field(.whiteSpace).touch(inlineContentField)
-        let mode: WhiteSpaceMode = textNode.inheritedStyleOwner.style.computed.text.whiteSpace
+    private func addTextNode(_ textNode: TextRef, into items: inout [InlineItem]) {
+        textNode.ref.inheritedStyleOwner.style.field(.whiteSpace).touch(inlineContentField)
+        let mode: WhiteSpaceMode = textNode.ref.inheritedStyleOwner.style.computed.text.whiteSpace
         let zoom: CGFloat = zoomField.read(notify: inlineContentField)
-        let font: BrowserFont = fontForElement(textNode, zoom: zoom, notify: inlineContentField)
+        let font: BrowserFont = fontForElement(textNode.ref, zoom: zoom, notify: inlineContentField)
         let run: InlineTextRun = InlineTextRun(
-            node: textNode,
+            node: textNode.ref,
             font: font,
             whiteSpace: mode,
-            isAbbr: isInsideAbbr(textNode),
+            isAbbr: isInsideAbbr(textNode.ref),
         )
         if mode.keepsNewlines {
             let segments: [String] = textNode.text.components(separatedBy: "\n")
@@ -784,7 +784,7 @@ class BlockLayout: LayoutObject {
         items.append(.text(InlineTextItem(run: run, word: word, display: nil)))
     }
 
-    private func placeEmbed(_ element: Element, index: Int, into placement: inout InlinePlacement) {
+    private func placeEmbed(_ element: ElementRef, index: Int, into placement: inout InlinePlacement) {
         placement.currentLine?.hasEmbed = true
         switch element.tag {
         case "input": addInput(element, index: index, into: &placement)
@@ -866,12 +866,12 @@ class BlockLayout: LayoutObject {
         )
     }
 
-    private func addInput(_ node: Element, index: Int, into placement: inout InlinePlacement) {
+    private func addInput(_ node: ElementRef, index: Int, into placement: inout InlinePlacement) {
         if node.attributes["type"] == "hidden" { return }
 
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom, notify: childrenField)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : InputLayout.inputWidthPx * zoom
         if placement.cursorX + w > available { placement.endLine(parent: self) }
@@ -882,7 +882,7 @@ class BlockLayout: LayoutObject {
             input = cached
             input.attach(to: line, previous: prevItem)
         } else {
-            input = InputLayout(node: node, parent: line, previous: prevItem)
+            input = InputLayout(node: node.ref, parent: line, previous: prevItem)
             inlineObjects[index] = input
         }
         placement.append(input)
@@ -890,7 +890,7 @@ class BlockLayout: LayoutObject {
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addButton(_ node: Element, index: Int, into placement: inout InlinePlacement) {
+    private func addButton(_ node: ElementRef, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = InputLayout.inputWidthPx * zoom
@@ -902,15 +902,15 @@ class BlockLayout: LayoutObject {
             button = cached
             button.attach(to: line, previous: prevItem)
         } else {
-            button = ButtonLayout(node: node, parent: line, previous: prevItem)
+            button = ButtonLayout(node: node.ref, parent: line, previous: prevItem)
             inlineObjects[index] = button
         }
         placement.append(button)
-        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom, notify: childrenField)
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addImage(_ node: Element, index: Int, into placement: inout InlinePlacement) {
+    private func addImage(_ node: ElementRef, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = ImageLayout.usedWidth(for: node, available: available, zoom: zoom, notify: childrenField)
@@ -922,16 +922,16 @@ class BlockLayout: LayoutObject {
             image = cached
             image.attach(to: line, previous: prevItem)
         } else {
-            image = ImageLayout(node: node, parent: line, previous: prevItem)
+            image = ImageLayout(node: node.ref, parent: line, previous: prevItem)
             inlineObjects[index] = image
         }
         placement.append(image)
 
-        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom, notify: childrenField)
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addIframe(_ node: Element, index: Int, into placement: inout InlinePlacement) {
+    private func addIframe(_ node: ElementRef, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
         let w: CGFloat = IframeLayout.displaySize(for: node, notify: childrenField).width * zoom
@@ -943,19 +943,19 @@ class BlockLayout: LayoutObject {
             iframe = cached
             iframe.attach(to: line, previous: prevItem)
         } else {
-            iframe = IframeLayout(node: node, parent: line, previous: prevItem)
+            iframe = IframeLayout(node: node.ref, parent: line, previous: prevItem)
             inlineObjects[index] = iframe
         }
         placement.append(iframe)
 
-        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom, notify: childrenField)
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addCanvas(_ node: Element, index: Int, into placement: inout InlinePlacement) {
+    private func addCanvas(_ node: ElementRef, index: Int, into placement: inout InlinePlacement) {
         let available: CGFloat = widthField.get()
         let zoom: CGFloat = zoomField.read(notify: childrenField)
-        let w: CGFloat = CanvasLayout.contentSize(for: node).width * zoom
+        let w: CGFloat = CanvasLayout.contentSize(for: node.raw).width * zoom
         if placement.cursorX + w > available { placement.endLine(parent: self) }
         let line: LineLayout = placement.currentLine!
         let prevItem: (any LayoutObject)? = placement.children.last
@@ -964,19 +964,19 @@ class BlockLayout: LayoutObject {
             canvas = cached
             canvas.attach(to: line, previous: prevItem)
         } else {
-            canvas = CanvasLayout(node: node, parent: line, previous: prevItem)
+            canvas = CanvasLayout(node: node.ref, parent: line, previous: prevItem)
             inlineObjects[index] = canvas
         }
         placement.append(canvas)
 
-        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: childrenField)
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom, notify: childrenField)
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func isInsideAbbr(_ node: any DOMNode) -> Bool {
-        var current: (any DOMNode)? = node.parent
+    private func isInsideAbbr(_ node: DOMRef) -> Bool {
+        var current: DOMRef? = node.parent
         while let c = current {
-            if let el = c as? Element, el.tag == "abbr" { return true }
+            if let el = c.element, el.tag == "abbr" { return true }
             current = c.parent
         }
         return false
@@ -993,8 +993,8 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        let node: any DOMNode = run.node
-        let owner: any DOMNode = node.inheritedStyleOwner
+        let node: DOMRef = run.node
+        let owner: DOMRef = node.inheritedStyleOwner
         owner.style.field(.fontWeight).touch(inlineContentField)
         owner.style.field(.fontStyle).touch(inlineContentField)
         owner.style.field(.fontSize).touch(inlineContentField)
@@ -1016,9 +1016,9 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    private func cachedText(at index: Int, node: any DOMNode, word: String) -> TextLayout? {
+    private func cachedText(at index: Int, node: DOMRef, word: String) -> TextLayout? {
         guard let text = inlineObjects[index] as? TextLayout,
-            text.node === node,
+            text.node.id == node.id,
             text.word == word
         else { return nil }
         return text
@@ -1027,9 +1027,9 @@ class BlockLayout: LayoutObject {
     private func cachedEmbed<T: EmbedLayout>(
         _ type: T.Type,
         at index: Int,
-        node: Element
+        node: ElementRef
     ) -> T? {
-        guard let embed = inlineObjects[index] as? T, embed.node === node else { return nil }
+        guard let embed = inlineObjects[index] as? T, embed.node.id == node.ref.id else { return nil }
         return embed
     }
 
@@ -1074,7 +1074,7 @@ class BlockLayout: LayoutObject {
             }
         }
 
-        if let el = node as? Element, let image = el.backgroundImage,
+        if let el = node.element, let image = el.backgroundImage,
             computed.visual.background.image != nil {
             let box: Rect = selfRect()
             let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom)
@@ -1099,7 +1099,7 @@ class BlockLayout: LayoutObject {
         }
         if let outline = outline { items.append(outline) }
 
-        if let el = node as? Element, el.tag == "li" {
+        if let el = node.element, el.tag == "li" {
             let bulletX: CGFloat = x - BlockLayout.liIndent
             let bulletY: CGFloat = y + (VSTEP - BlockLayout.bulletSize) / 2
             let bulletRect: Rect = Rect(
@@ -1111,7 +1111,7 @@ class BlockLayout: LayoutObject {
     }
 
     func paintCaret(into items: inout [DisplayOp]) {
-        guard let el = node as? Element, el.isFocused,
+        guard let el = node.element, el.isFocused,
             el.attributes["contenteditable"] != nil
         else { return }
         if let last = lastTextLayout() {
@@ -1133,8 +1133,8 @@ class BlockLayout: LayoutObject {
     }
 
     func shouldPaint() -> Bool {
-        if node is TextNode { return true }
-        guard let el = node as? Element else { return true }
+        if node.text != nil { return true }
+        guard let el = node.element else { return true }
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
     }
 
@@ -1173,11 +1173,11 @@ class BlockLayout: LayoutObject {
 private struct BlockChildBuild {
     var built: [any LayoutObject] = []
     var previous: (any LayoutObject)?
-    var inlineRun: [any DOMNode] = []
-    var pendingRunIn: Element?
+    var inlineRun: [DOMRef] = []
+    var pendingRunIn: ElementRef?
 }
 
 private enum BlockChildChange {
-    case append([any DOMNode])
-    case insert([any DOMNode], before: any DOMNode)
+    case append([DOMRef])
+    case insert([DOMRef], before: DOMRef)
 }

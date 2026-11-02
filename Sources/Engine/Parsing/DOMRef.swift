@@ -23,6 +23,26 @@ extension DOMRef {
 
     var style: StyleFields { raw.style }
 
+    var animations: [AnimationKey: Animation] {
+        get { raw.animations }
+        nonmutating set { raw.animations = newValue }
+    }
+
+    var isFocused: Bool { raw.isFocused }
+
+    var isFocusVisible: Bool { raw.isFocusVisible }
+
+    var inheritedStyleOwner: DOMRef {
+        if raw is TextNode, let parent { return parent }
+        return self
+    }
+
+    /// Temporary bridge used by the old layout classes. Deleted in C3.
+    var layoutObject: (any LayoutObject)? {
+        get { raw.layoutObject }
+        nonmutating set { raw.layoutObject = newValue }
+    }
+
     var parent: DOMRef? {
         guard let parent: any DOMNode = raw.parent else { return nil }
         return DOMRef(id: dom.id(of: parent), dom: dom)

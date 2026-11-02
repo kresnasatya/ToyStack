@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - LayoutObject
 @MainActor
 protocol LayoutObject: AnyObject, FieldOwner {
-    var node: any DOMNode { get }
+    var node: DOMRef { get }
     var parent: (any LayoutObject)? { get }
     var fields: LayoutFieldStore { get }
     var hasDirtyDescendants: Bool { get set }
@@ -181,10 +181,10 @@ extension LayoutObject {
     }
 
     func linkElement(at x: CGFloat, y: CGFloat) -> Element? {
-        var node: (any DOMNode)? = hitTest(x: x, y: y)?.node
+        var node: DOMRef? = hitTest(x: x, y: y)?.node
         while let current = node {
-            if let el = current as? Element, el.tag == "a", el.attributes["href"] != nil {
-                return el
+            if let el = current.element, el.tag == "a", el.attributes["href"] != nil {
+                return el.raw
             }
             node = current.parent
         }
@@ -193,7 +193,7 @@ extension LayoutObject {
 
     func absoluteBounds() -> Rect {
         var rect: Rect = selfRect()
-        var node: (any DOMNode)? = self.node
+        var node: DOMRef? = self.node
         while let current = node {
             if let t: CGPoint = current.style.computed.visual.effects.translation {
                 rect = Rect(

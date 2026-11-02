@@ -43,7 +43,7 @@ struct StyleInvalidationTests {
 
         p.style.mutate { $0.text.font.size = 32 }
 
-        let grown: BrowserFont = fontForElement(text, zoom: 1, notify: textLayout.fontField)
+        let grown: BrowserFont = fontForElement(page.frame.dom.ref(text), zoom: 1, notify: textLayout.fontField)
         #expect(grown.linespace > normal.linespace)
     }
 
@@ -153,7 +153,7 @@ struct StyleInvalidationTests {
         page.tab.forcedColors = true
         page.frame.render()
 
-        #expect(usesForcedColors(p))
+        #expect(usesForcedColors(page.frame.dom.ref(p)))
         #expect(p.style.computed.text.color == BrowserColor(cssName: ForcedColor.canvasText))
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) == 0)
     }

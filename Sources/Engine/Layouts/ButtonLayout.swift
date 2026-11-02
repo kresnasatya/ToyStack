@@ -6,7 +6,7 @@ class ButtonLayout: EmbedLayout {
     private var cursorX: CGFloat = 0
 
     override init(
-        node: any DOMNode,
+        node: DOMRef,
         parent: any LayoutObject,
         previous: (any LayoutObject)?
     ) {
@@ -61,23 +61,23 @@ class ButtonLayout: EmbedLayout {
         children.append(line)
     }
 
-    private func recurse(_ n: any DOMNode) {
-        if let textNode = n as? TextNode {
+    private func recurse(_ n: DOMRef) {
+        if let textNode = n.text {
             for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
                 addWord(node: n, word: String(word))
             }
-        } else if let el = n as? Element {
+        } else if let el = n.element {
             if el.tag == "br" {
                 newLine()
             } else if el.tag == "input" {
                 addInput(el)
             } else {
-                for child in el.children { recurse(child) }
+                for child in n.children { recurse(child) }
             }
         }
     }
 
-    private func addWord(node: any DOMNode, word: String) {
+    private func addWord(node: DOMRef, word: String) {
         let font: BrowserFont = fontForElement(node, zoom: zoom, notify: fontField)
         let w: CGFloat = font.measure(word)
         if cursorX + w > width { newLine() }
@@ -89,14 +89,14 @@ class ButtonLayout: EmbedLayout {
         cursorX += w
     }
 
-    private func addInput(_ node: Element) {
-        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: fontField)
+    private func addInput(_ node: ElementRef) {
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom, notify: fontField)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : scaled(InputLayout.inputWidthPx)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
         let prev: (any LayoutObject)? = line.children.last
-        line.children.append(InputLayout(node: node, parent: line, previous: prev))
+        line.children.append(InputLayout(node: node.ref, parent: line, previous: prev))
         cursorX += w
     }
 
@@ -105,7 +105,7 @@ class ButtonLayout: EmbedLayout {
     }
 
     override func paint(into items: inout [DisplayOp]) {
-        guard let element = node as? Element else { return }
+        guard let element = node.element else { return }
         let computed: ComputedStyle = element.style.computed
         let displayColor: BrowserColor = computed.visual.background.color
             ?? BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonFace : "white")

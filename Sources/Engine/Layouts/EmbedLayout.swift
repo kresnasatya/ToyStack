@@ -2,7 +2,7 @@ import CoreGraphics
 
 @MainActor
 class EmbedLayout: LayoutObject, InlineLayoutItem {
-    let node: any DOMNode
+    let node: DOMRef
     weak var parent: (any LayoutObject)?
     var previous: (any LayoutObject)?
     let fields: LayoutFieldStore = LayoutFieldStore()
@@ -12,7 +12,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         set { fontField.set(newValue) }
     }
 
-    init(node: any DOMNode, parent: any LayoutObject, previous: (any LayoutObject)?) {
+    init(node: DOMRef, parent: any LayoutObject, previous: (any LayoutObject)?) {
         self.node = node
         self.parent = parent
         self.previous = previous

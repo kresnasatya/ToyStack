@@ -4,7 +4,7 @@ import CoreGraphics
 
 @MainActor
 struct InlineTextRun {
-    let node: any DOMNode
+    let node: DOMRef
     let font: BrowserFont
     let whiteSpace: WhiteSpaceMode
     let isAbbr: Bool

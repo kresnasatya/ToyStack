@@ -6,10 +6,10 @@ final class IframeLayout: EmbedLayout {
     static let defaultWidthPx: CGFloat = 300
     static let defaultHeightPx: CGFloat = 150
 
-    var frame: Frame? { (node as? Element)?.frame }
+    var frame: Frame? { node.element?.frame }
 
     override init(
-        node: any DOMNode,
+        node: DOMRef,
         parent: any LayoutObject,
         previous: (any LayoutObject)?
     ) {
@@ -25,7 +25,7 @@ final class IframeLayout: EmbedLayout {
     }
 
     static func displaySize(
-        for el: Element,
+        for el: ElementRef,
         notify: any InvalidatableField
     ) -> (width: CGFloat, height: CGFloat) {
         el.style.field(.aspectRatio).touch(notify)
@@ -53,7 +53,7 @@ final class IframeLayout: EmbedLayout {
             || fields.isDirty(.zoom) || fields.isDirty(.font)
         super.layout()
         guard sizeDirty else { return }
-        guard let el = node as? Element else { return }
+        guard let el = node.element else { return }
 
         let size: (width: CGFloat, height: CGFloat) = IframeLayout.displaySize(for: el, notify: widthField)
         widthField.set(size.width * zoomField.read(notify: widthField))

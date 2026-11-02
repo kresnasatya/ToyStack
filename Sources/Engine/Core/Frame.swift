@@ -20,7 +20,23 @@ class Frame {
     let windowID: Int
 
     var url: WebURL!
-    var dom: DOMTree = DOMTree(root: Element(tag: "html", attributes: [:], parent: nil))
+    var dom: DOMTree = DOMTree(root: Element(tag: "html", attributes: [:], parent: nil)) {
+        didSet {
+            guard oldValue !== dom else { return }
+            // Layout objects point at the old tree. Drop them before the
+            // document is laid out again against the new one.
+            documentValue = nil
+            documentDirty = true
+            scrollTargetsValid = false
+            scrollTargetsNeedRebuild = true
+            iframeTargets.removeAll()
+            scrollBlockTargets.removeAll()
+            scrollFocusNode = nil
+            compositedUpdates.removeAll()
+            needsRender = true
+            needsPaint = true
+        }
+    }
     var nodes: any DOMNode {
         get {
             guard let root: any DOMNode = dom.node(dom.root) else {
@@ -850,10 +866,10 @@ class Frame {
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
             let doc: DocumentLayout
-            if let existing = document, existing.node === nodes, browser?.forceFullLayout != true {
+            if let existing = document, existing.node.dom === dom, browser?.forceFullLayout != true {
                 doc = existing
             } else {
-                doc = DocumentLayout(node: nodes)
+                doc = DocumentLayout(node: DOMRef(id: dom.root, dom: dom))
                 scrollTargetsValid = false
             }
             doc.layout(
@@ -966,7 +982,7 @@ class Frame {
                     node.style.set(value, for: property)
                     if property == .transform || property == .opacity {
                         if (node.layoutObject as? BlockLayout) != nil,
-                            let style: PaintEffectStyle = paintEffectStyle(node: node)
+                            let style: PaintEffectStyle = paintEffectStyle(node: dom.ref(node))
                         {
                             compositedUpdates[NodeKey(node)] = EffectUpdate(
                                 style: style,
@@ -1056,7 +1072,7 @@ class Frame {
 
     private func refreshScrollTargetRects() {
         iframeTargets = iframeTargets.compactMap({ target in
-            let el: Element? = target.iframe.node as? Element
+            let el: Element? = target.iframe.node.raw as? Element
             guard let iframe = el?.layoutObject as? IframeLayout else { return nil }
             return IframeTarget(rect: iframe.absoluteBounds(), iframe: iframe)
         })
@@ -1082,7 +1098,7 @@ class Frame {
             }
             if let block = object as? BlockLayout,
                 block.node.style.computed.layout.overflow == .scroll,
-                let element = block.node as? Element
+                let element = block.node.raw as? Element
             {
                 blocks.append(
                     ScrollBlockTarget(
@@ -1112,7 +1128,9 @@ class Frame {
     private func scrollTo(_ elt: Element) {
         scrollTween = nil
         guard let doc = document else { return }
-        let objs: [any LayoutObject] = treeToList(doc).filter({ $0.node === elt || $0.node.parent === elt })
+        let objs: [any LayoutObject] = treeToList(doc).filter({
+            $0.node.raw === elt || $0.node.parent?.raw === elt
+        })
         guard let obj = objs.first else { return }
         if scroll < obj.y && obj.y + obj.height < scroll + frameHeight { return }
         scroll = max(0, min(obj.y - Frame.scrollStep, maxScroll))
@@ -1122,7 +1140,7 @@ class Frame {
     private func scrollToFragment(_ id: String) {
         guard let doc = document else { return }
         let target: (any LayoutObject)? = treeToList(doc).first(where: {
-            ($0.node as? Element)?.attributes["id"] == id
+            $0.node.element?.attributes["id"] == id
         })
         if let target = target {
             scroll = max(0, min(target.y, maxScroll))
@@ -1203,7 +1221,7 @@ class Frame {
         if let target = iframeTargets.last(where: {
             $0.rect.containsPoint(x, adjustedY)
         }),
-            let el = target.iframe.node as? Element,
+            let el = target.iframe.node.raw as? Element,
             let child = el.frame, child.loaded
         {
             let bounds: Rect = target.iframe.absoluteBounds()
@@ -1253,7 +1271,7 @@ class Frame {
         var current: (any LayoutObject)? = obj
         while let c = current {
             if let block = c as? BlockLayout,
-                let el = block.node as? Element,
+                let el = block.node.raw as? Element,
                 el.style.computed.layout.overflow == .scroll
             {
                 return el
@@ -1268,7 +1286,7 @@ class Frame {
             return nil
         }
         return treeToList(doc).compactMap({ $0 as? BlockLayout })
-            .first(where: { $0.node === node })
+            .first(where: { $0.node.raw === node })
     }
 
     func scrollElementDown() {
@@ -1320,9 +1338,9 @@ class Frame {
         tab?.pendingHover = nil
 
         var chain: [Element] = []
-        var current: (any DOMNode)? = doc.hitTest(x: pending.x, y: pending.y + scroll)?.node
+        var current: DOMRef? = doc.hitTest(x: pending.x, y: pending.y + scroll)?.node
         while let node = current {
-            if let element = node as? Element {
+            if let element = node.element?.raw {
                 chain.append(element)
             }
             current = node.parent
@@ -1429,22 +1447,22 @@ class Frame {
 
         scrollFocusNode = scrollableAncestor(of: source)
 
-        let prevented: Bool = js.dispatchEvent(type: "click", elt: source.node)
+        let prevented: Bool = js.dispatchEvent(type: "click", elt: source.node.raw)
 
         if !prevented {
-            var elt: (any DOMNode)? = source.node
+            var elt: DOMRef? = source.node
             while let node = elt {
-                if node is TextNode {
+                if node.text != nil {
 
-                } else if let el = node as? Element, el.tag == "iframe" {
-                    guard let layout = el.layoutObject, let child = el.frame, child.loaded else {
+                } else if let el = node.element, el.tag == "iframe" {
+                    guard let layout = node.layoutObject, let child = el.frame, child.loaded else {
                         return
                     }
                     let bounds: Rect = layout.absoluteBounds()
                     let border: CGFloat = layout.scaled(1)
                     child.click(x: x - bounds.left, y: clickY - bounds.top - border)
                     return
-                } else if let el = node as? Element, el.tag == "a", let href = el.attributes["href"]
+                } else if let el = node.element, el.tag == "a", let href = el.attributes["href"]
                 {
                     let resolved: WebURL = url.resolve(href)
                     if href.hasPrefix("#") {
@@ -1453,26 +1471,25 @@ class Frame {
                         tab?.load(resolved, in: self)
                     }
                     return
-                } else if let el = node as? Element, el.tag == "input" {
+                } else if let el = node.element, el.tag == "input" {
                     if el.attributes["type"] == "checkbox" {
                         el.isChecked.toggle()
-                        setNeedsStyle(el)
+                        setNeedsStyle(node.raw)
                         return
                     }
                     el.attributes["value"] = ""
-                    focusElement(el, showRing: true)
-                    setNeedsStyle(el)
+                    focusElement(el.raw, showRing: true)
+                    setNeedsStyle(node.raw)
                     return
-                } else if let el = node as? Element, el.attributes["contenteditable"] != nil {
-                    focusElement(el, showRing: true)
+                } else if let el = node.element, el.attributes["contenteditable"] != nil {
+                    focusElement(el.raw, showRing: true)
                     return
-                } else if let el = node as? Element, el.tag == "button" {
-                    focusElement(el, showRing: false)
-                    var cursor: (any DOMNode)? = el
+                } else if let el = node.element, el.tag == "button" {
+                    focusElement(el.raw, showRing: false)
+                    var cursor: DOMRef? = node
                     while let c = cursor {
-                        if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil
-                        {
-                            submitForm(fe)
+                        if let fe = c.element, fe.tag == "form", fe.attributes["action"] != nil {
+                            submitForm(fe.raw)
                             return
                         }
                         cursor = c.parent

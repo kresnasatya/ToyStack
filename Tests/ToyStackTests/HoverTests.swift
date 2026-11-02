@@ -20,7 +20,7 @@ struct HoverTests {
         let doc: DocumentLayout = try #require(page.frame.document)
         return try #require(
             treeToList(doc).compactMap({ $0 as? TextLayout })
-                .first(where: { ($0.node as? TextNode)?.parent === element })
+                .first(where: { $0.node.text != nil && $0.node.parent?.raw === element })
         )
     }
 

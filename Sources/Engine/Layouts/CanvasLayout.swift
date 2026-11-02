@@ -21,11 +21,11 @@ final class CanvasLayout: EmbedLayout {
     }
 
     private var displayScale: CGFloat {
-        (node as? Element)?.frame?.tab?.browser?.displayScale ?? 1
+        (node.element)?.frame?.tab?.browser?.displayScale ?? 1
     }
 
     override init(
-        node: any DOMNode,
+        node: DOMRef,
         parent: any LayoutObject,
         previous: (any LayoutObject)?
     ) {
@@ -40,8 +40,8 @@ final class CanvasLayout: EmbedLayout {
             || fields.isDirty(.zoom) || fields.isDirty(.font)
         super.layout()
         guard sizeDirty else { return }
-        guard let el = node as? Element else { return }
-        let size: (width: CGFloat, height: CGFloat) = CanvasLayout.contentSize(for: el)
+        guard let el = node.element else { return }
+        let size: (width: CGFloat, height: CGFloat) = CanvasLayout.contentSize(for: el.raw)
 
         widthField.set(size.width * zoomField.read(notify: widthField))
         heightField.set(size.height * zoomField.read(notify: heightField))
@@ -52,7 +52,7 @@ final class CanvasLayout: EmbedLayout {
     }
 
     override func paint(into items: inout [DisplayOp]) {
-        guard let ctx = (node as? Element)?.canvasContext,
+        guard let ctx = node.element?.canvasContext,
             let image: CGImage = ctx.image()
         else { return }
         items.append(.image(image: image, rendering: .auto, rect: selfRect(), version: ctx.revision))

@@ -7,7 +7,7 @@ class InputLayout: EmbedLayout {
     static let inputWidthPx: CGFloat = 200
 
     override init(
-        node: any DOMNode,
+        node: DOMRef,
         parent: any LayoutObject,
         previous: (any LayoutObject)?
     ) {
@@ -22,7 +22,7 @@ class InputLayout: EmbedLayout {
             || fields.isDirty(.zoom) || fields.isDirty(.font)
         super.layout()
         guard sizeDirty else { return }
-        let isCheckbox: Bool = (node as? Element)?.attributes["type"] == "checkbox"
+        let isCheckbox: Bool = node.element?.attributes["type"] == "checkbox"
         if isCheckbox {
             widthField.set(fontField.read(notify: widthField).linespace)
         } else {
@@ -38,7 +38,7 @@ class InputLayout: EmbedLayout {
     }
 
     override func paint(into items: inout [DisplayOp]) {
-        guard let element = node as? Element else { return }
+        guard let element = node.element else { return }
         let computed: ComputedStyle = element.style.computed
         if let bgcolor: BrowserColor = computed.visual.background.color {
             let radii: CornerRadii = computed.box.decoration.border.radii
@@ -85,7 +85,7 @@ class InputLayout: EmbedLayout {
             }
         } else if element.tag == "button" {
             if element.children.count == 1,
-                let textNode = element.children[0] as? TextNode
+                let textNode = element.children[0].text
             {
                 text = textNode.text
             }

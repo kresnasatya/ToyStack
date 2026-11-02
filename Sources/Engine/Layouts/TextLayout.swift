@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - TextLayout
 @MainActor
 class TextLayout: LayoutObject, InlineLayoutItem {
-    let node: any DOMNode
+    let node: DOMRef
     let word: String
     weak var parent: (any LayoutObject)?
     var previous: (any LayoutObject)?
@@ -18,7 +18,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     var textWidth: CGFloat = 0
     var whiteSpace: WhiteSpaceMode = .normal
 
-    init(node: any DOMNode, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
+    init(node: DOMRef, word: String, parent: (any LayoutObject)?, previous: (any LayoutObject)?) {
         self.node = node
         self.word = word
         self.parent = parent

@@ -3,13 +3,13 @@ import CoreGraphics
 // MARK: DocumentLayout
 @MainActor
 class DocumentLayout: LayoutObject {
-    let node: any DOMNode
+    let node: DOMRef
     let parent: (any LayoutObject)? = nil
     let fields: LayoutFieldStore = LayoutFieldStore()
     var hasDirtyDescendants: Bool = false
     var pageZoom: CGFloat = 1.0
 
-    init(node: any DOMNode) {
+    init(node: DOMRef) {
         self.node = node
         zoomField.setDependencies([])
         widthField.setDependencies([zoomField])
@@ -44,7 +44,7 @@ class DocumentLayout: LayoutObject {
         self.pageZoom = pageZoom
         let child: BlockLayout
         if let existing = childrenField.peek()?.first as? BlockLayout,
-            existing.node === node
+            existing.node.id == node.id
         {
             child = existing
         } else {

@@ -32,6 +32,10 @@ final class DOMTree {
         return index.nodes[id]
     }
 
+    func ref(_ node: any DOMNode) -> DOMRef {
+        return DOMRef(id: id(of: node), dom: self)
+    }
+
     func id(of node: any DOMNode) -> NodeID {
         if let id = index.ids[ObjectIdentifier(node)] { return id }
         return adopt(node)

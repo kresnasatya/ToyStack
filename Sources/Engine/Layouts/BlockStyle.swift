@@ -9,7 +9,7 @@ struct BlockStyle {
     let box: BlockBoxStyle
     let flags: BlockStyleFlags
 
-    init(node: any DOMNode) {
+    init(node: DOMRef) {
         let style: ComputedStyle = node.style.computed
         self.display = style.layout.display
         self.position = style.layout.position.kind

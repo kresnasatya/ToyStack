@@ -50,7 +50,7 @@ struct InsertBeforeTests {
         #expect(boxLayout.children[3] === threeLayout)
 
         let inserted: BlockLayout = try #require(boxLayout.children[1] as? BlockLayout)
-        #expect((inserted.node as? Element)?.tag == "p")
+        #expect(inserted.node.element?.tag == "p")
         #expect(inserted.previous === oneLayout)
         #expect(twoLayout.previous === inserted)
         #expect(threeLayout.previous === twoLayout)

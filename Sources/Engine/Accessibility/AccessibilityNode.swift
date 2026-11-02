@@ -27,7 +27,7 @@ class AccessibilityNode {
         if lo is TextLayout, let line = lo.parent, let block = line.parent {
             var result: Rect? = nil
             for lineLayout in block.children {
-                for item in lineLayout.children where item.node === node {
+                for item in lineLayout.children where item.node.raw === node {
                     let r: Rect = Rect(
                         left: item.x, top: item.y,
                         right: item.x + item.width, bottom: item.y + item.height

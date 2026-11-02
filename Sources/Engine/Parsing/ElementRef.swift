@@ -17,48 +17,59 @@ extension ElementRef {
 
     var tag: String { element.tag }
 
+    /// Temporary bridge to the class tree. Deleted in C3.
+    var raw: Element { element }
+
+    var style: StyleFields { element.style }
+
+    var children: [DOMRef] { ref.children }
+
+    var isFocused: Bool { element.isFocused }
+
+    var isFocusVisible: Bool { element.isFocusVisible }
+
     var attributes: [String: String] {
         get { element.attributes }
-        set { element.attributes = newValue }
+        nonmutating set { element.attributes = newValue }
     }
 
     var isChecked: Bool {
         get { element.isChecked }
-        set { element.isChecked = newValue }
+        nonmutating set { element.isChecked = newValue }
     }
 
     var image: CGImage? {
         get { element.image }
-        set { element.image = newValue }
+        nonmutating set { element.image = newValue }
     }
 
     var backgroundImage: CGImage? {
         get { element.backgroundImage }
-        set { element.backgroundImage = newValue }
+        nonmutating set { element.backgroundImage = newValue }
     }
 
     var backgroundImageSource: String? {
         get { element.backgroundImageSource }
-        set { element.backgroundImageSource = newValue }
+        nonmutating set { element.backgroundImageSource = newValue }
     }
 
     var frame: Frame? {
         get { element.frame }
-        set { element.frame = newValue }
+        nonmutating set { element.frame = newValue }
     }
 
     var frameSource: String? {
         get { element.frameSource }
-        set { element.frameSource = newValue }
+        nonmutating set { element.frameSource = newValue }
     }
 
     var canvasContext: CanvasRenderingContext2D? {
         get { element.canvasContext }
-        set { element.canvasContext = newValue }
+        nonmutating set { element.canvasContext = newValue }
     }
 
     var scrollOffsetY: CGFloat {
         get { element.scrollOffsetY }
-        set { element.scrollOffsetY = newValue }
+        nonmutating set { element.scrollOffsetY = newValue }
     }
 }

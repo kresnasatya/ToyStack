@@ -15,7 +15,7 @@ public enum ForcedColor {
 let forcedColorsAppliedKey: String = "-forced-colors"
 
 @MainActor
-func usesForcedColors(_ node: any DOMNode) -> Bool {
+func usesForcedColors(_ node: DOMRef) -> Bool {
     node.style.unknownValue(forcedColorsAppliedKey) == "active"
 }
 
