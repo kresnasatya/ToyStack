@@ -60,7 +60,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
 
         page.frame.frameWidth = 400
         page.frame.setNeedsViewportResize()
@@ -83,7 +83,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let cardElement: Element = try #require(page.firstElement(id: "card"))
+        let cardElement: ElementRef = try #require(page.firstElement(id: "card"))
         let card: LayoutRef = try #require(page.firstBlock(in: cardElement))
         let childrenBefore: [LayoutID] = card.children.map { $0.id }
 
@@ -142,7 +142,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
 
         let linesBefore: [LayoutID] = block.children.map { $0.id }
@@ -168,7 +168,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
 
         let textsBefore: [LayoutID] = treeToList(block)
@@ -194,7 +194,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         #expect(block.children.count == 2)
 
@@ -217,7 +217,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         let lines: [LayoutRef] = block.children.filter({ $0.isLine })
         #expect(lines.count == 2)
@@ -244,7 +244,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         #expect(block.children.count == 2)
 
@@ -267,7 +267,7 @@ struct ViewportResizeTests {
                 img { max-width: 50%; }
             """
         )
-        let image: Element = try #require(page.firstElement(id: "photo"))
+        let image: ElementRef = try #require(page.firstElement(id: "photo"))
         image.image = makeTestImage(width: 200, height: 100)
         LayoutInvalidation.imageChanged(page.ref(of: image))
         page.frame.setNeedsRender()
@@ -315,7 +315,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(id: "para"))
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
 
         InlineStyle.set(p, property: "width", value: "200px")
         page.frame.setNeedsRender()

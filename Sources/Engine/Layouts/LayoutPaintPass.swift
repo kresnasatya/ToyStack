@@ -74,11 +74,11 @@ extension LayoutRef {
         return nil
     }
 
-    func linkElement(at x: CGFloat, y: CGFloat) -> Element? {
+    func linkElement(at x: CGFloat, y: CGFloat) -> ElementRef? {
         var current: DOMRef? = hitTest(x: x, y: y)?.node
         while let dom = current {
             if let el = dom.element, el.tag == "a", el.attributes["href"] != nil {
-                return el.raw
+                return el
             }
             current = dom.parent
         }

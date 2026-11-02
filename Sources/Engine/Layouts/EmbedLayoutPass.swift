@@ -588,13 +588,6 @@ func canvasContentSize(for el: ElementRef) -> (width: CGFloat, height: CGFloat) 
 }
 
 @MainActor
-func canvasContentSize(for el: Element) -> (width: CGFloat, height: CGFloat) {
-    let width: CGFloat = el.attributes["width"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? canvasDefaultWidthPx
-    let height: CGFloat = el.attributes["height"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? canvasDefaultHeightPx
-    return (width, height)
-}
-
-@MainActor
 private func canvasDisplayScale(_ ref: LayoutRef) -> CGFloat {
     return ref.node.element?.frame?.tab?.browser?.displayScale ?? 1
 }

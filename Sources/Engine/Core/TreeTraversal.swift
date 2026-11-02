@@ -1,8 +1,10 @@
 import Foundation
 
 // MARK: - Tree Utilities
-func treeToList(_ node: any DOMNode) -> [any DOMNode] {
-    var result: [any DOMNode] = [node]
+
+@MainActor
+func treeToList(_ node: DOMRef) -> [DOMRef] {
+    var result: [DOMRef] = [node]
     for child in node.children {
         result.append(contentsOf: treeToList(child))
     }

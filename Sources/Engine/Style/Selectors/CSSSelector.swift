@@ -3,5 +3,5 @@ protocol CSSSelector: Sendable {
     var priority: Int { get }
     var hasSelectors: [HasSelector] { get }
     var key: SelectorKey { get }
-    func matches(_ node: any DOMNode) -> Bool
+    @MainActor func matches(_ node: DOMRef) -> Bool
 }

@@ -1,30 +1,31 @@
 // MARK: - TextDirectionResolver
 
+@MainActor
 enum TextDirectionResolver {
     private static let skippedTags: Set<String> = ["script", "style", "textarea", "bdi"]
 
-    static func resolve(_ element: Element) -> TextDirection? {
+    static func resolve(_ element: ElementRef) -> TextDirection? {
         let declared: String? = element.attributes["dir"]?.lowercased() ?? (element.tag == "bdi" ? "auto" : nil)
         switch declared {
             case "ltr": return .ltr
             case "rtl": return .rtl
-            case "auto": return autoDirection(of: element)
+            case "auto": return autoDirection(of: element.ref)
             default: return nil
         }
     }
 
-    private static func autoDirection(of node: any DOMNode) -> TextDirection? {
+    private static func autoDirection(of node: DOMRef) -> TextDirection? {
         for child in node.children {
             if let direction = autoDirection(descendant: child) { return direction }
         }
         return nil
     }
 
-    private static func autoDirection(descendant node: any DOMNode) -> TextDirection? {
-        if let text = node as? TextNode {
+    private static func autoDirection(descendant node: DOMRef) -> TextDirection? {
+        if let text = node.text {
             return firstStrongDirection(in: text.text)
         }
-        if let element = node as? Element {
+        if let element = node.element {
             if element.attributes["dir"] != nil { return nil }
             if skippedTags.contains(element.tag) { return nil }
         }

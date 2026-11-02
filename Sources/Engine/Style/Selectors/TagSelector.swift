@@ -5,8 +5,9 @@ struct TagSelector: CSSSelector {
     var hasSelectors: [HasSelector] { [] }
     var key: SelectorKey { .tag(tag) }
 
-    func matches(_ node: any DOMNode) -> Bool {
-        guard let element = node as? Element else {
+    @MainActor
+    func matches(_ node: DOMRef) -> Bool {
+        guard let element = node.element else {
             return false
         }
         return element.tag == tag

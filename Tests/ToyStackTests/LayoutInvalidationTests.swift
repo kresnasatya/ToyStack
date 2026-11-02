@@ -22,13 +22,13 @@ struct LayoutInvalidationTests {
     @Test func cleanSecondLayoutKeepsBlockChildren() throws {
         let fixture = makeFixture()
 
-        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
         let childrenBefore: [LayoutID] = bodyBefore.children.map({ $0.id })
 
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let bodyAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let bodyAfter: LayoutRef = try #require(fixture.body.ref.layout)
         #expect(bodyAfter.id == bodyBefore.id)
         #expect(bodyAfter.children.map({ $0.id }) == childrenBefore)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
@@ -36,51 +36,51 @@ struct LayoutInvalidationTests {
 
     @Test func mediaRuleChangeUpdatesWidth() throws {
         let fixture = makeFixture(mediaBody: "width: 200px;")
-        let narrowBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
+        let narrowBefore: LayoutRef = try #require(fixture.narrow.ref.layout)
         #expect(narrowBefore.width == CGFloat(200))
 
         fixture.frame.frameWidth = 400
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let narrowAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
+        let narrowAfter: LayoutRef = try #require(fixture.narrow.ref.layout)
         #expect(narrowAfter.width == CGFloat(100))
     }
 
     @Test func removingMarginBottomRebuildsHeight() throws {
         let fixture = makeFixture(mediaBody: "margin-bottom: 50px;")
-        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
         #expect(bodyBefore.height == CGFloat(50))
-        let wideBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.wide).layout)
+        let wideBefore: LayoutRef = try #require(fixture.wide.ref.layout)
         let wideYBefore: CGFloat = wideBefore.y
 
         fixture.frame.frameWidth = 400
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let bodyAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let bodyAfter: LayoutRef = try #require(fixture.body.ref.layout)
         #expect(bodyAfter.height == 0)
-        let wideAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.wide).layout)
+        let wideAfter: LayoutRef = try #require(fixture.wide.ref.layout)
         #expect(wideAfter.y == wideYBefore - 50)
     }
 
     @Test func widthChangeOnOneBlockKeepsSiblings() throws {
         let fixture = makeFixture()
-        let narrowBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
-        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
-        let wideBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.wide).layout)
+        let narrowBefore: LayoutRef = try #require(fixture.narrow.ref.layout)
+        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
+        let wideBefore: LayoutRef = try #require(fixture.wide.ref.layout)
 
         InlineStyle.set(fixture.narrow, property: "width", value: "200px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let narrow: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
+        let narrow: LayoutRef = try #require(fixture.narrow.ref.layout)
         #expect(narrow.width == CGFloat(200))
 
         #expect(narrow.id == narrowBefore.id)
-        #expect(fixture.frame.dom.ref(fixture.body).layout?.id == bodyBefore.id)
-        #expect(fixture.frame.dom.ref(fixture.wide).layout?.id == wideBefore.id)
+        #expect(fixture.body.ref.layout?.id == bodyBefore.id)
+        #expect(fixture.wide.ref.layout?.id == wideBefore.id)
     }
 
     @Test func nonReusableStylePassKeepsLayoutObjects() throws {
@@ -93,18 +93,18 @@ struct LayoutInvalidationTests {
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
-        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        #expect(fixture.frame.dom.ref(fixture.body).layout?.id == bodyBefore.id)
+        #expect(fixture.body.ref.layout?.id == bodyBefore.id)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
     @Test func textEditRefreshesScrollTargets() throws {
         let page: LayoutTestPage = makeScrollTargetPage()
-        let paragraph: Element = try #require(page.firstElement(tag: "p"))
-        let text: TextNode = try #require(paragraph.children.first as? TextNode)
+        let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
+        let text: TextRef = try #require(paragraph.children.first?.text)
 
         text.append(" more")
         page.frame.setNeedsRender()
@@ -136,7 +136,7 @@ struct LayoutInvalidationTests {
                 div { display: block; height: 20px; }
                 """
         )
-        let scroller: Element = try #require(page.firstElement(tag: "div"))
+        let scroller: ElementRef = try #require(page.firstElement(tag: "div"))
 
         InlineStyle.set(scroller, property: "overflow", value: "scroll")
         page.frame.setNeedsRender()
@@ -156,7 +156,7 @@ struct LayoutInvalidationTests {
                 p { display: block; width: 300px; }
                 """
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let before: CGFloat = try #require(page.lines(in: p).first).height
 
         page.frame.addAnimation(PixelAnimation(
@@ -164,7 +164,7 @@ struct LayoutInvalidationTests {
             oldValue: 14,
             newValue: 28,
             timing: FrameTiming(totalFrames: 60, easing: .linear)
-        ), to: p)
+        ), to: p.ref)
 
         page.frame.setNeedsRender()
         page.frame.render()
@@ -188,7 +188,7 @@ struct LayoutInvalidationTests {
             oldValue: 1,
             newValue: 0.5,
             timing: FrameTiming(totalFrames: 60, easing: .linear)
-        ), to: fixture.narrow)
+        ), to: fixture.narrow.ref)
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
@@ -207,7 +207,7 @@ struct LayoutInvalidationTests {
             oldPoint: CGPoint.zero,
             newPoint: CGPoint(x: 20, y: 0),
             timing: FrameTiming(totalFrames: 60, easing: .linear)
-        ), to: fixture.narrow)
+        ), to: fixture.narrow.ref)
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
@@ -236,24 +236,19 @@ private func makeScrollTargetPage() -> LayoutTestPage {
 private struct Fixture {
     let tab: BrowserTab
     let frame: Frame
-    let body: Element
-    let narrow: Element
-
-    var html: Element { frame.nodes as! Element }
-    var wide: Element { body.children[1] as! Element }
+    let body: ElementRef
+    let narrow: ElementRef
+    let wide: ElementRef
 }
 
 @MainActor
 private func makeFixture(mediaBody: String = "margin-bottom: 50px;") -> Fixture {
     let tab = BrowserTab(tabHeight: 600, tabWidth: 800)
     let frame = tab.rootFrame!
-    let html = Element(tag: "html", attributes: [:], parent: nil)
-    let body = Element(tag: "body", attributes: [:], parent: html)
-    let narrow = Element(tag: "div", attributes: ["class": "narrow"], parent: body)
-    let wide = Element(tag: "div", attributes: ["class" : "wide"], parent: body)
-    html.children = [body]
-    body.children = [narrow, wide]
-    frame.nodes = html
+    let dom: DOMTree = HTMLParser(
+        body: #"<div class="narrow"></div><div class="wide"></div>"#
+    ).parse()
+    frame.dom = dom
     frame.rules = CSSParser("""
         html { width: 600px; }
         body { display: block; }
@@ -262,5 +257,8 @@ private func makeFixture(mediaBody: String = "margin-bottom: 50px;") -> Fixture 
         """).parse().rules
     frame.setNeedsRender()
     frame.render()
-    return Fixture(tab: tab, frame: frame, body: body, narrow: narrow)
+    let body: ElementRef = treeToList(dom.ref(dom.root)).compactMap({ $0.element }).first(where: { $0.tag == "body" })!
+    let narrow: ElementRef = treeToList(dom.ref(dom.root)).compactMap({ $0.element }).first(where: { $0.attributes["class"] == "narrow" })!
+    let wide: ElementRef = treeToList(dom.ref(dom.root)).compactMap({ $0.element }).first(where: { $0.attributes["class"] == "wide" })!
+    return Fixture(tab: tab, frame: frame, body: body, narrow: narrow, wide: wide)
 }

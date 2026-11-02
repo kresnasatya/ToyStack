@@ -18,7 +18,7 @@ struct InlineTextLayoutTests {
             html: #"<p>one two three four five</p>"#,
             rules: textPageRules
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let beforeWidth: CGFloat = page.textWidth(in: p)
         let beforeHeight: CGFloat = try #require(page.lines(in: p).first).height
 
@@ -37,7 +37,7 @@ struct InlineTextLayoutTests {
             html: #"<p>one two three four five six seven eight</p>"#,
             rules: textPageRules
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let linesBefore: Int = page.lines(in: p).count
         #expect(linesBefore > 1)
 
@@ -54,7 +54,7 @@ struct InlineTextLayoutTests {
             html: #"<p>one two three four five</p>"#,
             rules: textPageRules
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
 
         p.attributes["style"] = "font-size: 32px;"
         page.frame.setNeedsRender()
@@ -68,7 +68,7 @@ struct InlineTextLayoutTests {
             html: #"<p id="para">one two three four five</p>"#,
             rules: textPageRules
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
 
         let before: [LayoutID] = treeToList(block)
@@ -81,9 +81,8 @@ struct InlineTextLayoutTests {
 
         #expect(treeToList(block).filter { $0.isText }.map { $0.id } == before)
 
-        let text: TextNode = try #require(p.children.first as? TextNode)
+        let text: TextRef = try #require(p.children.first?.text)
         text.append(" six")
-        LayoutInvalidation.textChanged(page.ref(of: text))
         page.frame.setNeedsRender()
         page.frame.render()
 

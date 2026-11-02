@@ -1,3 +1,4 @@
+@MainActor
 class HTMLSyntaxHighlighter: HTMLParser {
     private(set) var result = ""
 
@@ -24,7 +25,8 @@ class HTMLSyntaxHighlighter: HTMLParser {
         return "<pre>\(result)</pre>"
     }
 
-    override func finish() -> any DOMNode {
-        return Element(tag: "html", attributes: [:], parent: nil)
+    override func finish() -> DOMTree {
+        // The highlighter only reads tokens; it never builds implicit tags.
+        return dom
     }
 }

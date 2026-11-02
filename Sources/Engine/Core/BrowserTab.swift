@@ -60,13 +60,16 @@ public class BrowserTab {
     }
 
     public var url: WebURL! { rootFrame.url }
-    var nodes: any DOMNode { rootFrame.nodes }
+    var nodes: DOMRef { rootFrame.nodes }
     var document: LayoutTree? { rootFrame.document }
     var displayList: [DisplayOp] { rootFrame.displayList }
     public var title: String { rootFrame.title }
     public var isSecure: Bool { rootFrame.isSecure }
     public var isLoaded: Bool { rootFrame.loaded }
-    var focus: Element? { focusedFrame.focus }
+    var focus: ElementRef? {
+        guard let focused = focusedFrame.focus else { return nil }
+        return focusedFrame.dom.ref(focused).element
+    }
     var pendingHover: CGPoint? = nil
     private(set) var accessibilityTree: AccessibilityNode? = nil
     var needsAccessibility: Bool = false
@@ -185,7 +188,7 @@ public class BrowserTab {
         }
         if needsAccessibility, browser?.accessibilityIsOn == true {
             browser?.measure.start("BrowserTab.a11y")
-            let tree: AccessibilityNode = AccessibilityNode(node: rootFrame.nodes, dom: rootFrame.dom)
+            let tree: AccessibilityNode = AccessibilityNode(node: rootFrame.nodes)
             tree.build()
             accessibilityTree = tree
             browser?.measure.stop("BrowserTab.a11y")
@@ -322,7 +325,7 @@ public class BrowserTab {
         focusedFrame.blur()
     }
 
-    func focusElement(_ node: Element?, showRing: Bool = true) {
+    func focusElement(_ node: ElementRef?, showRing: Bool = true) {
         focusedFrame.focusElement(node, showRing: showRing)
     }
 
@@ -350,7 +353,7 @@ public class BrowserTab {
         let targets: [FocusTarget] = focusOder(of: rootFrame)
         var start: Int = 0
         if let focused = focusedFrame.focus,
-            let idx = targets.firstIndex(where: { $0.frame === focusedFrame && $0.element === focused }) {
+            let idx = targets.firstIndex(where: { $0.frame === focusedFrame && $0.element == focused }) {
             start = idx + 1
         } else if let idx = targets.firstIndex(where: { $0.frame === focusedFrame }) {
             start = idx
@@ -360,7 +363,7 @@ public class BrowserTab {
             return false
         }
         let target: FocusTarget = targets[start]
-        target.frame.focusElement(target.element)
+        target.frame.focusElement(target.frame.dom.ref(target.element).element)
         return true
     }
 

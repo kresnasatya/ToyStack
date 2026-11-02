@@ -6,7 +6,8 @@ struct PseudoclassSelector: CSSSelector {
     var hasSelectors: [HasSelector] { base.hasSelectors }
     var key: SelectorKey { base.key }
 
-    func matches(_ node: any DOMNode) -> Bool {
+    @MainActor
+    func matches(_ node: DOMRef) -> Bool {
         guard base.matches(node) else { return false }
         switch pseudoclass {
         case "focus": return node.isFocused

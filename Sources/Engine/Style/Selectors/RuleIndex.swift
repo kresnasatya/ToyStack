@@ -42,7 +42,8 @@ struct RuleIndex {
         self.descendantRequirements = descendantRequirements
     }
 
-    func candidateIndices(for element: Element, ancestorKeys: AncestorSelectorKeys) -> [Int] {
+    @MainActor
+    func candidateIndices(for element: ElementRef, ancestorKeys: AncestorSelectorKeys) -> [Int] {
         var result: [Int] = []
         result.reserveCapacity(8)
         for index in universal where requirementsMet(index, ancestorKeys) {

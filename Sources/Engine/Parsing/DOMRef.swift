@@ -3,9 +3,9 @@ import Foundation
 /// Lightweight view over one node in a `DOMTree`.
 ///
 /// The view carries no node data; it resolves `id` against the tree on each
-/// access. A1 uses `raw` to bridge call sites that still need the class type.
-/// The tree reference is strong on purpose: a layout object that survives a
-/// document swap must resolve against its own tree, not trap on a dead one.
+/// access. The tree reference is strong on purpose: a layout object that
+/// survives a document swap must resolve against its own tree, not trap on a
+/// dead one.
 @MainActor
 struct DOMRef {
     let id: NodeID
@@ -13,27 +13,28 @@ struct DOMRef {
 }
 
 extension DOMRef {
-    /// Temporary bridge to the class tree. Deleted in C3.
-    var raw: any DOMNode {
-        guard let node: any DOMNode = dom.node(id) else {
-            preconditionFailure("DOMRef points at a missing node")
-        }
-        return node
-    }
+    var node: DOMNode? { dom.node(id) }
 
-    var style: StyleFields { raw.style }
+    var style: StyleFields { dom.style(of: id) }
 
     var animations: [AnimationKey: Animation] {
-        get { raw.animations }
-        nonmutating set { raw.animations = newValue }
+        get { dom.animations(of: id) }
+        nonmutating set { dom.setAnimations(newValue, of: id) }
     }
 
-    var isFocused: Bool { raw.isFocused }
+    var isFocused: Bool { dom.flags(of: id).isFocused }
 
-    var isFocusVisible: Bool { raw.isFocusVisible }
+    var isFocusVisible: Bool { dom.flags(of: id).isFocusVisible }
+
+    var isHovered: Bool { dom.flags(of: id).isHovered }
+
+    var satisfiedHas: Set<Int> {
+        get { dom.flags(of: id).satisfiedHas }
+        nonmutating set { dom.setSatisfiedHas(newValue, of: id) }
+    }
 
     var inheritedStyleOwner: DOMRef {
-        if raw is TextNode, let parent { return parent }
+        if dom.isText(id), let parent { return parent }
         return self
     }
 
@@ -45,19 +46,33 @@ extension DOMRef {
     }
 
     var parent: DOMRef? {
-        guard let parent: any DOMNode = raw.parent else { return nil }
-        return DOMRef(id: dom.id(of: parent), dom: dom)
+        guard let parent: NodeID = dom.parent(of: id) else { return nil }
+        return DOMRef(id: parent, dom: dom)
     }
 
     var children: [DOMRef] {
-        return raw.children.map { DOMRef(id: dom.id(of: $0), dom: dom) }
+        return dom.children(of: id).map({ DOMRef(id: $0, dom: dom) })
     }
 
     var element: ElementRef? {
-        return raw is Element ? ElementRef(ref: self) : nil
+        return dom.isElement(id) ? ElementRef(ref: self) : nil
     }
 
     var text: TextRef? {
-        return raw is TextNode ? TextRef(ref: self) : nil
+        return dom.isText(id) ? TextRef(ref: self) : nil
+    }
+
+    func isInclusiveAncestor(of other: DOMRef) -> Bool {
+        return dom.isInclusiveAncestor(id, of: other.id)
+    }
+
+    var description: String {
+        if let element: ElementData = dom.element(id) {
+            return "<\(element.tag)>"
+        }
+        if let text: DOMTextData = dom.text(id) {
+            return "\"\(text.text)\""
+        }
+        return "<missing>"
     }
 }

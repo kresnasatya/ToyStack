@@ -85,32 +85,26 @@ private struct Snapshot: Equatable {
 private struct Fixture {
     let tab: BrowserTab
     let frame: Frame
-    let button: Element
+    let button: NodeID
 }
 
 @MainActor
 private func makeFixture() -> Fixture {
     let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
     let frame: Frame = tab.rootFrame!
-    let html: Element = Element(tag: "html", attributes: [:], parent: nil)
-    let body: Element = Element(tag: "body", attributes: [:], parent: html)
-    let section: Element = Element(tag: "section", attributes: [:], parent: body)
-    let article: Element = Element(tag: "article", attributes: [:], parent: body)
-    let button: Element = Element(tag: "button", attributes: [:], parent: section)
+    let builder: DOMBuilder = DOMBuilder()
+    let body: NodeID = builder.element("body", in: builder.dom.root)
+    let section: NodeID = builder.element("section", in: body)
+    let article: NodeID = builder.element("article", in: body)
 
-    let before: TextNode = TextNode(text: "before ", parent: section)
-    let after: TextNode = TextNode(text: " after", parent: section)
-    let label: TextNode = TextNode(text: "Go", parent: button)
-    let prose: TextNode = TextNode(text: "block text that wraps", parent: article)
-    let br: Element = Element(tag: "br", attributes: [:], parent: section)
+    builder.text("before ", in: section)
+    let button: NodeID = builder.element("button", in: section)
+    builder.text(" after", in: section)
+    builder.element("br", in: section)
+    builder.text("Go", in: button)
+    builder.text("block text that wraps", in: article)
 
-    section.children = [before, button, after, br]
-    button.children = [label]
-    article.children = [prose]
-    body.children = [section, article]
-    html.children = [body]
-
-    frame.nodes = html
+    frame.dom = builder.dom
     frame.rules = CSSParser("""
         html { width: 240px; }
         body { display: block; }

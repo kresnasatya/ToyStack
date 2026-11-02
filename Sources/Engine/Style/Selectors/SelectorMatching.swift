@@ -14,12 +14,13 @@ func isDescendantRule(_ selector: any CSSSelector) -> Bool {
     return false
 }
 
-func precomputeHas(node: any DOMNode, rules: [(String?, any CSSSelector, [String: String])]) {
+@MainActor
+func precomputeHas(node: DOMRef, rules: [(String?, any CSSSelector, [String: String])]) {
 
     let allHasSelectors: [HasSelector] = rules.flatMap({ $0.1.hasSelectors })
     guard !allHasSelectors.isEmpty else { return }
 
-    let allNodes: [any DOMNode] = treeToList(node)
+    let allNodes: [DOMRef] = treeToList(node)
 
     for n in allNodes { n.satisfiedHas = [] }
 

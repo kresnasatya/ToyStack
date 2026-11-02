@@ -5,28 +5,28 @@ import CoreGraphics
 // MARK: - CanvasBridge
 final class CanvasBridge {
     private let jsContext: JSContext
-    private let nodeForHandle: (Int) -> (any DOMNode)?
+    private let elementForHandle: @MainActor (Int) -> ElementRef?
     private let requestPaint: @MainActor () -> Void
     private let displayScale: @MainActor () -> CGFloat
 
     init(
         jsContext: JSContext,
-        nodeForHandle: @escaping (Int) -> (any DOMNode)?,
+        elementForHandle: @escaping @MainActor (Int) -> ElementRef?,
         requestPaint: @escaping @MainActor () -> Void,
         displayScale: @escaping @MainActor () -> CGFloat
     ) {
         self.jsContext = jsContext
-        self.nodeForHandle = nodeForHandle
+        self.elementForHandle = elementForHandle
         self.requestPaint = requestPaint
         self.displayScale = displayScale
     }
 
     func register() {
         jsContext.setObject({
-            [nodeForHandle, displayScale] (handle: Int, type: String) -> Bool in
+            [elementForHandle, displayScale] (handle: Int, type: String) -> Bool in
             guard type == "2d" else { return false }
             return MainActor.assumeIsolated({
-                guard let el = nodeForHandle(handle) as? Element else { return false }
+                guard let el = elementForHandle(handle) else { return false }
                 if el.canvasContext == nil {
                     let size: (width: CGFloat, height: CGFloat) = canvasContentSize(for: el)
                     el.canvasContext = CanvasRenderingContext2D(
@@ -40,25 +40,25 @@ final class CanvasBridge {
         } as @convention(block) (Int, String) -> Bool, forKeyedSubscript: "_canvasContext" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, key: String) -> String in
+            [elementForHandle] (handle: Int, key: String) -> String in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return "" }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return "" }
                 return ctx.style(key)
             })
         } as @convention(block) (Int, String) -> String, forKeyedSubscript: "_canvasStyleGet" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, key: String, value: String) in
+            [elementForHandle] (handle: Int, key: String, value: String) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 ctx.setStyle(key, value)
             })
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_canvasStyleSet" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle, requestPaint] (handle: Int, op: String, nums: [Double]) in
+            [elementForHandle, requestPaint] (handle: Int, op: String, nums: [Double]) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 let rect: Rect = Rect(
                     left: CGFloat(nums[0]),
                     top: CGFloat(nums[1]),
@@ -76,9 +76,9 @@ final class CanvasBridge {
         } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasRect" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle, requestPaint] (handle: Int, op: String, nums: [Double]) in
+            [elementForHandle, requestPaint] (handle: Int, op: String, nums: [Double]) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 switch op {
                     case "begin": ctx.beginPath()
                     case "move": ctx.moveTo(Point(x: CGFloat(nums[0]), y: CGFloat(nums[1])))
@@ -90,35 +90,35 @@ final class CanvasBridge {
         } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasPath" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle, requestPaint] (handle: Int, op: String) in
+            [elementForHandle, requestPaint] (handle: Int, op: String) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 if op == "fill" { ctx.fill() } else { ctx.stroke() }
                 requestPaint()
             })
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_canvasPaint" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle, requestPaint] (handle: Int, text: String, nums: [Double]) in
+            [elementForHandle, requestPaint] (handle: Int, text: String, nums: [Double]) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 ctx.fillText(text, at: Point(x: CGFloat(nums[0]), y: CGFloat(nums[1])))
                 requestPaint()
             })
         } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasText" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, op: String) in
+            [elementForHandle] (handle: Int, op: String) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 if op == "save" { ctx.save() } else { ctx.restore() }
             })
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_canvasState" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, op: String, nums: [Double]) in
+            [elementForHandle] (handle: Int, op: String, nums: [Double]) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return }
                 switch op {
                     case "translate": ctx.translate(x: CGFloat(nums[0]), y: CGFloat(nums[1]))
                     case "scale": ctx.scale(x: CGFloat(nums[0]), y: CGFloat(nums[1]))
@@ -132,10 +132,10 @@ final class CanvasBridge {
         } as @convention(block) (Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasTransform" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle, requestPaint] (handle: Int, source: Int, mode: String, nums: [Double]) in
+            [elementForHandle, requestPaint] (handle: Int, source: Int, mode: String, nums: [Double]) in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext,
-                    let img = (nodeForHandle(source) as? Element)?.image
+                guard let ctx = elementForHandle(handle)?.canvasContext,
+                    let img = elementForHandle(source)?.image
                 else { return }
                 let width: CGFloat = CGFloat(img.width)
                 let height: CGFloat = CGFloat(img.height)
@@ -179,17 +179,17 @@ final class CanvasBridge {
         } as @convention(block) (Int, Int, String, [Double]) -> Void, forKeyedSubscript: "_canvasDrawImage" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, kind: String, nums: [Double]) -> Int in
+            [elementForHandle] (handle: Int, kind: String, nums: [Double]) -> Int in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return -1 }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return -1 }
                 return ctx.createGradient(kind: kind, nums: nums)
             })
         } as @convention(block) (Int, String, [Double]) -> Int, forKeyedSubscript: "_canvasCreateGradient" as NSString)
 
         jsContext.setObject({
-            [nodeForHandle] (handle: Int, id: Int, offset: Double, color: String) -> String in
+            [elementForHandle] (handle: Int, id: Int, offset: Double, color: String) -> String in
             MainActor.assumeIsolated({
-                guard let ctx = (nodeForHandle(handle) as? Element)?.canvasContext else { return "" }
+                guard let ctx = elementForHandle(handle)?.canvasContext else { return "" }
                 return ctx.addColorStop(id: id, offset: offset, color: color)
             })
         } as @convention(block) (Int, Int, Double, String) -> String, forKeyedSubscript: "_canvasGradientStop" as NSString)

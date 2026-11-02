@@ -1,26 +1,29 @@
-func isFocusable(_ node: DOMNode) -> Bool {
-    guard let el = node as? Element else { return false }
+@MainActor
+func isFocusable(_ node: DOMRef) -> Bool {
+    guard let el = node.element else { return false }
     return ["input", "button", "a"].contains(el.tag)
         || el.attributes["tabindex"] != nil
         || el.attributes["contenteditable"] != nil
 }
 
-func explicitTabIndex(_ node: DOMNode) -> Int? {
-    guard let el = node as? Element,
+@MainActor
+func explicitTabIndex(_ node: DOMRef) -> Int? {
+    guard let el = node.element,
         let val = el.attributes["tabindex"],
         let idx = Int(val)
     else { return nil }
     return idx
 }
 
-func isTabFocusable(_ node: DOMNode) -> Bool {
+@MainActor
+func isTabFocusable(_ node: DOMRef) -> Bool {
     guard isFocusable(node) else { return false }
     return (explicitTabIndex(node) ?? 0) >= 0
 }
 
 struct FocusTarget {
     let frame: Frame
-    let element: Element
+    let element: NodeID
 }
 
 @MainActor
@@ -33,8 +36,10 @@ func focusOder(of root: Frame) -> [FocusTarget] {
 
 // Group 0: an explicit positive tabindex, ordered by value.
 // Group 1: tabindex="0" or no tabindex, in document order.
+@MainActor
 private func tabOrderKey(_ target: FocusTarget, offset: Int) -> (Int, Int, Int) {
-    if let idx = explicitTabIndex(target.element), idx > 0 {
+    let node: DOMRef = target.frame.dom.ref(target.element)
+    if let idx = explicitTabIndex(node), idx > 0 {
         return (0, idx, offset)
     }
     return (1, 0, offset)
@@ -45,11 +50,10 @@ private func inDocumentOrder(of frame: Frame) -> [FocusTarget] {
     guard frame.document != nil else { return [] }
     var targets: [FocusTarget] = []
     for node in treeToList(frame.nodes) {
-        guard let element = node as? Element else { continue }
-        if isTabFocusable(element) {
-            targets.append(FocusTarget(frame: frame, element: element))
+        if isTabFocusable(node) {
+            targets.append(FocusTarget(frame: frame, element: node.id))
         }
-        if element.tag == "iframe", let child = element.frame {
+        if let element = node.element, element.tag == "iframe", let child = element.frame {
             targets.append(contentsOf: inDocumentOrder(of: child))
         }
     }

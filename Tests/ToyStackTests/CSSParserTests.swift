@@ -2,7 +2,9 @@ import Testing
 
 @testable import Engine
 
-@Suite struct CSSParserTests {
+@Suite
+@MainActor
+struct CSSParserTests {
 
     // MARK: - CSSParser.parse()
 
@@ -17,9 +19,11 @@ import Testing
 
     @Test func tagSelectorMatches() {
         let selector = TagSelector(tag: "p")
-        let el = Element(tag: "p", attributes: [:], parent: nil)
-        #expect(selector.matches(el))
-        #expect(!selector.matches(Element(tag: "div", attributes: [:], parent: nil)))
+        let dom: DOMTree = DOMTree()
+        let el: NodeID = dom.createElement(tag: "p", attributes: [:])
+        let div: NodeID = dom.createElement(tag: "div", attributes: [:])
+        #expect(selector.matches(dom.ref(el)))
+        #expect(!selector.matches(dom.ref(div)))
     }
 
     @Test func parseMultipleRules() {
@@ -109,8 +113,9 @@ import Testing
 
     @Test func tagSelectorDoesNotMatchTextNode() {
         let selector = TagSelector(tag: "p")
-        let textNode = TextNode(text: "hello", parent: nil)
-        #expect(!selector.matches(textNode))
+        let dom: DOMTree = DOMTree()
+        let textNode: NodeID = dom.createText("hello")
+        #expect(!selector.matches(dom.ref(textNode)))
     }
 
     // MARK: - DescendantSelector
@@ -123,27 +128,30 @@ import Testing
     }
 
     @Test func descendantSelectorMatches() {
-        let div = Element(tag: "div", attributes: [:], parent: nil)
-        let p = Element(tag: "p", attributes: [:], parent: div)
-        div.children = [p]
+        let dom: DOMTree = DOMTree()
+        let div: NodeID = dom.createElement(tag: "div", attributes: [:])
+        let p: NodeID = dom.createElement(tag: "p", attributes: [:])
+        dom.append(p, to: div)
 
         let selector = DescendantSelector(selectors:[
             TagSelector(tag: "div"),
             TagSelector(tag: "p")
         ])
 
-        #expect(selector.matches(p))
+        #expect(selector.matches(dom.ref(p)))
     }
 
     @Test func descendantSelectorDoesNotMatchWrongAncestor() {
-        let span = Element(tag: "span", attributes: [:], parent: nil)
-        let p = Element(tag: "p", attributes: [:], parent: span)
+        let dom: DOMTree = DOMTree()
+        let span: NodeID = dom.createElement(tag: "span", attributes: [:])
+        let p: NodeID = dom.createElement(tag: "p", attributes: [:])
+        dom.append(p, to: span)
 
         let selector = DescendantSelector(selectors: [
             TagSelector(tag: "div"),
             TagSelector(tag: "p")
         ])
 
-        #expect(!selector.matches(p))
+        #expect(!selector.matches(dom.ref(p)))
     }
 }

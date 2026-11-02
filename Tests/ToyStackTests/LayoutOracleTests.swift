@@ -17,9 +17,9 @@ struct LayoutOracleTests {
                 p { display: block; width: 200px; }
                 """
         )
-        let first: Element = try element("first", in: page)
-        let second: Element = try element("second", in: page)
-        let text: TextNode = try #require(first.children.first as? TextNode)
+        let first: ElementRef = try element("first", in: page)
+        let second: ElementRef = try element("second", in: page)
+        let text: TextRef = try #require(first.children.first?.text)
         let secondBefore: LayoutRef = try #require(page.ref(of: second).layout)
 
         text.append(" more words that wrap")
@@ -43,8 +43,8 @@ struct LayoutOracleTests {
                 p { display: block; width: 120px; height: 20px; }
                 """
         )
-        let first: Element = try element("first", in: page)
-        let text: TextNode = try #require(first.children.first as? TextNode)
+        let first: ElementRef = try element("first", in: page)
+        let text: TextRef = try #require(first.children.first?.text)
 
         text.append(" and more words")
         page.frame.setNeedsRender()
@@ -65,8 +65,8 @@ struct LayoutOracleTests {
                 span { display: block; }
                 """
         )
-        let parent: Element = try element("parent", in: page)
-        let child: Element = try element("child", in: page)
+        let parent: ElementRef = try element("parent", in: page)
+        let child: ElementRef = try element("child", in: page)
         let block: LayoutRef = try #require(page.ref(of: parent).layout)
         #expect(!block.children.contains(where: { $0.isLine }))
 
@@ -96,8 +96,8 @@ struct LayoutOracleTests {
                 p { display: block; }
                 """
         )
-        let box: Element = try element("box", in: page)
-        let paragraph: Element = try element("para", in: page)
+        let box: ElementRef = try element("box", in: page)
+        let paragraph: ElementRef = try element("para", in: page)
         let boxBlock: LayoutRef = try #require(page.ref(of: box).layout)
         let paragraphBlock: LayoutRef = try #require(
             page.ref(of: paragraph).layout
@@ -137,7 +137,7 @@ struct LayoutOracleTests {
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        let body: Element = try #require(page.firstElement(tag: "body"))
+        let body: ElementRef = try #require(page.firstElement(tag: "body"))
         let bodyBlock: LayoutRef = try #require(page.ref(of: body).layout)
         #expect(document.root.width == CGFloat(400) - 2 * HSTEP)
         #expect(bodyBlock.width == document.root.width)
@@ -152,7 +152,7 @@ struct LayoutOracleTests {
                 p { display: block; }
                 """
         )
-        let paragraph: Element = try element("para", in: page)
+        let paragraph: ElementRef = try element("para", in: page)
         let block: LayoutRef = try #require(page.ref(of: paragraph).layout)
         let text: LayoutRef = try #require(
             treeToList(block).first(where: { $0.isText })
@@ -191,7 +191,7 @@ struct LayoutOracleTests {
                 p { display: block; }
                 """
         )
-        let image: Element = try element("photo", in: page)
+        let image: ElementRef = try element("photo", in: page)
         let layout: LayoutRef = try #require(
             page.firstEmbed(in: image)
         )
@@ -225,8 +225,8 @@ struct LayoutOracleTests {
                 """,
             rules: css
         )
-        let left: Element = try element("left", in: page)
-        let right: Element = try element("right", in: page)
+        let left: ElementRef = try element("left", in: page)
+        let right: ElementRef = try element("right", in: page)
         let leftBefore: LayoutRef = try #require(page.ref(of: left).layout)
         let rightBefore: LayoutRef = try #require(page.ref(of: right).layout)
 
@@ -244,7 +244,7 @@ struct LayoutOracleTests {
 
         #expect(page.ref(of: left).layout?.id == leftBefore.id)
         #expect(page.ref(of: right).layout?.id == rightBefore.id)
-        let rebuilt: Element = try element("new", in: page)
+        let rebuilt: ElementRef = try element("new", in: page)
         #expect(page.ref(of: rebuilt).layout != nil)
         expectIncrementalMatchesFull(page)
     }
@@ -262,8 +262,8 @@ struct LayoutOracleTests {
                 """,
             rules: css
         )
-        let target: Element = try element("target", in: page)
-        let sibling: Element = try element("sibling", in: page)
+        let target: ElementRef = try element("target", in: page)
+        let sibling: ElementRef = try element("sibling", in: page)
         let targetBlock: LayoutRef = try #require(page.ref(of: target).layout)
         let siblingBefore: LayoutRef = try #require(page.ref(of: sibling).layout)
         #expect(targetBlock.children.count == 1)
@@ -298,8 +298,8 @@ struct LayoutOracleTests {
                 p { display: block; width: 300px; }
                 """
         )
-        let editable: Element = try element("edit", in: page)
-        let text: TextNode = try #require(editable.children.first as? TextNode)
+        let editable: ElementRef = try element("edit", in: page)
+        let text: TextRef = try #require(editable.children.first?.text)
         page.frame.js = JSRuntime(frame: page.frame)
 
         page.frame.focusElement(editable)
@@ -324,7 +324,7 @@ struct LayoutOracleTests {
                 button { display: inline; }
                 """
         )
-        let box: Element = try element("box", in: page)
+        let box: ElementRef = try element("box", in: page)
 
         InlineStyle.set(box, property: "width", value: "240px")
         page.frame.setNeedsRender()
@@ -340,10 +340,10 @@ struct LayoutOracleTests {
 }
 
 @MainActor
-private func element(_ id: String, in page: LayoutTestPage) throws -> Element {
+private func element(_ id: String, in page: LayoutTestPage) throws -> ElementRef {
     return try #require(
         treeToList(page.frame.nodes)
-            .compactMap({ $0 as? Element })
+            .compactMap({ $0.element })
             .first(where: { $0.attributes["id"] == id })
     )
 }

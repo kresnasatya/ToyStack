@@ -40,7 +40,7 @@ struct LayoutDependencyTests {
 
     @Test func fontFieldOwnsTheParentStyleInputs() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let paragraph: Element = try #require(page.firstElement(tag: "p"))
+        let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutRef = try #require(page.firstBlock(in: paragraph))
         let text: LayoutRef = try #require(
             treeToList(block).first(where: { $0.isText })
@@ -53,8 +53,7 @@ struct LayoutDependencyTests {
     }
 
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
-        let node = Element(tag: "html", attributes: [:], parent: nil)
-        let dom: DOMTree = DOMTree(root: node)
+        let dom: DOMTree = DOMTree()
         let document: LayoutTree = LayoutTree(dom: dom)
 
         let source = document.root.xField
@@ -83,7 +82,7 @@ struct LayoutDependencyTests {
 
     @Test func widthMarksLinesButNotInlineContent() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
 
         #expect(!block.widthField.containsInvalidation(block.childrenField))

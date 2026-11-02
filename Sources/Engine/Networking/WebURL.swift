@@ -121,7 +121,10 @@ public class WebURL: @unchecked Sendable {
         if scheme == "view-source" {
             let innerURL: WebURL = WebURL(path)
             let (_, _, content) = try await innerURL.request()
-            return (status: 200, headers: [:], content: HTMLSyntaxHighlighter(body: content).highlight())
+            let highlighted: String = await MainActor.run {
+                HTMLSyntaxHighlighter(body: content).highlight()
+            }
+            return (status: 200, headers: [:], content: highlighted)
         }
 
         let method: String = payload != nil ? "POST" : "GET"

@@ -18,10 +18,10 @@ struct InsertBeforeTests {
             html: #"<div id="box"><p id="one">one</p><p id="two">two</p><p id="three">three</p></div>"#,
             rules: css
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
-        let one: Element = try #require(page.firstElement(id: "one"))
-        let two: Element = try #require(page.firstElement(id: "two"))
-        let three: Element = try #require(page.firstElement(id: "three"))
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let one: ElementRef = try #require(page.firstElement(id: "one"))
+        let two: ElementRef = try #require(page.firstElement(id: "two"))
+        let three: ElementRef = try #require(page.firstElement(id: "three"))
         let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
         let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
         let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
@@ -65,7 +65,7 @@ struct InsertBeforeTests {
             html: #"<div id="box"><p id="one">one</p><p id="two">two</p><p id="three">three</p></div>"#,
             rules: css
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
         page.frame.js = JSRuntime(frame: page.frame)
 
         page.frame.js.run(
@@ -84,7 +84,7 @@ struct InsertBeforeTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let ids: [String?] = box.children.map { ($0 as? Element)?.attributes["id"] }
+        let ids: [String?] = box.children.map { $0.element?.attributes["id"] }
         #expect(ids == ["three", "one", "two"])
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 1)
         expectIncrementalMatchesFull(page)

@@ -142,10 +142,9 @@ struct StyleFieldsTests {
 
 @MainActor
 private func makeStyleFixture() -> (StyleFields, LayoutRef) {
-    let root: Element = Element(tag: "html", attributes: [:], parent: nil)
-    let dom: DOMTree = DOMTree(root: root)
+    let dom: DOMTree = DOMTree()
     let tree: LayoutTree = LayoutTree(dom: dom)
     let target: LayoutRef = tree.root
     target.fontField.setClean(inlineDefaultFont)
-    return (root.style, target)
+    return (dom.style(of: dom.root), target)
 }

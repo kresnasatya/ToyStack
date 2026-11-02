@@ -16,7 +16,7 @@ struct StyleInvalidationTests {
                 div { display: block; }
                 """
         )
-        let box: Element = try #require(page.firstElement(tag: "div"))
+        let box: ElementRef = try #require(page.firstElement(tag: "div"))
         let fields: StyleFields = box.style
 
         InlineStyle.set(box, property: "width", value: "120px")
@@ -35,15 +35,15 @@ struct StyleInvalidationTests {
                 p { display: block; width: 300px; }
                 """
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
-        let text: TextNode = try #require(p.children.first as? TextNode)
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
+        let text: TextRef = try #require(p.children.first?.text)
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         let textLayout: LayoutRef = try #require(treeToList(block).first(where: { $0.isText }))
         let normal: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
 
         p.style.mutate { $0.text.font.size = 32 }
 
-        let grown: BrowserFont = fontForElement(page.frame.dom.ref(text), zoom: 1, notify: textLayout.fontField)
+        let grown: BrowserFont = fontForElement(text.ref, zoom: 1, notify: textLayout.fontField)
         #expect(grown.linespace > normal.linespace)
     }
 
@@ -56,11 +56,11 @@ struct StyleInvalidationTests {
                 div { display: block; margin-bottom: 50px; }
                 """
         )
-        let first: Element = try #require(page.firstElement(tag: "div"))
-        let body: Element = try #require(page.firstElement(tag: "body"))
-        let second: Element = try #require(
+        let first: ElementRef = try #require(page.firstElement(tag: "div"))
+        let body: ElementRef = try #require(page.firstElement(tag: "body"))
+        let second: ElementRef = try #require(
             treeToList(page.frame.nodes)
-                .compactMap({ $0 as? Element })
+                .compactMap({ $0.element })
                 .first(where: { $0.attributes["id"] == "second" })
         )
 
@@ -95,7 +95,7 @@ struct StyleInvalidationTests {
                 p { display: block; width: 300px; }
                 """
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         let text: LayoutRef = try #require(
             treeToList(block).first(where: { $0.isText })
@@ -119,8 +119,8 @@ struct StyleInvalidationTests {
                 input:focus { font-size: 32px; }
             """
         )
-        let a: Element = try #require(treeToList(page.frame.nodes).compactMap({ $0 as? Element }).first(where: { $0.attributes["id"] == "a" }))
-        let b: Element = try #require(treeToList(page.frame.nodes).compactMap({ $0 as? Element }).first(where: { $0.attributes["id"] == "b" }))
+        let a: ElementRef = try #require(treeToList(page.frame.nodes).compactMap({ $0.element }).first(where: { $0.attributes["id"] == "a" }))
+        let b: ElementRef = try #require(treeToList(page.frame.nodes).compactMap({ $0.element }).first(where: { $0.attributes["id"] == "b" }))
         let aBefore: LayoutRef = try #require(page.firstEmbed(in: a))
         let bBefore: LayoutRef = try #require(page.firstEmbed(in: b))
         let aHeightBefore: CGFloat = aBefore.height
@@ -148,12 +148,12 @@ struct StyleInvalidationTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
 
         page.tab.forcedColors = true
         page.frame.render()
 
-        #expect(usesForcedColors(page.frame.dom.ref(p)))
+        #expect(usesForcedColors(p.ref))
         #expect(p.style.computed.text.color == BrowserColor(cssName: ForcedColor.canvasText))
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) == 0)
     }
@@ -167,7 +167,7 @@ struct StyleInvalidationTests {
                 p { display: block; }
             """
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
 
         page.frame.focusElement(p)
         page.frame.render()
@@ -190,14 +190,14 @@ struct StyleInvalidationTests {
                 #target { color: blue; }
                 """
         )
-        let target: Element = try #require(page.firstElement(id: "target"))
-        let clean: Element = try #require(page.firstElement(id: "clean"))
+        let target: ElementRef = try #require(page.firstElement(id: "target"))
+        let clean: ElementRef = try #require(page.firstElement(id: "clean"))
 
         // The cascade inherits black here. If the clean subtree is visited,
         // applyNodeStyle overwrites this value.
         clean.style.mutate { $0.text.color = BrowserColor(cssName: "red") }
 
-        page.frame.setNeedsStyle(target)
+        page.frame.setNeedsStyle(target.ref)
         #expect(page.frame.nodes.style.hasDirtyDescendant)
         page.frame.render()
 
@@ -225,8 +225,8 @@ struct StyleInvalidationTests {
                 div:focus p { color: purple; }
             """
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
-        let child: Element = try #require(page.firstElement(id: "child"))
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let child: ElementRef = try #require(page.firstElement(id: "child"))
 
         page.frame.focusElement(box)
         page.frame.render()

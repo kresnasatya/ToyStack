@@ -19,7 +19,7 @@ struct FrameReloadTests {
         )
         #expect(page.frame.document != nil)
 
-        page.frame.nodes = HTMLParser(body: #"<p id="p">two</p>"#).parse()
+        page.frame.dom = HTMLParser(body: #"<p id="p">two</p>"#).parse()
         page.frame.setNeedsLayout()
         page.frame.render()
 

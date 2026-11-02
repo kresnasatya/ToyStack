@@ -9,16 +9,8 @@ struct BlockLayoutTests {
     @Test func inputKeepsContainingBlockWidth() throws {
         let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
         let frame: Frame = tab.rootFrame!
-        let html: Element = Element(tag: "html", attributes: [:], parent: nil)
-        let body: Element = Element(tag: "body", attributes: [:], parent: html)
-        let p: Element = Element(tag: "p", attributes: [:], parent: body)
-        let text: TextNode = TextNode(text: "name", parent: p)
-        let input: Element = Element(tag: "input", attributes: [:], parent: p)
-        p.children = [text, input]
-        body.children = [p]
-        html.children = [body]
+        frame.dom = HTMLParser(body: #"<p>name<input></p>"#).parse()
 
-        frame.nodes = html
         frame.rules = CSSParser("""
             html { width: 400px; }
             body { display: block; }
@@ -27,8 +19,10 @@ struct BlockLayoutTests {
         frame.setNeedsRender()
         frame.render()
 
-        let pRef: DOMRef = frame.dom.ref(p)
-        let block: LayoutRef = try #require(pRef.layout)
+        let p: ElementRef = try #require(
+            treeToList(frame.nodes).compactMap({ $0.element }).first(where: { $0.tag == "p" })
+        )
+        let block: LayoutRef = try #require(p.ref.layout)
         let parentWidth: CGFloat = try #require(block.parent?.width)
         #expect(block.width == parentWidth)
         #expect(block.width == CGFloat(400))

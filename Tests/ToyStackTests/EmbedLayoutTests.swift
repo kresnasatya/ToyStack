@@ -18,7 +18,7 @@ struct EmbedLayoutTests {
             html: #"<p><img width="40"></p>"#,
             rules: embedPageRules
         )
-        let image: Element = try #require(page.firstElement(tag: "img"))
+        let image: ElementRef = try #require(page.firstElement(tag: "img"))
         let before: LayoutRef = try #require(page.firstEmbed(in: image))
         #expect(before.width == 40)
         let beforeWidth: CGFloat = before.width
@@ -38,7 +38,7 @@ struct EmbedLayoutTests {
             html: #"<p><iframe height="80"></iframe></p>"#,
             rules: embedPageRules
         )
-        let iframe: Element = try #require(page.firstElement(tag: "iframe"))
+        let iframe: ElementRef = try #require(page.firstElement(tag: "iframe"))
         let before: LayoutRef = try #require(page.firstEmbed(in: iframe))
         #expect(before.height == 82)
         let beforeHeight: CGFloat = before.height
@@ -58,7 +58,7 @@ struct EmbedLayoutTests {
             html: #"<p><input></p>"#,
             rules: embedPageRules
         )
-        let input: Element = try #require(page.firstElement(tag: "input"))
+        let input: ElementRef = try #require(page.firstElement(tag: "input"))
         let before: LayoutRef = try #require(page.firstEmbed(in: input))
         #expect(before.height == inlineDefaultFont.linespace)
         let beforeHeight: CGFloat = before.height
@@ -79,7 +79,7 @@ struct EmbedLayoutTests {
             html: #"<p><input type="checkbox" style="font-size: 32px"></p>"#,
             rules: embedPageRules
         )
-        let checkbox: Element = try #require(page.firstElement(tag: "input"))
+        let checkbox: ElementRef = try #require(page.firstElement(tag: "input"))
         let layout: LayoutRef = try #require(page.firstEmbed(in: checkbox))
         let expected: BrowserFont = getFont(size: 32, weight: "normal", style: "roman")
         #expect(layout.width == expected.linespace)

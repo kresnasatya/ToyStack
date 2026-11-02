@@ -7,17 +7,20 @@ struct TextRef {
 }
 
 extension TextRef {
-    private var textNode: TextNode {
-        guard let textNode: TextNode = ref.dom.node(ref.id) as? TextNode else {
+    var text: String {
+        guard let text: DOMTextData = ref.dom.text(ref.id) else {
             preconditionFailure("TextRef points at an element")
         }
-        return textNode
+        return text.text
     }
 
-    var text: String { textNode.text }
+    func setText(_ text: String) {
+        ref.dom.setText(text, of: ref.id)
+        LayoutInvalidation.textChanged(ref)
+    }
 
     func append(_ suffix: String) {
-        textNode.append(suffix)
+        ref.dom.appendText(suffix, to: ref.id)
         LayoutInvalidation.textChanged(ref)
     }
 }

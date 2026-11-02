@@ -9,18 +9,18 @@ struct GeometryInvalidationTests {
     @Test func growingParagraphMovesFollowingParagraph() throws {
         let fixture: ParagraphFixture = makeParagraphFixture()
         let before: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.second).layout
+            fixture.second.ref.layout
         )
         let yBefore: CGFloat = before.y
 
-        let text: TextNode = try #require(fixture.first.children.first as? TextNode)
+        let text: TextRef = try #require(fixture.first.children.first?.text)
         text.append(String(repeating: " word", count: 80))
 
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
         let after: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.second).layout
+            fixture.second.ref.layout
         )
         #expect(after.y > yBefore)
     }
@@ -28,7 +28,7 @@ struct GeometryInvalidationTests {
     @Test func movingParentDoesNotTranslateAbsoluteChild() throws {
         let fixture: AbsoluteFixture = makeAbsoluteFixture()
         let before: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.absolute).layout
+            fixture.absolute.ref.layout
         )
         let xBefore: CGFloat = before.x
         let yBefore: CGFloat = before.y
@@ -39,7 +39,7 @@ struct GeometryInvalidationTests {
         fixture.frame.render()
 
         let after: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.absolute).layout
+            fixture.absolute.ref.layout
         )
         #expect(after.x == xBefore)
         #expect(after.y == yBefore)
@@ -48,7 +48,7 @@ struct GeometryInvalidationTests {
     @Test func growingNestedListItemMovesFollowingItem() throws {
         let fixture: NestedListFixture = makeNestedListFixture()
         let before: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.secondItem).layout
+            fixture.secondItem.ref.layout
         )
         let yBefore: CGFloat = before.y
 
@@ -58,7 +58,7 @@ struct GeometryInvalidationTests {
         fixture.frame.render()
 
         let after: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.secondItem).layout
+            fixture.secondItem.ref.layout
         )
         #expect(after.y == yBefore + 60)
     }
@@ -66,7 +66,7 @@ struct GeometryInvalidationTests {
     @Test func rtlLineStaysRightAlignedAfterPreviousSiblingGrows() throws {
         let fixture: RTLFixture = makeRTLFixture()
         let blockBefore: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.rtl).layout
+            fixture.rtl.ref.layout
         )
         let yBefore: CGFloat = blockBefore.y
         let textBefore: LayoutRef = try #require(
@@ -80,7 +80,7 @@ struct GeometryInvalidationTests {
         fixture.frame.render()
 
         let blockAfter: LayoutRef = try #require(
-            fixture.frame.dom.ref(fixture.rtl).layout
+            fixture.rtl.ref.layout
         )
         let textAfter: LayoutRef = try #require(
             treeToList(blockAfter).first(where: { $0.isText })
@@ -93,33 +93,47 @@ struct GeometryInvalidationTests {
 // MARK: - Fixtures
 
 @MainActor
+private func element(_ id: String, in dom: DOMTree) -> ElementRef {
+    guard let ref: ElementRef = treeToList(dom.ref(dom.root))
+        .compactMap({ $0.element })
+        .first(where: { $0.attributes["id"] == id })
+    else {
+        preconditionFailure("missing element \(id)")
+    }
+    return ref
+}
+
+@MainActor
+private func element(_ tag: String, _ className: String?, in dom: DOMTree) -> ElementRef {
+    guard let ref: ElementRef = treeToList(dom.ref(dom.root))
+        .compactMap({ $0.element })
+        .first(where: {
+            $0.tag == tag && (className == nil || $0.attributes["class"] == className)
+        })
+    else {
+        preconditionFailure("missing element \(tag).\(className ?? "")")
+    }
+    return ref
+}
+
+@MainActor
 private struct ParagraphFixture {
     let tab: BrowserTab
-    let html: Element
-    let first: Element
-    let second: Element
+    let first: ElementRef
+    let second: ElementRef
 
     var frame: Frame { tab.rootFrame }
-    var body: Element { html.children[0] as! Element }
 }
 
 @MainActor
 private func makeParagraphFixture() -> ParagraphFixture {
     let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 400)
     let frame: Frame = tab.rootFrame
-    let html: Element = Element(tag: "html", attributes: [:], parent: nil)
-    let body: Element = Element(tag: "body", attributes: [:], parent: html)
-    let first: Element = Element(tag: "p", attributes: [:], parent: body)
-    let text: TextNode = TextNode(text: "short", parent: first)
-    let second: Element = Element(tag: "p", attributes: [:], parent: body)
-    let secondText: TextNode = TextNode(text: "after", parent: second)
+    let dom: DOMTree = HTMLParser(
+        body: #"<p id="first">short</p><p id="second">after</p>"#
+    ).parse()
 
-    html.children = [body]
-    body.children = [first, second]
-    first.children = [text]
-    second.children = [secondText]
-
-    frame.nodes = html
+    frame.dom = dom
     frame.rules = CSSParser("""
         html { width: 300px; }
         body { display: block; }
@@ -127,39 +141,31 @@ private func makeParagraphFixture() -> ParagraphFixture {
         """).parse().rules
     frame.setNeedsRender()
     frame.render()
-    return ParagraphFixture(tab: tab, html: html, first: first, second: second)
+    return ParagraphFixture(
+        tab: tab,
+        first: element("first", in: dom),
+        second: element("second", in: dom)
+    )
 }
 
 @MainActor
 private struct AbsoluteFixture {
     let tab: BrowserTab
-    let html: Element
-    let header: Element
-    let absolute: Element
+    let header: ElementRef
+    let absolute: ElementRef
 
     var frame: Frame { tab.rootFrame }
-    var body: Element { html.children[0] as! Element }
 }
 
 @MainActor
 private func makeAbsoluteFixture() -> AbsoluteFixture {
     let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 400)
     let frame: Frame = tab.rootFrame
-    let html: Element = Element(tag: "html", attributes: [:], parent: nil)
-    let body: Element = Element(tag: "body", attributes: [:], parent: html)
-    let header: Element = Element(
-        tag: "div", attributes: ["class": "header"], parent: body
-    )
-    let box: Element = Element(tag: "div", attributes: ["class": "box"], parent: body)
-    let absolute: Element = Element(
-        tag: "div", attributes: ["class": "abs"], parent: box
-    )
+    let dom: DOMTree = HTMLParser(
+        body: #"<div class="header"></div><div class="box"><div class="abs"></div></div>"#
+    ).parse()
 
-    html.children = [body]
-    body.children = [header, box]
-    box.children = [absolute]
-
-    frame.nodes = html
+    frame.dom = dom
     frame.rules = CSSParser("""
         html { width: 300px; }
         body { display: block; }
@@ -177,41 +183,30 @@ private func makeAbsoluteFixture() -> AbsoluteFixture {
     frame.setNeedsRender()
     frame.render()
     return AbsoluteFixture(
-        tab: tab, html: html, header: header, absolute: absolute
+        tab: tab,
+        header: element("div", "header", in: dom),
+        absolute: element("div", "abs", in: dom)
     )
 }
 
 @MainActor
 private struct NestedListFixture {
     let tab: BrowserTab
-    let html: Element
-    let firstItem: Element
-    let secondItem: Element
+    let firstItem: ElementRef
+    let secondItem: ElementRef
 
     var frame: Frame { tab.rootFrame }
-    var body: Element { html.children[0] as! Element }
-    var list: Element { body.children[0] as! Element }
 }
 
 @MainActor
 private func makeNestedListFixture() -> NestedListFixture {
     let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 400)
     let frame: Frame = tab.rootFrame
-    let html: Element = Element(tag: "html", attributes: [:], parent: nil)
-    let body: Element = Element(tag: "body", attributes: [:], parent: html)
-    let list: Element = Element(tag: "ul", attributes: [:], parent: body)
-    let firstItem: Element = Element(tag: "li", attributes: [:], parent: list)
-    let secondItem: Element = Element(tag: "li", attributes: [:], parent: list)
-    let firstText: TextNode = TextNode(text: "first", parent: firstItem)
-    let secondText: TextNode = TextNode(text: "second", parent: secondItem)
+    let dom: DOMTree = HTMLParser(
+        body: #"<ul><li id="first">first</li><li id="second">second</li></ul>"#
+    ).parse()
 
-    html.children = [body]
-    body.children = [list]
-    list.children = [firstItem, secondItem]
-    firstItem.children = [firstText]
-    secondItem.children = [secondText]
-
-    frame.nodes = html
+    frame.dom = dom
     frame.rules = CSSParser("""
         html { width: 300px; }
         body { display: block; }
@@ -221,42 +216,30 @@ private func makeNestedListFixture() -> NestedListFixture {
     frame.setNeedsRender()
     frame.render()
     return NestedListFixture(
-        tab: tab, html: html, firstItem: firstItem, secondItem: secondItem
+        tab: tab,
+        firstItem: element("first", in: dom),
+        secondItem: element("second", in: dom)
     )
 }
 
 @MainActor
 private struct RTLFixture {
     let tab: BrowserTab
-    let html: Element
-    let header: Element
-    let rtl: Element
+    let header: ElementRef
+    let rtl: ElementRef
 
     var frame: Frame { tab.rootFrame }
-    var body: Element { html.children[0] as! Element }
 }
 
 @MainActor
 private func makeRTLFixture() -> RTLFixture {
     let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 400)
     let frame: Frame = tab.rootFrame
-    let html: Element = Element(tag: "html", attributes: [:], parent: nil)
-    let body: Element = Element(tag: "body", attributes: [:], parent: html)
-    let header: Element = Element(
-        tag: "div", attributes: ["class": "header"], parent: body
-    )
-    let rtl: Element = Element(
-        tag: "div",
-        attributes: ["class": "rtl", "dir": "rtl"],
-        parent: body
-    )
-    let text: TextNode = TextNode(text: "hello", parent: rtl)
+    let dom: DOMTree = HTMLParser(
+        body: #"<div class="header"></div><div class="rtl" dir="rtl">hello</div>"#
+    ).parse()
 
-    html.children = [body]
-    body.children = [header, rtl]
-    rtl.children = [text]
-
-    frame.nodes = html
+    frame.dom = dom
     frame.rules = CSSParser("""
         html { width: 300px; }
         body { display: block; }
@@ -266,5 +249,9 @@ private func makeRTLFixture() -> RTLFixture {
         """).parse().rules
     frame.setNeedsRender()
     frame.render()
-    return RTLFixture(tab: tab, html: html, header: header, rtl: rtl)
+    return RTLFixture(
+        tab: tab,
+        header: element("div", "header", in: dom),
+        rtl: element("div", "rtl", in: dom)
+    )
 }

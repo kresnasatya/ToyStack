@@ -3,12 +3,12 @@ import Foundation
 // MARK: - StyleScope
 
 struct StyleScope {
-    let direct: Set<ObjectIdentifier>
+    let direct: Set<NodeID>
 
     var isEmpty: Bool { direct.isEmpty }
 
-    func matches(_ node: any DOMNode) -> Bool {
-        direct.contains(ObjectIdentifier(node))
+    func matches(_ node: DOMRef) -> Bool {
+        direct.contains(node.id)
     }
 }
 
@@ -20,8 +20,8 @@ final class StyleCascade {
     let media: MediaFeatures
     let scope: StyleScope?
     let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
-    private var oldStyles: [ObjectIdentifier: ComputedStyle] = [:]
-    private(set) var appliedNodes: [any DOMNode] = []
+    private var oldStyles: [NodeID: ComputedStyle] = [:]
+    private(set) var appliedNodes: [DOMRef] = []
 
     init(
         index: RuleIndex,
@@ -33,17 +33,17 @@ final class StyleCascade {
         self.scope = scope
     }
 
-    func record(_ node: any DOMNode) {
+    func record(_ node: DOMRef) {
         appliedNodes.append(node)
-        oldStyles[ObjectIdentifier(node)] = node.style.computed
+        oldStyles[node.id] = node.style.computed
     }
 
-    func oldStyle(for node: any DOMNode) -> ComputedStyle? {
-        return oldStyles[ObjectIdentifier(node)]
+    func oldStyle(for node: DOMRef) -> ComputedStyle? {
+        return oldStyles[node.id]
     }
 
-    func inheritedChanged(_ node: any DOMNode) -> Bool {
-        guard let old: ComputedStyle = oldStyles[ObjectIdentifier(node)] else {
+    func inheritedChanged(_ node: DOMRef) -> Bool {
+        guard let old: ComputedStyle = oldStyles[node.id] else {
             return true
         }
         return StyleProperty.inherited.contains {

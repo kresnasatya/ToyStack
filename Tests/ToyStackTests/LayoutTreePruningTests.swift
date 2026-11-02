@@ -17,9 +17,9 @@ struct LayoutTreePruningTests {
         )
         let tree: LayoutTree = try #require(page.frame.document)
         let before: Int = tree.liveIDs.count
-        let b: Element = try #require(page.firstElement(id: "b"))
+        let b: ElementRef = try #require(page.firstElement(id: "b"))
         b.style.mutate { $0.layout.display = .none }
-        page.frame.setNeedsStyle(b)
+        page.frame.setNeedsStyle(b.ref)
         page.frame.render()
 
         let after: Int = try #require(page.frame.document).liveIDs.count

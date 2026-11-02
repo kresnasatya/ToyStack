@@ -1,7 +1,7 @@
 @MainActor
 enum StyleTransitions {
     static func diff(
-        node: DOMNode,
+        node: DOMRef,
         oldStyle: ComputedStyle,
         newStyle: ComputedStyle
     ) -> [StyleProperty: Animation] {

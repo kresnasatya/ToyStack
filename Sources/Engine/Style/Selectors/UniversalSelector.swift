@@ -4,7 +4,8 @@ struct UniversalSelector: CSSSelector {
     var hasSelectors: [HasSelector] { [] }
     var key: SelectorKey { .universal }
 
-    func matches(_ node: any DOMNode) -> Bool {
-        node is Element
+    @MainActor
+    func matches(_ node: DOMRef) -> Bool {
+        node.element != nil
     }
 }

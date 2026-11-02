@@ -2,12 +2,12 @@ import CoreGraphics
 
 // MARK: - applyStyle
 @MainActor
-func applyStyle(node: any DOMNode, cascade: StyleCascade) {
+func applyStyle(node: DOMRef, cascade: StyleCascade) {
     applyStyle(node: node, cascade: cascade, force: false)
 }
 
 @MainActor
-private func applyStyle(node: any DOMNode, cascade: StyleCascade, force: Bool) {
+private func applyStyle(node: DOMRef, cascade: StyleCascade, force: Bool) {
     guard force || node.style.isDirty || node.style.hasDirtyDescendant else {
         profiler.count("style.skipped")
         return
@@ -25,7 +25,7 @@ private func applyStyle(node: any DOMNode, cascade: StyleCascade, force: Bool) {
         applyNodeStyle(node: node, cascade: cascade)
     }
 
-    let pushedElement: Element? = node as? Element
+    let pushedElement: ElementRef? = node.element
     let pushedKeys: [SelectorKey]? = pushedElement.map({ element in
         profiler.measure("style.apply.push", { cascade.ancestorKeys.push(element) })
     })
@@ -43,13 +43,13 @@ private func applyStyle(node: any DOMNode, cascade: StyleCascade, force: Bool) {
 
 @MainActor
 private func applyNodeStyle(
-    node: any DOMNode,
+    node: DOMRef,
     cascade: StyleCascade
 ) {
 
     var newStyle: [String: String] = [:]
 
-    if let element = node as? Element {
+    if let element = node.element {
         profiler.count("style.elements")
         if let direction = TextDirectionResolver.resolve(element) {
             newStyle["direction"] = direction.rawValue
@@ -86,7 +86,7 @@ private func applyNodeStyle(
     }
 
     profiler.measure("style.apply.inline", {
-        if let element = node as? Element,
+        if let element = node.element,
             let inlineStyle = element.attributes["style"]
         {
             for (property, value) in CSSParser(inlineStyle).body() {

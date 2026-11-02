@@ -5,7 +5,8 @@ struct ImportantSelector: CSSSelector {
     var hasSelectors: [HasSelector] { base.hasSelectors }
     var key: SelectorKey { base.key }
 
-    func matches(_ node: any DOMNode) -> Bool {
+    @MainActor
+    func matches(_ node: DOMRef) -> Bool {
         base.matches(node)
     }
 }

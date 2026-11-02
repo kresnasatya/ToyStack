@@ -16,11 +16,11 @@ class Frame {
 
     weak var tab: BrowserTab?
     weak var parentFrame: Frame?
-    weak var frameElement: Element?
+    var frameElement: NodeID?
     let windowID: Int
 
     var url: WebURL!
-    var dom: DOMTree = DOMTree(root: Element(tag: "html", attributes: [:], parent: nil)) {
+    var dom: DOMTree = DOMTree() {
         didSet {
             guard oldValue !== dom else { return }
             // Layout objects point at the old tree. Drop them before the
@@ -37,15 +37,7 @@ class Frame {
             needsPaint = true
         }
     }
-    var nodes: any DOMNode {
-        get {
-            guard let root: any DOMNode = dom.node(dom.root) else {
-                preconditionFailure("DOMTree is missing its root")
-            }
-            return root
-        }
-        set { dom = DOMTree(root: newValue) }
-    }
+    var nodes: DOMRef { DOMRef(id: dom.root, dom: dom) }
     private var documentValue: LayoutTree?
     private var documentDirty: Bool = true
     var document: LayoutTree? {
@@ -78,7 +70,7 @@ class Frame {
     var frameHeight: CGFloat
     var loaded: Bool = false
 
-    private(set) var focus: Element?
+    private(set) var focus: NodeID?
     private var rulesRevision: Int = 0
     var rules: [(String?, any CSSSelector, [String: String])] = [] {
         didSet {
@@ -92,7 +84,7 @@ class Frame {
     private var loadedScriptURLs: Set<String> = []
     private var requestedBackgroundImages: Set<String> = []
     private var backgroundImageCache: [String: CGImage] = [:]
-    private var lazyImages: [Element] = []
+    private var lazyImages: [NodeID] = []
     var js: JSRuntime!
 
     private var compositedUpdates: [NodeID: EffectUpdate] = [:]
@@ -119,8 +111,8 @@ class Frame {
 
     private(set) var interestTop: CGFloat = 0
     private var interestBottom: CGFloat { interestTop + 4 * frameHeight }
-    private var scrollFocusNode: Element? = nil
-    private var hoveredElements: [Element] = []
+    private var scrollFocusNode: NodeID? = nil
+    private var hoveredElements: [NodeID] = []
     private var scrollTween: ScrollTween? = nil
     private var paintedBottom: CGFloat = 0
     private var paintedWindow: PaintWindow = .full
@@ -271,16 +263,16 @@ class Frame {
                 print("Blocked iframe", url.toString(), "due to X-Frame-Options")
                 return showFrameBlockedPage(message)
             }
-            let parsed: any DOMNode = profiler.measure("load.parse", {
+            dom = profiler.measure("load.parse", {
                 HTMLParser(body: body).parse()
             })
-            dom = DOMTree(root: parsed)
             activeAnimations = 0
             hoveredElements.removeAll()
 
             profiler.measure("load.checkboxes", {
                 for node in treeToList(nodes) {
-                    if let el = node as? Element, el.tag == "input", el.attributes["type"] == "checkbox"
+                    if let el = node.element, el.tag == "input",
+                        el.attributes["type"] == "checkbox"
                     {
                         el.isChecked = el.attributes["checked"] != nil
                     }
@@ -291,9 +283,9 @@ class Frame {
 
             let titleText: String = profiler.measure("load.title", {
                 treeToList(nodes)
-                .compactMap({ $0 as? Element })
+                .compactMap({ $0.element })
                 .first(where: { $0.tag == "title" })?.children
-                .compactMap({ $0 as? TextNode })
+                .compactMap({ $0.text })
                 .map(\.text).joined()
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             })
@@ -314,7 +306,7 @@ class Frame {
 
             let (styleURLs, scriptURLs, imageURLs): ([ResourceLoad], [ResourceLoad], [ResourceLoad]) =
             profiler.measure("load.resources", {
-                let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
+                let elements: [ElementRef] = treeToList(nodes).compactMap({ $0.element })
                 let styles: [ResourceLoad] = elements
                     .filter({ $0.tag == "link" && $0.attributes["rel"] == "stylesheet" && $0.attributes["href"] != nil })
                     .enumerated()
@@ -329,8 +321,8 @@ class Frame {
                         let scriptURL: WebURL = url.resolve(node.attributes["src"]!)
                         return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
                     })
-                let imgs: [Element] = elements.filter({ $0.tag == "img" })
-                self.lazyImages = imgs.filter({ ImageLoading(element: $0) == .lazy })
+                let imgs: [ElementRef] = elements.filter({ $0.tag == "img" })
+                self.lazyImages = imgs.filter({ ImageLoading(element: $0) == .lazy }).map(\.id)
                 let images: [ResourceLoad] = imgs.enumerated()
                     .filter({ ImageLoading(element: $0.element) == .eager })
                     .map({ (i, img) in
@@ -381,10 +373,10 @@ class Frame {
             keyframes.merge(parsed.keyframes) { _, new in new }
         }
 
-        for styleNode in treeToList(nodes).compactMap({ $0 as? Element }).filter({
+        for styleNode in treeToList(nodes).compactMap({ $0.element }).filter({
             $0.tag == "style"
         }) {
-            let css: String = styleNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+            let css: String = styleNode.children.compactMap({ $0.text }).map(\.text).joined()
             let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(css).parse()
             rules.append(contentsOf: parsed.rules)
             keyframes.merge(parsed.keyframes) { _, new in new }
@@ -431,10 +423,10 @@ class Frame {
 
         js.defineIDs()
 
-        for scriptNode in treeToList(nodes).compactMap({ $0 as? Element })
+        for scriptNode in treeToList(nodes).compactMap({ $0.element })
             .filter({ $0.tag == "script" && $0.attributes["src"] == nil })
         {
-            let code: String = scriptNode.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+            let code: String = scriptNode.children.compactMap({ $0.text }).map(\.text).joined()
             if !code.isEmpty { js.run(script: "inline", code: code) }
         }
 
@@ -481,11 +473,11 @@ class Frame {
     }
 
     private func applyImages(_ images: [(index: Int, image: CGImage?)]) {
-        let elements: [Element] = treeToList(nodes).compactMap({ $0 as? Element })
-        let imgs: [Element] = elements.filter({ $0.tag == "img" })
+        let elements: [ElementRef] = treeToList(nodes).compactMap({ $0.element })
+        let imgs: [ElementRef] = elements.filter({ $0.tag == "img" })
         for (i, image) in images where i < imgs.count {
             imgs[i].image = image ?? BrokenImage.replacement(for: imgs[i])
-            LayoutInvalidation.imageChanged(dom.ref(imgs[i]))
+            LayoutInvalidation.imageChanged(imgs[i].ref)
         }
     }
 
@@ -496,13 +488,14 @@ class Frame {
             viewportHeight: frameHeight,
             margin: frameHeight
         )
-        var remaining: [Element] = []
-        for el in lazyImages {
-            guard el.image == nil,
-                let bounds: Rect = dom.ref(el).layout?.absoluteBounds(),
+        var remaining: [NodeID] = []
+        for id in lazyImages {
+            let ref: DOMRef = DOMRef(id: id, dom: dom)
+            guard let el = ref.element, el.image == nil,
+                let bounds: Rect = ref.layout?.absoluteBounds(),
                 region.contains(bounds)
             else {
-                remaining.append(el)
+                remaining.append(id)
                 continue
             }
             let src: String = el.attributes["src"] ?? ""
@@ -513,23 +506,24 @@ class Frame {
                 let image: CGImage? = await runner.schedule(name: "lazy-image", {
                     await self.decodeImage(url: imageURL, referrer: referrer)
                 })
+                guard let el = ref.element else { return }
                 el.image = image ?? BrokenImage.replacement(for: el)
-                LayoutInvalidation.imageChanged(dom.ref(el))
+                LayoutInvalidation.imageChanged(ref)
                 self.setNeedsLayout()
             }
         }
         lazyImages = remaining
     }
 
-    private func loadBackgroundImages(_ nodes: [any DOMNode]) {
+    private func loadBackgroundImages(_ nodes: [DOMRef]) {
         guard let tab, let runner = tab.networkTaskRunner, let base = url else { return }
 
         var order: [String] = []
         var urlByKey: [String: WebURL] = [:]
-        var elementsByKey: [String: [Element]] = [:]
+        var elementsByKey: [String: [ElementRef]] = [:]
 
         for node in nodes {
-            guard let el = node as? Element,
+            guard let el = node.element,
                 let raw: String = el.style.computed.visual.background.image
             else { continue }
 
@@ -549,7 +543,7 @@ class Frame {
         }
 
         for key in order {
-            let elements: [Element] = elementsByKey[key] ?? []
+            let elements: [ElementRef] = elementsByKey[key] ?? []
             if let cached: CGImage = backgroundImageCache[key] {
                 for el in elements { el.backgroundImage = cached }
                 continue
@@ -574,9 +568,9 @@ class Frame {
     func syncIframes() {
         guard let tab else { return }
 
-        var live: Set<ObjectIdentifier> = []
+        var live: Set<NodeID> = []
         for node in treeToList(nodes) {
-            guard let iframe = node as? Element, iframe.tag == "iframe" else { continue }
+            guard let iframe = node.element, iframe.tag == "iframe" else { continue }
             guard let src = iframe.attributes["src"] else {
                 unloadIframe(iframe)
                 continue
@@ -587,7 +581,7 @@ class Frame {
                 unloadIframe(iframe)
                 continue
             }
-            live.insert(ObjectIdentifier(iframe))
+            live.insert(iframe.id)
             if iframe.frame != nil, iframe.frameSource != src {
                 unloadIframe(iframe)
             }
@@ -598,17 +592,17 @@ class Frame {
 
         let children: [Frame] = tab.windowIDToFrame.values.filter({ $0.parentFrame === self })
         for child in children {
-            guard let el = child.frameElement, live.contains(ObjectIdentifier(el)) else {
+            guard let el = child.frameElement, live.contains(el) else {
                 unload(child)
                 continue
             }
         }
     }
 
-    private func loadIframe(_ iframe: Element, documentURL: WebURL, source: String) {
+    private func loadIframe(_ iframe: ElementRef, documentURL: WebURL, source: String) {
         guard let tab else { return }
         markStructureChanged()
-        let parent: FrameParent = FrameParent(frame: self, element: iframe)
+        let parent: FrameParent = FrameParent(frame: self, element: iframe.id)
         let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
         child.pageZoom = pageZoom
         iframe.frame = child
@@ -616,15 +610,17 @@ class Frame {
         child.load(documentURL)
     }
 
-    private func unloadIframe(_ iframe: Element) {
+    private func unloadIframe(_ iframe: ElementRef) {
         guard let child = iframe.frame else { return }
         markStructureChanged()
         unload(child)
     }
 
     private func unload(_ frame: Frame) {
-        frame.frameElement?.frame = nil
-        frame.frameElement?.frameSource = nil
+        if let element = frame.frameElement, let parentDOM = frame.parentFrame?.dom {
+            parentDOM.side.embeds.frames.removeValue(forKey: element)
+            parentDOM.side.embeds.frameSources.removeValue(forKey: element)
+        }
         frame.discardChildFrames()
         tab?.windowIDToFrame.removeValue(forKey: frame.windowID)
         if let tab, let focused = tab.focusedFrame, tab.windowIDToFrame[focused.windowID] == nil {
@@ -677,7 +673,7 @@ class Frame {
     }
 
     private func showFrameBlockedPage(_ message: String) -> ResourceLoads {
-        nodes = HTMLParser(body: """
+        dom = HTMLParser(body: """
             <html>
             <body><p>\(message)</p></body>
             </html>
@@ -690,9 +686,9 @@ class Frame {
         return ResourceLoads(styleURLs: [], scriptURLs: [], imageURLs: [])
     }
 
-    func runNewScripts(in root: any DOMNode) {
+    func runNewScripts(in root: DOMRef) {
         for node in treeToList(root) {
-            guard let el = node as? Element, el.tag == "script",
+            guard let el = node.element, el.tag == "script",
                 let src = el.attributes["src"]
             else { continue }
             let scriptURL: WebURL = url.resolve(src)
@@ -712,7 +708,7 @@ class Frame {
     func reloadStylesheets() {
         rules = defaultStyleSheet
         for node in treeToList(nodes) {
-            guard let el = node as? Element else { continue }
+            guard let el = node.element else { continue }
             if el.tag == "link", el.attributes["rel"] == "stylesheet",
                 let href = el.attributes["href"]
             {
@@ -725,7 +721,7 @@ class Frame {
                 keyframes.merge(parsed.keyframes) { _, new in new }
             }
             if el.tag == "style" {
-                let css: String = el.children.compactMap({ $0 as? TextNode }).map(\.text).joined()
+                let css: String = el.children.compactMap({ $0.text }).map(\.text).joined()
                 let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(css).parse()
                 rules.append(contentsOf: parsed.rules)
                 keyframes.merge(parsed.keyframes) { _, new in new }
@@ -845,7 +841,7 @@ class Frame {
             browser?.measure.start("BrowserTab.style.visited")
             if tab?.hasVisitedURLs == true {
                 for node in cascade.appliedNodes {
-                    guard let el = node as? Element, el.tag == "a",
+                    guard let el = node.element, el.tag == "a",
                         let href = el.attributes["href"]
                     else {
                         continue
@@ -988,7 +984,7 @@ class Frame {
         var needsLayoutUpdate: Bool = false
         var animationFallbacks: Int = 0
         browser?.measure.start("BrowserTab.animScan")
-        let animated: [any DOMNode] = activeAnimations > 0 ? treeToList(nodes) : []
+        let animated: [DOMRef] = activeAnimations > 0 ? treeToList(nodes) : []
         for node in animated {
             for (key, animation) in node.animations {
                 let property: StyleProperty = animation.animatedProperty
@@ -996,10 +992,10 @@ class Frame {
                     needsAnotherFrame = true
                     node.style.set(value, for: property)
                     if property == .transform || property == .opacity {
-                        if dom.ref(node).layout?.isBlock == true,
-                            let style: PaintEffectStyle = paintEffectStyle(node: dom.ref(node))
+                        if node.layout?.isBlock == true,
+                            let style: PaintEffectStyle = paintEffectStyle(node: node)
                         {
-                            compositedUpdates[dom.id(of: node)] = EffectUpdate(
+                            compositedUpdates[node.id] = EffectUpdate(
                                 style: style,
                                 isAnimatedTransform: node.animations[.property(.transform)] != nil
                             )
@@ -1012,7 +1008,7 @@ class Frame {
                             // Trap in debug; mark the nearest block in release so the
                             // page still updates instead of freezing on a stale layout.
                             assertionFailure("Animation for \(property.cssName) did not dirty a layout field")
-                            LayoutInvalidation.animatedPropertyChanged(dom.ref(node), property: property)
+                            LayoutInvalidation.animatedPropertyChanged(node, property: property)
                             needsLayoutUpdate = true
                             animationFallbacks += 1
                         }
@@ -1021,7 +1017,7 @@ class Frame {
                         needsPaint = true
                     }
                 } else {
-                    if node.animations.removeValue(forKey: key) != nil { activeAnimations -= 1 }
+                    if dom.removeAnimation(key, from: node.id) != nil { activeAnimations -= 1 }
                     needsCompositeForPaint = true
                     needsPaint = true
                 }
@@ -1044,7 +1040,7 @@ class Frame {
             render()
 
             if needsFocusScroll, let f = focus {
-                scrollTo(f)
+                scrollTo(dom.ref(f))
             }
             needsFocusScroll = false
         }
@@ -1153,10 +1149,10 @@ class Frame {
         return true
     }
 
-    private func scrollTo(_ elt: Element) {
+    private func scrollTo(_ elt: DOMRef) {
         scrollTween = nil
         guard let doc = document else { return }
-        let node: NodeID = dom.id(of: elt)
+        let node: NodeID = elt.id
         let objs: [LayoutRef] = treeToList(doc.root).filter({
             $0.domNode == node || $0.node.parent?.id == node
         })
@@ -1284,7 +1280,7 @@ class Frame {
             guard next != current else { return false }
             el.scrollOffsetY = next
             doc.setBlockScrollOffset(block, next)
-            scrollFocusNode = el.raw
+            scrollFocusNode = el.id
             setNeedsPaint()
             return true
         }
@@ -1305,14 +1301,14 @@ class Frame {
         }
     }
 
-    private func scrollableAncestor(of obj: LayoutRef) -> Element? {
+    private func scrollableAncestor(of obj: LayoutRef) -> NodeID? {
         var current: LayoutRef? = obj
         while let c = current {
             if c.isBlock,
                 let el = c.node.element,
                 el.style.computed.layout.overflow == .scroll
             {
-                return el.raw
+                return el.id
             }
             current = c.parent
         }
@@ -1323,9 +1319,8 @@ class Frame {
         guard let node = scrollFocusNode, let doc = document else {
             return nil
         }
-        let target: NodeID = dom.id(of: node)
         return treeToList(doc.root).first(where: {
-            $0.isBlock && $0.domNode == target
+            $0.isBlock && $0.domNode == node
         })
     }
 
@@ -1336,9 +1331,10 @@ class Frame {
             return
         }
         let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
-        let current: CGFloat = min(node.scrollOffsetY, maxScroll)
-        node.scrollOffsetY = min(current + Frame.scrollStep, maxScroll)
-        doc.setBlockScrollOffset(block, node.scrollOffsetY)
+        let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
+        let next: CGFloat = min(current + Frame.scrollStep, maxScroll)
+        dom.side.scrollOffsets[node] = next
+        doc.setBlockScrollOffset(block, next)
         setNeedsPaint()
     }
 
@@ -1347,9 +1343,10 @@ class Frame {
             let block = liveScrollBlock()
         else { return }
         let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
-        let current: CGFloat = min(node.scrollOffsetY, maxScroll)
-        node.scrollOffsetY = max(current - Frame.scrollStep, 0)
-        doc.setBlockScrollOffset(block, node.scrollOffsetY)
+        let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
+        let next: CGFloat = max(current - Frame.scrollStep, 0)
+        dom.side.scrollOffsets[node] = next
+        doc.setBlockScrollOffset(block, next)
         setNeedsPaint()
     }
 
@@ -1381,30 +1378,30 @@ class Frame {
         else { return }
         tab?.pendingHover = nil
 
-        var chain: [Element] = []
+        var chain: [NodeID] = []
         var current: DOMRef? = doc.root.hitTest(x: pending.x, y: pending.y + scroll)?.node
         while let node = current {
-            if let element = node.element?.raw {
-                chain.append(element)
+            if node.element != nil {
+                chain.append(node.id)
             }
             current = node.parent
         }
         setHoveredElements(chain)
     }
 
-    private func setHoveredElements(_ chain: [Element]) {
-        let entering: Set<ObjectIdentifier> = Set(chain.map({ ObjectIdentifier($0) }))
-        let leaving: Set<ObjectIdentifier> = Set(hoveredElements.map({ ObjectIdentifier($0) }))
+    private func setHoveredElements(_ chain: [NodeID]) {
+        let entering: Set<NodeID> = Set(chain)
+        let leaving: Set<NodeID> = Set(hoveredElements)
         guard entering != leaving else { return }
 
-        var changed: [Element] = []
-        for element in hoveredElements where !entering.contains(ObjectIdentifier(element)) {
-            element.isHovered = false
+        var changed: [NodeID] = []
+        for element in hoveredElements where !entering.contains(element) {
+            dom.setFlag(\.isHovered, false, of: element)
             changed.append(element)
         }
 
-        for element in chain where !leaving.contains(ObjectIdentifier(element)) {
-            element.isHovered = true
+        for element in chain where !leaving.contains(element) {
+            dom.setFlag(\.isHovered, true, of: element)
             changed.append(element)
         }
         hoveredElements = chain
@@ -1413,13 +1410,14 @@ class Frame {
         // that is still hovered after the descendant left the chain.
         // On exit that ancestor is the only path back to the descendant.
         for element in changed {
+            let ref: DOMRef = dom.ref(element)
             if ruleIndex.hoverStylesDescendants {
                 noteStyleInvalidation("style.invalidate.hover.node")
-                setNeedsStyle(element)
-                markHoverDescendants(of: element)
+                setNeedsStyle(ref)
+                markHoverDescendants(of: ref)
             } else {
                 noteStyleInvalidation("style.invalidate.hover.node")
-                setNeedsStyle(element)
+                setNeedsStyle(ref)
             }
         }
     }
@@ -1428,22 +1426,25 @@ class Frame {
 
     func keypress(_ char: String) {
         guard let f = focus else { return }
-        if js.dispatchEvent(type: "keydown", elt: f) { return }
+        let focusRef: DOMRef = dom.ref(f)
+        if js.dispatchEvent(type: "keydown", elt: focusRef) { return }
 
-        if f.attributes["contenteditable"] != nil {
-            let text: TextNode
-            if let last = treeToList(f).compactMap({ $0 as? TextNode }).last {
+        if focusRef.element?.attributes["contenteditable"] != nil {
+            let texts: [TextRef] = treeToList(focusRef).compactMap({ $0.text })
+            let text: TextRef
+            if let last = texts.last {
                 text = last
             } else {
-                text = TextNode(text: "", parent: f)
-                f.children.append(text)
+                let id: NodeID = dom.createText("")
+                dom.append(id, to: f)
+                text = dom.ref(id).text!
             }
             text.append(char)
-            LayoutInvalidation.textChanged(dom.ref(text))
-            setNeedsStyle(f)
-        } else if f.tag == "input" {
-            f.attributes["value", default: ""] += char
-            setNeedsStyle(f)
+            setNeedsStyle(focusRef)
+        } else if dom.tag(of: f) == "input" {
+            let value: String = (dom.attribute("value", of: f) ?? "") + char
+            dom.setAttribute("value", value, of: f)
+            setNeedsStyle(focusRef)
         } else {
             return
         }
@@ -1455,29 +1456,32 @@ class Frame {
 
     func clearFocus() {
         guard let previous = focus else { return }
-        previous.isFocused = false
-        previous.isFocusVisible = false
-        setNeedsStyleSubtree(previous)
-        _ = js?.dispatchEvent(type: "blur", elt: previous)
+        let ref: DOMRef = dom.ref(previous)
+        dom.setFlag(\.isFocused, false, of: previous)
+        dom.setFlag(\.isFocusVisible, false, of: previous)
+        setNeedsStyleSubtree(ref)
+        _ = js?.dispatchEvent(type: "blur", elt: ref)
         focus = nil
     }
 
-    func focusElement(_ node: Element?, showRing: Bool = true) {
+    func focusElement(_ node: ElementRef?, showRing: Bool = true) {
         tab?.setFocusedFrame(self)
-        if node === focus { return }
+        if node?.id == focus { return }
         if let previous = focus {
-            previous.isFocused = false
-            previous.isFocusVisible = false
-            setNeedsStyleSubtree(previous)
-            _ = js?.dispatchEvent(type: "blur", elt: previous)
+            let ref: DOMRef = dom.ref(previous)
+            dom.setFlag(\.isFocused, false, of: previous)
+            dom.setFlag(\.isFocusVisible, false, of: previous)
+            setNeedsStyleSubtree(ref)
+            _ = js?.dispatchEvent(type: "blur", elt: ref)
         }
-        focus = node
-        if let node = node {
-            node.isFocused = true
-            node.isFocusVisible = showRing
-            setNeedsStyleSubtree(node)
+        focus = node?.id
+        if let node {
+            let ref: DOMRef = node.ref
+            dom.setFlag(\.isFocused, true, of: node.id)
+            dom.setFlag(\.isFocusVisible, showRing, of: node.id)
+            setNeedsStyleSubtree(ref)
             needsFocusScroll = true
-            _ = js?.dispatchEvent(type: "focus", elt: node)
+            _ = js?.dispatchEvent(type: "focus", elt: ref)
         }
     }
 
@@ -1492,7 +1496,7 @@ class Frame {
 
         scrollFocusNode = scrollableAncestor(of: source)
 
-        let prevented: Bool = js.dispatchEvent(type: "click", elt: source.node.raw)
+        let prevented: Bool = js.dispatchEvent(type: "click", elt: source.node)
 
         if !prevented {
             var elt: DOMRef? = source.node
@@ -1519,22 +1523,22 @@ class Frame {
                 } else if let el = node.element, el.tag == "input" {
                     if el.attributes["type"] == "checkbox" {
                         el.isChecked.toggle()
-                        setNeedsStyle(node.raw)
+                        setNeedsStyle(node)
                         return
                     }
                     el.attributes["value"] = ""
-                    focusElement(el.raw, showRing: true)
-                    setNeedsStyle(node.raw)
+                    focusElement(el, showRing: true)
+                    setNeedsStyle(node)
                     return
                 } else if let el = node.element, el.attributes["contenteditable"] != nil {
-                    focusElement(el.raw, showRing: true)
+                    focusElement(el, showRing: true)
                     return
                 } else if let el = node.element, el.tag == "button" {
-                    focusElement(el.raw, showRing: false)
+                    focusElement(el, showRing: false)
                     var cursor: DOMRef? = node
                     while let c = cursor {
                         if let fe = c.element, fe.tag == "form", fe.attributes["action"] != nil {
-                            submitForm(fe.raw)
+                            submitForm(fe)
                             return
                         }
                         cursor = c.parent
@@ -1548,9 +1552,9 @@ class Frame {
 
     func enterKey() {
         guard let f = focus else { return }
-        var cursor: (any DOMNode)? = f
+        var cursor: DOMRef? = dom.ref(f)
         while let c = cursor {
-            if let fe = c as? Element, fe.tag == "form", fe.attributes["action"] != nil {
+            if let fe = c.element, fe.tag == "form", fe.attributes["action"] != nil {
                 submitForm(fe)
                 return
             }
@@ -1558,12 +1562,10 @@ class Frame {
         }
     }
 
-    private func submitForm(_ elt: Element) {
-        if js.dispatchEvent(type: "submit", elt: elt) { return }
-        let inputs: [Element] = treeToList(elt)
-            .compactMap {
-                $0 as? Element
-            }
+    private func submitForm(_ elt: ElementRef) {
+        if js.dispatchEvent(type: "submit", elt: elt.ref) { return }
+        let inputs: [ElementRef] = treeToList(elt.ref)
+            .compactMap { $0.element }
             .filter({
                 $0.tag == "input" && $0.attributes["name"] != nil
                     && ($0.attributes["type"] != "checkbox" || $0.isChecked)
@@ -1604,14 +1606,14 @@ class Frame {
         invalidateStyle()
     }
 
-    func setNeedsStyle(_ node: any DOMNode) {
+    func setNeedsStyle(_ node: DOMRef) {
         noteStyleInvalidation("style.invalidate.node")
         StyleInvalidation.markNodeAndAncestors(node)
         needsHasPrecompute = true
         invalidateStyle()
     }
 
-    func setNeedsStyleSubtree(_ node: any DOMNode) {
+    func setNeedsStyleSubtree(_ node: DOMRef) {
         noteStyleInvalidation("style.invalidate.subtree")
         noteStyleInvalidation("style.invalidate.subtree.nodes", by: treeToList(node).count)
         StyleInvalidation.markSubtreeAndAncestors(node)
@@ -1637,15 +1639,15 @@ class Frame {
         documentDirty = true
     }
 
-    private func markHoverDescendants(of element: Element) {
+    private func markHoverDescendants(of element: DOMRef) {
         let selectors: [any CSSSelector] = ruleIndex.hoverAncestorSelectors
         guard !selectors.isEmpty else { return }
 
         let newState: Bool = element.isHovered
-        var matched: [ObjectIdentifier: any DOMNode] = [:]
-        element.isHovered = !newState
+        var matched: [NodeID: DOMRef] = [:]
+        dom.setFlag(\.isHovered, !newState, of: element.id)
         collectHoverMatches(under: element, selectors: selectors, into: &matched)
-        element.isHovered = newState
+        dom.setFlag(\.isHovered, newState, of: element.id)
         collectHoverMatches(under: element, selectors: selectors, into: &matched)
 
         for node in matched.values {
@@ -1656,20 +1658,20 @@ class Frame {
     }
 
     private func collectHoverMatches(
-        under element: Element,
+        under element: DOMRef,
         selectors: [any CSSSelector],
-        into matched: inout [ObjectIdentifier: any DOMNode]
+        into matched: inout [NodeID: DOMRef]
     ) {
         for child in element.children {
-            guard let childElement: Element = child as? Element else { continue }
-            if selectors.contains(where: { subjectCanMatch($0, childElement) && $0.matches(childElement) }) {
-                matched[ObjectIdentifier(childElement)] = childElement
+            guard let childElement: ElementRef = child.element else { continue }
+            if selectors.contains(where: { subjectCanMatch($0, childElement) && $0.matches(child) }) {
+                matched[child.id] = child
             }
-            collectHoverMatches(under: childElement, selectors: selectors, into: &matched)
+            collectHoverMatches(under: child, selectors: selectors, into: &matched)
         }
     }
 
-    private func subjectCanMatch(_ selector: any CSSSelector, _ element: Element) -> Bool {
+    private func subjectCanMatch(_ selector: any CSSSelector, _ element: ElementRef) -> Bool {
         switch selector.key {
         case .tag(let tag):
             return element.tag == tag
@@ -1682,9 +1684,9 @@ class Frame {
         }
     }
 
-    func addAnimation(_ animation: any Animation, to node: any DOMNode) {
+    func addAnimation(_ animation: any Animation, to node: DOMRef) {
         let key: AnimationKey = .property(animation.animatedProperty)
-        if node.animations.updateValue(animation, forKey: key) == nil {
+        if dom.addAnimation(animation, key: key, of: node.id) {
             activeAnimations += 1
         }
     }
@@ -1782,13 +1784,13 @@ class Frame {
         guard !rules.isEmpty else { return StyleScope(direct: []) }
         guard rules.count <= 64 else { return nil } // NOTE: why 64?
 
-        var direct: Set<ObjectIdentifier> = []
+        var direct: Set<NodeID> = []
         for node in treeToList(nodes) {
-            guard let element: Element = node as? Element else { continue }
+            guard node.element != nil else { continue }
             for rule in rules {
-                if rule.selector.matches(element) {
+                if rule.selector.matches(node) {
                     StyleInvalidation.markNode(node)
-                    direct.insert(ObjectIdentifier(node))
+                    direct.insert(node.id)
                     break
                 }
             }

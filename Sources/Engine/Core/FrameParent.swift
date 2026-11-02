@@ -1,4 +1,4 @@
 struct FrameParent {
     weak var frame: Frame?
-    weak var element: Element?
+    let element: NodeID?
 }

@@ -3,8 +3,8 @@ import JavaScriptCore
 
 class JSRuntime: @unchecked Sendable {
     private let jsContext: JSContext
-    private var nodeToHandle: [ObjectIdentifier: Int] = [:]
-    private var handleToNode: [Int: any DOMNode] = [:]
+    private var nodeToHandle: [NodeID: Int] = [:]
+    private var handleToNode: [Int: NodeID] = [:]
     private var intervalTimes: [Int: DispatchSourceTimer] = [:]
     private weak var frame: Frame?
 
@@ -24,7 +24,7 @@ class JSRuntime: @unchecked Sendable {
         jsContext.evaluateScript(code)
     }
 
-    func dispatchEvent(type: String, elt: any DOMNode) -> Bool {
+    func dispatchEvent(type: String, elt: DOMRef) -> Bool {
         let handle: Int = getHandle(elt)
         jsContext.setObject(handle, forKeyedSubscript: "__handle" as NSString)
         jsContext.setObject(type, forKeyedSubscript: "__type" as NSString)
@@ -41,28 +41,30 @@ class JSRuntime: @unchecked Sendable {
         jsContext.evaluateScript("window.dispatchEvent(new Event(\"load\"))")
     }
 
-    private func getHandle(_ elt: any DOMNode) -> Int {
-        let id: ObjectIdentifier = ObjectIdentifier(elt)
+    private func getHandle(_ node: DOMRef) -> Int {
+        let id: NodeID = node.id
         if let handle = nodeToHandle[id] { return handle }
         let handle: Int = nodeToHandle.count
         nodeToHandle[id] = handle
-        handleToNode[handle] = elt
+        handleToNode[handle] = id
         return handle
     }
 
-    private func serialize(_ node: any DOMNode) -> String {
-        if let text = node as? TextNode {
+    @MainActor
+    private func serialize(_ node: DOMRef) -> String {
+        if let text = node.text {
             return text.text
         }
-        guard let elt = node as? Element else { return "" }
+        guard let elt = node.element else { return "" }
         let attrs: String = elt.attributes.map { " \($0.key)=\($0.value)" }.joined()
         let inner: String = elt.children.map { serialize($0) }.joined()
         return "<\(elt.tag)\(attrs)>\(inner)</\(elt.tag)>"
     }
 
-    private func textContent(of node: any DOMNode) -> String {
-        if let text = node as? TextNode { return text.text }
-        guard let elt = node as? Element else { return "" }
+    @MainActor
+    private func textContent(of node: DOMRef) -> String {
+        if let text = node.text { return text.text }
+        guard let elt = node.element else { return "" }
         return elt.children.map { self.textContent(of: $0) }.joined()
     }
 
@@ -76,7 +78,7 @@ class JSRuntime: @unchecked Sendable {
             guard let self, let frame = self.frame else { return [] }
             return MainActor.assumeIsolated({
                 let selector: any CSSSelector = CSSParser(selectorText).selector()
-                let nodes: [any DOMNode] = treeToList(frame.nodes).filter { selector.matches($0) }
+                let nodes: [DOMRef] = treeToList(frame.nodes).filter { selector.matches($0) }
                 return nodes.map { self.getHandle($0) }
             })
         } as @convention(block) (String) -> [Int], forKeyedSubscript: "_querySelectorAll" as NSString)
@@ -87,10 +89,10 @@ class JSRuntime: @unchecked Sendable {
             return MainActor.assumeIsolated({
                 var result: [String: Int] = [:]
                 for node in treeToList(frame.nodes) {
-                    guard let elt = node as? Element,
+                    guard let elt = node.element,
                         let id = elt.attributes["id"]
                     else { continue }
-                    result[id] = self.getHandle(elt)
+                    result[id] = self.getHandle(node)
                 }
                 return result
             })
@@ -98,23 +100,29 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject({
             [weak self] (handle: Int, attr: String) -> String in
-            guard let self, let elt = self.handleToNode[handle] as? Element else { return "" }
-            return elt.attributes[attr] ?? ""
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return "" }
+            return MainActor.assumeIsolated {
+                return frame.dom.attribute(attr, of: id) ?? ""
+            }
         } as @convention(block) (Int, String) -> String, forKeyedSubscript: "_getAttribute" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int, attr: String, value: String) in
             MainActor.assumeIsolated({
-                guard let self, let elt = self.handleToNode[handle] as? Element else { return }
-                elt.attributes[attr] = value
-                if let frame = self.frame {
-                    LayoutInvalidation.attributesChanged(frame.dom.ref(elt))
+                guard let self, let frame = self.frame,
+                    let id = self.handleToNode[handle],
+                    frame.dom.isElement(id)
+                else { return }
+                frame.dom.setAttribute(attr, value, of: id)
+                let ref: DOMRef = frame.dom.ref(id)
+                LayoutInvalidation.attributesChanged(ref)
+                if attr == "src", frame.dom.tag(of: id) == "iframe" {
+                    frame.syncIframes()
                 }
-                if attr == "src", elt.tag == "iframe" {
-                    self.frame?.syncIframes()
-                }
-                self.frame?.noteStyleInvalidation("style.invalidate.js.attribute")
-                self.frame?.setNeedsStyleSubtree(elt)
+                frame.noteStyleInvalidation("style.invalidate.js.attribute")
+                frame.setNeedsStyleSubtree(ref)
             })
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "_setAttribute" as NSString)
 
@@ -180,41 +188,52 @@ class JSRuntime: @unchecked Sendable {
 
         jsContext.setObject({
             [weak self] (handle: Int) -> Int in
-            guard let self, let node = self.handleToNode[handle] else { return -1 }
-            guard let parent = node.parent else { return -1 }
-            return self.getHandle(parent)
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return -1 }
+            return MainActor.assumeIsolated {
+                guard let parent = frame.dom.parent(of: id) else { return -1 }
+                return self.getHandle(frame.dom.ref(parent))
+            }
         } as @convention(block) (Int) -> Int, forKeyedSubscript: "_getParent" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) -> String in
-            guard let self, let node = self.handleToNode[handle] else { return "" }
-            return node.children.map { self.serialize($0) }.joined()
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return "" }
+            return MainActor.assumeIsolated({
+                return frame.dom.children(of: id).map({ self.serialize(frame.dom.ref($0)) }).joined()
+            })
         } as @convention(block) (Int) -> String, forKeyedSubscript: "_serializeInner" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) -> String in
-            guard let self, let node = self.handleToNode[handle] else { return "" }
-            return self.serialize(node)
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return "" }
+            return MainActor.assumeIsolated({ self.serialize(frame.dom.ref(id)) })
         } as @convention(block) (Int) -> String, forKeyedSubscript: "_serializeOuter" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) -> String in
-            guard let self, let node = self.handleToNode[handle] else { return "" }
-            return self.textContent(of: node)
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return "" }
+            return MainActor.assumeIsolated({ self.textContent(of: frame.dom.ref(id)) })
         } as @convention(block) (Int) -> String, forKeyedSubscript: "_getTextContent" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int, value: String) in
             MainActor.assumeIsolated({
-                guard let self, let elt = self.handleToNode[handle] as? Element else { return }
-                let text: TextNode = TextNode(text: value, parent: elt)
-                elt.children = [text]
-                self.frame?.dom.register(text)
-                if let frame = self.frame {
-                    LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
-                }
-                self.frame?.syncIframes()
-                self.frame?.setNeedsStyle(elt)
+                guard let self, let frame = self.frame,
+                    let id = self.handleToNode[handle], frame.dom.isElement(id)
+                else { return }
+                let text: NodeID = frame.dom.createText(value)
+                frame.dom.setChildren([text], of: id)
+                LayoutInvalidation.childrenChanged(frame.dom.ref(id))
+                frame.syncIframes()
+                frame.setNeedsStyle(frame.dom.ref(id))
             })
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_setTextContent" as NSString)
 
@@ -222,37 +241,45 @@ class JSRuntime: @unchecked Sendable {
             [weak self] (handle: Int, s: String) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,
-                    let elt = self.handleToNode[handle] as? Element
+                    let id = self.handleToNode[handle], frame.dom.isElement(id)
                 else { return }
-                let doc: any DOMNode = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
-                let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
-                elt.children = newNodes ?? []
-                for child in elt.children { child.parent = elt }
-                LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
+                let doc: DOMTree = HTMLParser(body: "<html><body>\(s)</body></html>").parse()
+                let body: NodeID? = doc.children(of: doc.root).first(where: { doc.tag(of: $0) == "body" })
+                frame.dom.setChildren([], of: id)
+                if let body {
+                    for child in doc.children(of: body) {
+                        frame.dom.cloneSubtree(doc, child, into: id)
+                    }
+                }
+                let ref: DOMRef = frame.dom.ref(id)
+                LayoutInvalidation.childrenChanged(ref)
                 frame.markStructureChanged()
-                frame.runNewScripts(in: elt)
+                frame.runNewScripts(in: ref)
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsStyle(elt)
+                frame.setNeedsStyle(ref)
             })
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_innerHTML" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) -> [Int] in
-            guard let self, let node = self.handleToNode[handle] else { return [] }
-            return node.children
-                .compactMap({ $0 as? Element })
-                .map({ self.getHandle($0) })
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return [] }
+            return MainActor.assumeIsolated({
+                return frame.dom.children(of: id)
+                    .filter({ frame.dom.isElement($0) })
+                    .map({ self.getHandle(frame.dom.ref($0)) })
+            })
         } as @convention(block) (Int) -> [Int], forKeyedSubscript: "_children" as NSString)
 
         jsContext.setObject({
             [weak self] (tag: String) -> Int in
-            guard let self else { return -1 }
-            let elt: Element = Element(tag: tag, attributes: [:], parent: nil)
-            _ = MainActor.assumeIsolated {
-                self.frame?.dom.register(elt)
+            guard let self, let frame = self.frame else { return -1 }
+            return MainActor.assumeIsolated {
+                let id: NodeID = frame.dom.createElement(tag: tag, attributes: [:])
+                return self.getHandle(frame.dom.ref(id))
             }
-            return self.getHandle(elt)
         } as @convention(block) (String) -> Int, forKeyedSubscript: "_createElement" as NSString)
 
         jsContext.setObject({
@@ -263,27 +290,23 @@ class JSRuntime: @unchecked Sendable {
                     let child = self.handleToNode[childHandle]
                 else { return }
 
-                var wasSameParent: Bool = false
-                if let oldParent = child.parent {
-                    wasSameParent = oldParent === parent
-                    oldParent.children.removeAll { $0 === child }
-                    if oldParent !== parent {
-                        LayoutInvalidation.childrenChanged(frame.dom.ref(oldParent))
-                        frame.setNeedsStyle(oldParent)
-                    }
+                let oldParent: NodeID? = frame.dom.parent(of: child)
+                let wasSameParent: Bool = oldParent == parent
+                frame.dom.append(child, to: parent)
+                if let oldParent, oldParent != parent {
+                    LayoutInvalidation.childrenChanged(frame.dom.ref(oldParent))
+                    frame.setNeedsStyle(frame.dom.ref(oldParent))
                 }
-                child.parent = parent
-                parent.children.append(child)
                 if wasSameParent {
                     LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 } else {
                     LayoutInvalidation.childrenAppend(frame.dom.ref(parent), frame.dom.ref(child))
                 }
                 frame.markStructureChanged()
-                frame.runNewScripts(in: child)
+                frame.runNewScripts(in: frame.dom.ref(child))
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsStyleSubtree(child)
+                frame.setNeedsStyleSubtree(frame.dom.ref(child))
             })
         } as @convention(block) (Int, Int) -> Void, forKeyedSubscript: "_appendChild" as NSString)
 
@@ -294,13 +317,12 @@ class JSRuntime: @unchecked Sendable {
                     let parent = self.handleToNode[parentHandle],
                     let child = self.handleToNode[childHandle]
                 else { return -1 }
-                parent.children.removeAll { $0 === child }
-                child.parent = nil
+                guard frame.dom.remove(child, from: parent) else { return -1 }
                 LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 frame.markStructureChanged()
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsStyle(parent)
+                frame.setNeedsStyle(frame.dom.ref(parent))
                 return childHandle
             })
         } as @convention(block) (Int, Int) -> Int, forKeyedSubscript: "_removeChild" as NSString)
@@ -309,37 +331,29 @@ class JSRuntime: @unchecked Sendable {
             [weak self] (handle: Int, childHandles: [Int]) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,
-                    let elt = self.handleToNode[handle] as? Element
+                    let elt = self.handleToNode[handle], frame.dom.isElement(elt)
                 else { return }
 
-                let newChildren: [any DOMNode] = childHandles.compactMap({ self.handleToNode[$0] })
-                guard newChildren.allSatisfy({ !$0.isInclusiveAncestor(of: elt) }) else {
+                let newChildren: [NodeID] = childHandles.compactMap({ self.handleToNode[$0] })
+                guard newChildren.allSatisfy({ !frame.dom.isInclusiveAncestor($0, of: elt) }) else {
                     return
                 }
 
-                let removed: [any DOMNode] = elt.children
-                elt.children = []
-                for child in removed { child.parent = nil }
+                let oldParents: [NodeID] = newChildren.compactMap({ frame.dom.parent(of: $0) })
+                frame.dom.setChildren(newChildren, of: elt)
 
-                for child in newChildren {
-                    if let parent = child.parent {
-                        parent.children.removeAll { $0 === child }
-                        if parent !== elt {
-                            LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
-                        }
-                    }
-                    child.parent = elt
-                    elt.children.append(child)
+                for parent in oldParents where parent != elt {
+                    LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 }
 
                 LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
                 frame.markStructureChanged()
-                for child in newChildren { frame.runNewScripts(in: child) }
+                for child in newChildren { frame.runNewScripts(in: frame.dom.ref(child)) }
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsStyle(elt)
+                frame.setNeedsStyle(frame.dom.ref(elt))
                 for child in newChildren {
-                    frame.setNeedsStyleSubtree(child)
+                    frame.setNeedsStyleSubtree(frame.dom.ref(child))
                 }
             })
         } as @convention(block) (Int, [Int]) -> Void, forKeyedSubscript: "_replaceChildren" as NSString)
@@ -351,33 +365,31 @@ class JSRuntime: @unchecked Sendable {
                     let parent = self.handleToNode[parentHandle],
                     let child = self.handleToNode[childHandle],
                     let ref = self.handleToNode[refHandle],
-                    child !== ref,
-                    !child.isInclusiveAncestor(of: parent),
-                    parent.children.contains(where: { $0 === ref })
+                    child != ref,
+                    !frame.dom.isInclusiveAncestor(child, of: parent),
+                    frame.dom.children(of: parent).contains(ref)
                 else { return }
-                let wasSameParent: Bool = child.parent === parent
-                if let oldParent = child.parent {
-                    oldParent.children.removeAll { $0 === child }
-                    if oldParent !== parent {
-                        LayoutInvalidation.childrenChanged(frame.dom.ref(oldParent))
-                        frame.setNeedsStyle(oldParent)
-                    }
+                let oldParent: NodeID? = frame.dom.parent(of: child)
+                let wasSameParent: Bool = oldParent == parent
+                frame.dom.insert(child, before: ref, in: parent)
+                if let oldParent, oldParent != parent {
+                    LayoutInvalidation.childrenChanged(frame.dom.ref(oldParent))
+                    frame.setNeedsStyle(frame.dom.ref(oldParent))
                 }
-                guard let idx = parent.children.firstIndex(where: { $0 === ref }) else {
-                    return
-                }
-                child.parent = parent
-                parent.children.insert(child, at: idx)
                 if wasSameParent {
                     LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 } else {
-                    LayoutInvalidation.childrenInsert(frame.dom.ref(parent), frame.dom.ref(child), before: frame.dom.ref(ref))
+                    LayoutInvalidation.childrenInsert(
+                        frame.dom.ref(parent),
+                        frame.dom.ref(child),
+                        before: frame.dom.ref(ref)
+                    )
                 }
                 frame.markStructureChanged()
-                frame.runNewScripts(in: child)
+                frame.runNewScripts(in: frame.dom.ref(child))
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsStyleSubtree(child)
+                frame.setNeedsStyleSubtree(frame.dom.ref(child))
             })
         } as @convention(block) (Int, Int, Int) -> Void, forKeyedSubscript: "_insertBefore" as NSString)
 
@@ -473,10 +485,10 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject({
             [weak self] (handle: Int, value: Double) in
             MainActor.assumeIsolated({
-                guard let self, let elt = self.handleToNode[handle] as? Element,
-                    let frame = self.frame
+                guard let self, let id = self.handleToNode[handle],
+                    let frame = self.frame, frame.dom.isElement(id)
                 else { return }
-                elt.scrollOffsetY = CGFloat(value)
+                frame.dom.side.scrollOffsets[id] = CGFloat(value)
                 frame.setNeedsPaint()
             })
         } as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "_setScrollTop" as NSString)
@@ -485,23 +497,25 @@ class JSRuntime: @unchecked Sendable {
             [weak self] (handle: Int) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,
-                let elt = self.handleToNode[handle] as? Element,
-                isFocusable(elt)
+                let id = self.handleToNode[handle]
                 else { return }
-                frame.focusElement(elt)
+                let ref: DOMRef = frame.dom.ref(id)
+                guard isFocusable(ref) else { return }
+                frame.focusElement(ref.element)
             })
         } as @convention(block) (Int) -> Void, forKeyedSubscript: "_focusElement" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int, attr: String, value: String) in
-            guard let self = self, let elt = self.handleToNode[handle] as? Element else {
+            guard let self, let id = self.handleToNode[handle] else {
                 return
             }
             Task {
                 @MainActor in
+                guard let frame = self.frame, let elt = frame.dom.ref(id).element else { return }
                 InlineStyle.set(elt, property: attr, value: value)
-                self.frame?.noteStyleInvalidation("style.invalidate.js.style")
-                self.frame?.setNeedsStyleSubtree(elt)
+                frame.noteStyleInvalidation("style.invalidate.js.style")
+                frame.setNeedsStyleSubtree(elt.ref)
             }
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "__styleSet__" as NSString)
 
@@ -545,7 +559,12 @@ class JSRuntime: @unchecked Sendable {
 
         CanvasBridge(
             jsContext: jsContext,
-            nodeForHandle: { [weak self] handle in self?.handleToNode[handle] },
+            elementForHandle: { [weak self] handle in
+                guard let self, let frame = self.frame,
+                    let id = self.handleToNode[handle]
+                else { return nil }
+                return frame.dom.ref(id).element
+            },
             requestPaint: { [weak self] in self?.frame?.setNeedsPaint() },
             displayScale: { [weak self] in self?.frame?.tab?.browser?.displayScale ?? 1 }
         ).register()

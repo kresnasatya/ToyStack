@@ -7,8 +7,8 @@ import Testing
 @MainActor
 struct HoverTests {
 
-    private func bounds(_ element: Element, in page: LayoutTestPage) throws -> Rect {
-        let object: LayoutRef = try #require(page.ref(of: element).layout)
+    private func bounds(_ element: ElementRef, in page: LayoutTestPage) throws -> Rect {
+        let object: LayoutRef = try #require(element.ref.layout)
         return object.absoluteBounds()
     }
 
@@ -16,9 +16,9 @@ struct HoverTests {
         return CGPoint(x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2)
     }
 
-    private func textLayout(of element: Element, in page: LayoutTestPage) throws -> LayoutRef {
+    private func textLayout(of element: ElementRef, in page: LayoutTestPage) throws -> LayoutRef {
         let doc: LayoutTree = try #require(page.frame.document)
-        let target: NodeID = page.frame.dom.id(of: element)
+        let target: NodeID = element.id
         return try #require(
             treeToList(doc.root).filter({ $0.isText })
                 .first(where: { $0.node.parent?.id == target })
@@ -38,8 +38,8 @@ struct HoverTests {
                 #a:hover { color: red; }
             """
         )
-        let a: Element = try #require(page.firstElement(id: "a"))
-        let b: Element = try #require(page.firstElement(id: "b"))
+        let a: ElementRef = try #require(page.firstElement(id: "a"))
+        let b: ElementRef = try #require(page.firstElement(id: "b"))
         let point: CGPoint = center(try bounds(a, in: page))
 
         page.tab.hover(x: point.x, y: point.y)
@@ -70,8 +70,8 @@ struct HoverTests {
                 #b:hover { color: blue; }
             """
         )
-        let a: Element = try #require(page.firstElement(id: "a"))
-        let b: Element = try #require(page.firstElement(id: "b"))
+        let a: ElementRef = try #require(page.firstElement(id: "a"))
+        let b: ElementRef = try #require(page.firstElement(id: "b"))
         let pointA: CGPoint = center(try bounds(a, in: page))
         let pointB: CGPoint = center(try bounds(b, in: page))
 
@@ -108,9 +108,9 @@ struct HoverTests {
                 #card:hover span { color: purple; }
             """
         )
-        let card: Element = try #require(page.firstElement(id: "card"))
-        let label: Element = try #require(page.firstElement(id: "label"))
-        let body: Element = try #require(page.firstElement(tag: "body"))
+        let card: ElementRef = try #require(page.firstElement(id: "card"))
+        let label: ElementRef = try #require(page.firstElement(id: "label"))
+        let body: ElementRef = try #require(page.firstElement(tag: "body"))
         let point: CGPoint = center(try textLayout(of: label, in: page).absoluteBounds())
 
         page.tab.hover(x: point.x, y: point.y)
@@ -137,9 +137,9 @@ struct HoverTests {
                 #card:hover span { color: red }
             """
         )
-        let card: Element = try #require(page.firstElement(id: "card"))
-        let label: Element = try #require(page.firstElement(id: "label"))
-        let after: Element = try #require(page.firstElement(id: "after"))
+        let card: ElementRef = try #require(page.firstElement(id: "card"))
+        let label: ElementRef = try #require(page.firstElement(id: "label"))
+        let after: ElementRef = try #require(page.firstElement(id: "after"))
         let labelPoint: CGPoint = center(try textLayout(of: label, in: page).absoluteBounds())
         let cardPoint: CGPoint = center(try bounds(card, in: page))
         let afterPoint: CGPoint = center(try bounds(after, in: page))
@@ -172,7 +172,7 @@ struct HoverTests {
                 div { display: block; }
             """
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
         let before: Rect = try bounds(box, in: page)
         let stalePoint: CGPoint = center(before)
 

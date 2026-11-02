@@ -2,8 +2,7 @@ import CoreGraphics
 
 @MainActor
 class AccessibilityNode {
-    let node: DOMNode
-    let dom: DOMTree
+    let node: DOMRef
     weak var parent: AccessibilityNode?
     var children: [AccessibilityNode] = []
     var role: String = "none"
@@ -11,26 +10,24 @@ class AccessibilityNode {
     var text: String = ""
     var bounds: Rect
 
-    init(node: DOMNode, dom: DOMTree, parent: AccessibilityNode? = nil) {
+    init(node: DOMRef, parent: AccessibilityNode? = nil) {
         self.node = node
-        self.dom = dom
         self.parent = parent
-        self.bounds = AccessibilityNode.computeBounds(for: node, dom: dom)
+        self.bounds = AccessibilityNode.computeBounds(for: node)
         self.role = AccessibilityNode.computeRole(for: node)
         self.live = AccessibilityNode.computeLive(for: node)
         self.text = AccessibilityNode.computeText(for: node)
     }
 
-    private static func computeBounds(for node: DOMNode, dom: DOMTree) -> Rect {
-        let ref: DOMRef = DOMRef(id: dom.id(of: node), dom: dom)
-        guard let lo = ref.layout else {
+    private static func computeBounds(for node: DOMRef) -> Rect {
+        guard let lo = node.layout else {
             return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
 
         if lo.isText, let line = lo.parent, let block = line.parent, block.isBlock {
             var result: Rect? = nil
             for lineLayout in block.children {
-                for item in lineLayout.children where item.domNode == ref.id {
+                for item in lineLayout.children where item.domNode == node.id {
                     let r: Rect = Rect(
                         left: item.x, top: item.y,
                         right: item.x + item.width, bottom: item.y + item.height
@@ -52,9 +49,9 @@ class AccessibilityNode {
         )
     }
 
-    private static func computeRole(for node: DOMNode) -> String {
-        if node is TextNode { return "StaticText" }
-        guard let el = node as? Element else { return "none" }
+    private static func computeRole(for node: DOMRef) -> String {
+        if node.text != nil { return "StaticText" }
+        guard let el = node.element else { return "none" }
         switch el.tag {
         case "input":
             let type: String = el.attributes["type"] ?? ""
@@ -76,23 +73,23 @@ class AccessibilityNode {
         }
     }
 
-    private static func computeLive(for node: DOMNode) -> String {
-        guard let el = node as? Element else { return "off" }
+    private static func computeLive(for node: DOMRef) -> String {
+        guard let el = node.element else { return "off" }
         let live: String = el.attributes["aria-live"] ?? "off"
         if live == "assertive" || live == "polite" { return live }
         return "off"
     }
 
-    private static func computeText(for node: DOMNode) -> String {
-        if let text = node as? TextNode {
+    private static func computeText(for node: DOMRef) -> String {
+        if let text = node.text {
             return text.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        guard let el = node as? Element else { return "" }
+        guard let el = node.element else { return "" }
         if let label = el.attributes["aria-label"], !label.isEmpty { return label }
         if let alt = el.attributes["alt"], !alt.isEmpty { return alt }
         switch el.tag {
             case "canvas":
-                let fallback: String = AccessibilityNode.descendantText(el)
+                let fallback: String = AccessibilityNode.descendantText(node)
                 return fallback.isEmpty ? "Canvas" : fallback
             case "input":
                 if el.attributes["type"] == "checkbox" {
@@ -103,10 +100,10 @@ class AccessibilityNode {
         }
     }
 
-    private static func descendantText(_ node: DOMNode) -> String {
+    private static func descendantText(_ node: DOMRef) -> String {
         var parts: [String] = []
         for child in node.children {
-            if let text = child as? TextNode {
+            if let text = child.text {
                 let trimmed: String = text.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { parts.append(trimmed) }
             } else {
@@ -122,28 +119,27 @@ class AccessibilityNode {
             buildInternal(childNode)
         }
 
-        let ref: DOMRef = DOMRef(id: dom.id(of: node), dom: dom)
-        if ref.layout == nil, let first = children.first {
+        if node.layout == nil, let first = children.first {
             bounds = children.dropFirst().reduce(first.bounds) {
                 AccessibilityNode.union($0, $1.bounds)
             }
         }
     }
 
-    func buildInternal(_ childNode: DOMNode) {
-        if let text = childNode as? TextNode, text.text.allSatisfy({ $0.isWhitespace }) {
+    func buildInternal(_ childNode: DOMRef) {
+        if let text = childNode.text, text.text.allSatisfy({ $0.isWhitespace }) {
             return
         }
-        if let el = childNode as? Element, el.tag == "style" || el.tag == "script" {
+        if let el = childNode.element, el.tag == "style" || el.tag == "script" {
             return
         }
         let child: AccessibilityNode
-        let childRef: DOMRef = DOMRef(id: dom.id(of: childNode), dom: dom)
-        if let el = childNode as? Element, el.tag == "iframe",
-            let frame = el.frame, frame.loaded, childRef.layout != nil {
-            child = FrameAccessibilityNode(node: el, dom: dom, parent: self)
+        if let el = childNode.element, el.tag == "iframe",
+            let frame = el.frame, frame.loaded, childNode.layout != nil
+        {
+            child = FrameAccessibilityNode(node: childNode, parent: self)
         } else {
-            child = AccessibilityNode(node: childNode, dom: dom, parent: self)
+            child = AccessibilityNode(node: childNode, parent: self)
         }
         if child.role != "none" || child.live != "off" {
             children.append(child)

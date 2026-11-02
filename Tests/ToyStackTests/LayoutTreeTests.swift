@@ -7,8 +7,7 @@ import Testing
 @MainActor
 struct LayoutTreeTests {
     private func makeTree() -> LayoutTree {
-        let root: Element = Element(tag: "html", attributes: [:], parent: nil)
-        return LayoutTree(dom: DOMTree(root: root))
+        return LayoutTree(dom: DOMTree())
     }
 
     @Test func appendGivesUniqueMonotonicIDs() {

@@ -20,12 +20,12 @@ public class Browser: ObservableObject {
     public var accessibilityIsOn: Bool = false
     private var hasSpokenDocument: Bool = false
     private var spokenAlerts: [AccessibilityNode] = []
-    private var lastFocus: Element? = nil
+    private var lastFocus: NodeID? = nil
     private var pendingHover: CGPoint? = nil
     private var hoveredA11yNode: AccessibilityNode? = nil
     private var needsSpeakHoveredNode: Bool = false
     private var accessibilityFocusNode: AccessibilityNode? = nil
-    private var liveRegionTexts: [ObjectIdentifier: String] = [:]
+    private var liveRegionTexts: [NodeID: String] = [:]
 
     private struct TabFrame {
         var display: FrameDisplay = FrameDisplay()
@@ -271,7 +271,7 @@ public class Browser: ObservableObject {
         guard let pending = pendingHover else { return }
         let adjustedY: CGFloat = pending.y / pageZoom + activeTabScroll
         if let hit = activeTab?.accessibilityTree?.hitTest(x: pending.x / pageZoom, y: adjustedY) {
-            if hoveredA11yNode == nil || hit.node !== hoveredA11yNode!.node {
+            if hoveredA11yNode == nil || hit.node.id != hoveredA11yNode!.node.id {
                 needsSpeakHoveredNode = true
             }
             hoveredA11yNode = hit
@@ -1038,7 +1038,7 @@ public class Browser: ObservableObject {
         guard !readable.isEmpty else { return }
 
         var nextIndex: Int = 0
-        if let current = accessibilityFocusNode, let idx = readable.firstIndex(where: { $0.node === current.node }) {
+        if let current = accessibilityFocusNode, let idx = readable.firstIndex(where: { $0.node.id == current.node.id }) {
             nextIndex = idx + 1
         }
 
@@ -1073,7 +1073,7 @@ public class Browser: ObservableObject {
         // --- Live Regions (aria-live) ---
         let liveNodes: [AccessibilityNode] = allNodes.filter({ $0.live != "off" })
         for node in liveNodes {
-            let key: ObjectIdentifier = ObjectIdentifier(node.node)
+            let key: NodeID = node.node.id
             let newText: String = node.text
             guard let oldText = liveRegionTexts[key] else {
                 liveRegionTexts[key] = newText
@@ -1094,23 +1094,23 @@ public class Browser: ObservableObject {
         // --- Legacy "role=alert" (backward compat) ---
         let activeAlerts: [AccessibilityNode] = allNodes.filter({ $0.role == "alert" })
         for alert in activeAlerts {
-            if !spokenAlerts.contains(where: { $0.node === alert.node }) {
+            if !spokenAlerts.contains(where: { $0.node.id == alert.node.id }) {
                 speakNode(alert, "New alert")
                 spokenAlerts.append(alert)
             }
         }
         spokenAlerts = spokenAlerts.filter({ old in
-            allNodes.contains(where: { $0.node === old.node && $0.role == "alert" })
+            allNodes.contains(where: { $0.node.id == old.node.id && $0.role == "alert" })
         })
 
-        let currentFocus: Element? = activeTab?.focus
-        if currentFocus !== lastFocus {
+        let currentFocus: ElementRef? = activeTab?.focus
+        if currentFocus?.id != lastFocus {
             if let f = currentFocus,
-                let focused = allNodes.first(where: { $0.node === f })
+                let focused = allNodes.first(where: { $0.node.id == f.id })
             {
                 speakNode(focused, "element focused ")
             }
-            lastFocus = currentFocus
+            lastFocus = currentFocus?.id
         }
 
         if needsSpeakHoveredNode, let hovered = hoveredA11yNode {

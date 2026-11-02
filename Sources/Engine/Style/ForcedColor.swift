@@ -19,10 +19,11 @@ func usesForcedColors(_ node: DOMRef) -> Bool {
     node.style.unknownValue(forcedColorsAppliedKey) == "active"
 }
 
-func applyForcedColors(to style: inout [String: String], node: any DOMNode) {
+@MainActor
+func applyForcedColors(to style: inout [String: String], node: DOMRef) {
     style[forcedColorsAppliedKey] = "active"
 
-    guard let element = node as? Element else { return }
+    guard let element = node.element else { return }
 
     style["color"] = ForcedColor.canvasText
 

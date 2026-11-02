@@ -3,8 +3,9 @@ import Foundation
 final class AncestorSelectorKeys {
     private var counts: [SelectorKey: Int] = [:]
 
+    @MainActor
     @discardableResult
-    func push(_ element: Element) -> [SelectorKey] {
+    func push(_ element: ElementRef) -> [SelectorKey] {
         let keys: [SelectorKey] = selectorKeys(of: element)
         for key in keys { counts[key, default: 0] += 1 }
         return keys
@@ -21,7 +22,8 @@ final class AncestorSelectorKeys {
         counts[key] != nil
     }
 
-    private func selectorKeys(of element: Element) -> [SelectorKey] {
+    @MainActor
+    private func selectorKeys(of element: ElementRef) -> [SelectorKey] {
         var keys: [SelectorKey] = [.tag(element.tag)]
         if let id = element.attributes["id"] { keys.append(.id(id)) }
         if let cls = element.attributes["class"] {

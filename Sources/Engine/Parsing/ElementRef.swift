@@ -8,68 +8,78 @@ struct ElementRef {
 }
 
 extension ElementRef {
-    private var element: Element {
-        guard let element: Element = ref.dom.node(ref.id) as? Element else {
+    var id: NodeID { ref.id }
+
+    var dom: DOMTree { ref.dom }
+
+    var tag: String {
+        guard let element: ElementData = dom.element(id) else {
             preconditionFailure("ElementRef points at a text node")
         }
-        return element
+        return element.tag
     }
 
-    var tag: String { element.tag }
-
-    /// Temporary bridge to the class tree. Deleted in C3.
-    var raw: Element { element }
-
-    var style: StyleFields { element.style }
+    var style: StyleFields { ref.style }
 
     var children: [DOMRef] { ref.children }
 
-    var isFocused: Bool { element.isFocused }
+    var isFocused: Bool {
+        get { ref.isFocused }
+        nonmutating set { dom.setFlag(\.isFocused, newValue, of: id) }
+    }
 
-    var isFocusVisible: Bool { element.isFocusVisible }
+    var isFocusVisible: Bool {
+        get { ref.isFocusVisible }
+        nonmutating set { dom.setFlag(\.isFocusVisible, newValue, of: id) }
+    }
+
+    var isHovered: Bool {
+        get { ref.isHovered }
+        nonmutating set { dom.setFlag(\.isHovered, newValue, of: id) }
+    }
 
     var attributes: [String: String] {
-        get { element.attributes }
-        nonmutating set { element.attributes = newValue }
+        get { dom.attributes(of: id) ?? [:] }
+        nonmutating set { dom.setAttributes(newValue, of: id) }
     }
 
     var isChecked: Bool {
-        get { element.isChecked }
-        nonmutating set { element.isChecked = newValue }
+        get { dom.isChecked(id) }
+        nonmutating set { dom.setChecked(newValue, of: id) }
     }
 
     var image: CGImage? {
-        get { element.image }
-        nonmutating set { element.image = newValue }
+        get { dom.side.images.images[id] }
+        nonmutating set { dom.side.images.images[id] = newValue }
     }
 
     var backgroundImage: CGImage? {
-        get { element.backgroundImage }
-        nonmutating set { element.backgroundImage = newValue }
+        get { dom.side.images.backgrounds[id] }
+        nonmutating set { dom.side.images.backgrounds[id] = newValue }
     }
 
     var backgroundImageSource: String? {
-        get { element.backgroundImageSource }
-        nonmutating set { element.backgroundImageSource = newValue }
+        get { dom.side.images.backgroundSources[id] }
+        nonmutating set { dom.side.images.backgroundSources[id] = newValue }
     }
 
     var frame: Frame? {
-        get { element.frame }
-        nonmutating set { element.frame = newValue }
+        get { dom.side.embeds.frames[id] }
+        nonmutating set { dom.side.embeds.frames[id] = newValue }
     }
 
     var frameSource: String? {
-        get { element.frameSource }
-        nonmutating set { element.frameSource = newValue }
+        get { dom.side.embeds.frameSources[id] }
+        nonmutating set { dom.side.embeds.frameSources[id] = newValue }
     }
 
     var canvasContext: CanvasRenderingContext2D? {
-        get { element.canvasContext }
-        nonmutating set { element.canvasContext = newValue }
+        get { dom.side.canvases.contexts[id] }
+        nonmutating set { dom.side.canvases.contexts[id] = newValue }
     }
 
     var scrollOffsetY: CGFloat {
-        get { element.scrollOffsetY }
-        nonmutating set { element.scrollOffsetY = newValue }
+        get { dom.side.scrollOffsets[id] ?? 0 }
+        nonmutating set { dom.side.scrollOffsets[id] = newValue }
     }
 }

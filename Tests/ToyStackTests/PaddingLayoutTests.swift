@@ -16,8 +16,8 @@ struct PaddingLayoutTests {
                 #outer { padding: 10px; }
                 """
         )
-        let outer: Element = try #require(page.firstElement(tag: "div"))
-        let inner: Element = try #require(outer.children.first as? Element)
+        let outer: ElementRef = try #require(page.firstElement(tag: "div"))
+        let inner: ElementRef = try #require(outer.children.first?.element)
         let outerBox: LayoutRef = try #require(page.ref(of: outer).layout)
         let innerBox: LayoutRef = try #require(page.ref(of: inner).layout)
 
@@ -39,11 +39,11 @@ struct PaddingLayoutTests {
                 #a { padding-bottom: 12px; }
                 """
         )
-        let elements: [Element] = treeToList(page.frame.nodes).compactMap {
-            $0 as? Element
+        let elements: [ElementRef] = treeToList(page.frame.nodes).compactMap {
+            $0.element
         }
-        let a: Element = try #require(elements.first { $0.attributes["id"] == "a" })
-        let b: Element = try #require(elements.first { $0.attributes["id"] == "b" })
+        let a: ElementRef = try #require(elements.first { $0.attributes["id"] == "a" })
+        let b: ElementRef = try #require(elements.first { $0.attributes["id"] == "b" })
         let aBox: LayoutRef = try #require(page.ref(of: a).layout)
         let bBox: LayoutRef = try #require(page.ref(of: b).layout)
 
@@ -60,7 +60,7 @@ struct PaddingLayoutTests {
                 div { display: block; }
                 """
         )
-        let box: Element = try #require(page.firstElement(tag: "div"))
+        let box: ElementRef = try #require(page.firstElement(tag: "div"))
 
         InlineStyle.set(box, property: "padding", value: "20px")
         page.frame.setNeedsRender()
@@ -86,10 +86,10 @@ struct PaddingLayoutTests {
                 #box { padding: 10px; }
                 """
         )
-        let box: Element = try #require(page.firstElement(tag: "div"))
+        let box: ElementRef = try #require(page.firstElement(tag: "div"))
         let layout: LayoutRef = try #require(page.ref(of: box).layout)
 
-        #expect(layout.hitTest(x: layout.x - 5, y: layout.y + 5)?.domNode == page.frame.dom.id(of: box))
+        #expect(layout.hitTest(x: layout.x - 5, y: layout.y + 5)?.domNode == box.id)
     }
 
     @Test func backgroundCoversPadding() throws {
@@ -102,7 +102,7 @@ struct PaddingLayoutTests {
                 #box { padding: 10px; background-color: gold; }
                 """
         )
-        let box: Element = try #require(page.firstElement(tag: "div"))
+        let box: ElementRef = try #require(page.firstElement(tag: "div"))
         page.frame.setNeedsPaint()
         page.frame.paint()
 

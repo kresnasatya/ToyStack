@@ -5,8 +5,9 @@ struct IDSelector: CSSSelector {
     var hasSelectors: [HasSelector] { [] }
     var key: SelectorKey { .id(id) }
 
-    func matches(_ node: any DOMNode) -> Bool {
-        guard let element = node as? Element else { return false }
+    @MainActor
+    func matches(_ node: DOMRef) -> Bool {
+        guard let element = node.element else { return false }
         return element.attributes["id"] == id
     }
 }

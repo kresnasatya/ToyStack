@@ -20,11 +20,11 @@ struct AppendChildTests {
             """,
             rules: css
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
-        let oldParent: Element = try #require(page.firstElement(id: "old-parent"))
-        let old: any DOMNode = box.children[0]
-        let one: any DOMNode = oldParent.children[0]
-        let two: any DOMNode = oldParent.children[1]
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let oldParent: ElementRef = try #require(page.firstElement(id: "old-parent"))
+        let old: NodeID = box.children[0].id
+        let one: NodeID = oldParent.children[0].id
+        let two: NodeID = oldParent.children[1].id
         page.frame.js = JSRuntime(frame: page.frame)
 
         let boxHeightBefore: CGFloat = try #require(page.ref(of: box).layout).height
@@ -33,13 +33,13 @@ struct AppendChildTests {
         page.frame.js.run(script: "appendChild", code: "document.getElementById('box').appendChild(document.getElementById('one'));")
 
         #expect(box.children.count == 2)
-        #expect(box.children[0] === old)
-        #expect(box.children[1] === one)
-        #expect(old.parent === box)
-        #expect(one.parent === box)
+        #expect(box.children[0].id == old)
+        #expect(box.children[1].id == one)
+        #expect(page.frame.dom.parent(of: old) == box.id)
+        #expect(page.frame.dom.parent(of: one) == box.id)
         #expect(oldParent.children.count == 1)
-        #expect(oldParent.children[0] === two)
-        #expect(two.parent === oldParent)
+        #expect(oldParent.children[0].id == two)
+        #expect(page.frame.dom.parent(of: two) == oldParent.id)
 
         page.frame.rules = CSSParser(css).parse().rules
         page.frame.setNeedsRender()
@@ -60,9 +60,9 @@ struct AppendChildTests {
                 p { display: block; }
             """
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
-        let one: any DOMNode = box.children[0]
-        let two: any DOMNode = box.children[1]
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let one: NodeID = box.children[0].id
+        let two: NodeID = box.children[1].id
         page.frame.js = JSRuntime(frame: page.frame)
 
         page.frame.js.run(
@@ -74,10 +74,10 @@ struct AppendChildTests {
         )
 
         #expect(box.children.count == 2)
-        #expect(box.children[0] === two)
-        #expect(box.children[1] === one)
-        #expect(one.parent === box)
-        #expect(two.parent === box)
+        #expect(box.children[0].id == two)
+        #expect(box.children[1].id == one)
+        #expect(page.frame.dom.parent(of: one) == box.id)
+        #expect(page.frame.dom.parent(of: two) == box.id)
     }
 
     @Test func appendKeepsExistingLayoutChildren() throws {
@@ -95,9 +95,9 @@ struct AppendChildTests {
             """,
             rules: css
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
-        let one: Element = try #require(page.firstElement(id: "one"))
-        let two: Element = try #require(page.firstElement(id: "two"))
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let one: ElementRef = try #require(page.firstElement(id: "one"))
+        let two: ElementRef = try #require(page.firstElement(id: "two"))
         let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
         let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
         let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
@@ -143,8 +143,8 @@ struct AppendChildTests {
             html: #"<div id="box"><p id="one">one</p>tail</div>"#,
             rules: css
         )
-        let box: Element = try #require(page.firstElement(id: "box"))
-        let one: Element = try #require(page.firstElement(id: "one"))
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let one: ElementRef = try #require(page.firstElement(id: "one"))
         let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
         let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
         #expect(boxLayout.children.count == 2)

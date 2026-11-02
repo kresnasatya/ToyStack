@@ -16,7 +16,7 @@ struct LayoutSkippingTests {
                 div { display: block; }
                 """
         )
-        let bodyElement: Element = try #require(page.firstElement(tag: "body"))
+        let bodyElement: ElementRef = try #require(page.firstElement(tag: "body"))
         let bodyBefore: LayoutRef = try #require(page.firstBlock(in: bodyElement))
         let childrenBefore: [LayoutID] = bodyBefore.children.map { $0.id }
 
@@ -42,12 +42,12 @@ struct LayoutSkippingTests {
                 """
         )
         let document: LayoutTree = try #require(page.frame.document)
-        let leaf: Element = try #require(
+        let leaf: ElementRef = try #require(
             treeToList(page.frame.nodes)
-                .compactMap({ $0 as? Element })
+                .compactMap({ $0.element })
                 .first(where: { $0.attributes["id"] == "leaf" })
         )
-        let bodyElement: Element = try #require(page.firstElement(tag: "body"))
+        let bodyElement: ElementRef = try #require(page.firstElement(tag: "body"))
         let body: LayoutRef = try #require(page.firstBlock(in: bodyElement))
         let totalBlocks: Int = treeToList(document.root)
             .filter({ $0.isBlock })
@@ -78,7 +78,7 @@ struct LayoutSkippingTests {
                 p { display: block; width: 300px; }
                 """
         )
-        let p: Element = try #require(page.firstElement(tag: "p"))
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         let line: LayoutRef = try #require(page.firstLine(in: p))
         let text: LayoutRef = try #require(

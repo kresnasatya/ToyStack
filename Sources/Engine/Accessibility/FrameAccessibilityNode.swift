@@ -3,10 +3,9 @@ import CoreGraphics
 // MARK: - FrameAccessibilityNode
 @MainActor
 final class FrameAccessibilityNode: AccessibilityNode {
-    private var frame: Frame? { (node as? Element)?.frame }
+    private var frame: Frame? { node.element?.frame }
     private var border: CGFloat {
-        let ref: DOMRef = DOMRef(id: dom.id(of: node), dom: dom)
-        return ref.layout?.scaled(1) ?? 1
+        return node.layout?.scaled(1) ?? 1
     }
 
     override func build() {
