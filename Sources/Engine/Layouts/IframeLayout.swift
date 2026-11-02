@@ -76,7 +76,7 @@ final class IframeLayout: EmbedLayout {
         let bgColor: String = node.style["background-color"] ?? "transparent"
         guard bgColor != "transparent" else { return }
         let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
-        items.append(.rrect(selfRect(), radii, BrowserColor(cssName: bgColor)))
+        items.append(.rrect(rect: selfRect(), radii: radii, color: BrowserColor(cssName: bgColor)))
     }
 
     override func paintEffects(into items: inout [DisplayOp], from start: Int) {
@@ -150,6 +150,6 @@ final class IframeLayout: EmbedLayout {
         )
         else { return nil }
         guard case .rrect(let rect, let radii, let color) = bar else { return nil }
-        return .rrect(rect.translated(dx: innerRect.left, dy: innerRect.top), radii, color)
+        return .rrect(rect: rect.translated(dx: innerRect.left, dy: innerRect.top), radii: radii, color: color)
     }
 }

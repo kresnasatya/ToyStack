@@ -11,8 +11,8 @@ struct PaintCacheTests {
     @Test func relativeStoreAppendsAtNewOrigin() throws {
         var cache = PaintCache()
         let original: DisplayOp = .rect(
-            Rect(left: 10, top: 10, right: 110, bottom: 30),
-            BrowserColor(cssName: "red")
+            rect: Rect(left: 10, top: 10, right: 110, bottom: 30),
+            color: BrowserColor(cssName: "red")
         )
         cache.store(items: [original], key: key, origin: Point(x: 10, y: 10))
         #expect(cache.canReuse(key: key))
@@ -33,8 +33,8 @@ struct PaintCacheTests {
     @Test func translationDoesNotInvalidate() throws {
         var cache = PaintCache()
         let original: DisplayOp = .rect(
-            Rect(left: 0, top: 0, right: 100, bottom: 200),
-            BrowserColor(cssName: "blue")
+            rect: Rect(left: 0, top: 0, right: 100, bottom: 200),
+            color: BrowserColor(cssName: "blue")
         )
         cache.store(items: [original], key: key, origin: Point(x: 0, y: 0))
         #expect(cache.canReuse(key: key))
@@ -69,8 +69,8 @@ struct PaintCacheTests {
     @Test func epochChangeInvalidates() {
         var cache = PaintCache()
         let red: DisplayOp = .rect(
-            Rect(left: 0, top: 0, right: 100, bottom: 20),
-            BrowserColor(cssName: "red")
+            rect: Rect(left: 0, top: 0, right: 100, bottom: 20),
+            color: BrowserColor(cssName: "red")
         )
         cache.store(items: [red], key: key, origin: Point(x: 0, y: 0))
         #expect(cache.canReuse(key: key))
@@ -79,8 +79,8 @@ struct PaintCacheTests {
 
     @Test func hitOutputMatchesMissOutput() throws {
         let original: DisplayOp = .rect(
-            Rect(left: 0, top: 0, right: 100, bottom: 200),
-            BrowserColor(cssName: "green")
+            rect: Rect(left: 0, top: 0, right: 100, bottom: 200),
+            color: BrowserColor(cssName: "green")
         )
         var cache = PaintCache()
         cache.store(items: [original], key: key, origin: Point(x: 0, y: 0))
@@ -116,15 +116,15 @@ struct PaintCacheTests {
     @Test func compositedLayerIsRejected() {
         let layer = CompositedLayer(
             displayItem: .rect(
-                Rect(left: 0, top: 0, right: 100, bottom: 20),
-                BrowserColor(cssName: "black")
+                rect: Rect(left: 0, top: 0, right: 100, bottom: 20),
+                color: BrowserColor(cssName: "black")
             )
         )
         let item: DisplayOp = .compositedLayer(
-            layer,
-            layer.absoluteBounds(),
-            0,
-            100
+            layer: layer,
+            rect: layer.absoluteBounds(),
+            visibleTop: 0,
+            visibleBottom: 100
         )
 
         var cache = PaintCache()

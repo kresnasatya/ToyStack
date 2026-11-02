@@ -43,30 +43,34 @@ class InputLayout: EmbedLayout {
         if bgcolor != "transparent" {
             let radii: CornerRadii = CSSValueParser.cornerRadii(element.style) ?? .zero
             if !radii.isZero {
-                items.append(.rrect(selfRect(), radii, BrowserColor(cssName: bgcolor)))
+                items.append(.rrect(rect: selfRect(), radii: radii, color: BrowserColor(cssName: bgcolor)))
             } else {
-                items.append(.rect(selfRect(), BrowserColor(cssName: bgcolor)))
+                items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: bgcolor)))
             }
         }
 
         if element.attributes["type"] == "checkbox" {
-            items.append(.rect(selfRect(), BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonFace : "white")))
-            items.append(.outline(selfRect(), BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), 1))
+            items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonFace : "white")))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), width: 1))
             if element.isChecked {
                 items.append(
                     .text(
-                        "X",
-                        font,
-                        BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonText : "black"),
-                        Rect(left: x, top: y, right: x + font.measure("X"), bottom: y + font.linespace
+                        text: "X",
+                        font: font,
+                        color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonText : "black"),
+                        rect: Rect(
+                            left: x,
+                            top: y,
+                            right: x + font.measure("X"),
+                            bottom: y + font.linespace
                         )
                     )
                 )
             }
             let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
-                items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).outer), 2))
-                items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).inner), 4))
+                items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: focusRingColors(node).outer), width: 2))
+                items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: focusRingColors(node).inner), width: 4))
             }
             if let outline = outline { items.append(outline) }
         }
@@ -87,15 +91,15 @@ class InputLayout: EmbedLayout {
             }
         }
         let color: String = element.style["color"] ?? "black"
-        items.append(.text(text, font, BrowserColor(cssName: color), Rect(left: x, top: y, right: font.measure(text), bottom: y + font.linespace)))
+        items.append(.text(text: text, font: font, color: BrowserColor(cssName: color), rect: Rect(left: x, top: y, right: font.measure(text), bottom: y + font.linespace)))
 
         if element.isFocused {
             items.append(drawCursor(self, offset: font.measure(text)))
         }
         let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).outer), 4))
-            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).inner), 2))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: focusRingColors(node).outer), width: 4))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: focusRingColors(node).inner), width: 2))
         }
         if let outline = outline { items.append(outline) }
     }

@@ -119,13 +119,13 @@ class ButtonLayout: EmbedLayout {
         guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         let displayColor: String = bgcolor == "transparent" ? (usesForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
-        items.append(.rect(selfRect(), BrowserColor(cssName: displayColor)))
-        items.append(.outline(selfRect(), BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), 1))
+        items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: displayColor)))
+        items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), width: 1))
 
         let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).outer), 4))
-            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).inner), 2))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: focusRingColors(node).outer), width: 4))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: focusRingColors(node).inner), width: 2))
         }
         if let outline = outline { items.append(outline) }
     }

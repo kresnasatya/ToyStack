@@ -1,14 +1,14 @@
 import CoreGraphics
 
 public enum DisplayOp {
-    case rect(Rect, BrowserColor)
-    case rrect(Rect, CornerRadii, BrowserColor)
-    case line(Point, Point, BrowserColor, CGFloat)
-    case outline(Rect, BrowserColor, CGFloat)
-    case text(String, BrowserFont, BrowserColor, Rect)
-    case image(CGImage, ImageRendering, Rect, UInt64)
-    case clippedImage(CGImage, ImageRendering, Rect, Rect)
-    case compositedLayer(CompositedLayer, Rect, CGFloat, CGFloat)
+    case rect(rect: Rect, color: BrowserColor)
+    case rrect(rect: Rect, radii: CornerRadii, color: BrowserColor)
+    case line(from: Point, to: Point, color: BrowserColor, width: CGFloat)
+    case outline(rect: Rect, color: BrowserColor, width: CGFloat)
+    case text(text: String, font: BrowserFont, color: BrowserColor, rect: Rect)
+    case image(image: CGImage, rendering: ImageRendering, rect: Rect, version: UInt64)
+    case clippedImage(image: CGImage, rendering: ImageRendering, rect: Rect, clip: Rect)
+    case compositedLayer(layer: CompositedLayer, rect: Rect, visibleTop: CGFloat, visibleBottom: CGFloat)
     case effect(BrowserVisualEffect)
 }
 
@@ -69,24 +69,24 @@ extension DisplayOp {
     func shifted(dx: CGFloat, dy: CGFloat) -> DisplayOp {
         switch self {
         case .rect(let rect, let color):
-            return .rect(rect.translated(dx: dx, dy: dy), color)
+            return .rect(rect: rect.translated(dx: dx, dy: dy), color: color)
         case .rrect(let rect, let radii, let color):
-            return .rrect(rect.translated(dx: dx, dy: dy), radii, color)
+            return .rrect(rect: rect.translated(dx: dx, dy: dy), radii: radii, color: color)
         case .line(let from, let to, let color, let width):
             return .line(
-                Point(x: from.x + dx, y: from.y + dy),
-                Point(x: to.x + dx, y: to.y + dy),
-                color,
-                width
+                from: Point(x: from.x + dx, y: from.y + dy),
+                to: Point(x: to.x + dx, y: to.y + dy),
+                color: color,
+                width: width
             )
         case .outline(let rect, let color, let width):
-            return .outline(rect.translated(dx: dx, dy: dy), color, width)
+            return .outline(rect: rect.translated(dx: dx, dy: dy), color: color, width: width)
         case .text(let text, let font, let color, let rect):
-            return .text(text, font, color, rect.translated(dx: dx, dy: dy))
+            return .text(text: text, font: font, color: color, rect: rect.translated(dx: dx, dy: dy))
         case .image(let image, let rendering, let rect, let version):
-            return .image(image, rendering, rect.translated(dx: dx, dy: dy), version)
+            return .image(image: image, rendering: rendering, rect: rect.translated(dx: dx, dy: dy), version: version)
         case .clippedImage(let image, let rendering, let rect, let clip):
-            return .clippedImage(image, rendering, rect.translated(dx: dx, dy: dy), clip.translated(dx: dx, dy: dy))
+            return .clippedImage(image: image, rendering: rendering, rect: rect.translated(dx: dx, dy: dy), clip: clip.translated(dx: dx, dy: dy))
         case .compositedLayer, .effect:
             preconditionFailure("\(name) cannot be shifted")
         }
@@ -139,7 +139,7 @@ extension DisplayOp {
             thickness > 0
         else { return nil }
         let color: String = node.style["outline-color"] ?? node.style["color"] ?? "black"
-        return .outline(rect, BrowserColor(cssName: color), thickness)
+        return .outline(rect: rect, color: BrowserColor(cssName: color), width: thickness)
     }
 
     @MainActor
@@ -150,7 +150,7 @@ extension DisplayOp {
             thickness > 0
         else { return nil }
         let color: String = node.style["border-color"] ?? "black"
-        return .outline(rect, BrowserColor(cssName: color), thickness)
+        return .outline(rect: rect, color: BrowserColor(cssName: color), width: thickness)
     }
 }
 

@@ -107,10 +107,10 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         let top: CGFloat = absoluteY
         items.append(
             .text(
-                displayWord ?? word,
-                font,
-                BrowserColor(cssName: color),
-                Rect(
+                text: displayWord ?? word,
+                font: font,
+                color: BrowserColor(cssName: color),
+                rect: Rect(
                     left: x,
                     top: top,
                     right: x + textWidth,

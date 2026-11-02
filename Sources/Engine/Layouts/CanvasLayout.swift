@@ -55,6 +55,6 @@ final class CanvasLayout: EmbedLayout {
         guard let ctx = (node as? Element)?.canvasContext,
             let image: CGImage = ctx.image()
         else { return }
-        items.append(.image(image, .auto, selfRect(), ctx.revision))
+        items.append(.image(image: image, rendering: .auto, rect: selfRect(), version: ctx.revision))
     }
 }

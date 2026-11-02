@@ -93,7 +93,7 @@ final class ImageLayout: EmbedLayout {
             intrinsicHeight: scaled(CGFloat(image.height)),
             css: node.style["object-fit"]
         ).contentRect
-        items.append(.clippedImage(image, ImageRendering(css: node.style["image-rendering"]), content, box))
+        items.append(.clippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: content, clip: box))
     }
 
     override func attach(to line: LineLayout, previous: (any LayoutObject)?) {

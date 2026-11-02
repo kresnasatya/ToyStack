@@ -222,8 +222,8 @@ class LineLayout: LayoutObject {
             if let outline = DisplayOp.fromStyle(focused, rect: rect) {
                 items.append(outline)
             } else {
-                items.append(.outline(rect, BrowserColor(cssName: focusRingColors(node).outer), 4))
-                items.append(.outline(rect, BrowserColor(cssName: focusRingColors(node).inner), 2))
+                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(node).outer), width: 4))
+                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(node).inner), width: 2))
             }
 
         }

@@ -1063,10 +1063,9 @@ class BlockLayout: LayoutObject {
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
             let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
             if !radii.isZero {
-                items.append(.rrect(selfRect(), radii, BrowserColor(cssName: bgcolor))
-                )
+                items.append(.rrect(rect: selfRect(), radii: radii, color: BrowserColor(cssName: bgcolor)))
             } else {
-                items.append(.rect(selfRect(), BrowserColor(cssName: bgcolor)))
+                items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: bgcolor)))
             }
         }
 
@@ -1074,7 +1073,7 @@ class BlockLayout: LayoutObject {
             let value = node.style["background-image"], value != "none" {
             let box: Rect = selfRect()
             let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom).rect(css: node.style["background-size"])
-            items.append(.clippedImage(image, ImageRendering(css: node.style["image-rendering"]), dest, box))
+            items.append(.clippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
         }
 
         if let border: DisplayOp = DisplayOp.fromBorderStyle(node, rect: borderPaintRect()) {
@@ -1084,8 +1083,8 @@ class BlockLayout: LayoutObject {
         let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
         if node.isFocusVisible && outline == nil {
             let ring: (outer: String, inner: String) = focusRingColors(node)
-            items.append(.outline(selfRect(), BrowserColor(cssName: ring.outer), 4))
-            items.append(.outline(selfRect(), BrowserColor(cssName: ring.inner), 2))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: ring.outer), width: 4))
+            items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: ring.inner), width: 2))
         }
         if let outline = outline { items.append(outline) }
 
@@ -1096,7 +1095,7 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            items.append(.rect(bulletRect, BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.canvasText : "black")))
+            items.append(.rect(rect: bulletRect, color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.canvasText : "black")))
         }
     }
 
@@ -1121,7 +1120,7 @@ class BlockLayout: LayoutObject {
         let barTop: CGFloat = y + (scrollOffset / contentHeight) * height
         let barRect: Rect = Rect(
             left: x + width - barWidth, top: barTop, right: x + width, bottom: barTop + barHeight)
-        return [.rect(barRect, BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))]
+        return [.rect(rect: barRect, color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))]
     }
 
     func shouldPaint() -> Bool {

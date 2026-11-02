@@ -25,13 +25,13 @@ func scrollbarBarRect(
     let barHeight: CGFloat = max((geometry.contentHeight / geometry.docHeight) * geometry.contentHeight, 30)
     let barTop: CGFloat = (geometry.scroll / maxScroll) * (geometry.contentHeight - barHeight)
     return .rrect(
-        Rect(
+        rect: Rect(
             left: geometry.contentWidth - ScrollbarStyle.thumbInset - ScrollbarStyle.thumbWidth,
             top: topInset + barTop,
             right: geometry.contentWidth - ScrollbarStyle.thumbInset,
             bottom: topInset + barTop + barHeight
         ),
-        .uniform(.px(ScrollbarStyle.thumbRadius)),
-        BrowserColor(cssName: forcedColors ? ForcedColor.canvasText : ScrollbarStyle.thumbColor)
+        radii: .uniform(.px(ScrollbarStyle.thumbRadius)),
+        color: BrowserColor(cssName: forcedColors ? ForcedColor.canvasText : ScrollbarStyle.thumbColor)
     )
 }

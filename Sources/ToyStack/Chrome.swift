@@ -99,18 +99,18 @@ public class Chrome {
         let bgColor = forced ? ForcedColor.canvas : (darkMode ? "black" : "white")
 
         cmds.append(
-            .rect(Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), BrowserColor(cssName: bgColor)))
+            .rect(rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: BrowserColor(cssName: bgColor)))
         cmds.append(
-            .line(Point(x: 0, y: bottom), Point(x: currentWidth, y: bottom), BrowserColor(cssName: color), 1)
+            .line(from: Point(x: 0, y: bottom), to: Point(x: currentWidth, y: bottom), color: BrowserColor(cssName: color), width: 1)
         )
 
-        cmds.append(.outline(newtabRect, BrowserColor(cssName: color), 1))
+        cmds.append(.outline(rect: newtabRect, color: BrowserColor(cssName: color), width: 1))
         cmds.append(
             .text(
-                "+",
-                font,
-                BrowserColor(cssName: color),
-                Rect(
+                text: "+",
+                font: font,
+                color: BrowserColor(cssName: color),
+                rect: Rect(
                     left: newtabRect.left + padding,
                     top: newtabRect.top,
                     right: newtabRect.left + padding + font.measure("+"),
@@ -124,26 +124,26 @@ public class Chrome {
             let bounds = tabRect(i)
             cmds.append(
                 .line(
-                    Point(x: bounds.left, y: 0),
-                    Point(x: bounds.left, y: bounds.bottom),
-                    BrowserColor(cssName: color),
-                    1
+                    from: Point(x: bounds.left, y: 0),
+                    to: Point(x: bounds.left, y: bounds.bottom),
+                    color: BrowserColor(cssName: color),
+                    width: 1
                 )
             )
             cmds.append(
                 .line(
-                    Point(x: bounds.right, y: 0),
-                    Point(x: bounds.right, y: bounds.bottom),
-                    BrowserColor(cssName: color),
-                    1
+                    from: Point(x: bounds.right, y: 0),
+                    to: Point(x: bounds.right, y: bounds.bottom),
+                    color: BrowserColor(cssName: color),
+                    width: 1
                 )
             )
             cmds.append(
                 .text(
-                    "Tab \(i)",
-                    font,
-                    BrowserColor(cssName: color),
-                    Rect(
+                    text: "Tab \(i)",
+                    font: font,
+                    color: BrowserColor(cssName: color),
+                    rect: Rect(
                         left: bounds.left + padding,
                         top: bounds.top + padding,
                         right: bounds.left + padding + font.measure("Tab \(i)"),
@@ -154,31 +154,31 @@ public class Chrome {
             if tab === tabManager?.activeTab {
                 cmds.append(
                     .line(
-                        Point(x: 0, y: bounds.bottom),
-                        Point(x: bounds.left, y: bounds.bottom),
-                        BrowserColor(cssName: color),
-                        1
+                        from: Point(x: 0, y: bounds.bottom),
+                        to: Point(x: bounds.left, y: bounds.bottom),
+                        color: BrowserColor(cssName: color),
+                        width: 1
                     )
                 )
                 cmds.append(
                     .line(
-                        Point(x: bounds.right, y: bounds.bottom),
-                        Point(x: currentWidth, y: bounds.bottom),
-                        BrowserColor(cssName: color),
-                        1
+                        from: Point(x: bounds.right, y: bounds.bottom),
+                        to: Point(x: currentWidth, y: bounds.bottom),
+                        color: BrowserColor(cssName: color),
+                        width: 1
                     )
                 )
             }
         }
 
         let backColor = tabManager?.activeTab?.canGoBack == true ? color : "gray"
-        cmds.append(.outline(backRect, BrowserColor(cssName: backColor), 1))
+        cmds.append(.outline(rect: backRect, color: BrowserColor(cssName: backColor), width: 1))
         cmds.append(
             .text(
-                "<",
-                font,
-                BrowserColor(cssName: backColor),
-                Rect(
+                text: "<",
+                font: font,
+                color: BrowserColor(cssName: backColor),
+                rect: Rect(
                     left: backRect.left + padding,
                     top: backRect.top,
                     right: backRect.left + padding + font.measure("<"),
@@ -188,13 +188,13 @@ public class Chrome {
         )
 
         let fwdColor = tabManager?.activeTab?.canGoForward == true ? color : "gray"
-        cmds.append(.outline(forwardRect, BrowserColor(cssName: fwdColor), 1))
+        cmds.append(.outline(rect: forwardRect, color: BrowserColor(cssName: fwdColor), width: 1))
         cmds.append(
             .text(
-                ">",
-                font,
-                BrowserColor(cssName: fwdColor),
-                Rect(
+                text: ">",
+                font: font,
+                color: BrowserColor(cssName: fwdColor),
+                rect: Rect(
                     left: forwardRect.left + padding,
                     top: forwardRect.top,
                     right: forwardRect.left + padding + font.measure(">"),
@@ -206,15 +206,15 @@ public class Chrome {
         let currentURLStr = tabManager?.activeTab?.url?.toString() ?? ""
         let isBookmarked = bookmarks?.contains(currentURLStr) ?? false
         if isBookmarked {
-            cmds.append(.rect(bookmarkRect, BrowserColor(cssName: "yellow")))
+            cmds.append(.rect(rect: bookmarkRect, color: BrowserColor(cssName: "yellow")))
         }
-        cmds.append(.outline(bookmarkRect, BrowserColor(cssName: color), 1))
+        cmds.append(.outline(rect: bookmarkRect, color: BrowserColor(cssName: color), width: 1))
         cmds.append(
             .text(
-                "*",
-                font,
-                BrowserColor(cssName: color),
-                Rect(
+                text: "*",
+                font: font,
+                color: BrowserColor(cssName: color),
+                rect: Rect(
                     left: bookmarkRect.left + padding,
                     top: bookmarkRect.top,
                     right: bookmarkRect.left + padding + font.measure("*"),
@@ -223,20 +223,20 @@ public class Chrome {
             )
         )
 
-        cmds.append(.outline(addressRect, BrowserColor(cssName: color), 1))
+        cmds.append(.outline(rect: addressRect, color: BrowserColor(cssName: color), width: 1))
         if focus == "address bar" {
             if isAllSelected {
                 let textWidth = font.measure(addressBar)
                 let selRect = Rect(
                     left: addressRect.left + padding, top: addressRect.top,
                     right: addressRect.left + padding + textWidth, bottom: addressRect.bottom)
-                cmds.append(.rect(selRect, BrowserColor(cssName: "lightblue")))
+                cmds.append(.rect(rect: selRect, color: BrowserColor(cssName: "lightblue")))
                 cmds.append(
                     .text(
-                        addressBar,
-                        font,
-                        BrowserColor(cssName: color),
-                        Rect(
+                        text: addressBar,
+                        font: font,
+                        color: BrowserColor(cssName: color),
+                        rect: Rect(
                             left: addressRect.left + padding,
                             top: addressRect.top,
                             right: addressRect.left + padding + font.measure(addressBar),
@@ -247,10 +247,10 @@ public class Chrome {
             } else {
                 cmds.append(
                     .text(
-                        addressBar,
-                        font,
-                        BrowserColor(cssName: color),
-                        Rect(
+                        text: addressBar,
+                        font: font,
+                        color: BrowserColor(cssName: color),
+                        rect: Rect(
                             left: addressRect.left + padding,
                             top: addressRect.top,
                             right: addressRect.left + padding + font.measure(addressBar),
@@ -262,10 +262,10 @@ public class Chrome {
                 let w = font.measure(textBeforeCursor)
                 cmds.append(
                     .line(
-                        Point(x: addressRect.left + padding + w, y: addressRect.top),
-                        Point(x: addressRect.left + padding + w, y: addressRect.bottom),
-                        BrowserColor(cssName: "red"),
-                        1
+                        from: Point(x: addressRect.left + padding + w, y: addressRect.top),
+                        to: Point(x: addressRect.left + padding + w, y: addressRect.bottom),
+                        color: BrowserColor(cssName: "red"),
+                        width: 1
                     )
                 )
             }
@@ -275,10 +275,10 @@ public class Chrome {
             let displayText = isSecure ? "\u{1F512} \(url.toString())" : url.toString()
             cmds.append(
                 .text(
-                    displayText,
-                    font,
-                    BrowserColor(cssName: color),
-                    Rect(
+                    text: displayText,
+                    font: font,
+                    color: BrowserColor(cssName: color),
+                    rect: Rect(
                         left: addressRect.left + padding,
                         top: addressRect.top,
                         right: addressRect.left + padding + font.measure(displayText),

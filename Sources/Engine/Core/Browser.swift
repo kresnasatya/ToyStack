@@ -764,10 +764,10 @@ public class Browser: ObservableObject {
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
             var currentEffect: DisplayOp = .compositedLayer(
-                layer,
-                layer.absoluteBounds(),
-                inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
-                inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
+                layer: layer,
+                rect: layer.absoluteBounds(),
+                visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
+                visibleBottom: inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
             )
             var mergedIntoExisting: Bool = false
             for p in layer.ancestorChain {
@@ -789,13 +789,13 @@ public class Browser: ObservableObject {
         }
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
-            drawList.append(.outline(bounds, BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), 4))
-            drawList.append(.outline(bounds, BrowserColor(cssName: "black"), 2))
+            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))
+            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "black"), width: 2))
         }
 
         if let bounds = inputs.settings.accessibility.readBounds {
-            drawList.append(.outline(bounds, BrowserColor(cssName: "gold"), 4))
-            drawList.append(.outline(bounds, BrowserColor(cssName: "black"), 2))
+            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "gold"), width: 4))
+            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "black"), width: 2))
         }
 
         return drawList
