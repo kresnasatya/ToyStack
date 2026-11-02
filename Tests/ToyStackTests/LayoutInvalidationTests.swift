@@ -22,65 +22,65 @@ struct LayoutInvalidationTests {
     @Test func cleanSecondLayoutKeepsBlockChildren() throws {
         let fixture = makeFixture()
 
-        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
-        let childrenBefore: [ObjectIdentifier] = bodyBefore.children.map({ ObjectIdentifier($0 as AnyObject) })
+        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let childrenBefore: [LayoutID] = bodyBefore.children.map({ $0.id })
 
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let bodyAfter = try #require(fixture.body.layoutObject as? BlockLayout)
-        #expect(bodyAfter === bodyBefore)
-        #expect(bodyAfter.children.map{ ObjectIdentifier($0 as AnyObject) } == childrenBefore)
+        let bodyAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        #expect(bodyAfter.id == bodyBefore.id)
+        #expect(bodyAfter.children.map({ $0.id }) == childrenBefore)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
     @Test func mediaRuleChangeUpdatesWidth() throws {
         let fixture = makeFixture(mediaBody: "width: 200px;")
-        let narrowBefore = try #require(fixture.narrow.layoutObject as? BlockLayout)
+        let narrowBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
         #expect(narrowBefore.width == CGFloat(200))
 
         fixture.frame.frameWidth = 400
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let narrowAfter = try #require(fixture.narrow.layoutObject as? BlockLayout)
+        let narrowAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
         #expect(narrowAfter.width == CGFloat(100))
     }
 
     @Test func removingMarginBottomRebuildsHeight() throws {
         let fixture = makeFixture(mediaBody: "margin-bottom: 50px;")
-        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
+        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
         #expect(bodyBefore.height == CGFloat(50))
-        let wideBefore = try #require(fixture.wide.layoutObject)
+        let wideBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.wide).layout)
         let wideYBefore: CGFloat = wideBefore.y
 
         fixture.frame.frameWidth = 400
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let bodyAfter = try #require(fixture.body.layoutObject as? BlockLayout)
+        let bodyAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
         #expect(bodyAfter.height == 0)
-        let wideAfter = try #require(fixture.wide.layoutObject)
+        let wideAfter: LayoutRef = try #require(fixture.frame.dom.ref(fixture.wide).layout)
         #expect(wideAfter.y == wideYBefore - 50)
     }
 
     @Test func widthChangeOnOneBlockKeepsSiblings() throws {
         let fixture = makeFixture()
-        let narrowBefore = try #require(fixture.narrow.layoutObject as? BlockLayout)
-        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
-        let wideBefore = try #require(fixture.wide.layoutObject)
+        let narrowBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
+        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
+        let wideBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.wide).layout)
 
         InlineStyle.set(fixture.narrow, property: "width", value: "200px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let narrow = try #require(fixture.narrow.layoutObject as? BlockLayout)
+        let narrow: LayoutRef = try #require(fixture.frame.dom.ref(fixture.narrow).layout)
         #expect(narrow.width == CGFloat(200))
 
-        #expect(narrow === narrowBefore)
-        #expect(fixture.body.layoutObject === bodyBefore)
-        #expect(fixture.wide.layoutObject === wideBefore)
+        #expect(narrow.id == narrowBefore.id)
+        #expect(fixture.frame.dom.ref(fixture.body).layout?.id == bodyBefore.id)
+        #expect(fixture.frame.dom.ref(fixture.wide).layout?.id == wideBefore.id)
     }
 
     @Test func nonReusableStylePassKeepsLayoutObjects() throws {
@@ -93,11 +93,11 @@ struct LayoutInvalidationTests {
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
-        let bodyBefore = try #require(fixture.body.layoutObject as? BlockLayout)
+        let bodyBefore: LayoutRef = try #require(fixture.frame.dom.ref(fixture.body).layout)
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        #expect(fixture.body.layoutObject === bodyBefore)
+        #expect(fixture.frame.dom.ref(fixture.body).layout?.id == bodyBefore.id)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 

@@ -1,14 +1,14 @@
 import CoreGraphics
 
 @MainActor
-func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: inout PaintSession) {
+func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout PaintSession) {
     let window: PaintWindow = session.window
     let epoch: UInt = session.epoch
-    if let line = obj as? LineLayout, !window.intersects(line.selfRect()) {
+    if obj.isLine, !window.intersects(obj.selfRect()) {
         profiler.count("paint.nodes.culled")
         return
     }
-    if obj is TextLayout, !window.intersects(obj.selfRect()) {
+    if obj.isText, !window.intersects(obj.selfRect()) {
         profiler.count("paint.nodes.culled")
         return
     }
@@ -16,11 +16,10 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
     let start: Int = ops.count
     profiler.count("paint.nodes", by: 1)
 
-    let line: LineLayout? = obj as? LineLayout
-    if let line, line.canCachePaint(), line.shouldPaint(),
-        line.paintCache.canReuse(epoch: epoch, generation: line.paintGeneration)
+    if obj.isLine, obj.tree.lineCanCachePaint(obj), obj.shouldPaint(),
+        obj.linePaintCache.canReuse(epoch: epoch, generation: obj.linePaintGeneration)
     {
-        line.paintCache.append(to: &ops, currentX: line.x, currentY: line.y)
+        obj.linePaintCache.append(to: &ops, currentX: obj.x, currentY: obj.y)
         profiler.count("paint.cache.hit.lines", by: 1)
         return
     }
@@ -29,23 +28,25 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
     let ownStart: Int = ops.count
 
     if obj.shouldPaint() {
-        if let block = obj as? BlockLayout {
-            let origin: Point = Point(x: block.x, y: block.y)
+        if obj.isBlock {
+            let origin: Point = Point(x: obj.x, y: obj.y)
             let key: PaintKey = PaintKey(
-                width: block.width,
-                height: block.height,
+                width: obj.width,
+                height: obj.height,
                 epoch: epoch
             )
-            if block.paintCache.canReuse(key: key) {
-                block.paintCache.append(to: &ops, origin: origin)
+            if obj.blockPaintCache.canReuse(key: key) {
+                obj.blockPaintCache.append(to: &ops, origin: origin)
                 profiler.count("paint.cache.hit.blocks", by: 1)
             } else {
                 obj.paint(into: &ops)
-                block.paintCache.store(
+                var cache: PaintCache = obj.blockPaintCache
+                cache.store(
                     items: Array(ops[ownStart...]),
                     key: key,
                     origin: origin
                 )
+                obj.blockPaintCache = cache
                 profiler.count("paint.cache.store.blocks", by: 1)
             }
         } else {
@@ -54,34 +55,35 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
     }
     profiler.count("paint.own.items", by: ops.count - ownStart)
 
-    if let iframe = obj as? IframeLayout {
-        let scopes: IframeScopes = openIframeScopes(iframe, into: &ops, session: &session)
-        if let childFrame = iframe.node.element?.frame, childFrame.loaded,
+    if obj.isIframe {
+        let scopes: IframeScopes = openIframeScopes(obj, into: &ops, session: &session)
+        if let childFrame = obj.node.element?.frame, childFrame.loaded,
             let childDoc = childFrame.document
         {
             var childSession: PaintSession = session.with(epoch: childFrame.paintEpoch, window: window)
-            paintTree(childDoc, into: &ops, session: &childSession)
+            paintTree(childDoc.root, into: &ops, session: &childSession)
         }
-        closeIframeScopes(iframe, scopes: scopes, into: &ops)
-    } else if let block = obj as? BlockLayout,
-        block.node.style.computed.layout.overflow == .scroll
+        closeIframeScopes(obj, scopes: scopes, into: &ops)
+    } else if obj.isBlock,
+        obj.node.style.computed.layout.overflow == .scroll
     {
         profiler.count("paint.scroll", by: 1)
-        let box: Rect = block.selfRect()
-        let visibleTop: CGFloat = box.top + block.scrollOffset
+        let box: Rect = obj.selfRect()
+        let scrollOffset: CGFloat = obj.tree.blockScrollOffset(obj)
+        let visibleTop: CGFloat = box.top + scrollOffset
         let visibleBottom: CGFloat = visibleTop + (box.bottom - box.top)
-        var visibleChildren: [any LayoutObject] = []
+        var visibleChildren: [LayoutRef] = []
         for child in obj.children {
             let childBox: Rect = child.selfRect()
             if childBox.bottom < visibleTop { continue }
             if childBox.top > visibleBottom { break }
             visibleChildren.append(child)
         }
-        let radii: CornerRadii = block.node.style.computed.box.decoration.border.radii
-        let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
+        let radii: CornerRadii = obj.node.style.computed.box.decoration.border.radii
+        let shape: ClipShape = ClipShape(rect: obj.selfRect(), radii: radii)
         let scope: EffectScope = session.makeScope(
-            .scroll(shape, offset: block.scrollOffset),
-            node: block.node.id,
+            .scroll(shape, offset: scrollOffset),
+            node: obj.node.id,
             animatedTransform: false
         ).placed(rect: shape.rect)
         ops.append(.beginEffect(scope))
@@ -89,18 +91,18 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
             paintTree(child, into: &ops, session: &session)
         }
         ops.append(.endEffect)
-        ops.append(contentsOf: block.paintScrollbar())
-    } else if let block = obj as? BlockLayout,
-        block.node.style.computed.layout.overflow == .hidden
-            || block.node.style.computed.layout.overflow == .clip
+        ops.append(contentsOf: obj.tree.blockPaintScrollbar(obj))
+    } else if obj.isBlock,
+        obj.node.style.computed.layout.overflow == .hidden
+            || obj.node.style.computed.layout.overflow == .clip
     {
-        let radii: CornerRadii = block.node.style.computed.box.decoration.border.radii
-        let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
+        let radii: CornerRadii = obj.node.style.computed.box.decoration.border.radii
+        let shape: ClipShape = ClipShape(rect: obj.selfRect(), radii: radii)
         let scope: EffectScope = session.makeScope(
             .clip(shape),
-            node: block.node.id,
+            node: obj.node.id,
             animatedTransform: false
-        ).placed(rect: block.selfRect())
+        ).placed(rect: obj.selfRect())
         ops.append(.beginEffect(scope))
         for child in inPaintOrder(obj.children) {
             paintTree(child, into: &ops, session: &session)
@@ -112,24 +114,52 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
         }
     }
 
-    if let block = obj as? BlockLayout {
-        block.paintCaret(into: &ops)
+    if obj.isBlock {
+        obj.tree.blockPaintCaret(obj, into: &ops)
     }
 
     closeNodeScopes(opened, obj: obj, ops: &ops)
 
-    if let line, line.canCachePaint() {
+    if obj.isLine, obj.tree.lineCanCachePaint(obj) {
         let key: LinePaintKey = LinePaintKey(
-            x: line.x,
-            y: line.y,
+            x: obj.x,
+            y: obj.y,
             epoch: epoch,
-            generation: line.paintGeneration
+            generation: obj.linePaintGeneration
         )
-        line.paintCache.store(
+        var cache: LinePaintCache = obj.linePaintCache
+        cache.store(
             items: Array(ops[start...]),
             key: key
         )
+        obj.linePaintCache = cache
         profiler.count("paint.cache.store.lines", by: 1)
+    }
+}
+
+// MARK: - Cache accessors
+
+extension LayoutRef {
+    var blockPaintCache: PaintCache {
+        get { blockData.paint.cache }
+        nonmutating set {
+            var data: BlockData = blockData
+            data.paint.cache = newValue
+            blockData = data
+        }
+    }
+
+    var linePaintCache: LinePaintCache {
+        get { lineData.paint.cache }
+        nonmutating set {
+            var data: LineData = lineData
+            data.paint.cache = newValue
+            lineData = data
+        }
+    }
+
+    var linePaintGeneration: UInt {
+        return lineData.paint.generation
     }
 }
 
@@ -142,7 +172,7 @@ private struct OpenScope {
 
 @MainActor
 private func openNodeScopes(
-    _ obj: any LayoutObject,
+    _ obj: LayoutRef,
     into ops: inout [DisplayOp],
     session: inout PaintSession
 ) -> [OpenScope] {
@@ -162,7 +192,7 @@ private func openNodeScopes(
 @MainActor
 private func closeNodeScopes(
     _ opened: [OpenScope],
-    obj: any LayoutObject,
+    obj: LayoutRef,
     ops: inout [DisplayOp]
 ) {
     for open in opened.reversed() {
@@ -183,7 +213,7 @@ private func closeNodeScopes(
 @MainActor
 private func scopeRect(
     _ kind: EffectKind,
-    obj: any LayoutObject,
+    obj: LayoutRef,
     ops: [DisplayOp],
     from start: Int
 ) -> Rect {
@@ -215,13 +245,14 @@ private struct IframeScopes {
 
 @MainActor
 private func openIframeScopes(
-    _ iframe: IframeLayout,
+    _ iframe: LayoutRef,
     into ops: inout [DisplayOp],
     session: inout PaintSession
 ) -> IframeScopes {
     let rect: Rect = iframe.selfRect()
     let diff: CGFloat = iframe.scaled(1)
-    let scroll: CGFloat = (iframe.frame?.loaded ?? false) ? (iframe.frame?.scroll ?? 0) : 0
+    let frame: Frame? = iframe.node.element?.frame
+    let scroll: CGFloat = (frame?.loaded ?? false) ? (frame?.scroll ?? 0) : 0
 
     let innerRect: Rect = Rect(
         left: iframe.x + diff,
@@ -269,7 +300,7 @@ private func openIframeScopes(
 
 @MainActor
 private func closeIframeScopes(
-    _ iframe: IframeLayout,
+    _ iframe: LayoutRef,
     scopes: IframeScopes,
     into ops: inout [DisplayOp]
 ) {
@@ -289,13 +320,13 @@ private func closeIframeScopes(
 }
 
 @MainActor
-private func iframeScrollbar(_ iframe: IframeLayout, innerRect: Rect) -> DisplayOp? {
-    guard let frame = iframe.frame, frame.loaded, let doc = frame.document else { return nil }
+private func iframeScrollbar(_ iframe: LayoutRef, innerRect: Rect) -> DisplayOp? {
+    guard let frame = iframe.node.element?.frame, frame.loaded, let doc = frame.document else { return nil }
     let contentWidth: CGFloat = innerRect.right - innerRect.left
     let contentHeight: CGFloat = innerRect.bottom - innerRect.top
     guard let bar = scrollbarBarRect(
         ScrollbarGeometry(
-            docHeight: doc.height + 2 * VSTEP,
+            docHeight: doc.root.height + 2 * VSTEP,
             contentHeight: contentHeight,
             contentWidth: contentWidth,
             scroll: frame.scroll
@@ -316,17 +347,4 @@ func effectiveZIndex(_ node: DOMRef) -> Int {
     let layout: LayoutStyle = node.style.computed.layout
     guard layout.position.kind != .staticFlow else { return 0 }
     return layout.zIndex
-}
-
-@MainActor
-func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
-    guard children.contains(where: { $0.node.style.computed.layout.position.kind != .staticFlow })
-        else { return children }
-    return children.enumerated()
-        .sorted { a, b in
-            let za: Int = effectiveZIndex(a.element.node)
-            let zb: Int = effectiveZIndex(b.element.node)
-            return za == zb ? a.offset < b.offset : za < zb
-        }
-        .map { $0.element }
 }

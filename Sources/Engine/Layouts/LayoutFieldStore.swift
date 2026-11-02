@@ -1,105 +1,92 @@
 import CoreGraphics
+import Foundation
 
 // MARK: - LayoutFieldStore
 
-@MainActor
-final class LayoutFieldStore {
-    var x: CGFloat = 0
-    var y: CGFloat = 0
-    var width: CGFloat = 0
-    var height: CGFloat = 0
-    var zoom: CGFloat = 1
-    var children: [any LayoutObject] = []
-    var previous: (any LayoutObject)? = nil
-    var font: BrowserFont = inlineDefaultFont
-    var ascent: CGFloat = 0
-    var descent: CGFloat = 0
-    var inlineContent: UInt64 = 0
+/// Value storage for one layout node's fields. The bit layout is unchanged;
+/// only the owner moved from a class instance to the arena node.
+struct LayoutFieldStore {
+    var geometry: GeometryFields
+    var inlineText: InlineTextFields
+    var state: FieldState
 
-    private var usedBits: UInt16 = 0
-    private var dirtyBits: UInt16 = LayoutField.allMask
-    private var frozenBits: UInt16 = 0
-    private var dependents: [LayoutField: [FieldDependencyKey: FieldRef]] = [:]
+    init() {
+        self.geometry = GeometryFields()
+        self.inlineText = InlineTextFields()
+        self.state = FieldState()
+    }
+}
 
+extension LayoutFieldStore {
     func isUsed(_ field: LayoutField) -> Bool {
-        return usedBits & field.mask != 0
+        return state.usedBits & field.mask != 0
     }
 
     func isDirty(_ field: LayoutField) -> Bool {
-        return dirtyBits & field.mask != 0
+        return state.dirtyBits & field.mask != 0
     }
 
     func isFrozen(_ field: LayoutField) -> Bool {
-        return frozenBits & field.mask != 0
+        return state.frozenBits & field.mask != 0
     }
 
-    func markUsed(_ field: LayoutField) {
-        usedBits |= field.mask
+    mutating func markUsed(_ field: LayoutField) {
+        state.usedBits |= field.mask
     }
 
-    func markDirty(_ field: LayoutField) {
-        dirtyBits |= field.mask
+    mutating func markDirty(_ field: LayoutField) {
+        state.dirtyBits |= field.mask
     }
 
-    func markClean(_ field: LayoutField) {
-        dirtyBits &= ~field.mask
+    mutating func markClean(_ field: LayoutField) {
+        state.dirtyBits &= ~field.mask
     }
 
-    func markFrozen(_ field: LayoutField) {
-        frozenBits |= field.mask
+    mutating func markFrozen(_ field: LayoutField) {
+        state.frozenBits |= field.mask
     }
+}
 
-    func markDependents(_ field: LayoutField) {
-        guard let refs = dependents[field], !refs.isEmpty else { return }
-        for ref in refs.values {
-            ref.mark()
-        }
+// MARK: - GeometryFields
+
+struct GeometryFields {
+    var origin: Point
+    var size: CGSize
+    var zoom: CGFloat
+
+    init() {
+        self.origin = Point(x: 0, y: 0)
+        self.size = CGSize(width: 0, height: 0)
+        self.zoom = 1
     }
+}
 
-    func addDependent(_ field: LayoutField, _ dependent: FieldRef) {
-        guard let id = FieldDependencyKey(dependent) else { return }
-        dependents[field, default: [:]][id] = dependent
+// MARK: - InlineTextFields
+
+struct InlineTextFields {
+    var font: BrowserFont
+    var ascent: CGFloat
+    var descent: CGFloat
+    var inlineContent: UInt64
+
+    init() {
+        self.font = inlineDefaultFont
+        self.ascent = 0
+        self.descent = 0
+        self.inlineContent = 0
     }
+}
 
-    func removeDependent(_ field: LayoutField, _ dependent: FieldRef) {
-        guard let id = FieldDependencyKey(dependent) else { return }
-        dependents[field]?[id] = nil
-        if dependents[field]?.isEmpty == true {
-            dependents.removeValue(forKey: field)
-        }
-    }
+// MARK: - FieldState
 
-    func dependentCount(_ field: LayoutField) -> Int {
-        return dependents[field]?.values.reduce(0, { total, ref in
-            total + (ref.owner == nil ? 0 : 1)
-        }) ?? 0
-    }
+struct FieldState {
+    var usedBits: UInt16
+    var dirtyBits: UInt16
+    var frozenBits: UInt16
 
-    func containsDependent(_ field: LayoutField, _ dependent: FieldRef) -> Bool {
-        guard let id = FieldDependencyKey(dependent) else { return false }
-        return dependents[field]?[id]?.owner != nil
-    }
-
-    func dependencyNames(_ field: LayoutField) -> [String] {
-        return (dependents[field] ?? [:])
-            .compactMap({ $0.value.owner == nil ? nil : $0.value.fieldName })
-            .sorted()
-    }
-
-    func takeDependents(_ field: LayoutField) -> [FieldRef] {
-        guard let current = dependents[field] else { return [] }
-        var live: [FieldRef] = []
-        live.reserveCapacity(current.count)
-        for ref in current.values where ref.owner != nil {
-            live.append(ref)
-        }
-        if live.count != current.count {
-            dependents[field] = current.filter({ $0.value.owner != nil })
-        }
-        return live
-    }
-
-    func hasDependents(_ field: LayoutField) -> Bool {
-        return !(dependents[field]?.isEmpty ?? true)
+    init() {
+        self.usedBits = 0
+        self.dirtyBits = LayoutField.allMask
+        self.frozenBits = 0
     }
 }

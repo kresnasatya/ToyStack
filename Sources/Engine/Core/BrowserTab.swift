@@ -61,7 +61,7 @@ public class BrowserTab {
 
     public var url: WebURL! { rootFrame.url }
     var nodes: any DOMNode { rootFrame.nodes }
-    var document: DocumentLayout? { rootFrame.document }
+    var document: LayoutTree? { rootFrame.document }
     var displayList: [DisplayOp] { rootFrame.displayList }
     public var title: String { rootFrame.title }
     public var isSecure: Bool { rootFrame.isSecure }
@@ -185,7 +185,7 @@ public class BrowserTab {
         }
         if needsAccessibility, browser?.accessibilityIsOn == true {
             browser?.measure.start("BrowserTab.a11y")
-            let tree: AccessibilityNode = AccessibilityNode(node: rootFrame.nodes)
+            let tree: AccessibilityNode = AccessibilityNode(node: rootFrame.nodes, dom: rootFrame.dom)
             tree.build()
             accessibilityTree = tree
             browser?.measure.stop("BrowserTab.a11y")

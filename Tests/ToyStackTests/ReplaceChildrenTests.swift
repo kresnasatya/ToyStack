@@ -21,7 +21,7 @@ struct ReplaceChildrenTests {
         page.frame.js = JSRuntime(frame: page.frame)
 
         let removed: [any DOMNode] = box.children
-        let heightBefore: CGFloat = try #require(box.layoutObject).height
+        let heightBefore: CGFloat = try #require(page.ref(of: box).layout).height
 
         page.frame.js.run(script: "replaceChildren", code: "document.getElementById('box').replaceChildren()")
 
@@ -31,7 +31,7 @@ struct ReplaceChildrenTests {
         #expect(page.frame.nodes.style.isDirty)
 
         page.frame.render()
-        #expect((box.layoutObject?.height ?? 0) < heightBefore)
+        #expect((page.ref(of: box).layout?.height ?? 0) < heightBefore)
     }
 
     @Test func transferChildrenFromOtherParentsInOrder() throws {
@@ -54,8 +54,8 @@ struct ReplaceChildrenTests {
         let two: any DOMNode = donor.children[1]
         page.frame.js = JSRuntime(frame: page.frame)
 
-        let boxHeightBefore: CGFloat = try #require(box.layoutObject).height
-        let donorHeightBefore: CGFloat = try #require(donor.layoutObject).height
+        let boxHeightBefore: CGFloat = try #require(page.ref(of: box).layout).height
+        let donorHeightBefore: CGFloat = try #require(page.ref(of: donor).layout).height
 
         page.frame.js.run(
             script: "replaceChildren",
@@ -74,8 +74,8 @@ struct ReplaceChildrenTests {
         #expect(page.frame.nodes.style.isDirty)
 
         page.frame.render()
-        #expect((box.layoutObject?.height ?? 0) > boxHeightBefore)
-        #expect((donor.layoutObject?.height ?? 0) < donorHeightBefore)
+        #expect((page.ref(of: box).layout?.height ?? 0) > boxHeightBefore)
+        #expect((page.ref(of: donor).layout?.height ?? 0) < donorHeightBefore)
     }
 
     @Test func adoptsDetachedChildAndMovesRepeatedChildLast() throws {

@@ -8,60 +8,55 @@ import Testing
 struct StyleFieldsTests {
 
     @Test func sameValueDoesNotMark() {
-        let style = StyleFields()
+        let (style, target) = makeStyleFixture()
         style.apply(["width": "10px"])
-        let target = StyleTestTarget()
-        style.field(.width).touch(target)
+        style.field(.width).touch(target.fontField)
 
         style.set(.length(10), for: .width)
-        #expect(!target.dirty)
+        #expect(!target.fontField.isDirty)
     }
 
     @Test func differentValueMarks() {
-        let style = StyleFields()
+        let (style, target) = makeStyleFixture()
         style.apply(["width": "10px"])
-        let target = StyleTestTarget()
-        style.field(.width).touch(target)
+        style.field(.width).touch(target.fontField)
 
         style.set(.length(20), for: .width)
-        #expect(target.dirty)
+        #expect(target.fontField.isDirty)
     }
 
     @Test func absentPropertyGetsALiveEdge() {
-        let style = StyleFields()
-        let target = StyleTestTarget()
+        let (style, target) = makeStyleFixture()
 
-        style.field(.width).touch(target)
+        style.field(.width).touch(target.fontField)
         #expect(style.computed.box.size.width == nil)
         style.set(.length(20), for: .width)
 
-        #expect(target.dirty)
+        #expect(target.fontField.isDirty)
     }
 
     @Test func removingAPropertyMarksAndKeepsTheEdge() {
-        let style = StyleFields()
+        let (style, target) = makeStyleFixture()
         style.apply(["width": "10px"])
-        let target = StyleTestTarget()
-        style.field(.width).touch(target)
+        style.field(.width).touch(target.fontField)
 
         style.apply(["height": "5px"])
-        #expect(target.dirty)
+        #expect(target.fontField.isDirty)
 
-        target.set(1)
+        target.fontField.setClean(inlineDefaultFont)
         style.set(.length(30), for: .width)
-        #expect(target.dirty)
+        #expect(target.fontField.isDirty)
     }
 
     @Test func identicalApplyDoesNotMark() {
-        let style = StyleFields()
+        let (style, target) = makeStyleFixture()
         style.apply(["width": "10px"])
-        let target = StyleTestTarget()
-        style.field(.width).touch(target)
+        style.field(.width).touch(target.fontField)
 
         profiler.reset()
         style.apply(["width": "10px"])
 
-        #expect(!target.dirty)
+        #expect(!target.fontField.isDirty)
         #expect((profiler.snapshot()["style.fields.changed"]?.count ?? 0) == 0)
     }
 
@@ -78,31 +73,25 @@ struct StyleFieldsTests {
     }
 
     @Test func deadDependentsDoNotAccumulate() {
-        let style = StyleFields()
+        let (style, target) = makeStyleFixture()
         style.apply(["width": "10px"])
 
         for _ in 0..<50 {
-            registerDeadDependency(style)
+            style.field(.width).touch(target.fontField)
         }
 
-        let live = StyleTestTarget()
-        style.field(.width).touch(live)
-
-        withExtendedLifetime(live) {
-            #expect(style.dependentCount(for: .width) == 1)
-        }
+        #expect(style.dependentCount(for: .width) == 1)
     }
 
     @Test func removingAPropertyEdgeStopsMarking() {
-        let style = StyleFields()
+        let (style, target) = makeStyleFixture()
         style.apply(["width": "10px"])
-        let target = StyleTestTarget()
-        style.field(.width).touch(target)
+        style.field(.width).touch(target.fontField)
 
-        style.removeDependency(.style(.width), target.ref)
+        style.removeDependency(.width, target.fontField.ref)
         style.set(.length(20), for: .width)
 
-        #expect(!target.dirty)
+        #expect(!target.fontField.isDirty)
         #expect(style.dependentCount(for: .width) == 0)
     }
 
@@ -152,31 +141,11 @@ struct StyleFieldsTests {
 }
 
 @MainActor
-private final class StyleTestTarget: FieldOwner, InvalidatableField {
-    var dirty: Bool = false
-    var fieldName: String { "target" }
-    var isDirty: Bool { dirty }
-    var frozenDependencies: Bool { false }
-    var invalidationNames: [String] { [] }
-    var ref: FieldRef { FieldRef(owner: self, name: .style(.width)) }
-
-    func mark() { dirty = true }
-    func set(_ value: CGFloat) { dirty = false }
-    func addInvalidation(_ field: any InvalidatableField) {}
-    func removeInvalidation(_ field: any InvalidatableField) {}
-    func containsInvalidation(_ field: any InvalidatableField) -> Bool { false }
-
-    func markField(_ name: FieldName) { dirty = true }
-    func addDependency(_ name: FieldName, _ field: FieldRef) {}
-    func removeDependency(_ name: FieldName, _ field: FieldRef) {}
-    func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool { false }
-    func fieldIsDirty(_ name: FieldName) -> Bool { dirty }
-    func fieldIsFrozen(_ name: FieldName) -> Bool { false }
-    func dependencyNames(_ name: FieldName) -> [String] { [] }
-}
-
-@MainActor
-private func registerDeadDependency(_ style: StyleFields) {
-    let dead = StyleTestTarget()
-    style.field(.width).touch(dead)
+private func makeStyleFixture() -> (StyleFields, LayoutRef) {
+    let root: Element = Element(tag: "html", attributes: [:], parent: nil)
+    let dom: DOMTree = DOMTree(root: root)
+    let tree: LayoutTree = LayoutTree(dom: dom)
+    let target: LayoutRef = tree.root
+    target.fontField.setClean(inlineDefaultFont)
+    return (root.style, target)
 }

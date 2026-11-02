@@ -69,20 +69,21 @@ struct InlineTextLayoutTests {
             rules: textPageRules
         )
         let p: Element = try #require(page.firstElement(tag: "p"))
-        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+        let block: LayoutRef = try #require(page.firstBlock(in: p))
 
-        let before: [ObjectIdentifier] = treeToList(block)
-            .compactMap({ $0 as? TextLayout })
-            .map { ObjectIdentifier($0) }
+        let before: [LayoutID] = treeToList(block)
+            .filter({ $0.isText })
+            .map { $0.id }
 
         page.frame.frameWidth = 300
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        #expect(treeToList(block).compactMap { $0 as? TextLayout }.map { ObjectIdentifier($0) } == before)
+        #expect(treeToList(block).filter { $0.isText }.map { $0.id } == before)
 
         let text: TextNode = try #require(p.children.first as? TextNode)
         text.append(" six")
+        LayoutInvalidation.textChanged(page.ref(of: text))
         page.frame.setNeedsRender()
         page.frame.render()
 

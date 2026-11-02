@@ -28,6 +28,6 @@ struct LinkVersions {
 // MARK: - LayoutState
 
 struct LayoutState {
-    var fields: ArenaFieldStore
+    var fields: LayoutFieldStore
     var hasDirtyDescendants: Bool
 }

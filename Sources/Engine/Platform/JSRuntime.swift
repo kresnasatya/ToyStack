@@ -107,7 +107,9 @@ class JSRuntime: @unchecked Sendable {
             MainActor.assumeIsolated({
                 guard let self, let elt = self.handleToNode[handle] as? Element else { return }
                 elt.attributes[attr] = value
-                LayoutInvalidation.attributesChanged(elt)
+                if let frame = self.frame {
+                    LayoutInvalidation.attributesChanged(frame.dom.ref(elt))
+                }
                 if attr == "src", elt.tag == "iframe" {
                     self.frame?.syncIframes()
                 }
@@ -208,7 +210,9 @@ class JSRuntime: @unchecked Sendable {
                 let text: TextNode = TextNode(text: value, parent: elt)
                 elt.children = [text]
                 self.frame?.dom.register(text)
-                LayoutInvalidation.childrenChanged(elt)
+                if let frame = self.frame {
+                    LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
+                }
                 self.frame?.syncIframes()
                 self.frame?.setNeedsStyle(elt)
             })
@@ -224,7 +228,7 @@ class JSRuntime: @unchecked Sendable {
                 let newNodes: [any DOMNode]? = (doc.children.first as? Element)?.children
                 elt.children = newNodes ?? []
                 for child in elt.children { child.parent = elt }
-                LayoutInvalidation.childrenChanged(elt)
+                LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
                 frame.markStructureChanged()
                 frame.runNewScripts(in: elt)
                 frame.reloadStylesheets()
@@ -264,16 +268,16 @@ class JSRuntime: @unchecked Sendable {
                     wasSameParent = oldParent === parent
                     oldParent.children.removeAll { $0 === child }
                     if oldParent !== parent {
-                        LayoutInvalidation.childrenChanged(oldParent)
+                        LayoutInvalidation.childrenChanged(frame.dom.ref(oldParent))
                         frame.setNeedsStyle(oldParent)
                     }
                 }
                 child.parent = parent
                 parent.children.append(child)
                 if wasSameParent {
-                    LayoutInvalidation.childrenChanged(parent)
+                    LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 } else {
-                    LayoutInvalidation.childrenAppend(parent, child)
+                    LayoutInvalidation.childrenAppend(frame.dom.ref(parent), frame.dom.ref(child))
                 }
                 frame.markStructureChanged()
                 frame.runNewScripts(in: child)
@@ -292,7 +296,7 @@ class JSRuntime: @unchecked Sendable {
                 else { return -1 }
                 parent.children.removeAll { $0 === child }
                 child.parent = nil
-                LayoutInvalidation.childrenChanged(parent)
+                LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 frame.markStructureChanged()
                 frame.reloadStylesheets()
                 frame.syncIframes()
@@ -321,14 +325,14 @@ class JSRuntime: @unchecked Sendable {
                     if let parent = child.parent {
                         parent.children.removeAll { $0 === child }
                         if parent !== elt {
-                            LayoutInvalidation.childrenChanged(parent)
+                            LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                         }
                     }
                     child.parent = elt
                     elt.children.append(child)
                 }
 
-                LayoutInvalidation.childrenChanged(elt)
+                LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
                 frame.markStructureChanged()
                 for child in newChildren { frame.runNewScripts(in: child) }
                 frame.reloadStylesheets()
@@ -355,7 +359,7 @@ class JSRuntime: @unchecked Sendable {
                 if let oldParent = child.parent {
                     oldParent.children.removeAll { $0 === child }
                     if oldParent !== parent {
-                        LayoutInvalidation.childrenChanged(oldParent)
+                        LayoutInvalidation.childrenChanged(frame.dom.ref(oldParent))
                         frame.setNeedsStyle(oldParent)
                     }
                 }
@@ -365,9 +369,9 @@ class JSRuntime: @unchecked Sendable {
                 child.parent = parent
                 parent.children.insert(child, at: idx)
                 if wasSameParent {
-                    LayoutInvalidation.childrenChanged(parent)
+                    LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 } else {
-                    LayoutInvalidation.childrenInsert(parent, child, before: ref)
+                    LayoutInvalidation.childrenInsert(frame.dom.ref(parent), frame.dom.ref(child), before: frame.dom.ref(ref))
                 }
                 frame.markStructureChanged()
                 frame.runNewScripts(in: child)

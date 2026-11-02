@@ -27,12 +27,18 @@ struct BlockLayoutTests {
         frame.setNeedsRender()
         frame.render()
 
-        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+        let pRef: DOMRef = frame.dom.ref(p)
+        let block: LayoutRef = try #require(pRef.layout)
         let parentWidth: CGFloat = try #require(block.parent?.width)
         #expect(block.width == parentWidth)
         #expect(block.width == CGFloat(400))
 
-        let layoutInput: InputLayout = try #require(treeToList(block).compactMap({ $0 as? InputLayout }).first)
-        #expect(layoutInput.width == InputLayout.inputWidthPx)
+        let layoutInput: LayoutRef = try #require(
+            treeToList(block).first(where: { ref in
+                if case .embed(.input) = ref.kind { return true }
+                return false
+            })
+        )
+        #expect(layoutInput.width == inputWidthPx)
     }
 }

@@ -33,6 +33,12 @@ final class DOMTree {
         return index.nodes[id]
     }
 
+    func attachLayoutTree(_ tree: LayoutTree) {
+        for node in index.nodes.values {
+            node.style.layoutTree = tree
+        }
+    }
+
     func ref(_ node: any DOMNode) -> DOMRef {
         return DOMRef(id: id(of: node), dom: self)
     }
@@ -51,6 +57,7 @@ final class DOMTree {
         index.nodes[id] = node
         index.ids[ObjectIdentifier(node)] = id
         node.style.attachOwner(id)
+        node.style.layoutTree = layoutTree
         return id
     }
 

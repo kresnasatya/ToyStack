@@ -37,12 +37,6 @@ extension DOMRef {
         return self
     }
 
-    /// Temporary bridge used by the old layout classes. Deleted in C3.
-    var layoutObject: (any LayoutObject)? {
-        get { raw.layoutObject }
-        nonmutating set { raw.layoutObject = newValue }
-    }
-
     var layout: LayoutRef? {
         guard let tree: LayoutTree = dom.layoutTree,
             let id: LayoutID = tree.primaryLayout(for: id)

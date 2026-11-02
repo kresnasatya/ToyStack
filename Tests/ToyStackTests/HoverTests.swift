@@ -7,8 +7,8 @@ import Testing
 @MainActor
 struct HoverTests {
 
-    private func bounds(_ element: Element) throws -> Rect {
-        let object: any LayoutObject = try #require(element.layoutObject)
+    private func bounds(_ element: Element, in page: LayoutTestPage) throws -> Rect {
+        let object: LayoutRef = try #require(page.ref(of: element).layout)
         return object.absoluteBounds()
     }
 
@@ -16,11 +16,12 @@ struct HoverTests {
         return CGPoint(x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2)
     }
 
-    private func textLayout(of element: Element, in page: LayoutTestPage) throws -> TextLayout {
-        let doc: DocumentLayout = try #require(page.frame.document)
+    private func textLayout(of element: Element, in page: LayoutTestPage) throws -> LayoutRef {
+        let doc: LayoutTree = try #require(page.frame.document)
+        let target: NodeID = page.frame.dom.id(of: element)
         return try #require(
-            treeToList(doc).compactMap({ $0 as? TextLayout })
-                .first(where: { $0.node.text != nil && $0.node.parent?.raw === element })
+            treeToList(doc.root).filter({ $0.isText })
+                .first(where: { $0.node.parent?.id == target })
         )
     }
 
@@ -39,7 +40,7 @@ struct HoverTests {
         )
         let a: Element = try #require(page.firstElement(id: "a"))
         let b: Element = try #require(page.firstElement(id: "b"))
-        let point: CGPoint = center(try bounds(a))
+        let point: CGPoint = center(try bounds(a, in: page))
 
         page.tab.hover(x: point.x, y: point.y)
         page.frame.render()
@@ -71,8 +72,8 @@ struct HoverTests {
         )
         let a: Element = try #require(page.firstElement(id: "a"))
         let b: Element = try #require(page.firstElement(id: "b"))
-        let pointA: CGPoint = center(try bounds(a))
-        let pointB: CGPoint = center(try bounds(b))
+        let pointA: CGPoint = center(try bounds(a, in: page))
+        let pointB: CGPoint = center(try bounds(b, in: page))
 
         page.tab.hover(x: pointA.x, y: pointA.y)
         page.frame.render()
@@ -140,8 +141,8 @@ struct HoverTests {
         let label: Element = try #require(page.firstElement(id: "label"))
         let after: Element = try #require(page.firstElement(id: "after"))
         let labelPoint: CGPoint = center(try textLayout(of: label, in: page).absoluteBounds())
-        let cardPoint: CGPoint = center(try bounds(card))
-        let afterPoint: CGPoint = center(try bounds(after))
+        let cardPoint: CGPoint = center(try bounds(card, in: page))
+        let afterPoint: CGPoint = center(try bounds(after, in: page))
 
         page.tab.hover(x: cardPoint.x, y: cardPoint.y)
         page.frame.render()
@@ -172,7 +173,7 @@ struct HoverTests {
             """
         )
         let box: Element = try #require(page.firstElement(id: "box"))
-        let before: Rect = try bounds(box)
+        let before: Rect = try bounds(box, in: page)
         let stalePoint: CGPoint = center(before)
 
         InlineStyle.set(box, property: "margin-top", value: "120px")
@@ -183,7 +184,7 @@ struct HoverTests {
         // so the old position is already empty by the time pointer is tested
         page.frame.render()
 
-        let after: Rect = try bounds(box)
+        let after: Rect = try bounds(box, in: page)
         #expect(after.top > before.top + 100)
         #expect(!box.isHovered)
 

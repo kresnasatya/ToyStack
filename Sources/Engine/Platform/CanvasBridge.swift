@@ -28,7 +28,7 @@ final class CanvasBridge {
             return MainActor.assumeIsolated({
                 guard let el = nodeForHandle(handle) as? Element else { return false }
                 if el.canvasContext == nil {
-                    let size: (width: CGFloat, height: CGFloat) = CanvasLayout.contentSize(for: el)
+                    let size: (width: CGFloat, height: CGFloat) = canvasContentSize(for: el)
                     el.canvasContext = CanvasRenderingContext2D(
                         width: size.width,
                         height: size.height,

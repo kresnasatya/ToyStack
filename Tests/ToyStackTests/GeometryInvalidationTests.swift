@@ -8,8 +8,8 @@ import Testing
 struct GeometryInvalidationTests {
     @Test func growingParagraphMovesFollowingParagraph() throws {
         let fixture: ParagraphFixture = makeParagraphFixture()
-        let before: BlockLayout = try #require(
-            fixture.second.layoutObject as? BlockLayout
+        let before: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.second).layout
         )
         let yBefore: CGFloat = before.y
 
@@ -19,16 +19,16 @@ struct GeometryInvalidationTests {
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let after: BlockLayout = try #require(
-            fixture.second.layoutObject as? BlockLayout
+        let after: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.second).layout
         )
         #expect(after.y > yBefore)
     }
 
     @Test func movingParentDoesNotTranslateAbsoluteChild() throws {
         let fixture: AbsoluteFixture = makeAbsoluteFixture()
-        let before: BlockLayout = try #require(
-            fixture.absolute.layoutObject as? BlockLayout
+        let before: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.absolute).layout
         )
         let xBefore: CGFloat = before.x
         let yBefore: CGFloat = before.y
@@ -38,8 +38,8 @@ struct GeometryInvalidationTests {
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let after: BlockLayout = try #require(
-            fixture.absolute.layoutObject as? BlockLayout
+        let after: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.absolute).layout
         )
         #expect(after.x == xBefore)
         #expect(after.y == yBefore)
@@ -47,8 +47,8 @@ struct GeometryInvalidationTests {
 
     @Test func growingNestedListItemMovesFollowingItem() throws {
         let fixture: NestedListFixture = makeNestedListFixture()
-        let before: BlockLayout = try #require(
-            fixture.secondItem.layoutObject as? BlockLayout
+        let before: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.secondItem).layout
         )
         let yBefore: CGFloat = before.y
 
@@ -57,36 +57,36 @@ struct GeometryInvalidationTests {
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let after: BlockLayout = try #require(
-            fixture.secondItem.layoutObject as? BlockLayout
+        let after: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.secondItem).layout
         )
         #expect(after.y == yBefore + 60)
     }
 
     @Test func rtlLineStaysRightAlignedAfterPreviousSiblingGrows() throws {
         let fixture: RTLFixture = makeRTLFixture()
-        let blockBefore: BlockLayout = try #require(
-            fixture.rtl.layoutObject as? BlockLayout
+        let blockBefore: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.rtl).layout
         )
         let yBefore: CGFloat = blockBefore.y
-        let textBefore: TextLayout = try #require(
-            treeToList(blockBefore).compactMap({ $0 as? TextLayout }).first
+        let textBefore: LayoutRef = try #require(
+            treeToList(blockBefore).first(where: { $0.isText })
         )
-        #expect(textBefore.x + textBefore.textWidth == blockBefore.x + blockBefore.width)
+        #expect(textBefore.x + textBefore.textData.metrics.width == blockBefore.x + blockBefore.width)
 
         InlineStyle.set(fixture.header, property: "height", value: "80px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let blockAfter: BlockLayout = try #require(
-            fixture.rtl.layoutObject as? BlockLayout
+        let blockAfter: LayoutRef = try #require(
+            fixture.frame.dom.ref(fixture.rtl).layout
         )
-        let textAfter: TextLayout = try #require(
-            treeToList(blockAfter).compactMap({ $0 as? TextLayout }).first
+        let textAfter: LayoutRef = try #require(
+            treeToList(blockAfter).first(where: { $0.isText })
         )
         #expect(blockAfter.y == yBefore + 70)
-        #expect(textAfter.x + textAfter.textWidth == blockAfter.x + blockAfter.width)
+        #expect(textAfter.x + textAfter.textData.metrics.width == blockAfter.x + blockAfter.width)
     }
 }
 

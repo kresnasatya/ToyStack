@@ -1,3 +1,5 @@
+import Foundation
+
 // MARK: - Tree Utilities
 func treeToList(_ node: any DOMNode) -> [any DOMNode] {
     var result: [any DOMNode] = [node]
@@ -8,15 +10,15 @@ func treeToList(_ node: any DOMNode) -> [any DOMNode] {
 }
 
 @MainActor
-func treeToList(_ obj: any LayoutObject, into list: inout [any LayoutObject]) {
-    list.append(obj)
-    for child in obj.children { treeToList(child, into: &list) }
+func treeToList(_ ref: LayoutRef, into list: inout [LayoutRef]) {
+    list.append(ref)
+    for child in ref.children { treeToList(child, into: &list) }
 }
 
 @MainActor
-func treeToList(_ obj: any LayoutObject) -> [any LayoutObject] {
-    var list: [any LayoutObject] = []
-    treeToList(obj, into: &list)
+func treeToList(_ ref: LayoutRef) -> [LayoutRef] {
+    var list: [LayoutRef] = []
+    treeToList(ref, into: &list)
     return list
 }
 

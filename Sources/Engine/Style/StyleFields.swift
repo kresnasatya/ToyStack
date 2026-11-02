@@ -1,10 +1,11 @@
 import Foundation
 
-nonisolated final class StyleFields: FieldOwner {
+nonisolated final class StyleFields {
     private(set) var owner: NodeID?
     private var storage: StyleStorage = StyleStorage()
     private(set) var revision: UInt64 = 0
     private var invalidation: StyleInvalidationState = StyleInvalidationState()
+    weak var layoutTree: LayoutTree?
 
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
@@ -92,82 +93,62 @@ nonisolated final class StyleFields: FieldOwner {
 
     @MainActor
     func field(_ key: StyleProperty) -> StyleFieldRef {
-        return StyleFieldRef(owner: self, key: key)
+        return StyleFieldRef(owner: self, property: key)
+    }
+
+    @MainActor
+    private func styleKey(_ key: StyleProperty) -> FieldKey? {
+        guard let owner else { return nil }
+        return .style(owner, key)
     }
 
     @MainActor
     private func notifyDependents(_ key: StyleProperty) {
-        guard var fields = invalidation.dependents[key] else { return }
-        var dead: [FieldDependencyKey] = []
-        for (id, field) in fields {
-            if field.owner == nil {
-                dead.append(id)
-            } else {
-                field.mark()
-            }
-        }
-        for id in dead {
-            fields.removeValue(forKey: id)
-        }
-        if fields.isEmpty {
-            invalidation.dependents.removeValue(forKey: key)
-        } else {
-            invalidation.dependents[key] = fields
+        guard let fieldKey = styleKey(key), let tree = layoutTree else { return }
+        for ref in tree.dependencies.mark(fieldKey) {
+            ref.mark()
         }
     }
 
     @MainActor
-    func markField(_ name: FieldName) {
-        guard case .style(let key) = name else { return }
+    func markStyle(_ key: StyleProperty) {
         invalidation.dirtyKeys.insert(key)
         notifyDependents(key)
     }
 
     @MainActor
-    func addDependency(_ name: FieldName, _ field: FieldRef) {
-        guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
-        invalidation.dependents[key, default: [:]][id] = field
+    func addDependency(_ key: StyleProperty, _ dependent: FieldRef) {
+        guard let fieldKey = styleKey(key), let tree = layoutTree else { return }
+        tree.dependencies.add(dependent, for: fieldKey)
     }
 
     @MainActor
-    func removeDependency(_ name: FieldName, _ field: FieldRef) {
-        guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
-        invalidation.dependents[key]?[id] = nil
-        if invalidation.dependents[key]?.isEmpty == true {
-            invalidation.dependents.removeValue(forKey: key)
-        }
+    func removeDependency(_ key: StyleProperty, _ dependent: FieldRef) {
+        guard let fieldKey = styleKey(key), let tree = layoutTree else { return }
+        tree.dependencies.remove(dependent, for: fieldKey)
     }
 
     @MainActor
     func dependentCount(for key: StyleProperty) -> Int {
-        return invalidation.dependents[key]?.values.reduce(0, { total, field in
-            total + (field.owner == nil ? 0 : 1)
-        }) ?? 0
+        guard let fieldKey = styleKey(key), let tree = layoutTree else { return 0 }
+        return tree.dependencies.count(of: fieldKey)
     }
 
     @MainActor
-    func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool {
-        guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return false }
-        return invalidation.dependents[key]?[id]?.owner != nil
+    func containsDependency(_ key: StyleProperty, _ dependent: FieldRef) -> Bool {
+        guard let fieldKey = styleKey(key), let tree = layoutTree else { return false }
+        return tree.dependencies.contains(fieldKey, dependent)
     }
 
     @MainActor
-    func fieldIsDirty(_ name: FieldName) -> Bool {
-        guard case .style(let key) = name else { return false }
+    func fieldIsDirty(_ key: StyleProperty) -> Bool {
         return invalidation.dirtyKeys.contains(key)
     }
 
     @MainActor
-    func fieldIsFrozen(_ name: FieldName) -> Bool {
-        return false
-    }
-
-    @MainActor
-    func dependencyNames(_ name: FieldName) -> [String] {
-        guard case .style(let key) = name else { return [] }
-        return (invalidation.dependents[key] ?? [:])
-            .compactMap({ $0.value.owner == nil ? nil : $0.value.fieldName })
-            .sorted()
+    func dependencyNames(_ key: StyleProperty) -> [String] {
+        guard let fieldKey = styleKey(key), let tree = layoutTree else { return [] }
+        return tree.dependencies.names(of: fieldKey)
     }
 }
 
@@ -182,7 +163,6 @@ private struct StyleStorage {
 
 private struct StyleInvalidationState {
     var dirtyKeys: Set<StyleProperty> = []
-    var dependents: [StyleProperty: [FieldDependencyKey: FieldRef]] = [:]
     var needsRestyle: Bool = true
     var descendantsDirty: Bool = false
 }

@@ -9,13 +9,13 @@ struct LayoutDependencyTests {
 
     @Test func everyLayoutFieldFreezesItsInputs() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: DocumentLayout = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
 
-        for object in treeToList(document) {
+        for object in treeToList(document.root) {
             for (name, field) in layoutFields(of: object) {
                 #expect(
                     field.frozenDependencies,
-                    "\(type(of: object)).\(name) is not frozen"
+                    "\(object.kind).\(name) is not frozen"
                 )
             }
         }
@@ -23,27 +23,27 @@ struct LayoutDependencyTests {
 
     @Test func widthFlowsDownAndHeightFlowsBackUp() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: DocumentLayout = try #require(page.frame.document)
-        let root: BlockLayout = try #require(document.children.first as? BlockLayout)
-        let body: BlockLayout = try #require(root.children.first as? BlockLayout)
-        let box: BlockLayout = try #require(body.children.first as? BlockLayout)
-        let paragraph: BlockLayout = try #require(box.children.first as? BlockLayout)
-        let line: LineLayout = try #require(paragraph.children.first as? LineLayout)
+        let document: LayoutTree = try #require(page.frame.document)
+        let root: LayoutRef = try #require(document.root.children.first)
+        let body: LayoutRef = try #require(root.children.first)
+        let box: LayoutRef = try #require(body.children.first)
+        let paragraph: LayoutRef = try #require(box.children.first)
+        let line: LayoutRef = try #require(paragraph.children.first)
 
-        #expect(document.widthField.containsInvalidation(root.widthField))
+        #expect(document.root.widthField.containsInvalidation(root.widthField))
         #expect(root.widthField.containsInvalidation(body.widthField))
         #expect(box.zoomField.containsInvalidation(paragraph.zoomField))
         #expect(paragraph.widthField.containsInvalidation(line.widthField))
         #expect(line.heightField.containsInvalidation(paragraph.heightField))
-        #expect(root.heightField.containsInvalidation(document.heightField))
+        #expect(root.heightField.containsInvalidation(document.root.heightField))
     }
 
     @Test func fontFieldOwnsTheParentStyleInputs() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let paragraph: Element = try #require(page.firstElement(tag: "p"))
-        let block: BlockLayout = try #require(paragraph.layoutObject as? BlockLayout)
-        let text: TextLayout = try #require(
-            treeToList(block).compactMap({ $0 as? TextLayout }).first
+        let block: LayoutRef = try #require(page.firstBlock(in: paragraph))
+        let text: LayoutRef = try #require(
+            treeToList(block).first(where: { $0.isText })
         )
 
         #expect(paragraph.style.field(.fontSize).containsInvalidation(text.fontField))
@@ -55,11 +55,11 @@ struct LayoutDependencyTests {
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
         let node = Element(tag: "html", attributes: [:], parent: nil)
         let dom: DOMTree = DOMTree(root: node)
-        let document = DocumentLayout(node: DOMRef(id: dom.root, dom: dom))
+        let document: LayoutTree = LayoutTree(dom: dom)
 
-        let source = document.xField
-        let missing = document.yField
-        let declared = document.widthField
+        let source = document.root.xField
+        let missing = document.root.yField
+        let declared = document.root.widthField
 
         missing.setDependencies([])
         declared.setDependencies([source])
@@ -70,20 +70,21 @@ struct LayoutDependencyTests {
 
     @Test func removingALayoutEdgeRemovesTheDependent() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: DocumentLayout = try #require(page.frame.document)
-        let root: BlockLayout = try #require(document.children.first as? BlockLayout)
+        let document: LayoutTree = try #require(page.frame.document)
+        let root: LayoutRef = try #require(document.root.children.first)
 
-        root.addDependency(.layout(.ascent), root.fieldRef(.width))
-        #expect(root.fields.dependentCount(.ascent) == 1)
+        let key: FieldKey = .layout(root.id, .ascent)
+        root.tree.dependencies.add(root.widthField.ref, for: key)
+        #expect(root.tree.dependencies.count(of: key) == 1)
 
-        root.removeDependency(.layout(.ascent), root.fieldRef(.width))
-        #expect(root.fields.dependentCount(.ascent) == 0)
+        root.tree.dependencies.remove(root.widthField.ref, for: key)
+        #expect(root.tree.dependencies.count(of: key) == 0)
     }
 
     @Test func widthMarksLinesButNotInlineContent() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let p: Element = try #require(page.firstElement(tag: "p"))
-        let block: BlockLayout = try #require(p.layoutObject as? BlockLayout)
+        let block: LayoutRef = try #require(page.firstBlock(in: p))
 
         #expect(!block.widthField.containsInvalidation(block.childrenField))
         #expect(!block.widthField.containsInvalidation(block.inlineContentField))

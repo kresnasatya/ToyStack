@@ -23,9 +23,9 @@ struct FrameReloadTests {
         page.frame.setNeedsLayout()
         page.frame.render()
 
-        let words: [String] = treeToList(page.frame.document!)
-            .compactMap({ $0 as? TextLayout })
-            .map(\.word)
+        let words: [String] = treeToList(page.frame.document!.root)
+            .filter({ $0.isText })
+            .map(\.textData.word)
         #expect(words.contains("two"))
         #expect(!words.contains("one"))
     }

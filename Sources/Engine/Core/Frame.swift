@@ -46,13 +46,17 @@ class Frame {
         }
         set { dom = DOMTree(root: newValue) }
     }
-    private var documentValue: DocumentLayout?
+    private var documentValue: LayoutTree?
     private var documentDirty: Bool = true
-    var document: DocumentLayout? {
+    var document: LayoutTree? {
         get { documentValue }
         set {
             documentValue = newValue
             documentDirty = false
+            if let newValue {
+                newValue.dom.layoutTree = newValue
+                newValue.dom.attachLayoutTree(newValue)
+            }
         }
     }
     var displayList: [DisplayOp] = []
@@ -67,7 +71,7 @@ class Frame {
     var frameWidth: CGFloat {
         didSet {
             if oldValue != frameWidth {
-                document?.widthField.mark()
+                document?.markDocumentWidthDirty()
             }
         }
     }
@@ -126,13 +130,14 @@ class Frame {
 
     private struct IframeTarget {
         let rect: Rect
-        let iframe: IframeLayout
+        let layout: LayoutID
+        let node: NodeID
     }
 
     private struct ScrollBlockTarget {
         let rect: Rect
-        let element: Element
-        let block: BlockLayout
+        let node: NodeID
+        let layout: LayoutID
     }
 
     private var iframeTargets: [IframeTarget] = []
@@ -147,7 +152,7 @@ class Frame {
     var hasScrollElement: Bool { scrollFocusNode != nil }
 
     var maxScroll: CGFloat {
-        let documentHeight: CGFloat = document?.heightField.peek() ?? 0
+        let documentHeight: CGFloat = document?.root.heightField.peek() ?? 0
         let padded: CGFloat = documentHeight + 2 * VSTEP
         return max(max(padded, paintedBottom + VSTEP) - frameHeight, 0)
     }
@@ -480,7 +485,7 @@ class Frame {
         let imgs: [Element] = elements.filter({ $0.tag == "img" })
         for (i, image) in images where i < imgs.count {
             imgs[i].image = image ?? BrokenImage.replacement(for: imgs[i])
-            LayoutInvalidation.imageChanged(imgs[i])
+            LayoutInvalidation.imageChanged(dom.ref(imgs[i]))
         }
     }
 
@@ -494,7 +499,7 @@ class Frame {
         var remaining: [Element] = []
         for el in lazyImages {
             guard el.image == nil,
-                let bounds: Rect = el.layoutObject?.absoluteBounds(),
+                let bounds: Rect = dom.ref(el).layout?.absoluteBounds(),
                 region.contains(bounds)
             else {
                 remaining.append(el)
@@ -509,7 +514,7 @@ class Frame {
                     await self.decodeImage(url: imageURL, referrer: referrer)
                 })
                 el.image = image ?? BrokenImage.replacement(for: el)
-                LayoutInvalidation.imageChanged(el)
+                LayoutInvalidation.imageChanged(dom.ref(el))
                 self.setNeedsLayout()
             }
         }
@@ -865,22 +870,32 @@ class Frame {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
-            let doc: DocumentLayout
-            if let existing = document, existing.node.dom === dom, browser?.forceFullLayout != true {
+            let doc: LayoutTree
+            if let existing = document, existing.dom === dom, browser?.forceFullLayout != true {
                 doc = existing
             } else {
-                doc = DocumentLayout(node: DOMRef(id: dom.root, dom: dom))
+                doc = LayoutTree(dom: dom)
                 scrollTargetsValid = false
             }
-            doc.layout(
+            doc.layoutDocument(
                 availableWidth: frameWidth,
                 zoom: 1.0,
                 pageZoom: pageZoom
             )
+            let removed: Set<LayoutID> = doc.sweepUnreachable()
+            if !removed.isEmpty {
+                compositedUpdates = compositedUpdates.filter({ doc.primaryLayout(for: $0.key) != nil })
+            }
+            if iframeTargets.contains(where: { removed.contains($0.layout) })
+                || scrollBlockTargets.contains(where: { removed.contains($0.layout) })
+            {
+                scrollTargetsValid = false
+                scrollTargetsNeedRebuild = true
+            }
             document = doc
             #if DEBUG
             if debugDumpDependencies {
-                dumpDependencies(doc)
+                dumpDependencies(doc.root)
             }
             #endif
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
@@ -949,7 +964,7 @@ class Frame {
         var list: [DisplayOp] = []
         list.reserveCapacity(displayList.count)
         var session: PaintSession = PaintSession(paint: paintRevision, epoch: paintEpoch, window: window)
-        paintTree(doc, into: &list, session: &session)
+        paintTree(doc.root, into: &list, session: &session)
 
         displayList = list
         paintedBottom = contentBottom
@@ -958,7 +973,7 @@ class Frame {
     }
 
     private var contentBottom: CGFloat {
-        return document?.selfRect().bottom ?? 0
+        return document?.root.selfRect().bottom ?? 0
     }
 
     func runAnimationFrame() {
@@ -981,7 +996,7 @@ class Frame {
                     needsAnotherFrame = true
                     node.style.set(value, for: property)
                     if property == .transform || property == .opacity {
-                        if (node.layoutObject as? BlockLayout) != nil,
+                        if dom.ref(node).layout?.isBlock == true,
                             let style: PaintEffectStyle = paintEffectStyle(node: dom.ref(node))
                         {
                             compositedUpdates[dom.id(of: node)] = EffectUpdate(
@@ -990,14 +1005,14 @@ class Frame {
                             )
                         }
                     } else if property.affectsLayout {
-                        if document?.layoutNeeded() == true {
+                        if document?.documentNeedsLayout() == true {
                             needsLayoutUpdate = true
                         } else {
                             // A layout property that marked no field is a missing edge.
                             // Trap in debug; mark the nearest block in release so the
                             // page still updates instead of freezing on a stale layout.
                             assertionFailure("Animation for \(property.cssName) did not dirty a layout field")
-                            LayoutInvalidation.animatedPropertyChanged(node, property: property)
+                            LayoutInvalidation.animatedPropertyChanged(dom.ref(node), property: property)
                             needsLayoutUpdate = true
                             animationFallbacks += 1
                         }
@@ -1071,40 +1086,53 @@ class Frame {
     }
 
     private func refreshScrollTargetRects() {
+        guard let doc = document else {
+            iframeTargets.removeAll()
+            scrollBlockTargets.removeAll()
+            return
+        }
         iframeTargets = iframeTargets.compactMap({ target in
-            let el: Element? = target.iframe.node.raw as? Element
-            guard let iframe = el?.layoutObject as? IframeLayout else { return nil }
-            return IframeTarget(rect: iframe.absoluteBounds(), iframe: iframe)
+            guard doc.contains(target.layout) else { return nil }
+            let iframe: LayoutRef = LayoutRef(id: target.layout, tree: doc)
+            return IframeTarget(
+                rect: iframe.absoluteBounds(),
+                layout: target.layout,
+                node: target.node
+            )
         })
-        scrollBlockTargets = scrollBlockTargets.map({ target in
-            ScrollBlockTarget(
-                rect: target.block.selfRect(),
-                element: target.element,
-                block: target.block
+        scrollBlockTargets = scrollBlockTargets.compactMap({ target in
+            guard doc.contains(target.layout) else { return nil }
+            let block: LayoutRef = LayoutRef(id: target.layout, tree: doc)
+            return ScrollBlockTarget(
+                rect: block.selfRect(),
+                node: target.node,
+                layout: target.layout
             )
         })
     }
 
-    private func rebuildScrollTargets(_ doc: DocumentLayout) {
+    private func rebuildScrollTargets(_ doc: LayoutTree) {
         var iframes: [IframeTarget] = []
         var blocks: [ScrollBlockTarget] = []
-        var objects: [any LayoutObject] = []
-        treeToList(doc, into: &objects)
+        let objects: [LayoutRef] = treeToList(doc.root)
         for object in objects {
-            if let iframe = object as? IframeLayout {
+            if object.isIframe {
                 iframes.append(
-                    IframeTarget(rect: iframe.absoluteBounds(), iframe: iframe)
+                    IframeTarget(
+                        rect: object.absoluteBounds(),
+                        layout: object.id,
+                        node: object.domNode
+                    )
                 )
             }
-            if let block = object as? BlockLayout,
-                block.node.style.computed.layout.overflow == .scroll,
-                let element = block.node.raw as? Element
+            if object.isBlock,
+                object.node.style.computed.layout.overflow == .scroll
             {
                 blocks.append(
                     ScrollBlockTarget(
-                        rect: block.selfRect(),
-                        element: element,
-                        block: block
+                        rect: object.selfRect(),
+                        node: object.domNode,
+                        layout: object.id
                     )
                 )
             }
@@ -1128,8 +1156,9 @@ class Frame {
     private func scrollTo(_ elt: Element) {
         scrollTween = nil
         guard let doc = document else { return }
-        let objs: [any LayoutObject] = treeToList(doc).filter({
-            $0.node.raw === elt || $0.node.parent?.raw === elt
+        let node: NodeID = dom.id(of: elt)
+        let objs: [LayoutRef] = treeToList(doc.root).filter({
+            $0.domNode == node || $0.node.parent?.id == node
         })
         guard let obj = objs.first else { return }
         if scroll < obj.y && obj.y + obj.height < scroll + frameHeight { return }
@@ -1139,7 +1168,7 @@ class Frame {
 
     private func scrollToFragment(_ id: String) {
         guard let doc = document else { return }
-        let target: (any LayoutObject)? = treeToList(doc).first(where: {
+        let target: LayoutRef? = treeToList(doc.root).first(where: {
             $0.node.element?.attributes["id"] == id
         })
         if let target = target {
@@ -1177,7 +1206,7 @@ class Frame {
     }
 
     func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
-        guard let href = document?.linkElement(at: x, y: y + scroll)?.attributes["href"] else { return nil }
+        guard let href = document?.root.linkElement(at: x, y: y + scroll)?.attributes["href"] else { return nil }
         return url?.resolve(href)
     }
 
@@ -1185,7 +1214,7 @@ class Frame {
         guard let doc = document else { return [] }
         guard let bar = scrollbarBarRect(
             ScrollbarGeometry(
-                docHeight: doc.height + 2 * VSTEP,
+                docHeight: doc.root.height + 2 * VSTEP,
                 contentHeight: frameHeight,
                 contentWidth: frameWidth,
                 scroll: scroll
@@ -1221,32 +1250,41 @@ class Frame {
         if let target = iframeTargets.last(where: {
             $0.rect.containsPoint(x, adjustedY)
         }),
-            let el = target.iframe.node.raw as? Element,
-            let child = el.frame, child.loaded
+            let doc = document,
+            doc.contains(target.layout)
         {
-            let bounds: Rect = target.iframe.absoluteBounds()
-            let border: CGFloat = target.iframe.scaled(1)
-            if child.scrollAt(
-                x: x - bounds.left,
-                y: adjustedY - bounds.top - border,
-                deltaY: deltaY
-            ) {
-                return true
+            let iframe: LayoutRef = LayoutRef(id: target.layout, tree: doc)
+            let el: ElementRef? = DOMRef(id: target.node, dom: dom).element
+            if let el = el, let child = el.frame, child.loaded {
+                let bounds: Rect = iframe.absoluteBounds()
+                let border: CGFloat = iframe.scaled(1)
+                if child.scrollAt(
+                    x: x - bounds.left,
+                    y: adjustedY - bounds.top - border,
+                    deltaY: deltaY
+                ) {
+                    return true
+                }
             }
         }
 
         if let target = scrollBlockTargets.first(where: {
             $0.rect.containsPoint(x, adjustedY)
-        }) {
-            let block: BlockLayout = target.block
-            let el: Element = target.element
-            let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
+        }),
+            let doc = document,
+            doc.contains(target.layout)
+        {
+            let block: LayoutRef = LayoutRef(id: target.layout, tree: doc)
+            guard let el: ElementRef = DOMRef(id: target.node, dom: dom).element else {
+                return false
+            }
+            let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
             guard next != current else { return false }
             el.scrollOffsetY = next
-            block.scrollOffset = next
-            scrollFocusNode = el
+            doc.setBlockScrollOffset(block, next)
+            scrollFocusNode = el.raw
             setNeedsPaint()
             return true
         }
@@ -1267,45 +1305,51 @@ class Frame {
         }
     }
 
-    private func scrollableAncestor(of obj: any LayoutObject) -> Element? {
-        var current: (any LayoutObject)? = obj
+    private func scrollableAncestor(of obj: LayoutRef) -> Element? {
+        var current: LayoutRef? = obj
         while let c = current {
-            if let block = c as? BlockLayout,
-                let el = block.node.raw as? Element,
+            if c.isBlock,
+                let el = c.node.element,
                 el.style.computed.layout.overflow == .scroll
             {
-                return el
+                return el.raw
             }
             current = c.parent
         }
         return nil
     }
 
-    private func liveScrollBlock() -> BlockLayout? {
+    private func liveScrollBlock() -> LayoutRef? {
         guard let node = scrollFocusNode, let doc = document else {
             return nil
         }
-        return treeToList(doc).compactMap({ $0 as? BlockLayout })
-            .first(where: { $0.node.raw === node })
+        let target: NodeID = dom.id(of: node)
+        return treeToList(doc.root).first(where: {
+            $0.isBlock && $0.domNode == target
+        })
     }
 
     func scrollElementDown() {
-        guard let node = scrollFocusNode, let block = liveScrollBlock() else {
+        guard let node = scrollFocusNode, let doc = document,
+            let block = liveScrollBlock()
+        else {
             return
         }
-        let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
+        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
         let current: CGFloat = min(node.scrollOffsetY, maxScroll)
         node.scrollOffsetY = min(current + Frame.scrollStep, maxScroll)
-        block.scrollOffset = node.scrollOffsetY
+        doc.setBlockScrollOffset(block, node.scrollOffsetY)
         setNeedsPaint()
     }
 
     func scrollElementUp() {
-        guard let node = scrollFocusNode, let block = liveScrollBlock() else { return }
-        let maxScroll: CGFloat = max(0, block.contentHeight - block.height)
+        guard let node = scrollFocusNode, let doc = document,
+            let block = liveScrollBlock()
+        else { return }
+        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
         let current: CGFloat = min(node.scrollOffsetY, maxScroll)
         node.scrollOffsetY = max(current - Frame.scrollStep, 0)
-        block.scrollOffset = node.scrollOffsetY
+        doc.setBlockScrollOffset(block, node.scrollOffsetY)
         setNeedsPaint()
     }
 
@@ -1338,7 +1382,7 @@ class Frame {
         tab?.pendingHover = nil
 
         var chain: [Element] = []
-        var current: DOMRef? = doc.hitTest(x: pending.x, y: pending.y + scroll)?.node
+        var current: DOMRef? = doc.root.hitTest(x: pending.x, y: pending.y + scroll)?.node
         while let node = current {
             if let element = node.element?.raw {
                 chain.append(element)
@@ -1395,6 +1439,7 @@ class Frame {
                 f.children.append(text)
             }
             text.append(char)
+            LayoutInvalidation.textChanged(dom.ref(text))
             setNeedsStyle(f)
         } else if f.tag == "input" {
             f.attributes["value", default: ""] += char
@@ -1440,7 +1485,7 @@ class Frame {
         focusElement(nil)
         let clickY: CGFloat = y + scroll
 
-        guard let source = document?.hitTest(x: x, y: clickY) else {
+        guard let source = document?.root.hitTest(x: x, y: clickY) else {
             setNeedsPaint()
             return
         }
@@ -1455,7 +1500,7 @@ class Frame {
                 if node.text != nil {
 
                 } else if let el = node.element, el.tag == "iframe" {
-                    guard let layout = node.layoutObject, let child = el.frame, child.loaded else {
+                    guard let layout = node.layout, let child = el.frame, child.loaded else {
                         return
                     }
                     let bounds: Rect = layout.absoluteBounds()
@@ -1652,8 +1697,7 @@ class Frame {
     }
 
     func setNeedsViewportResize() {
-        document?.widthField.mark()
-        document?.zoomField.mark()
+        document?.markDocumentGeometryDirty()
         if !mediaMatches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
             invalidateStyle(fromViewport: true)
         } else {
@@ -1695,8 +1739,7 @@ class Frame {
     func setPageZoom(_ newZoom: CGFloat) {
         guard newZoom > 0, abs(newZoom - pageZoom) > 0.001 else { return }
         pageZoom = newZoom
-        document?.zoomField.mark()
-        document?.widthField.mark()
+        document?.markDocumentGeometryDirty()
         if parentFrame == nil, let tab {
             frameWidth = tab.tabWidth / newZoom
             frameHeight = tab.tabHeight / newZoom

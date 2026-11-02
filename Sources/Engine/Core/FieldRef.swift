@@ -1,17 +1,13 @@
 import Foundation
 
-// MARK: - FieldName
+// MARK: - FieldKey description
 
-@MainActor
-enum FieldName: Hashable {
-    case layout(LayoutField)
-    case style(StyleProperty)
-
+extension FieldKey {
     var description: String {
         switch self {
-        case .layout(let field):
+        case .layout(_, let field):
             return field.rawValue
-        case .style(let key):
+        case .style(_, let key):
             return "style.\(key.cssName)"
         }
     }
@@ -21,6 +17,7 @@ enum FieldName: Hashable {
 
 @MainActor
 protocol InvalidatableField {
+    var fieldKey: FieldKey { get }
     var fieldName: String { get }
     var isDirty: Bool { get }
     var frozenDependencies: Bool { get }
@@ -33,49 +30,44 @@ protocol InvalidatableField {
     func containsInvalidation(_ field: any InvalidatableField) -> Bool
 }
 
-// MARK: - FieldOwner
-
-@MainActor
-protocol FieldOwner: AnyObject {
-    func markField(_ name: FieldName)
-    func addDependency(_ name: FieldName, _ field: FieldRef)
-    func removeDependency(_ name: FieldName, _ field: FieldRef)
-    func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool
-    func fieldIsDirty(_ name: FieldName) -> Bool
-    func fieldIsFrozen(_ name: FieldName) -> Bool
-    func dependencyNames(_ name: FieldName) -> [String]
-}
-
 // MARK: - FieldRef
 
+/// A dependency edge target: the field's key plus the action that dirties it.
+///
+/// Storing a key and a closure instead of an owner object lets a layout node
+/// (a struct view over the arena) be an invalidation target without keeping a
+/// class pointer alive.
 @MainActor
 struct FieldRef: InvalidatableField {
-    weak var owner: (any FieldOwner)?
-    let name: FieldName
+    let fieldKey: FieldKey
+    let markBody: () -> Void
+    let aliveBody: () -> Bool
 
-    var fieldName: String { name.description }
-    var isDirty: Bool { owner?.fieldIsDirty(name) ?? false }
-    var frozenDependencies: Bool { owner?.fieldIsFrozen(name) ?? false }
-    var invalidationNames: [String] { owner?.dependencyNames(name) ?? [] }
+    init(
+        key: FieldKey,
+        markBody: @escaping () -> Void,
+        isAlive: @escaping () -> Bool = { true }
+    ) {
+        self.fieldKey = key
+        self.markBody = markBody
+        self.aliveBody = isAlive
+    }
+
+    var isAlive: Bool { aliveBody() }
+
+    var fieldName: String { fieldKey.description }
+    var isDirty: Bool { false }
+    var frozenDependencies: Bool { true }
+    var invalidationNames: [String] { [] }
     var ref: FieldRef { self }
 
     func mark() {
-        owner?.markField(name)
+        markBody()
     }
 
-    func addInvalidation(_ field: any InvalidatableField) {
-        owner?.addDependency(name, field.ref)
-    }
-
-    func removeInvalidation(_ field: any InvalidatableField) {
-        owner?.removeDependency(name, field.ref)
-    }
-
+    func addInvalidation(_ field: any InvalidatableField) {}
+    func removeInvalidation(_ field: any InvalidatableField) {}
     func containsInvalidation(_ field: any InvalidatableField) -> Bool {
-        return owner?.containsDependency(name, field.ref) ?? false
-    }
-
-    func sameTarget(as other: FieldRef) -> Bool {
-        return owner === other.owner && name == other.name
+        return false
     }
 }

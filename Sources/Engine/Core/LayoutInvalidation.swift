@@ -3,84 +3,86 @@ import Foundation
 @MainActor
 enum LayoutInvalidation {
 
-    static func childrenChanged(_ node: any DOMNode) {
-        nearestBlock(node)?.markChildrenDirty()
+    static func childrenChanged(_ node: DOMRef) {
+        guard let block = nearestBlock(node) else { return }
+        block.tree.blockMarkChildrenDirty(block)
     }
 
-    static func childrenAppend(_ parent: any DOMNode, _ child: any DOMNode) {
-        guard let block = parent.layoutObject as? BlockLayout else {
+    static func childrenAppend(_ parent: DOMRef, _ child: DOMRef) {
+        guard let block = nearestBlock(parent), block.isBlock else {
             childrenChanged(parent)
             return
         }
-        block.noteAppendedChildren([child])
+        block.tree.blockNoteAppendedChildren(block, [child])
     }
 
     static func childrenInsert(
-        _ parent: any DOMNode,
-        _ child: any DOMNode,
-        before reference: any DOMNode
+        _ parent: DOMRef,
+        _ child: DOMRef,
+        before reference: DOMRef
     ) {
-        guard let block = parent.layoutObject as? BlockLayout else {
+        guard let block = nearestBlock(parent), block.isBlock else {
             childrenChanged(parent)
             return
         }
-        block.noteInsertedChildren([child], before: reference)
+        block.tree.blockNoteInsertedChildren(block, [child], before: reference)
     }
 
-    static func textChanged(_ node: TextNode) {
+    static func textChanged(_ node: DOMRef) {
         childrenChanged(node)
     }
 
-    static func attributesChanged(_ node: Element) {
+    static func attributesChanged(_ node: DOMRef) {
         childrenChanged(node)
     }
 
-    static func animatedPropertyChanged(_ node: any DOMNode, property: StyleProperty) {
+    static func animatedPropertyChanged(_ node: DOMRef, property: StyleProperty) {
         let affectsSiblings: Bool = property == .display
             || property == .position
             || property == .marginBottom
         markLayoutInput(node, affectsSiblings: affectsSiblings)
     }
 
-    private static func markLayoutInput(_ node: any DOMNode, affectsSiblings: Bool) {
+    private static func markLayoutInput(_ node: DOMRef, affectsSiblings: Bool) {
         guard let block = nearestBlock(node) else { return }
-        block.markChildrenDirty()
+        block.tree.blockMarkChildrenDirty(block)
 
         guard affectsSiblings else { return }
-        parentBlock(of: block)?.markChildrenDirty()
+        guard let parent = parentBlock(of: block) else { return }
+        parent.tree.blockMarkChildrenDirty(parent)
     }
 
-    static func imageChanged(_ node: Element) {
-        if let image = node.layoutObject as? ImageLayout {
-            image.widthField.mark()
-            image.heightField.mark()
+    static func imageChanged(_ node: DOMRef) {
+        if let layout = node.layout, case .embed(.image) = layout.kind {
+            layout.widthField.mark()
+            layout.heightField.mark()
         }
         childrenChanged(node)
     }
 
-    static func nearestBlock(_ node: any DOMNode) -> BlockLayout? {
-        var object: (any LayoutObject)? = node.layoutObject
-        while let current = object {
-            if let block = current as? BlockLayout {
-                return block
+    static func nearestBlock(_ node: DOMRef) -> LayoutRef? {
+        var layout: LayoutRef? = node.layout
+        while let current = layout {
+            if current.isBlock {
+                return current
             }
-            object = current.parent
+            layout = current.parent
         }
-        var dom: (any DOMNode)? = node.parent
+        var dom: DOMRef? = node.parent
         while let current = dom {
-            if let block = current.layoutObject as? BlockLayout {
-                return block
+            if let resolved = current.layout, resolved.isBlock {
+                return resolved
             }
             dom = current.parent
         }
         return nil
     }
 
-    private static func parentBlock(of block: BlockLayout) -> BlockLayout? {
-        var object: (any LayoutObject)? = block.parent
-        while let current = object {
-            if let parent = current as? BlockLayout { return parent }
-            object = current.parent
+    private static func parentBlock(of block: LayoutRef) -> LayoutRef? {
+        var layout: LayoutRef? = block.parent
+        while let current = layout {
+            if current.isBlock { return current }
+            layout = current.parent
         }
         return nil
     }

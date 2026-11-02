@@ -2,63 +2,77 @@ import CoreGraphics
 
 // MARK: - LayoutFieldHandle
 
+/// Temporary bridge that gives an arena node the field read/write API the old
+/// class hierarchy exposed. The owner is a `LayoutRef` value; no layout class
+/// pointer survives here.
 @MainActor
 struct LayoutFieldHandle<Access: LayoutFieldAccess>: InvalidatableField {
-    unowned let owner: any LayoutObject
-    unowned let fields: LayoutFieldStore
+    let owner: LayoutRef
     let field: LayoutField
 
-    init(owner: any LayoutObject, fields: LayoutFieldStore, field: LayoutField) {
+    init(owner: LayoutRef, field: LayoutField) {
         self.owner = owner
-        self.fields = fields
         self.field = field
     }
 
+    var fieldKey: FieldKey { .layout(owner.id, field) }
+    var key: FieldKey { fieldKey }
     var fieldName: String { field.rawValue }
     var dirty: Bool { isDirty }
-    var isDirty: Bool { fields.isDirty(field) }
-    var frozenDependencies: Bool { fields.isFrozen(field) }
-    var invalidationNames: [String] { fields.dependencyNames(field) }
-    var ref: FieldRef { FieldRef(owner: owner, name: .layout(field)) }
+    var isDirty: Bool { owner.tree.isDirty(field, at: owner.id) }
+    var frozenDependencies: Bool { owner.tree.isFrozen(field, at: owner.id) }
+    var invalidationNames: [String] { owner.tree.dependencies.names(of: key) }
+    var ref: FieldRef {
+        let tree: LayoutTree = owner.tree
+        let id: LayoutID = owner.id
+        let field: LayoutField = self.field
+        return FieldRef(
+            key: key,
+            markBody: { [weak tree] in
+                tree?.markField(field, at: id)
+            },
+            isAlive: { [weak tree] in
+                tree?.contains(id) ?? false
+            }
+        )
+    }
 
     func get() -> Access.Value {
-        if fields.isDirty(field) {
-            assertionFailure("Read dirty field \(owner).\(field.rawValue)")
+        if owner.tree.isDirty(field, at: owner.id) {
+            assertionFailure("Read dirty field \(owner.kind).\(field.rawValue)")
         }
-        guard fields.isUsed(field) else {
-            fatalError("Read unset field \(owner).\(field.rawValue)")
+        guard owner.tree.isUsed(field, at: owner.id) else {
+            fatalError("Read unset field \(owner.kind).\(field.rawValue)")
         }
-        return Access.read(fields, field)
+        return Access.read(owner.tree, owner.id, field)
     }
 
     func peek() -> Access.Value? {
-        guard fields.isUsed(field) else { return nil }
-        return Access.read(fields, field)
+        guard owner.tree.isUsed(field, at: owner.id) else { return nil }
+        return Access.read(owner.tree, owner.id, field)
     }
 
     func set(_ newValue: Access.Value) {
-        let wasUsed: Bool = fields.isUsed(field)
-        let old: Access.Value = Access.read(fields, field)
+        let wasUsed: Bool = owner.tree.isUsed(field, at: owner.id)
+        let old: Access.Value = Access.read(owner.tree, owner.id, field)
         let changed: Bool = !wasUsed || !Access.equals(old, newValue)
-        fields.markUsed(field)
-        Access.write(fields, field, newValue)
-        fields.markClean(field)
+        owner.tree.markUsed(field, at: owner.id)
+        Access.write(owner.tree, owner.id, field, newValue)
+        owner.tree.markClean(field, at: owner.id)
         if changed {
             profiler.count("layout.field.set")
-            if fields.hasDependents(field) {
-                fields.markDependents(field)
-            }
+            owner.tree.markDependents(key)
         }
     }
 
     func setClean(_ newValue: Access.Value) {
-        fields.markUsed(field)
-        Access.write(fields, field, newValue)
-        fields.markClean(field)
+        owner.tree.markUsed(field, at: owner.id)
+        Access.write(owner.tree, owner.id, field, newValue)
+        owner.tree.markClean(field, at: owner.id)
     }
 
     func mark() {
-        owner.markField(.layout(field))
+        owner.tree.markField(field, at: owner.id)
     }
 
     func copy(from field: LayoutFieldHandle<Access>) {
@@ -84,22 +98,22 @@ struct LayoutFieldHandle<Access: LayoutFieldAccess>: InvalidatableField {
     }
 
     func addInvalidation(_ field: any InvalidatableField) {
-        fields.addDependent(self.field, field.ref)
+        owner.tree.dependencies.add(field.ref, for: key)
     }
 
     func removeInvalidation(_ field: any InvalidatableField) {
-        fields.removeDependent(self.field, field.ref)
+        owner.tree.dependencies.remove(field.ref, for: key)
     }
 
     func containsInvalidation(_ field: any InvalidatableField) -> Bool {
-        return fields.containsDependent(self.field, field.ref)
+        return owner.tree.dependencies.contains(key, field.ref)
     }
 
     func setDependencies(_ fields: [any InvalidatableField]) {
         for field in fields {
             field.addInvalidation(self)
         }
-        self.fields.markUsed(self.field)
-        self.fields.markFrozen(self.field)
+        owner.tree.markUsed(self.field, at: owner.id)
+        owner.tree.markFrozen(self.field, at: owner.id)
     }
 }

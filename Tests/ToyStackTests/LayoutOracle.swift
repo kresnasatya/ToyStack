@@ -8,7 +8,7 @@ import Testing
 // Render the page as the incremental fields left it, then throw the layout
 // tree away and build it again from the same DOM. Geometry and paint commands
 // must be identical. Call this last in a test: the full rebuild replaces every
-// layout object and re-attaches the DOM to the new tree.
+// layout node and re-attaches the DOM to the new tree.
 @MainActor
 func expectIncrementalMatchesFull(
     _ page: LayoutTestPage,
@@ -16,17 +16,13 @@ func expectIncrementalMatchesFull(
 ) {
     let incremental: String = renderSignature(page.frame)
 
-    let savedDocument: DocumentLayout? = page.frame.document
-    let savedObjects: [ObjectIdentifier: any LayoutObject] = layoutObjectMapping(
-        page.frame
-    )
+    let savedDocument: LayoutTree? = page.frame.document
     page.frame.document = nil
     page.frame.setNeedsLayout()
     page.frame.render()
     let full: String = renderSignature(page.frame)
 
     page.frame.document = savedDocument
-    restoreLayoutObjects(savedObjects, in: page.frame)
     page.frame.markStructureChanged()
     page.frame.setNeedsPaint()
 
@@ -46,7 +42,7 @@ func renderSignature(_ frame: Frame) -> String {
         .split(separator: "|")
         .map({ "display \($0)" })
     if let document = frame.document {
-        appendLayoutSignature(document, path: "0", into: &parts)
+        appendLayoutSignature(document.root, path: "0", into: &parts)
     }
     return parts.joined(separator: "\n")
 }
@@ -56,14 +52,14 @@ func renderSignature(_ frame: Frame) -> String {
 // owner forgot to set it.
 @MainActor
 func expectAllLayoutFieldsClean(
-    _ document: DocumentLayout,
+    _ document: LayoutTree,
     sourceLocation: SourceLocation = #_sourceLocation
 ) {
-    for object in treeToList(document) {
+    for object in treeToList(document.root) {
         for (name, field) in layoutFields(of: object) {
             #expect(
                 !field.isDirty,
-                "\(type(of: object)).\(name) is still dirty",
+                "\(layoutKindName(object.kind)).\(name) is still dirty",
                 sourceLocation: sourceLocation
             )
         }
@@ -72,40 +68,19 @@ func expectAllLayoutFieldsClean(
 
 @MainActor
 private func appendLayoutSignature(
-    _ object: any LayoutObject,
+    _ object: LayoutRef,
     path: String,
     into parts: inout [String]
 ) {
-    var line: String = "\(path) \(type(of: object)) \(object.selfRect()) children=\(object.children.count)"
-    if let text = object as? TextLayout {
-        line += " word=\(text.word) display=\(text.displayWord ?? "") width=\(text.textWidth)"
+    var line: String = "\(path) \(layoutKindName(object.kind)) \(object.selfRect()) children=\(object.children.count)"
+    if object.isText {
+        let data: TextData = object.textData
+        line += " word=\(data.word) display=\(data.display ?? "") width=\(data.metrics.width)"
     }
     parts.append(line)
 
     for (index, child) in object.children.enumerated() {
         appendLayoutSignature(child, path: "\(path).\(index)", into: &parts)
-    }
-}
-
-@MainActor
-private func layoutObjectMapping(
-    _ frame: Frame
-) -> [ObjectIdentifier: any LayoutObject] {
-    var mapping: [ObjectIdentifier: any LayoutObject] = [:]
-    for node in treeToList(frame.nodes) {
-        guard let object = node.layoutObject else { continue }
-        mapping[ObjectIdentifier(node)] = object
-    }
-    return mapping
-}
-
-@MainActor
-private func restoreLayoutObjects(
-    _ mapping: [ObjectIdentifier: any LayoutObject],
-    in frame: Frame
-) {
-    for node in treeToList(frame.nodes) {
-        node.layoutObject = mapping[ObjectIdentifier(node)]
     }
 }
 
@@ -120,4 +95,32 @@ private func firstDifference(_ lhs: String, _ rhs: String) -> String {
         }
     }
     return "signatures are equal"
+}
+
+
+@MainActor
+func layoutKindName(_ kind: LayoutKind) -> String {
+    switch kind {
+    case .document:
+        return "document"
+    case .block:
+        return "block"
+    case .line:
+        return "line"
+    case .text:
+        return "text"
+    case .embed(let data):
+        switch data {
+        case .image:
+            return "embed.image"
+        case .input:
+            return "embed.input"
+        case .button:
+            return "embed.button"
+        case .iframe:
+            return "embed.iframe"
+        case .canvas:
+            return "embed.canvas"
+        }
+    }
 }

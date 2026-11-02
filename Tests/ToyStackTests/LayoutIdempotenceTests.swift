@@ -9,54 +9,59 @@ struct LayoutIdempotenceTests {
 
     @Test func secondLayoutIsIdentical() throws {
         let fixture: Fixture = makeFixture()
-        let document: DocumentLayout = try #require(fixture.frame.document)
+        let document: LayoutTree = try #require(fixture.frame.document)
 
-        let first: [Snapshot] = snapshot(of: document)
+        let first: [Snapshot] = snapshot(of: document.root)
 
-        let zoom: CGFloat = document.zoom
-        let pageZoom: CGFloat = document.pageZoom
+        let zoom: CGFloat = document.root.zoom
+        let pageZoom: CGFloat = document.root.documentData.pageZoom
         profiler.reset()
-        markAllFields(document)
-        document.layout(
+        markAllFields(document.root)
+        document.layoutDocument(
             availableWidth: fixture.frame.frameWidth,
             zoom: zoom,
             pageZoom: pageZoom
         )
 
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
-        #expect(snapshot(of: document) == first)
+        #expect(snapshot(of: document.root) == first)
     }
 
     @Test func redundantLayoutKeepsBlockIdentity() throws {
         let fixture: Fixture = makeFixture()
-        let document: DocumentLayout = try #require(fixture.frame.document)
+        let document: LayoutTree = try #require(fixture.frame.document)
 
-        let objectsBefore: [ObjectIdentifier] = blockIDs(of: document)
-        let textsBefore: [TextLayout] = blockTexts(in: document)
-        let textIDsBefore: [ObjectIdentifier] = textsBefore.map({ ObjectIdentifier($0) })
-        let first: [Snapshot] = snapshot(of: document)
+        let objectsBefore: [LayoutID] = blockIDs(of: document.root)
+        let textsBefore: [LayoutRef] = blockTexts(in: document.root)
+        let textIDsBefore: [LayoutID] = textsBefore.map({ $0.id })
+        let first: [Snapshot] = snapshot(of: document.root)
 
-        let zoom: CGFloat = document.zoom
-        let pageZoom: CGFloat = document.pageZoom
+        let zoom: CGFloat = document.root.zoom
+        let pageZoom: CGFloat = document.root.documentData.pageZoom
         profiler.reset()
-        markAllFields(document)
-        document.layout(
+        markAllFields(document.root)
+        document.layoutDocument(
             availableWidth: fixture.frame.frameWidth,
             zoom: zoom,
             pageZoom: pageZoom
         )
 
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
-        #expect(blockIDs(of: document) == objectsBefore)
-        #expect(blockTextIDs(of: document) == textIDsBefore)
-        #expect(snapshot(of: document) == first)
+        #expect(blockIDs(of: document.root) == objectsBefore)
+        #expect(blockTextIDs(of: document.root) == textIDsBefore)
+        #expect(snapshot(of: document.root) == first)
         withExtendedLifetime(textsBefore) {}
     }
 
     @Test func buttonKeepsOneLinePerLayout() throws {
         let fixture: Fixture = makeFixture()
-        let document: DocumentLayout = try #require(fixture.frame.document)
-        let button: ButtonLayout = try #require(treeToList(document).compactMap({ $0 as? ButtonLayout }).first)
+        let document: LayoutTree = try #require(fixture.frame.document)
+        let button: LayoutRef = try #require(
+            treeToList(document.root).first(where: {
+                guard $0.isEmbed else { return false }
+                return EmbedMatch.button.matches($0.embedData)
+            })
+        )
 
         let first: [Snapshot] = snapshot(of: button)
 
@@ -118,7 +123,7 @@ private func makeFixture() -> Fixture {
 }
 
 @MainActor
-private func snapshot(of object: any LayoutObject) -> [Snapshot] {
+private func snapshot(of object: LayoutRef) -> [Snapshot] {
     var result: [Snapshot] = []
     appendSnapshot(object, path: "0", into: &result)
     return result
@@ -126,14 +131,14 @@ private func snapshot(of object: any LayoutObject) -> [Snapshot] {
 
 @MainActor
 private func appendSnapshot(
-    _ object: any LayoutObject,
+    _ object: LayoutRef,
     path: String,
     into result: inout [Snapshot]
 ) {
     result.append(
         Snapshot(
             path: path,
-            kind: String(describing: type(of: object)),
+            kind: layoutKindName(object.kind),
             rect: object.selfRect(),
             childCount: object.children.count
         )
@@ -145,32 +150,32 @@ private func appendSnapshot(
 }
 
 @MainActor
-private func blockIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
-    return treeToList(object).compactMap({ $0 as? BlockLayout }).map({ ObjectIdentifier($0) })
+private func blockIDs(of object: LayoutRef) -> [LayoutID] {
+    return treeToList(object).filter({ $0.isBlock }).map({ $0.id })
 }
 
 @MainActor
-private func textIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
-    return treeToList(object).compactMap({ $0 as? TextLayout }).map({ ObjectIdentifier($0) })
+private func textIDs(of object: LayoutRef) -> [LayoutID] {
+    return treeToList(object).filter({ $0.isText }).map({ $0.id })
 }
 
 @MainActor
-private func blockTexts(in object: any LayoutObject) -> [TextLayout] {
+private func blockTexts(in object: LayoutRef) -> [LayoutRef] {
     return treeToList(object)
-        .compactMap({ $0 as? TextLayout })
+        .filter({ $0.isText })
         .filter { text in
-            guard let line = text.parent as? LineLayout else { return false }
-            return line.parent is BlockLayout
+            guard let line = text.parent else { return false }
+            return line.isLine && line.parent?.isBlock == true
         }
 }
 
 @MainActor
-private func blockTextIDs(of object: any LayoutObject) -> [ObjectIdentifier] {
-    return blockTexts(in: object).map { ObjectIdentifier($0) }
+private func blockTextIDs(of object: LayoutRef) -> [LayoutID] {
+    return blockTexts(in: object).map { $0.id }
 }
 
 @MainActor
-private func markAllFields(_ object: any LayoutObject) {
+private func markAllFields(_ object: LayoutRef) {
     object.xField.mark()
     object.yField.mark()
     object.widthField.mark()

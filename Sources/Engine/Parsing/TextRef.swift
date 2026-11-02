@@ -18,5 +18,6 @@ extension TextRef {
 
     func append(_ suffix: String) {
         textNode.append(suffix)
+        LayoutInvalidation.textChanged(ref)
     }
 }

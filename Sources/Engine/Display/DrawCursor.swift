@@ -1,7 +1,7 @@
 import CoreGraphics
 
 @MainActor
-func drawCursor(_ object: any LayoutObject, offset: CGFloat) -> DisplayOp {
+func drawCursor(_ object: LayoutRef, offset: CGFloat) -> DisplayOp {
     let x: CGFloat = object.x + offset
     return .line(
         from: Point(x: x, y: object.y),

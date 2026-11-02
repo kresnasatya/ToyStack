@@ -27,8 +27,8 @@ struct AppendChildTests {
         let two: any DOMNode = oldParent.children[1]
         page.frame.js = JSRuntime(frame: page.frame)
 
-        let boxHeightBefore: CGFloat = try #require(box.layoutObject).height
-        let oldParentHeightBefore: CGFloat = try #require(oldParent.layoutObject).height
+        let boxHeightBefore: CGFloat = try #require(page.ref(of: box).layout).height
+        let oldParentHeightBefore: CGFloat = try #require(page.ref(of: oldParent).layout).height
 
         page.frame.js.run(script: "appendChild", code: "document.getElementById('box').appendChild(document.getElementById('one'));")
 
@@ -45,8 +45,8 @@ struct AppendChildTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        #expect((box.layoutObject?.height ?? 0) > boxHeightBefore)
-        #expect((oldParent.layoutObject?.height ?? 0) < oldParentHeightBefore)
+        #expect((page.ref(of: box).layout?.height ?? 0) > boxHeightBefore)
+        #expect((page.ref(of: oldParent).layout?.height ?? 0) < oldParentHeightBefore)
     }
 
     @Test func reappendingExistingChildMovesItToTheEnd() throws {
@@ -98,10 +98,10 @@ struct AppendChildTests {
         let box: Element = try #require(page.firstElement(id: "box"))
         let one: Element = try #require(page.firstElement(id: "one"))
         let two: Element = try #require(page.firstElement(id: "two"))
-        let boxLayout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
-        let oneLayout: BlockLayout = try #require(one.layoutObject as? BlockLayout)
-        let twoLayout: BlockLayout = try #require(two.layoutObject as? BlockLayout)
-        let beforeChildren: [any LayoutObject] = boxLayout.children
+        let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
+        let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
+        let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
+        let beforeChildren: [LayoutID] = boxLayout.children.map({ $0.id })
         #expect(beforeChildren.count == 5)
         page.frame.js = JSRuntime(frame: page.frame)
         page.frame.js.run(
@@ -120,13 +120,13 @@ struct AppendChildTests {
         page.frame.render()
 
         #expect(boxLayout.children.count == 6)
-        #expect(boxLayout.children[0] === beforeChildren[0])
-        #expect(boxLayout.children[1] === oneLayout)
-        #expect(boxLayout.children[2] === beforeChildren[2])
-        #expect(boxLayout.children[3] === twoLayout)
-        #expect(boxLayout.children[4] === beforeChildren[4])
+        #expect(boxLayout.children[0].id == beforeChildren[0])
+        #expect(boxLayout.children[1].id == oneLayout.id)
+        #expect(boxLayout.children[2].id == beforeChildren[2])
+        #expect(boxLayout.children[3].id == twoLayout.id)
+        #expect(boxLayout.children[4].id == beforeChildren[4])
 
-        let appended: BlockLayout = try #require(boxLayout.children.last as? BlockLayout)
+        let appended: LayoutRef = try #require(boxLayout.children.last)
         #expect(appended.node.element?.tag == "p")
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         #expect((profiler.snapshot()["layout.children.appended"]?.count ?? 0) == 1)
@@ -145,8 +145,8 @@ struct AppendChildTests {
         )
         let box: Element = try #require(page.firstElement(id: "box"))
         let one: Element = try #require(page.firstElement(id: "one"))
-        let boxLayout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
-        let oneLayout: BlockLayout = try #require(one.layoutObject as? BlockLayout)
+        let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
+        let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
         #expect(boxLayout.children.count == 2)
         page.frame.js = JSRuntime(frame: page.frame)
 
@@ -165,10 +165,11 @@ struct AppendChildTests {
         page.frame.render()
 
         #expect(boxLayout.children.count == 2)
-        #expect(boxLayout.children[0] === oneLayout)
-        let run: BlockLayout = try #require(boxLayout.children[1] as? BlockLayout)
-        #expect(run.extraNodes.count == 2)
-        #expect(run.extraNodes[1].element?.tag == "span")
+        #expect(boxLayout.children[0].id == oneLayout.id)
+        let run: LayoutRef = try #require(boxLayout.children.last)
+        let extras: [NodeID] = run.blockData.content.extraNodes
+        #expect(extras.count == 2)
+        #expect(DOMRef(id: extras[1], dom: run.tree.dom).element?.tag == "span")
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         #expect((profiler.snapshot()["layout.children.appended"]?.count ?? 0) == 1)
         expectIncrementalMatchesFull(page)

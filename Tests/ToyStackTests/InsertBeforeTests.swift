@@ -22,10 +22,10 @@ struct InsertBeforeTests {
         let one: Element = try #require(page.firstElement(id: "one"))
         let two: Element = try #require(page.firstElement(id: "two"))
         let three: Element = try #require(page.firstElement(id: "three"))
-        let boxLayout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
-        let oneLayout: BlockLayout = try #require(one.layoutObject as? BlockLayout)
-        let twoLayout: BlockLayout = try #require(two.layoutObject as? BlockLayout)
-        let threeLayout: BlockLayout = try #require(three.layoutObject as? BlockLayout)
+        let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
+        let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
+        let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
+        let threeLayout: LayoutRef = try #require(page.firstBlock(in: three))
         let twoYBefore: CGFloat = twoLayout.y
         page.frame.js = JSRuntime(frame: page.frame)
 
@@ -45,15 +45,15 @@ struct InsertBeforeTests {
 
         #expect(box.children.count == 4)
         #expect(boxLayout.children.count == 4)
-        #expect(boxLayout.children[0] === oneLayout)
-        #expect(boxLayout.children[2] === twoLayout)
-        #expect(boxLayout.children[3] === threeLayout)
+        #expect(boxLayout.children[0].id == oneLayout.id)
+        #expect(boxLayout.children[2].id == twoLayout.id)
+        #expect(boxLayout.children[3].id == threeLayout.id)
 
-        let inserted: BlockLayout = try #require(boxLayout.children[1] as? BlockLayout)
+        let inserted: LayoutRef = boxLayout.children[1]
         #expect(inserted.node.element?.tag == "p")
-        #expect(inserted.previous === oneLayout)
-        #expect(twoLayout.previous === inserted)
-        #expect(threeLayout.previous === twoLayout)
+        #expect(inserted.previous?.id == oneLayout.id)
+        #expect(twoLayout.previous?.id == inserted.id)
+        #expect(threeLayout.previous?.id == twoLayout.id)
         #expect(twoLayout.y > twoYBefore)
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         #expect((profiler.snapshot()["layout.children.inserted"]?.count ?? 0) == 1)

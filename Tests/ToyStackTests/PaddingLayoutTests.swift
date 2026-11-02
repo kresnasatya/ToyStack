@@ -18,8 +18,8 @@ struct PaddingLayoutTests {
         )
         let outer: Element = try #require(page.firstElement(tag: "div"))
         let inner: Element = try #require(outer.children.first as? Element)
-        let outerBox: BlockLayout = try #require(outer.layoutObject as? BlockLayout)
-        let innerBox: BlockLayout = try #require(inner.layoutObject as? BlockLayout)
+        let outerBox: LayoutRef = try #require(page.ref(of: outer).layout)
+        let innerBox: LayoutRef = try #require(page.ref(of: inner).layout)
 
         #expect(outerBox.width == 580)
         #expect(outerBox.selfRect().right - outerBox.selfRect().left == 600)
@@ -44,8 +44,8 @@ struct PaddingLayoutTests {
         }
         let a: Element = try #require(elements.first { $0.attributes["id"] == "a" })
         let b: Element = try #require(elements.first { $0.attributes["id"] == "b" })
-        let aBox: BlockLayout = try #require(a.layoutObject as? BlockLayout)
-        let bBox: BlockLayout = try #require(b.layoutObject as? BlockLayout)
+        let aBox: LayoutRef = try #require(page.ref(of: a).layout)
+        let bBox: LayoutRef = try #require(page.ref(of: b).layout)
 
         #expect(aBox.selfRect().bottom - aBox.selfRect().top == 22)
         #expect(bBox.y == aBox.y + aBox.height + 12)
@@ -66,12 +66,12 @@ struct PaddingLayoutTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let boxLayout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
+        let boxLayout: LayoutRef = try #require(page.ref(of: box).layout)
         #expect(boxLayout.width == 560)
         #expect(boxLayout.selfRect().right - boxLayout.selfRect().left == 600)
         #expect(boxLayout.selfRect().left == boxLayout.x - 20)
 
-        let document: DocumentLayout = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
         expectAllLayoutFieldsClean(document)
         expectIncrementalMatchesFull(page)
     }
@@ -87,9 +87,9 @@ struct PaddingLayoutTests {
                 """
         )
         let box: Element = try #require(page.firstElement(tag: "div"))
-        let layout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
+        let layout: LayoutRef = try #require(page.ref(of: box).layout)
 
-        #expect(layout.hitTest(x: layout.x - 5, y: layout.y + 5)?.node.raw === box)
+        #expect(layout.hitTest(x: layout.x - 5, y: layout.y + 5)?.domNode == page.frame.dom.id(of: box))
     }
 
     @Test func backgroundCoversPadding() throws {
@@ -106,7 +106,7 @@ struct PaddingLayoutTests {
         page.frame.setNeedsPaint()
         page.frame.paint()
 
-        let layout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
+        let layout: LayoutRef = try #require(page.ref(of: box).layout)
         let rects: [Rect] = page.frame.displayList.compactMap { op -> Rect? in
             guard case .rect(let rect, _) = op else { return nil }
             return rect

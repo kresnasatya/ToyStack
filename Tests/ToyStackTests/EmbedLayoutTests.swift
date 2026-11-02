@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 
 @testable import Engine
@@ -18,17 +19,18 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let image: Element = try #require(page.firstElement(tag: "img"))
-        let before: ImageLayout = try #require(page.firstLayout(ImageLayout.self, in: image))
+        let before: LayoutRef = try #require(page.firstEmbed(in: image))
         #expect(before.width == 40)
+        let beforeWidth: CGFloat = before.width
 
         image.attributes["width"] = "80"
-        LayoutInvalidation.attributesChanged(image)
+        LayoutInvalidation.attributesChanged(page.ref(of: image))
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: ImageLayout = try #require(page.firstLayout(ImageLayout.self, in: image))
+        let after: LayoutRef = try #require(page.firstEmbed(in: image))
         #expect(after.width == 80)
-        #expect(after.width - before.width == 40)
+        #expect(after.width - beforeWidth == 40)
     }
 
     @Test func iframeHeightAttributeChangesLayoutHeight() throws {
@@ -37,17 +39,18 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let iframe: Element = try #require(page.firstElement(tag: "iframe"))
-        let before: IframeLayout = try #require(page.firstLayout(IframeLayout.self, in: iframe))
+        let before: LayoutRef = try #require(page.firstEmbed(in: iframe))
         #expect(before.height == 82)
+        let beforeHeight: CGFloat = before.height
 
         iframe.attributes["height"] = "120"
-        LayoutInvalidation.attributesChanged(iframe)
+        LayoutInvalidation.attributesChanged(page.ref(of: iframe))
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: IframeLayout = try #require(page.firstLayout(IframeLayout.self, in: iframe))
+        let after: LayoutRef = try #require(page.firstEmbed(in: iframe))
         #expect(after.height == 122)
-        #expect(after.height - before.height == 40)
+        #expect(after.height - beforeHeight == 40)
     }
 
     @Test func inputFontSizeChangesHeightAndAscent() throws {
@@ -56,18 +59,19 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let input: Element = try #require(page.firstElement(tag: "input"))
-        let before: InputLayout = try #require(page.firstLayout(InputLayout.self, in: input))
+        let before: LayoutRef = try #require(page.firstEmbed(in: input))
         #expect(before.height == inlineDefaultFont.linespace)
+        let beforeHeight: CGFloat = before.height
 
         input.attributes["style"] = "font-size: 32px"
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: InputLayout = try #require(page.firstLayout(InputLayout.self, in: input))
+        let after: LayoutRef = try #require(page.firstEmbed(in: input))
         let expected: BrowserFont = getFont(size: 32, weight: "normal", style: "roman")
         #expect(after.height == expected.linespace)
         #expect(after.ascentField.get() == expected.linespace)
-        #expect(after.height > before.height)
+        #expect(after.height > beforeHeight)
     }
 
     @Test func checkboxWidthMatchesFontLineSpace() throws {
@@ -76,7 +80,7 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let checkbox: Element = try #require(page.firstElement(tag: "input"))
-        let layout: InputLayout = try #require(page.firstLayout(InputLayout.self, in: checkbox))
+        let layout: LayoutRef = try #require(page.firstEmbed(in: checkbox))
         let expected: BrowserFont = getFont(size: 32, weight: "normal", style: "roman")
         #expect(layout.width == expected.linespace)
         #expect(layout.height == expected.linespace)

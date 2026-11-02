@@ -30,23 +30,52 @@ struct LayoutTestPage {
             .first(where: { $0.attributes["id"] == id })
     }
 
-    func firstLayout<T: LayoutObject>(_ type: T.Type, in element: Element) -> T? {
-        guard let object: any LayoutObject = element.layoutObject else { return nil }
-        return treeToList(object).compactMap({ $0 as? T }).first
+    func ref(of node: any DOMNode) -> DOMRef {
+        return frame.dom.ref(node)
     }
 
-    func lines(in element: Element) -> [LineLayout] {
-        guard let block: BlockLayout = element.layoutObject as? BlockLayout else {
+    func firstLayout(
+        in element: Element,
+        where predicate: (LayoutRef) -> Bool
+    ) -> LayoutRef? {
+        guard let primary: LayoutRef = frame.dom.ref(element).layout else { return nil }
+        return treeToList(primary).first(where: predicate)
+    }
+
+    func firstBlock(in element: Element) -> LayoutRef? {
+        return firstLayout(in: element, where: { $0.isBlock })
+    }
+
+    func firstText(in element: Element) -> LayoutRef? {
+        return firstLayout(in: element, where: { $0.isText })
+    }
+
+    func firstLine(in element: Element) -> LayoutRef? {
+        return firstLayout(in: element, where: { $0.isLine })
+    }
+
+    func firstEmbed(in element: Element) -> LayoutRef? {
+        return firstLayout(in: element, where: { $0.isEmbed })
+    }
+
+    func embed(in element: Element, _ match: EmbedMatch) -> LayoutRef? {
+        return firstLayout(in: element, where: {
+            guard $0.isEmbed else { return false }
+            return match.matches($0.embedData)
+        })
+    }
+
+    func lines(in element: Element) -> [LayoutRef] {
+        guard let block: LayoutRef = firstBlock(in: element) else {
             return []
         }
-        return block.children.compactMap({ $0 as? LineLayout })
+        return block.children.filter({ $0.isLine })
     }
 
     func textWidth(in element: Element) -> CGFloat {
-        guard let object: any LayoutObject = element.layoutObject else { return 0 }
-        let total: CGFloat = treeToList(object)
-            .compactMap({ $0 as? TextLayout })
-            .reduce(0, { $0 + $1.textWidth })
-        return total
+        guard let primary: LayoutRef = frame.dom.ref(element).layout else { return 0 }
+        return treeToList(primary)
+            .filter({ $0.isText })
+            .reduce(0, { $0 + $1.textData.metrics.width })
     }
 }

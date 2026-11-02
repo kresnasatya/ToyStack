@@ -2,36 +2,50 @@ import Foundation
 
 /// Reverse edges from an input field to the fields that read it.
 ///
-/// The index is rebuilt once per layout pass from the static input table.
-/// Until that table exists, callers add and remove edges directly.
+/// This is the single dependency graph for one `LayoutTree`. Handles add an
+/// edge when a read is not declared frozen; a write walks the index once.
+@MainActor
 struct DependencyIndex {
-    private var dependents: [FieldKey: [FieldKey]] = [:]
+    private var dependents: [FieldKey: [FieldRef]] = [:]
 
-    mutating func add(_ dependent: FieldKey, for key: FieldKey) {
-        var list: [FieldKey] = dependents[key] ?? []
-        guard !list.contains(dependent) else { return }
+    mutating func add(_ dependent: FieldRef, for key: FieldKey) {
+        guard dependent.isAlive else { return }
+        var list: [FieldRef] = (dependents[key] ?? []).filter({ $0.isAlive })
+        guard !list.contains(where: { $0.fieldKey == dependent.fieldKey }) else {
+            dependents[key] = list
+            return
+        }
         list.append(dependent)
         dependents[key] = list
     }
 
-    mutating func remove(_ dependent: FieldKey, for key: FieldKey) {
-        guard var list: [FieldKey] = dependents[key] else { return }
-        list.removeAll(where: { $0 == dependent })
+    mutating func remove(_ dependent: FieldRef, for key: FieldKey) {
+        guard var list: [FieldRef] = dependents[key] else { return }
+        list.removeAll(where: { $0.fieldKey == dependent.fieldKey })
         dependents[key] = list.isEmpty ? nil : list
     }
 
-    /// Replaces every edge into `dependent` with edges from `inputs`.
-    mutating func replace(_ inputs: [FieldKey], for dependent: FieldKey) {
-        for key in Array(dependents.keys) {
-            remove(dependent, for: key)
+    mutating func mark(_ key: FieldKey) -> [FieldRef] {
+        let live: [FieldRef] = (dependents[key] ?? []).filter({ $0.isAlive })
+        if live.isEmpty {
+            dependents[key] = nil
+        } else {
+            dependents[key] = live
         }
-        for input in inputs {
-            add(dependent, for: input)
-        }
+        return live
     }
 
-    /// Fields to mark dirty when `key` changes.
-    func mark(_ key: FieldKey) -> [FieldKey] {
-        return dependents[key] ?? []
+    func contains(_ key: FieldKey, _ dependent: FieldRef) -> Bool {
+        return dependents[key]?.contains(where: {
+            $0.fieldKey == dependent.fieldKey && $0.isAlive
+        }) ?? false
+    }
+
+    func names(of key: FieldKey) -> [String] {
+        return (dependents[key] ?? []).filter({ $0.isAlive }).map({ $0.fieldName }).sorted()
+    }
+
+    func count(of key: FieldKey) -> Int {
+        return dependents[key]?.filter({ $0.isAlive }).count ?? 0
     }
 }

@@ -10,7 +10,6 @@ protocol DOMNode: AnyObject {
     var isFocusVisible: Bool { get set }
     var isHovered: Bool { get set }
     var satisfiedHas: Set<Int> { get set }
-    var layoutObject: LayoutObject? { get set }
     var animations: [AnimationKey: Animation] { get set }
 }
 
@@ -42,7 +41,6 @@ class Element: DOMNode {
     var isHovered: Bool = false
     var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
-    weak var layoutObject: LayoutObject? = nil
     var animations: [AnimationKey: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
@@ -73,7 +71,6 @@ class TextNode: DOMNode {
     var isHovered: Bool = false
     var isFocusVisible: Bool = false
     var satisfiedHas: Set<Int> = []
-    weak var layoutObject: LayoutObject? = nil
     var animations: [AnimationKey: Animation] = [:]
 
     init(text: String, parent: (any DOMNode)?) {
@@ -84,7 +81,9 @@ class TextNode: DOMNode {
     @MainActor
     func append(_ suffix: String) {
         text += suffix
-        LayoutInvalidation.textChanged(self)
+        if let tree = style.layoutTree, let owner = style.owner {
+            LayoutInvalidation.textChanged(DOMRef(id: owner, dom: tree.dom))
+        }
     }
 }
 

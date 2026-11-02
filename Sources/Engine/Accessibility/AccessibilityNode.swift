@@ -3,6 +3,7 @@ import CoreGraphics
 @MainActor
 class AccessibilityNode {
     let node: DOMNode
+    let dom: DOMTree
     weak var parent: AccessibilityNode?
     var children: [AccessibilityNode] = []
     var role: String = "none"
@@ -10,24 +11,26 @@ class AccessibilityNode {
     var text: String = ""
     var bounds: Rect
 
-    init(node: DOMNode, parent: AccessibilityNode? = nil) {
+    init(node: DOMNode, dom: DOMTree, parent: AccessibilityNode? = nil) {
         self.node = node
+        self.dom = dom
         self.parent = parent
-        self.bounds = AccessibilityNode.computeBounds(for: node)
+        self.bounds = AccessibilityNode.computeBounds(for: node, dom: dom)
         self.role = AccessibilityNode.computeRole(for: node)
         self.live = AccessibilityNode.computeLive(for: node)
         self.text = AccessibilityNode.computeText(for: node)
     }
 
-    private static func computeBounds(for node: DOMNode) -> Rect {
-        guard let lo = node.layoutObject else {
+    private static func computeBounds(for node: DOMNode, dom: DOMTree) -> Rect {
+        let ref: DOMRef = DOMRef(id: dom.id(of: node), dom: dom)
+        guard let lo = ref.layout else {
             return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
 
-        if lo is TextLayout, let line = lo.parent, let block = line.parent {
+        if lo.isText, let line = lo.parent, let block = line.parent, block.isBlock {
             var result: Rect? = nil
             for lineLayout in block.children {
-                for item in lineLayout.children where item.node.raw === node {
+                for item in lineLayout.children where item.domNode == ref.id {
                     let r: Rect = Rect(
                         left: item.x, top: item.y,
                         right: item.x + item.width, bottom: item.y + item.height
@@ -119,7 +122,8 @@ class AccessibilityNode {
             buildInternal(childNode)
         }
 
-        if node.layoutObject == nil, let first = children.first {
+        let ref: DOMRef = DOMRef(id: dom.id(of: node), dom: dom)
+        if ref.layout == nil, let first = children.first {
             bounds = children.dropFirst().reduce(first.bounds) {
                 AccessibilityNode.union($0, $1.bounds)
             }
@@ -134,11 +138,12 @@ class AccessibilityNode {
             return
         }
         let child: AccessibilityNode
+        let childRef: DOMRef = DOMRef(id: dom.id(of: childNode), dom: dom)
         if let el = childNode as? Element, el.tag == "iframe",
-            let frame = el.frame, frame.loaded, el.layoutObject != nil {
-            child = FrameAccessibilityNode(node: el, parent: self)
+            let frame = el.frame, frame.loaded, childRef.layout != nil {
+            child = FrameAccessibilityNode(node: el, dom: dom, parent: self)
         } else {
-            child = AccessibilityNode(node: childNode, parent: self)
+            child = AccessibilityNode(node: childNode, dom: dom, parent: self)
         }
         if child.role != "none" || child.live != "off" {
             children.append(child)
