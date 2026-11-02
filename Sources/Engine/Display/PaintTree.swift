@@ -66,9 +66,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [DisplayOp], epo
         for child in inPaintOrder(visibleChildren) {
             paintTree(child, into: &displayList, epoch: epoch, window: window)
         }
-        let childItems: [DisplayOp] = profiler.measure("paint.range.copy", {
-            Array(displayList[childStart...])
-        })
+        let childItems: [DisplayOp] = Array(displayList[childStart...])
         displayList.removeSubrange(childStart..<displayList.count)
         let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
         let effect: ScrollEffect = ScrollEffect(

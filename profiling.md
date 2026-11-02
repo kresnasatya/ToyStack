@@ -425,7 +425,7 @@ strategy changed on this frame; `sublayers` is the current strategy.
 
 ## Known distortions
 
-- **`raster.composite` splits into `copy`, `flatten`, and `layers`.** The sub-spans nest inside the total; their sum is approximately the total, and the remainder is sampling between spans.
+- **`raster.composite` is one walk.** `raster.composite.walk` covers the depth-first display-list walk and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.
 - **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
 - **`layout.visit` is a duration, not a count.** Box counts are `layout.visited`, `layout.skipped`, and `layout.rebuilt`.
 - **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,
