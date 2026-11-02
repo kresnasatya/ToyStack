@@ -247,10 +247,10 @@ public class Browser: ObservableObject {
         scheduleRasterAndDraw()
     }
 
-    private func applyEffectFastPath(_ updates: [ObjectIdentifier: BrowserVisualEffect]) -> Bool {
+    private func applyEffectFastPath(_ updates: [NodeKey: EffectUpdate]) -> Bool {
         let layers: [CompositedLayer] = activeFrame.render.layers
         let effectStrategies: [LayerEffectStrategy] = layers.map({ Browser.layerEffectStrategy($0, updates: updates) })
-        let keys: Set<ObjectIdentifier> = Set(effectStrategies.compactMap({ $0.effect?.key }))
+        let keys: Set<NodeKey> = Set(effectStrategies.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
         for (index, info) in effectStrategies.enumerated() where info.kind == .ca {
             if layers[index].effectImage == nil { return false }
@@ -606,12 +606,15 @@ public class Browser: ObservableObject {
     ) -> [CompositedLayer] {
         measure.start("raster.composite.walk", category: .raster, frame: frame)
         var compositedLayers: [CompositedLayer] = []
-        var ordinals: [ObjectIdentifier?: Int] = [:]
+        var ordinals: [EffectScopeID?: Int] = [:]
         var assumeOverlap: Bool = false
 
-        func visit(_ op: DisplayOp, _ scopes: [BrowserVisualEffect]) {
-            let scope: ObjectIdentifier? = scopes.last.map(ObjectIdentifier.init)
-            if scopes.contains(where: { ($0 as? Transform)?.isAnimated == true }) {
+        func visit(_ op: DisplayOp, _ scopes: [EffectScope]) {
+            let scope: EffectScopeID? = scopes.last?.id
+            if scopes.contains(where: { scope in
+                if case .transform = scope.kind { return scope.placement.animatedTransform }
+                return false
+            }) {
                 assumeOverlap = true
             }
             for layer in compositedLayers.reversed() {
@@ -653,73 +656,60 @@ public class Browser: ObservableObject {
         }
     }
 
-    nonisolated private static func getLatest(
-        _ effect: BrowserVisualEffect,
-        in compositedUpdates: [ObjectIdentifier: BrowserVisualEffect]
-    ) -> BrowserVisualEffect {
-        guard let node = effect.node else { return effect }
-        let key: ObjectIdentifier = ObjectIdentifier(node)
-        guard let updated = compositedUpdates[key] else { return effect }
-        if type(of: effect) == type(of: updated) {
-            return updated
-        }
-        var stack: [BrowserVisualEffect] = [updated]
-        while let candidate = stack.popLast() {
-            if type(of: candidate) == type(of: effect) {
-                return candidate
-            }
-            for child in candidate.children {
-                if case .effect(let ve) = child {
-                    stack.append(ve)
-                }
-            }
-        }
-        return effect
-    }
-
-    nonisolated static func layerEffectStrategy(_ layer: CompositedLayer, updates: [ObjectIdentifier: BrowserVisualEffect]) -> LayerEffectStrategy {
+    nonisolated static func layerEffectStrategy(
+        _ layer: CompositedLayer,
+        updates: [NodeKey: EffectUpdate]
+    ) -> LayerEffectStrategy {
         var kind: LayerEffectStrategy.Kind = LayerEffectStrategy.Kind.flat
         var opacity: Double = 1
         var translation: CGPoint = CGPoint.zero
         var blur: CGFloat = 0
-        var key: ObjectIdentifier?
+        var key: NodeKey?
         var blendMode: BrowserBlendMode?
         var clipRect: Rect?
-        for effect in layer.ancestorChain {
-            let latest: BrowserVisualEffect = getLatest(effect, in: updates)
-            if latest is ScrollEffect {
+        for scope in layer.ancestorChain {
+            let update: EffectUpdate? = scope.placement.node.flatMap { updates[$0] }
+            let animated: Bool = update?.isAnimatedTransform ?? scope.placement.animatedTransform
+            switch scope.kind {
+            case .scroll:
                 kind = max(kind, .scrollFallback)
-            } else if let blend = latest as? Blend {
-                opacity *= blend.opacity
-                if let mode = blend.blendMode, mode != .normal {
-                    if mode.compositingFilterName != nil {
+            case .blend(let scopeOpacity, let scopeMode):
+                let updatedOpacity: Double = update?.style.opacity ?? scopeOpacity
+                let updatedMode: BrowserBlendMode? = update.map({ $0.style.blendMode }) ?? scopeMode
+                opacity *= updatedOpacity
+                if let updatedMode, updatedMode != .normal {
+                    if updatedMode.compositingFilterName != nil {
                         kind = max(kind, .ca)
-                        if blendMode == nil { blendMode = mode }
+                        if blendMode == nil { blendMode = updatedMode }
                     } else {
                         kind = max(kind, .blendFallback)
                     }
-                } else if blend.opacity < 1 {
+                } else if updatedOpacity < 1 {
                     kind = max(kind, .ca)
                 }
-                if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
-            } else if let transform = latest as? Transform {
-                if let t = transform.translation {
-                    translation.x += t.x
-                    translation.y += t.y
+                if key == nil { key = scope.placement.node }
+            case .transform(let scopeTranslation):
+                let updatedTranslation: CGPoint? = update.map({ $0.style.translation }) ?? scopeTranslation
+                if let updatedTranslation {
+                    translation.x += updatedTranslation.x
+                    translation.y += updatedTranslation.y
                     kind = max(kind, .ca)
                 }
-                if transform.isAnimated { kind = max(kind, .ca) }
-                if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
-            } else if let filter = latest as? BlurFilter, filter.radius > 0 {
-                blur = max(blur, filter.radius)
-                kind = max(kind, .ca)
-                if key == nil, let node = latest.node { key = ObjectIdentifier(node) }
-            } else if let clip = latest as? Clip {
+                if animated { kind = max(kind, .ca) }
+                if key == nil { key = scope.placement.node }
+            case .blur(let scopeRadius):
+                let updatedRadius: CGFloat = update?.style.blurRadius ?? scopeRadius
+                if updatedRadius > 0 {
+                    blur = max(blur, updatedRadius)
+                    kind = max(kind, .ca)
+                    if key == nil { key = scope.placement.node }
+                }
+            case .clip(let shape):
                 let local: Rect = Rect(
-                    left: clip.shape.rect.left - translation.x,
-                    top: clip.shape.rect.top - translation.y,
-                    right: clip.shape.rect.right - translation.x,
-                    bottom: clip.shape.rect.bottom - translation.y
+                    left: shape.rect.left - translation.x,
+                    top: shape.rect.top - translation.y,
+                    right: shape.rect.right - translation.x,
+                    bottom: shape.rect.bottom - translation.y
                 )
                 clipRect = clipRect.map({ $0.intersect(local) }) ?? local
             }
@@ -736,57 +726,63 @@ public class Browser: ObservableObject {
         return LayerEffectStrategy(kind: kind, effect: effect, blur: blur)
     }
 
-    nonisolated static func updatesAreCA(_ updates: [ObjectIdentifier: BrowserVisualEffect]) -> Bool {
-        updates.values.allSatisfy({ isCAEffect($0) })
-    }
-
-    nonisolated private static func isCAEffect(_ effect: BrowserVisualEffect) -> Bool {
-        if effect is ScrollEffect { return false }
-        if let blend = effect as? Blend,
-            let mode = blend.blendMode, mode != .normal, mode.compositingFilterName == nil {
-            return false
-        }
-        if let blur = effect as? BlurFilter, blur.radius > 0 { return false }
-        for child in effect.children {
-            if case .effect(let nested) = child, isCAEffect(nested) { return false }
-        }
-        return true
+    nonisolated static func updatesAreCA(_ updates: [NodeKey: EffectUpdate]) -> Bool {
+        updates.values.allSatisfy({ update in
+            update.style.blurRadius == 0
+                && (update.style.blendMode == nil
+                    || update.style.blendMode == .normal
+                    || update.style.blendMode?.compositingFilterName != nil)
+        })
     }
 
     nonisolated static func computePaintDrawList(
         layers: [CompositedLayer],
         inputs: RasterInput
     ) -> [DisplayOp] {
-        var newEffects: [ObjectIdentifier: BrowserVisualEffect] = [:]
-        var drawList: [DisplayOp] = []
         let scale: ContentScale = inputs.settings.viewport.scale
         let viewportHeight: CGFloat = (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) / scale.page
+        var nodes: [EffectScopeID: DrawEffectNode] = [:]
+        var roots: [DrawEffectChild] = []
+
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
-            var currentEffect: DisplayOp = .compositedLayer(
+            var current: DrawEffectChild = .op(.compositedLayer(
                 layer: layer,
                 rect: layer.absoluteBounds(),
                 visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
                 visibleBottom: inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
-            )
-            var mergedIntoExisting: Bool = false
-            for p in layer.ancestorChain {
-                let newParent: BrowserVisualEffect = getLatest(p, in: inputs.scene.compositedUpdates)
-                let newParentKey: ObjectIdentifier = ObjectIdentifier(newParent)
-                if let existing = newEffects[newParentKey] {
-                    existing.children.append(currentEffect)
-                    mergedIntoExisting = true
+            ))
+            var attached: Bool = false
+            for scope in layer.ancestorChain {
+                let updated: EffectScope = Browser.updatedScope(scope, updates: inputs.scene.compositedUpdates)
+                if let existing = nodes[updated.id] {
+                    existing.children.append(current)
+                    attached = true
                     break
-                } else {
-                    let cloned: BrowserVisualEffect = newParent.clone(children: [currentEffect])
-                    newEffects[newParentKey] = cloned
-                    currentEffect = .effect(cloned)
                 }
+                let node: DrawEffectNode = DrawEffectNode(scope: updated)
+                node.children.append(current)
+                nodes[updated.id] = node
+                current = .node(node)
             }
-            if !mergedIntoExisting {
-                drawList.append(currentEffect)
+            if !attached {
+                roots.append(current)
             }
         }
+
+        func materialize(_ child: DrawEffectChild) -> DisplayOp {
+            switch child {
+            case .op(let op):
+                return op
+            case .node(let node):
+                return .effect(DisplayEffect(
+                    scope: node.scope,
+                    children: node.children.map(materialize)
+                ))
+            }
+        }
+
+        var drawList: [DisplayOp] = roots.map(materialize)
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
             drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))
@@ -799,6 +795,33 @@ public class Browser: ObservableObject {
         }
 
         return drawList
+    }
+
+    nonisolated private static func updatedScope(
+        _ scope: EffectScope,
+        updates: [NodeKey: EffectUpdate]
+    ) -> EffectScope {
+        guard let node = scope.placement.node, let update = updates[node] else { return scope }
+        let kind: EffectKind
+        switch scope.kind {
+        case .blend:
+            kind = .blend(opacity: update.style.opacity, mode: update.style.blendMode)
+        case .transform:
+            kind = .transform(update.style.translation)
+        case .blur:
+            kind = .blur(radius: update.style.blurRadius)
+        case .clip, .scroll:
+            kind = scope.kind
+        }
+        return EffectScope(
+            id: scope.id,
+            kind: kind,
+            placement: EffectPlacement(
+                rect: scope.placement.rect,
+                node: scope.placement.node,
+                animatedTransform: update.isAnimatedTransform
+            )
+        )
     }
 
     nonisolated static func layerPlacements(_ layers: [CompositedLayer], effectStrategies: [LayerEffectStrategy]) -> [LayerPlacement] {
@@ -1107,4 +1130,20 @@ public class Browser: ObservableObject {
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
+}
+
+// MARK: - Draw-list effect tree
+
+private final class DrawEffectNode {
+    let scope: EffectScope
+    var children: [DrawEffectChild] = []
+
+    init(scope: EffectScope) {
+        self.scope = scope
+    }
+}
+
+private enum DrawEffectChild {
+    case op(DisplayOp)
+    case node(DrawEffectNode)
 }

@@ -1099,7 +1099,7 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    func paintEffects(into items: inout [DisplayOp], from start: Int) {
+    func paintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession) {
         if let el = node as? Element, el.isFocused,
             el.attributes["contenteditable"] != nil
         {
@@ -1109,7 +1109,7 @@ class BlockLayout: LayoutObject {
                 items.append(drawCursor(self, offset: 0))
             }
         }
-        applyPaintEffects(into: &items, from: start)
+        applyPaintEffects(into: &items, from: start, session: &session)
     }
 
     func paintScrollbar() -> [DisplayOp] {

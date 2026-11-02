@@ -9,7 +9,7 @@ public enum DisplayOp {
     case image(image: CGImage, rendering: ImageRendering, rect: Rect, version: UInt64)
     case clippedImage(image: CGImage, rendering: ImageRendering, rect: Rect, clip: Rect)
     case compositedLayer(layer: CompositedLayer, rect: Rect, visibleTop: CGFloat, visibleBottom: CGFloat)
-    case effect(BrowserVisualEffect)
+    case effect(DisplayEffect)
 }
 
 extension DisplayOp {
@@ -36,7 +36,7 @@ extension DisplayOp {
         case .image: return "image"
         case .clippedImage: return "clippedImage"
         case .compositedLayer: return "compositedLayer"
-        case .effect(let effect): return String(describing: type(of: effect))
+        case .effect(let effect): return effect.name
         }
     }
 
@@ -156,12 +156,12 @@ extension DisplayOp {
 
 func walkDisplayItems(
     _ items: [DisplayOp],
-    scopes: [BrowserVisualEffect] = [],
-    visit: (DisplayOp, [BrowserVisualEffect]) -> Void
+    scopes: [EffectScope] = [],
+    visit: (DisplayOp, [EffectScope]) -> Void
 ) {
     for item in items {
         if case .effect(let effect) = item {
-            walkDisplayItems(effect.children, scopes: scopes + [effect], visit: visit)
+            walkDisplayItems(effect.children, scopes: scopes + [effect.scope], visit: visit)
         } else {
             visit(item, scopes)
         }

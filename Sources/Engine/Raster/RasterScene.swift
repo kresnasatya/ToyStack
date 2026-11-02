@@ -1,5 +1,5 @@
 struct RasterScene {
     let displayList: [DisplayOp]
-    let compositedUpdates: [ObjectIdentifier: BrowserVisualEffect]
+    let compositedUpdates: [NodeKey: EffectUpdate]
     let previousLayers: [CompositedLayer]
 }

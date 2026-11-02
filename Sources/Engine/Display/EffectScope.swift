@@ -10,6 +10,18 @@ public struct EffectScope {
         self.kind = kind
         self.placement = placement
     }
+
+    func placed(rect: Rect) -> EffectScope {
+        EffectScope(
+            id: id,
+            kind: kind,
+            placement: EffectPlacement(
+                rect: rect,
+                node: placement.node,
+                animatedTransform: placement.animatedTransform
+            )
+        )
+    }
 }
 
 // MARK: - EffectPlacement

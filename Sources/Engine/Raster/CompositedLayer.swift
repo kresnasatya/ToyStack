@@ -16,7 +16,7 @@ public class CompositedLayer {
     private var keyCacheScale: Int = -1
     static let tileSize: CGFloat = 128
     static let rasterCapPerComposite: UInt = 300
-    var ancestorChain: [BrowserVisualEffect] = []
+    var ancestorChain: [EffectScope] = []
 
     // Draw and placement order for tiles. Dictionary iteration order is
     // randomized per process; at a fractional scroll offset adjacent tiles
@@ -37,7 +37,7 @@ public class CompositedLayer {
         self.displayItems = [displayItem]
     }
 
-    func canMerge(scope: ObjectIdentifier?) -> Bool {
+    func canMerge(scope: EffectScopeID?) -> Bool {
         return id.effect == scope
     }
 
@@ -59,8 +59,10 @@ public class CompositedLayer {
 
     func absoluteBounds() -> Rect {
         var rect: Rect = compositedBounds()
-        for effect in ancestorChain {
-            rect = effect.map(rect: rect)
+        for scope in ancestorChain {
+            if case .transform(let translation) = scope.kind, let translation {
+                rect = rect.translated(dx: translation.x, dy: translation.y)
+            }
         }
         return rect
     }

@@ -66,7 +66,7 @@ class Frame {
     private var lazyImages: [Element] = []
     var js: JSRuntime!
 
-    private var compositedUpdates: [ObjectIdentifier: BrowserVisualEffect] = [:]
+    private var compositedUpdates: [NodeKey: EffectUpdate] = [:]
 
     var needsRender: Bool = false
     var needsPaint: Bool = false
@@ -947,7 +947,8 @@ class Frame {
 
         var list: [DisplayOp] = []
         list.reserveCapacity(displayList.count)
-        paintTree(doc, into: &list, epoch: paintEpoch, window: window)
+        var session: PaintSession = PaintSession(paint: paintRevision, epoch: paintEpoch, window: window)
+        paintTree(doc, into: &list, epoch: paintEpoch, window: window, session: &session)
 
         displayList = list
         paintedBottom = contentBottom
@@ -980,11 +981,13 @@ class Frame {
                     if property == "transform" || property == "opacity"
                     {
                         node.style[property] = value
-                        if let rect = (node.layoutObject as? BlockLayout)?.selfRect(),
-                            let first: DisplayOp = paintBrowserVisualEffects(node: node, items: [], rect: rect).first,
-                            case .effect(let effect) = first
+                        if (node.layoutObject as? BlockLayout) != nil,
+                            let style: PaintEffectStyle = paintEffectStyle(node: node)
                         {
-                            compositedUpdates[ObjectIdentifier(node)] = effect
+                            compositedUpdates[NodeKey(node)] = EffectUpdate(
+                                style: style,
+                                isAnimatedTransform: node.animations["transform"] != nil
+                            )
                         }
                     } else if Self.affectsLayout(property) {
                         node.style[property] = value
@@ -1055,7 +1058,7 @@ class Frame {
     func commitFrame() {
         guard let tab else { return }
         scroll = min(scroll, maxScroll)
-        let updates: [ObjectIdentifier: BrowserVisualEffect]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
+        let updates: [NodeKey: EffectUpdate]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
             display: FrameDisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),

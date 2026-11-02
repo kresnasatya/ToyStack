@@ -16,12 +16,12 @@ struct TileKeyTests {
     }
 
     @Test func layerIDUsesEffectIdentityAndOrdinal() {
-        let effectA = NSObject()
-        let effectB = NSObject()
-        let a = LayerID(effect: ObjectIdentifier(effectA), ordinal: 0)
-        let b = LayerID(effect: ObjectIdentifier(effectA), ordinal: 0)
-        let c = LayerID(effect: ObjectIdentifier(effectA), ordinal: 1)
-        let d = LayerID(effect: ObjectIdentifier(effectB), ordinal: 0)
+        let effectA = EffectScopeID(paint: 1, ordinal: 0)
+        let effectB = EffectScopeID(paint: 1, ordinal: 1)
+        let a = LayerID(effect: effectA, ordinal: 0)
+        let b = LayerID(effect: effectA, ordinal: 0)
+        let c = LayerID(effect: effectA, ordinal: 1)
+        let d = LayerID(effect: effectB, ordinal: 0)
         let none = LayerID(effect: nil, ordinal: 0)
 
         #expect(a == b)

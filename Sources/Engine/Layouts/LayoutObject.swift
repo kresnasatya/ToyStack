@@ -13,7 +13,7 @@ protocol LayoutObject: AnyObject, FieldOwner {
     func selfRect() -> Rect
     func paint(into items: inout [DisplayOp])
     func shouldPaint() -> Bool
-    func paintEffects(into items: inout [DisplayOp], from start: Int)
+    func paintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession)
 
 }
 
@@ -142,11 +142,11 @@ extension LayoutObject {
         return fields.dependencyNames(field)
     }
 
-    func paintEffects(into items: inout [DisplayOp], from start: Int) {
-        applyPaintEffects(into: &items, from: start)
+    func paintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession) {
+        applyPaintEffects(into: &items, from: start, session: &session)
     }
 
-    func applyPaintEffects(into items: inout [DisplayOp], from start: Int) {
+    func applyPaintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession) {
         if self is LineLayout { return }
         let style: PaintEffectStyle? = profiler.measure("paint.effect.check", {
             paintEffectStyle(node: node)
@@ -154,7 +154,7 @@ extension LayoutObject {
         guard let style else { return }
         let produced: [DisplayOp] = Array(items[start...])
         let wrapped: [DisplayOp] = profiler.measure("paint.effect.wrap", {
-            paintBrowserVisualEffects(style: style, node: node, items: produced, rect: selfRect())
+            paintBrowserVisualEffects(style: style, node: node, items: produced, rect: selfRect(), session: &session)
         })
         items.replaceSubrange(start..<items.count, with: wrapped)
     }

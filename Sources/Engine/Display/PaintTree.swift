@@ -1,7 +1,7 @@
 import CoreGraphics
 
 @MainActor
-func paintTree(_ obj: any LayoutObject, into displayList: inout [DisplayOp], epoch: UInt, window: PaintWindow) {
+func paintTree(_ obj: any LayoutObject, into displayList: inout [DisplayOp], epoch: UInt, window: PaintWindow, session: inout PaintSession) {
     if let line = obj as? LineLayout, !window.intersects(line.selfRect()) {
         profiler.count("paint.nodes.culled")
         return
@@ -64,39 +64,46 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [DisplayOp], epo
             visibleChildren.append(child)
         }
         for child in inPaintOrder(visibleChildren) {
-            paintTree(child, into: &displayList, epoch: epoch, window: window)
+            paintTree(child, into: &displayList, epoch: epoch, window: window, session: &session)
         }
         let childItems: [DisplayOp] = Array(displayList[childStart...])
         displayList.removeSubrange(childStart..<displayList.count)
         let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
-        let effect: ScrollEffect = ScrollEffect(
-            shape: ClipShape(rect: block.selfRect(), radii: radii),
-            scrollOffset: block.scrollOffset,
-            node: block.node,
-            children: childItems
-        )
-        displayList.append(.effect(effect))
+        let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
+        let scope: EffectScope = session.makeScope(
+            .scroll(shape, offset: block.scrollOffset),
+            node: NodeKey(block.node),
+            animatedTransform: false
+        ).placed(rect: shape.rect)
+        displayList.append(.effect(DisplayEffect(scope: scope, children: childItems)))
         displayList.append(contentsOf: block.paintScrollbar())
     } else if let block = obj as? BlockLayout, block.node.style["overflow"] == "hidden" || block.node.style["overflow"] == "clip" {
         let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
-        let clip: Clip = Clip(
-            rect: block.selfRect(),
-            shape: ClipShape(rect: block.selfRect(), radii: radii),
-            node: block.node,
-            children: clippedChildren(of: obj, into: &displayList, epoch: epoch, window: window)
+        let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
+        let scope: EffectScope = session.makeScope(
+            .clip(shape),
+            node: NodeKey(block.node),
+            animatedTransform: false
+        ).placed(rect: block.selfRect())
+        let children: [DisplayOp] = clippedChildren(
+            of: obj,
+            into: &displayList,
+            epoch: epoch,
+            window: window,
+            session: &session
         )
-        displayList.append(.effect(clip))
+        displayList.append(.effect(DisplayEffect(scope: scope, children: children)))
     } else if let iframe = obj as? IframeLayout,
         let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
         let childDoc = childFrame.document {
-        paintTree(childDoc, into: &displayList, epoch: childFrame.paintEpoch, window: window)
+        paintTree(childDoc, into: &displayList, epoch: childFrame.paintEpoch, window: window, session: &session)
     } else {
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &displayList, epoch: epoch, window: window)
+            paintTree(child, into: &displayList, epoch: epoch, window: window, session: &session)
         }
     }
 
-    obj.paintEffects(into: &displayList, from: start)
+    obj.paintEffects(into: &displayList, from: start, session: &session)
 
     if let line, line.canCachePaint() {
         let key: LinePaintKey = LinePaintKey(
@@ -114,10 +121,10 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [DisplayOp], epo
 }
 
 @MainActor
-private func clippedChildren(of obj: any LayoutObject, into displayList: inout [DisplayOp], epoch: UInt, window: PaintWindow) -> [DisplayOp] {
+private func clippedChildren(of obj: any LayoutObject, into displayList: inout [DisplayOp], epoch: UInt, window: PaintWindow, session: inout PaintSession) -> [DisplayOp] {
     let start: Int = displayList.count
     for child in inPaintOrder(obj.children) {
-        paintTree(child, into: &displayList, epoch: epoch, window: window)
+        paintTree(child, into: &displayList, epoch: epoch, window: window, session: &session)
     }
     let items: [DisplayOp] = Array(displayList[start...])
     displayList.removeSubrange(start..<displayList.count)

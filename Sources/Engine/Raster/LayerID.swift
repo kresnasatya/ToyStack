@@ -1,6 +1,6 @@
 import Foundation
 
 struct LayerID: Hashable {
-    let effect: ObjectIdentifier?
+    let effect: EffectScopeID?
     let ordinal: Int
 }

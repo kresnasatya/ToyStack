@@ -1,5 +1,5 @@
 struct FrameDisplayOutput {
     let displayList: [DisplayOp]
-    let compositedUpdates: [ObjectIdentifier: BrowserVisualEffect]?
+    let compositedUpdates: [NodeKey: EffectUpdate]?
     let paintRevision: UInt
 }

@@ -101,8 +101,16 @@ struct PaintCacheTests {
         cache.store(items: [], key: key, origin: Point(x: 0, y: 0))
         #expect(cache.canReuse(key: key))
 
-        let effect = BrowserVisualEffect(
-            rect: Rect(left: 0, top: 0, right: 1, bottom: 1),
+        let effect = DisplayEffect(
+            scope: EffectScope(
+                id: EffectScopeID(paint: 0, ordinal: 0),
+                kind: .blend(opacity: 0.5, mode: nil),
+                placement: EffectPlacement(
+                    rect: Rect(left: 0, top: 0, right: 1, bottom: 1),
+                    node: nil,
+                    animatedTransform: false
+                )
+            ),
             children: []
         )
         cache.store(items: [.effect(effect)], key: key, origin: Point(x: 0, y: 0))
