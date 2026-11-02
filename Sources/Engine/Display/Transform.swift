@@ -7,7 +7,7 @@ public class Transform: BrowserVisualEffect {
         return node.animations["transform"] != nil
     }
 
-    init(translation: CGPoint?, rect: Rect, node: DOMNode?, children: [any DisplayItem]) {
+    init(translation: CGPoint?, rect: Rect, node: DOMNode?, children: [DisplayOp]) {
         self.translation = translation
         super.init(rect: rect, children: children, node: node)
     }
@@ -19,16 +19,12 @@ public class Transform: BrowserVisualEffect {
         }
 
         for child in children {
-            if let ve = child as? BrowserVisualEffect {
-                ve.execute(renderer: renderer)
-            } else if let dc = child as? DisplayCommand {
-                dc.execute(scroll: 0, renderer: renderer)
-            }
+            child.execute(renderer: renderer)
         }
         renderer.restoreState()
     }
 
-    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+    override func clone(children: [DisplayOp]) -> BrowserVisualEffect {
         return Transform(translation: translation, rect: rect, node: node, children: children)
     }
 

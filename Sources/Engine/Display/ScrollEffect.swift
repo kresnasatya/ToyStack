@@ -4,11 +4,10 @@ public class ScrollEffect: BrowserVisualEffect {
     let shape: ClipShape
     var scrollOffset: CGFloat
 
-    init(shape: ClipShape, scrollOffset: CGFloat, node: DOMNode?, children: [any DisplayItem]) {
+    init(shape: ClipShape, scrollOffset: CGFloat, node: DOMNode?, children: [DisplayOp]) {
         self.shape = shape
         self.scrollOffset = scrollOffset
         super.init(rect: shape.rect, children: children, node: node)
-        self.needsCompositing = false
     }
 
     public override func execute(renderer: any Renderer) {
@@ -16,16 +15,12 @@ public class ScrollEffect: BrowserVisualEffect {
         renderer.clipRRect(shape.rect, radii: shape.radii)
         renderer.translateBy(x: 0, y: -scrollOffset)
         for child in children {
-            if let ve = child as? BrowserVisualEffect {
-                ve.execute(renderer: renderer)
-            } else if let dc = child as? DisplayCommand {
-                dc.execute(scroll: 0, renderer: renderer)
-            }
+            child.execute(renderer: renderer)
         }
         renderer.restoreState()
     }
 
-    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+    override func clone(children: [DisplayOp]) -> BrowserVisualEffect {
         ScrollEffect(shape: shape, scrollOffset: scrollOffset, node: node, children: children)
     }
 }

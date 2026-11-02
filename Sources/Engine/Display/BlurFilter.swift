@@ -3,35 +3,25 @@ import CoreGraphics
 public class BlurFilter: BrowserVisualEffect {
     let radius: CGFloat
 
-    init(radius: CGFloat, node: DOMNode?, children: [any DisplayItem]) {
+    init(radius: CGFloat, node: DOMNode?, children: [DisplayOp]) {
         self.radius = radius
 
         var combinedRect: Rect = Rect(left: 0, top: 0, right: 0, bottom: 0)
         for child in children {
-            if let ve = child as? BrowserVisualEffect {
-                combinedRect = combinedRect.union(ve.rect)
-            } else if let dc = child as? DisplayCommand {
-                combinedRect = combinedRect.union(dc.rect)
-            }
+            combinedRect = combinedRect.union(child.rect)
         }
 
         super.init(rect: combinedRect, children: children, node: node)
-
-        self.needsCompositing = radius > 0 || self.needsCompositing
     }
 
-    override func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+    override func clone(children: [DisplayOp]) -> BrowserVisualEffect {
         return BlurFilter(radius: radius, node: node, children: children)
     }
 
     public override func execute(renderer: any Renderer) {
         renderer.drawLayer(LayerOptions(blur: radius)) { r in
             for child in self.children {
-                if let ve = child as? BrowserVisualEffect {
-                    ve.execute(renderer: r)
-                } else if let dc = child as? DisplayCommand {
-                    dc.execute(scroll: 0, renderer: r)
-                }
+                child.execute(renderer: r)
             }
         }
     }

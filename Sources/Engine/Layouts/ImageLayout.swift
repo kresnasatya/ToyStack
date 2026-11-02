@@ -84,7 +84,7 @@ final class ImageLayout: EmbedLayout {
         setAscentFromHeight()
     }
 
-    override func paint(into items: inout [any DisplayItem]) {
+    override func paint(into items: inout [DisplayOp]) {
         guard let image = (node as? Element)?.image else { return }
         let box = Rect(left: x, top: y + height - imgHeight, right: x + width, bottom: y + height)
         let content: Rect = ObjectFit(
@@ -93,12 +93,7 @@ final class ImageLayout: EmbedLayout {
             intrinsicHeight: scaled(CGFloat(image.height)),
             css: node.style["object-fit"]
         ).contentRect
-        items.append(DrawClippedImage(
-            image: image,
-            rendering: ImageRendering(css: node.style["image-rendering"]),
-            rect: content,
-            clip: box
-        ))
+        items.append(.clippedImage(image, ImageRendering(css: node.style["image-rendering"]), content, box))
     }
 
     override func attach(to line: LineLayout, previous: (any LayoutObject)?) {

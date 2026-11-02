@@ -66,7 +66,7 @@ class DocumentLayout: LayoutObject {
         heightField.set(child.boxHeight(notify: heightField))
     }
 
-    func paint(into items: inout [any DisplayItem]) { }
+    func paint(into items: inout [DisplayOp]) { }
     func shouldPaint() -> Bool {
         true
     }

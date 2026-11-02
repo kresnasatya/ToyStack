@@ -1,7 +1,7 @@
 import CoreGraphics
 
 struct LinePaintCache {
-    private var items: [any DisplayCommand] = []
+    private var items: [DisplayOp] = []
     private var key: LinePaintKey? = nil
     private var valid: Bool = false
 
@@ -10,17 +10,18 @@ struct LinePaintCache {
         return key.epoch == epoch && key.generation == generation
     }
 
-    mutating func store(items: [any DisplayItem], key: LinePaintKey) {
-        var commands: [any DisplayCommand] = []
+    mutating func store(items: [DisplayOp], key: LinePaintKey) {
+        var commands: [DisplayOp] = []
         commands.reserveCapacity(items.count)
         for item in items {
-            guard let command = item as? any DisplayCommand, command is DrawText || command is DrawOutline
-            else {
+            switch item {
+            case .text, .outline:
+                commands.append(item)
+            default:
                 valid = false
                 self.items.removeAll(keepingCapacity: true)
                 return
             }
-            commands.append(command)
         }
         self.items = commands
         self.key = key
@@ -28,7 +29,7 @@ struct LinePaintCache {
     }
 
     func append(
-        to displayList: inout [any DisplayItem],
+        to displayList: inout [DisplayOp],
         currentX: CGFloat,
         currentY: CGFloat
     ) {

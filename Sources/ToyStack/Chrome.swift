@@ -90,8 +90,8 @@ public class Chrome {
         currentWidth = width
     }
 
-    public func paint() -> [any DisplayCommand] {
-        var cmds: [any DisplayCommand] = []
+    public func paint() -> [DisplayOp] {
+        var cmds: [DisplayOp] = []
 
         let forced = tabManager?.forcedColors ?? false
         let darkMode = tabManager?.prefersDark ?? false
@@ -99,23 +99,23 @@ public class Chrome {
         let bgColor = forced ? ForcedColor.canvas : (darkMode ? "black" : "white")
 
         cmds.append(
-            DrawRect(
-                rect: Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), color: bgColor))
+            .rect(Rect(left: 0, top: 0, right: currentWidth, bottom: bottom), BrowserColor(cssName: bgColor)))
         cmds.append(
-            DrawLine(
-                from: Point(x: 0, y: bottom),
-                to: Point(x: currentWidth, y: bottom),
-                color: color,
-                thickness: 1
-            )
+            .line(Point(x: 0, y: bottom), Point(x: currentWidth, y: bottom), BrowserColor(cssName: color), 1)
         )
 
-        cmds.append(DrawOutline(rect: newtabRect, color: color, thickness: 1))
+        cmds.append(.outline(newtabRect, BrowserColor(cssName: color), 1))
         cmds.append(
-            DrawText(
-                at: Point(x: newtabRect.left + padding, y: newtabRect.top),
-                text: "+", font: font,
-                color: color
+            .text(
+                "+",
+                font,
+                BrowserColor(cssName: color),
+                Rect(
+                    left: newtabRect.left + padding,
+                    top: newtabRect.top,
+                    right: newtabRect.left + padding + font.measure("+"),
+                    bottom: newtabRect.top + font.linespace
+                )
             )
         )
 
@@ -123,118 +123,149 @@ public class Chrome {
         for (i, tab) in tabs.enumerated() {
             let bounds = tabRect(i)
             cmds.append(
-                DrawLine(
-                    from: Point(x: bounds.left, y: 0),
-                    to: Point(x: bounds.left, y: bounds.bottom),
-                    color: color,
-                    thickness: 1
+                .line(
+                    Point(x: bounds.left, y: 0),
+                    Point(x: bounds.left, y: bounds.bottom),
+                    BrowserColor(cssName: color),
+                    1
                 )
             )
             cmds.append(
-                DrawLine(
-                    from: Point(x: bounds.right, y: 0),
-                    to: Point(x: bounds.right, y: bounds.bottom),
-                    color: color,
-                    thickness: 1
+                .line(
+                    Point(x: bounds.right, y: 0),
+                    Point(x: bounds.right, y: bounds.bottom),
+                    BrowserColor(cssName: color),
+                    1
                 )
             )
             cmds.append(
-                DrawText(
-                    at: Point(x: bounds.left + padding, y: bounds.top + padding),
-                    text: "Tab \(i)",
-                    font: font, color: color
+                .text(
+                    "Tab \(i)",
+                    font,
+                    BrowserColor(cssName: color),
+                    Rect(
+                        left: bounds.left + padding,
+                        top: bounds.top + padding,
+                        right: bounds.left + padding + font.measure("Tab \(i)"),
+                        bottom: bounds.top + padding + font.linespace
+                    )
                 )
             )
             if tab === tabManager?.activeTab {
                 cmds.append(
-                    DrawLine(
-                        from: Point(x: 0, y: bounds.bottom),
-                        to: Point(x: bounds.left, y: bounds.bottom),
-                        color: color,
-                        thickness: 1
+                    .line(
+                        Point(x: 0, y: bounds.bottom),
+                        Point(x: bounds.left, y: bounds.bottom),
+                        BrowserColor(cssName: color),
+                        1
                     )
                 )
                 cmds.append(
-                    DrawLine(
-                        from: Point(x: bounds.right, y: bounds.bottom),
-                        to: Point(x: currentWidth, y: bounds.bottom),
-                        color: color,
-                        thickness: 1
+                    .line(
+                        Point(x: bounds.right, y: bounds.bottom),
+                        Point(x: currentWidth, y: bounds.bottom),
+                        BrowserColor(cssName: color),
+                        1
                     )
                 )
             }
         }
 
         let backColor = tabManager?.activeTab?.canGoBack == true ? color : "gray"
-        cmds.append(DrawOutline(rect: backRect, color: backColor, thickness: 1))
+        cmds.append(.outline(backRect, BrowserColor(cssName: backColor), 1))
         cmds.append(
-            DrawText(
-                at: Point(x: backRect.left + padding, y: backRect.top),
-                text: "<",
-                font: font,
-                color: backColor
+            .text(
+                "<",
+                font,
+                BrowserColor(cssName: backColor),
+                Rect(
+                    left: backRect.left + padding,
+                    top: backRect.top,
+                    right: backRect.left + padding + font.measure("<"),
+                    bottom: backRect.top + font.linespace
+                )
             )
         )
 
         let fwdColor = tabManager?.activeTab?.canGoForward == true ? color : "gray"
-        cmds.append(DrawOutline(rect: forwardRect, color: fwdColor, thickness: 1))
+        cmds.append(.outline(forwardRect, BrowserColor(cssName: fwdColor), 1))
         cmds.append(
-            DrawText(
-                at: Point(x: forwardRect.left + padding, y: forwardRect.top),
-                text: ">",
-                font: font,
-                color: fwdColor
+            .text(
+                ">",
+                font,
+                BrowserColor(cssName: fwdColor),
+                Rect(
+                    left: forwardRect.left + padding,
+                    top: forwardRect.top,
+                    right: forwardRect.left + padding + font.measure(">"),
+                    bottom: forwardRect.top + font.linespace
+                )
             )
         )
 
         let currentURLStr = tabManager?.activeTab?.url?.toString() ?? ""
         let isBookmarked = bookmarks?.contains(currentURLStr) ?? false
         if isBookmarked {
-            cmds.append(DrawRect(rect: bookmarkRect, color: "yellow"))
+            cmds.append(.rect(bookmarkRect, BrowserColor(cssName: "yellow")))
         }
-        cmds.append(DrawOutline(rect: bookmarkRect, color: color, thickness: 1))
+        cmds.append(.outline(bookmarkRect, BrowserColor(cssName: color), 1))
         cmds.append(
-            DrawText(
-                at: Point(x: bookmarkRect.left + padding, y: bookmarkRect.top),
-                text: "*",
-                font: font,
-                color: color
+            .text(
+                "*",
+                font,
+                BrowserColor(cssName: color),
+                Rect(
+                    left: bookmarkRect.left + padding,
+                    top: bookmarkRect.top,
+                    right: bookmarkRect.left + padding + font.measure("*"),
+                    bottom: bookmarkRect.top + font.linespace
+                )
             )
         )
 
-        cmds.append(DrawOutline(rect: addressRect, color: color, thickness: 1))
+        cmds.append(.outline(addressRect, BrowserColor(cssName: color), 1))
         if focus == "address bar" {
             if isAllSelected {
                 let textWidth = font.measure(addressBar)
                 let selRect = Rect(
                     left: addressRect.left + padding, top: addressRect.top,
                     right: addressRect.left + padding + textWidth, bottom: addressRect.bottom)
-                cmds.append(DrawRect(rect: selRect, color: "lightblue"))
+                cmds.append(.rect(selRect, BrowserColor(cssName: "lightblue")))
                 cmds.append(
-                    DrawText(
-                        at: Point(x: addressRect.left + padding, y: addressRect.top),
-                        text: addressBar,
-                        font: font,
-                        color: color
+                    .text(
+                        addressBar,
+                        font,
+                        BrowserColor(cssName: color),
+                        Rect(
+                            left: addressRect.left + padding,
+                            top: addressRect.top,
+                            right: addressRect.left + padding + font.measure(addressBar),
+                            bottom: addressRect.top + font.linespace
+                        )
                     )
                 )
             } else {
                 cmds.append(
-                    DrawText(
-                        at: Point(x: addressRect.left + padding, y: addressRect.top),
-                        text: addressBar,
-                        font: font,
-                        color: color
+                    .text(
+                        addressBar,
+                        font,
+                        BrowserColor(cssName: color),
+                        Rect(
+                            left: addressRect.left + padding,
+                            top: addressRect.top,
+                            right: addressRect.left + padding + font.measure(addressBar),
+                            bottom: addressRect.top + font.linespace
+                        )
                     )
                 )
                 let textBeforeCursor = String(addressBar.prefix(cursorIndex))
                 let w = font.measure(textBeforeCursor)
                 cmds.append(
-                    DrawLine(
-                        from: Point(x: addressRect.left + padding + w, y: addressRect.top),
-                        to: Point(x: addressRect.left + padding + w, y: addressRect.bottom),
-                        color: "red",
-                        thickness: 1
+                    .line(
+                        Point(x: addressRect.left + padding + w, y: addressRect.top),
+                        Point(x: addressRect.left + padding + w, y: addressRect.bottom),
+                        BrowserColor(cssName: "red"),
+                        1
                     )
                 )
             }
@@ -243,11 +274,16 @@ public class Chrome {
             let isSecure = tabManager?.activeTab?.isSecure ?? false
             let displayText = isSecure ? "\u{1F512} \(url.toString())" : url.toString()
             cmds.append(
-                DrawText(
-                    at: Point(x: addressRect.left + padding, y: addressRect.top),
-                    text: displayText,
-                    font: font,
-                    color: color
+                .text(
+                    displayText,
+                    font,
+                    BrowserColor(cssName: color),
+                    Rect(
+                        left: addressRect.left + padding,
+                        top: addressRect.top,
+                        right: addressRect.left + padding + font.measure(displayText),
+                        bottom: addressRect.top + font.linespace
+                    )
                 )
             )
         }

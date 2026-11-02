@@ -8,7 +8,7 @@ public class CompositedLayer {
     }
 
     var id: LayerID = LayerID(effect: nil, ordinal: 0)
-    var displayItems: [DisplayCommand] = []
+    var displayItems: [DisplayOp] = []
     var tiles: [TileIndex: CGImage] = [:]
     var effectImage: CGImage?
     var effectImageKey: EffectImageKey?
@@ -33,18 +33,15 @@ public class CompositedLayer {
         }
     }
 
-    init(displayItem: DisplayCommand) {
+    init(displayItem: DisplayOp) {
         self.displayItems = [displayItem]
     }
 
-    func canMerge(_ displayItem: DisplayCommand) -> Bool {
-        guard displayItem.parentEffect === displayItems[0].parentEffect else {
-            return false
-        }
-        return true
+    func canMerge(scope: ObjectIdentifier?) -> Bool {
+        return id.effect == scope
     }
 
-    func add(_ displayItem: DisplayCommand) {
+    func add(_ displayItem: DisplayOp) {
         displayItems.append(displayItem)
         tiles = [:]
         effectImage = nil
@@ -62,10 +59,8 @@ public class CompositedLayer {
 
     func absoluteBounds() -> Rect {
         var rect: Rect = compositedBounds()
-        var effect: BrowserVisualEffect? = displayItems.first?.parentEffect
-        while let e = effect {
-            rect = e.map(rect: rect)
-            effect = e.parent
+        for effect in ancestorChain {
+            rect = effect.map(rect: rect)
         }
         return rect
     }
@@ -76,7 +71,7 @@ public class CompositedLayer {
         renderer.saveState()
         renderer.translateBy(x: -bounds.left, y: -bounds.top)
         for item in displayItems {
-            item.execute(scroll: 0, renderer: renderer)
+            item.execute(renderer: renderer)
         }
         renderer.restoreState()
     }
@@ -88,7 +83,7 @@ public class CompositedLayer {
         let width: CGFloat = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return [] }
 
-        let items: [any DisplayCommand] = displayItems
+        let items: [DisplayOp] = displayItems
         let left: CGFloat = bounds.left
         let t: CGFloat = Self.tileSize
         let firstCol: Int = max(0, Int(left / t), Int(region.hint.left / t))
@@ -103,7 +98,7 @@ public class CompositedLayer {
             keyCacheScale = scaleInt
         }
 
-        var rowItems: [Int: [DisplayCommand]] = [:]
+        var rowItems: [Int: [DisplayOp]] = [:]
         for item in items {
             let first: Int = max(firstRow, Int(item.rect.top / t))
             let last: Int = min(lastRow, Int((item.rect.bottom - 1) / t))
@@ -125,12 +120,12 @@ public class CompositedLayer {
         var strips: [TileStrip] = []
         for row in sortedRows {
             let rowTop: CGFloat = CGFloat(row) * t
-            let strip: [any DisplayCommand] = rowItems[row] ?? []
+            let strip: [DisplayOp] = rowItems[row] ?? []
             var missing: [TileKey] = []
             for col in firstCol...lastCol {
                 let colLeft: CGFloat = CGFloat(col) * t
                 let colRight: CGFloat = colLeft + t
-                let inside: [any DisplayCommand] = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
+                let inside: [DisplayOp] = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
                 let index: TileIndex = TileIndex(row: row, col: col)
                 let key: TileKey
                 if let cached = keyCache[index] {
@@ -182,13 +177,13 @@ public class CompositedLayer {
         return strips
     }
 
-    private func tileHash(_ inside: [DisplayCommand], tileRect: Rect) -> Int {
+    private func tileHash(_ inside: [DisplayOp], tileRect: Rect) -> Int {
         var hasher: Hasher = Hasher()
         for item in inside {
-            if let fill = item as? DrawRect {
-                hasher.combine(ObjectIdentifier(DrawRect.self))
-                hasher.combine(fill.color)
-                let visible: Rect = fill.rect.intersect(tileRect)
+            if case .rect(let rect, let color) = item {
+                hasher.combine("rect")
+                hasher.combine(color)
+                let visible: Rect = rect.intersect(tileRect)
                 hasher.combine(visible.left)
                 hasher.combine(visible.top)
                 hasher.combine(visible.right)

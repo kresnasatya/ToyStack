@@ -352,10 +352,12 @@ private func element(_ id: String, in page: LayoutTestPage) throws -> Element {
 private func caretX(in frame: Frame) -> CGFloat? {
     frame.setNeedsPaint()
     frame.paint()
-    return frame.displayList
-        .compactMap({ $0 as? DrawLine })
-        .last(where: { $0.color == "red" })?
-        .rect.left
+    for op in frame.displayList.reversed() {
+        if case .line(let from, _, let color, _) = op, color == BrowserColor(cssName: "red") {
+            return from.x
+        }
+    }
+    return nil
 }
 
 private func makeImage(width: Int, height: Int) -> CGImage {

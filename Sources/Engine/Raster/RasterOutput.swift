@@ -1,6 +1,6 @@
 struct RasterOutput: @unchecked Sendable {
     let compositedLayers: [CompositedLayer]?
-    let drawList: [any DisplayItem]?
+    let drawList: [DisplayOp]?
     let content: RenderedContent
     let needsMoreTiles: Bool
 }

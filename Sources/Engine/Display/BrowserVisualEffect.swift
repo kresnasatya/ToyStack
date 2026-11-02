@@ -1,22 +1,14 @@
 import CoreGraphics
 
-public class BrowserVisualEffect: DisplayItem {
+public class BrowserVisualEffect {
     public var rect: Rect
-    var children: [any DisplayItem]
+    var children: [DisplayOp]
     weak var node: DOMNode?
-    var needsCompositing: Bool
-    weak var parent: BrowserVisualEffect?
 
-    init(rect: Rect, children: [any DisplayItem], node: DOMNode? = nil) {
+    init(rect: Rect, children: [DisplayOp], node: DOMNode? = nil) {
         self.rect = rect
         self.children = children
         self.node = node
-        self.needsCompositing = children.compactMap({
-            $0 as? BrowserVisualEffect
-        })
-        .contains(where: {
-            $0.needsCompositing
-        })
     }
 
     public func execute(renderer: any Renderer) {}
@@ -25,16 +17,16 @@ public class BrowserVisualEffect: DisplayItem {
 
     func unmap(rect: Rect) -> Rect { return rect }
 
-    func clone(children: [any DisplayItem]) -> BrowserVisualEffect {
+    func clone(children: [DisplayOp]) -> BrowserVisualEffect {
         fatalError("\(type(of: self)) must be implement clone(children:)")
     }
 }
 
 @MainActor
-func paintBrowserVisualEffects(style: PaintEffectStyle, node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
-    var displayItems: [any DisplayItem] = items
+func paintBrowserVisualEffects(style: PaintEffectStyle, node: DOMNode, items: [DisplayOp], rect: Rect) -> [DisplayOp] {
+    var displayItems: [DisplayOp] = items
     if style.blurRadius > 0 {
-        displayItems = [BlurFilter(radius: style.blurRadius, node: node, children: displayItems)]
+        displayItems = [.effect(BlurFilter(radius: style.blurRadius, node: node, children: displayItems))]
     }
 
     let blend: Blend = Blend(
@@ -48,54 +40,15 @@ func paintBrowserVisualEffects(style: PaintEffectStyle, node: DOMNode, items: [a
         translation: style.translation,
         rect: rect,
         node: node,
-        children: [blend]
+        children: [.effect(blend)]
     )
 
-    return [transform]
+    return [.effect(transform)]
 }
 
 @MainActor
-func paintBrowserVisualEffects(node: DOMNode, items: [any DisplayItem], rect: Rect) -> [any DisplayItem] {
+func paintBrowserVisualEffects(node: DOMNode, items: [DisplayOp], rect: Rect) -> [DisplayOp] {
     guard let style: PaintEffectStyle = paintEffectStyle(node: node) else { return items }
     return paintBrowserVisualEffects(style: style, node: node, items: items, rect: rect)
 }
 
-func addParentPointers(_ items: inout [any DisplayItem], parent: BrowserVisualEffect? = nil) {
-    var visited: Set<ObjectIdentifier> = Set<ObjectIdentifier>()
-    var stack: [([any DisplayItem], BrowserVisualEffect?)] = [(items, parent)]
-
-    while !stack.isEmpty {
-        let (currentNodes, currentParent) = stack.removeLast()
-        for node in currentNodes {
-            if let ve = node as? BrowserVisualEffect {
-                let id: ObjectIdentifier = ObjectIdentifier(ve)
-                guard !visited.contains(id) else { continue }
-                visited.insert(id)
-                ve.parent = currentParent
-                for i in 0..<ve.children.count {
-                    if var pc = ve.children[i] as? (any DisplayCommand) {
-                        pc.parentEffect = ve
-                        ve.children[i] = pc
-                    }
-                }
-                stack.append((ve.children, ve))
-            }
-        }
-    }
-}
-
-func maxRectBottom(_ items: [any DisplayItem]) -> CGFloat {
-    var result: CGFloat = 0
-    for item in items {
-        if let cmd = item as? any DisplayCommand {
-            result = max(result, cmd.rect.bottom)
-        } else if let ve = item as? BrowserVisualEffect {
-            result = max(result, ve.rect.bottom)
-            if ve is Clip || ve is ScrollEffect {
-                continue
-            }
-            result = max(result, maxRectBottom(ve.children))
-        }
-    }
-    return result
-}

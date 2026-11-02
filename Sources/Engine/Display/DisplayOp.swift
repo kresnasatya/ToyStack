@@ -128,6 +128,44 @@ extension DisplayOp {
         }
         return hasher.finalize()
     }
+
+    // MARK: - Outline factories
+
+    @MainActor
+    static func fromStyle(_ node: any DOMNode, rect: Rect) -> DisplayOp? {
+        let style: String = node.style["outline-style"] ?? "none"
+        guard style != "none", style != "hidden" else { return nil }
+        guard let thickness: CGFloat = CSSValueParser.outlineWidth(node.style["outline-width"] ?? "medium"),
+            thickness > 0
+        else { return nil }
+        let color: String = node.style["outline-color"] ?? node.style["color"] ?? "black"
+        return .outline(rect, BrowserColor(cssName: color), thickness)
+    }
+
+    @MainActor
+    static func fromBorderStyle(_ node: any DOMNode, rect: Rect) -> DisplayOp? {
+        let style: String = node.style["border-style"] ?? "none"
+        guard style != "none", style != "hidden" else { return nil }
+        guard let thickness: CGFloat = CSSValueParser.outlineWidth(node.style["border-width"] ?? "medium"),
+            thickness > 0
+        else { return nil }
+        let color: String = node.style["border-color"] ?? "black"
+        return .outline(rect, BrowserColor(cssName: color), thickness)
+    }
+}
+
+func walkDisplayItems(
+    _ items: [DisplayOp],
+    scopes: [BrowserVisualEffect] = [],
+    visit: (DisplayOp, [BrowserVisualEffect]) -> Void
+) {
+    for item in items {
+        if case .effect(let effect) = item {
+            walkDisplayItems(effect.children, scopes: scopes + [effect], visit: visit)
+        } else {
+            visit(item, scopes)
+        }
+    }
 }
 
 private func executeCompositedLayer(

@@ -1058,21 +1058,15 @@ class BlockLayout: LayoutObject {
         )
     }
 
-    func paint(into items: inout [any DisplayItem]) {
+    func paint(into items: inout [DisplayOp]) {
         let bgcolor: String = node.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
             let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
             if !radii.isZero {
-                items.append(
-                    DrawRRect(
-                        rect: selfRect(),
-                        parentEffect: nil,
-                        radii: radii,
-                        color: bgcolor
-                    )
+                items.append(.rrect(selfRect(), radii, BrowserColor(cssName: bgcolor))
                 )
             } else {
-                items.append(DrawRect(rect: selfRect(), color: bgcolor))
+                items.append(.rect(selfRect(), BrowserColor(cssName: bgcolor)))
             }
         }
 
@@ -1080,18 +1074,18 @@ class BlockLayout: LayoutObject {
             let value = node.style["background-image"], value != "none" {
             let box: Rect = selfRect()
             let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom).rect(css: node.style["background-size"])
-            items.append(DrawClippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
+            items.append(.clippedImage(image, ImageRendering(css: node.style["image-rendering"]), dest, box))
         }
 
-        if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: borderPaintRect()) {
+        if let border: DisplayOp = DisplayOp.fromBorderStyle(node, rect: borderPaintRect()) {
             items.append(border)
         }
 
-        let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
+        let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
         if node.isFocusVisible && outline == nil {
             let ring: (outer: String, inner: String) = focusRingColors(node)
-            items.append(DrawOutline(rect: selfRect(), color: ring.outer, thickness: 4))
-            items.append(DrawOutline(rect: selfRect(), color: ring.inner, thickness: 2))
+            items.append(.outline(selfRect(), BrowserColor(cssName: ring.outer), 4))
+            items.append(.outline(selfRect(), BrowserColor(cssName: ring.inner), 2))
         }
         if let outline = outline { items.append(outline) }
 
@@ -1102,25 +1096,11 @@ class BlockLayout: LayoutObject {
                 left: bulletX, top: bulletY, right: bulletX + BlockLayout.bulletSize,
                 bottom: bulletY + BlockLayout.bulletSize
             )
-            items.append(DrawRect(rect: bulletRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "black"))
-        }
-
-        if let el = node as? Element, el.attributes["id"] == "toc" {
-            let headerRect: Rect = Rect(left: x, top: y - VSTEP, right: x + width, bottom: y)
-            items.append(DrawRect(rect: headerRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))
-            let font: BrowserFont = getFont(size: 12, weight: "bold", style: "roman")
-            items.append(
-                DrawText(
-                    at: Point(x: x, y: y),
-                    text: "Table of Contents",
-                    font: font,
-                    color: usesForcedColors(node) ? ForcedColor.canvas : "white"
-                )
-            )
+            items.append(.rect(bulletRect, BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.canvasText : "black")))
         }
     }
 
-    func paintEffects(into items: inout [any DisplayItem], from start: Int) {
+    func paintEffects(into items: inout [DisplayOp], from start: Int) {
         if let el = node as? Element, el.isFocused,
             el.attributes["contenteditable"] != nil
         {
@@ -1133,7 +1113,7 @@ class BlockLayout: LayoutObject {
         applyPaintEffects(into: &items, from: start)
     }
 
-    func paintScrollbar() -> [any DisplayItem] {
+    func paintScrollbar() -> [DisplayOp] {
         guard node.style["overflow"] == "scroll", contentHeight > height else { return [] }
         let barWidth: CGFloat = 8
         let ratio: CGFloat = height / contentHeight
@@ -1141,7 +1121,7 @@ class BlockLayout: LayoutObject {
         let barTop: CGFloat = y + (scrollOffset / contentHeight) * height
         let barRect: Rect = Rect(
             left: x + width - barWidth, top: barTop, right: x + width, bottom: barTop + barHeight)
-        return [DrawRect(rect: barRect, color: usesForcedColors(node) ? ForcedColor.canvasText : "gray")]
+        return [.rect(barRect, BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.canvasText : "gray"))]
     }
 
     func shouldPaint() -> Bool {

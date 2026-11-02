@@ -115,17 +115,17 @@ class ButtonLayout: EmbedLayout {
         true
     }
 
-    override func paint(into items: inout [any DisplayItem]) {
+    override func paint(into items: inout [DisplayOp]) {
         guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         let displayColor: String = bgcolor == "transparent" ? (usesForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
-        items.append(DrawRect(rect: selfRect(), color: displayColor))
-        items.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
+        items.append(.rect(selfRect(), BrowserColor(cssName: displayColor)))
+        items.append(.outline(selfRect(), BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), 1))
 
-        let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
+        let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
-            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
+            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).outer), 4))
+            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).inner), 2))
         }
         if let outline = outline { items.append(outline) }
     }

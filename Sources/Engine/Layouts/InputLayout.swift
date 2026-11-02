@@ -37,42 +37,36 @@ class InputLayout: EmbedLayout {
         true
     }
 
-    override func paint(into items: inout [any DisplayItem]) {
+    override func paint(into items: inout [DisplayOp]) {
         guard let element = node as? Element else { return }
         let bgcolor: String = element.style["background-color"] ?? "transparent"
         if bgcolor != "transparent" {
             let radii: CornerRadii = CSSValueParser.cornerRadii(element.style) ?? .zero
             if !radii.isZero {
-                items.append(
-                    DrawRRect(
-                        rect: selfRect(),
-                        parentEffect: nil,
-                        radii: radii,
-                        color: bgcolor
-                    )
-                )
+                items.append(.rrect(selfRect(), radii, BrowserColor(cssName: bgcolor)))
             } else {
-                items.append(DrawRect(rect: selfRect(), color: bgcolor))
+                items.append(.rect(selfRect(), BrowserColor(cssName: bgcolor)))
             }
         }
 
         if element.attributes["type"] == "checkbox" {
-            items.append(DrawRect(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonFace : "white"))
-            items.append(DrawOutline(rect: selfRect(), color: usesForcedColors(node) ? ForcedColor.buttonBorder : "black", thickness: 1))
+            items.append(.rect(selfRect(), BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonFace : "white")))
+            items.append(.outline(selfRect(), BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), 1))
             if element.isChecked {
                 items.append(
-                    DrawText(
-                        at: Point(x: x, y: y),
-                        text: "X",
-                        font: font,
-                        color: usesForcedColors(node) ? ForcedColor.buttonText : "black"
+                    .text(
+                        "X",
+                        font,
+                        BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonText : "black"),
+                        Rect(left: x, top: y, right: x + font.measure("X"), bottom: y + font.linespace
+                        )
                     )
                 )
             }
-            let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
+            let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
             if element.isFocusVisible && outline == nil {
-                items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 2))
-                items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 4))
+                items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).outer), 2))
+                items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).inner), 4))
             }
             if let outline = outline { items.append(outline) }
         }
@@ -93,15 +87,15 @@ class InputLayout: EmbedLayout {
             }
         }
         let color: String = element.style["color"] ?? "black"
-        items.append(DrawText(at: Point(x: x, y: y), text: text, font: font, color: color))
+        items.append(.text(text, font, BrowserColor(cssName: color), Rect(left: x, top: y, right: font.measure(text), bottom: y + font.linespace)))
 
         if element.isFocused {
             items.append(drawCursor(self, offset: font.measure(text)))
         }
-        let outline: DrawOutline? = DrawOutline.fromStyle(node, rect: selfRect())
+        let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())
         if element.isFocusVisible && outline == nil {
-            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).outer, thickness: 4))
-            items.append(DrawOutline(rect: selfRect(), color: focusRingColors(node).inner, thickness: 2))
+            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).outer), 4))
+            items.append(.outline(selfRect(), BrowserColor(cssName: focusRingColors(node).inner), 2))
         }
         if let outline = outline { items.append(outline) }
     }

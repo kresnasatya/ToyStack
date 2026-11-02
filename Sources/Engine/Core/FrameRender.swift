@@ -1,6 +1,6 @@
 struct FrameRender {
     var layers: [CompositedLayer] = []
-    var drawList: [any DisplayItem] = []
+    var drawList: [DisplayOp] = []
     var content: RenderedContent = RenderedContent()
     var signature: FrameSignature?
 }

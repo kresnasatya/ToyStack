@@ -72,14 +72,14 @@ final class IframeLayout: EmbedLayout {
         }
     }
 
-    override func paint(into items: inout [any DisplayItem]) {
+    override func paint(into items: inout [DisplayOp]) {
         let bgColor: String = node.style["background-color"] ?? "transparent"
         guard bgColor != "transparent" else { return }
         let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
-        items.append(DrawRRect(rect: selfRect(), parentEffect: nil, radii: radii, color: bgColor))
+        items.append(.rrect(selfRect(), radii, BrowserColor(cssName: bgColor)))
     }
 
-    override func paintEffects(into items: inout [any DisplayItem], from start: Int) {
+    override func paintEffects(into items: inout [DisplayOp], from start: Int) {
         let rect: Rect = selfRect()
         let diff: CGFloat = scaled(1)
         let scroll: CGFloat = (frame?.loaded ?? false) ? (frame?.scroll ?? 0) : 0
@@ -98,7 +98,7 @@ final class IframeLayout: EmbedLayout {
             bottom: scroll + (innerRect.bottom - innerRect.top)
         )
 
-        let produced: [any DisplayItem] = Array(items[start...])
+        let produced: [DisplayOp] = Array(items[start...])
         let clip: Clip = Clip(
             rect: innerRect,
             shape: ClipShape(rect: clipRect, radii: .zero),
@@ -110,10 +110,10 @@ final class IframeLayout: EmbedLayout {
             translation: CGPoint(x: x + diff, y: y + diff - scroll),
             rect: rect,
             node: node,
-            children: [clip]
+            children: [.effect(clip)]
         )
 
-        var clipChildren: [any DisplayItem] = [transform]
+        var clipChildren: [DisplayOp] = [.effect(transform)]
         if let bar = childScrollbar(innerRect: innerRect) {
             clipChildren.append(bar)
         }
@@ -122,20 +122,20 @@ final class IframeLayout: EmbedLayout {
             opacity: 1.0, blendMode: .normal, node: node, children: clipChildren
         )
 
-        var cmds: [any DisplayItem] = [clipped]
-        if let border: DrawOutline = DrawOutline.fromBorderStyle(node, rect: rect) {
+        var cmds: [DisplayOp] = [.effect(clipped)]
+        if let border: DisplayOp = DisplayOp.fromBorderStyle(node, rect: rect) {
             cmds.append(border)
         }
 
-        if let outline: DrawOutline = DrawOutline.fromStyle(node, rect: rect) {
+        if let outline: DisplayOp = DisplayOp.fromStyle(node, rect: rect) {
             cmds.append(outline)
         }
 
-        let wrapped: [any DisplayItem] = paintBrowserVisualEffects(node: node, items: cmds, rect: rect)
+        let wrapped: [DisplayOp] = paintBrowserVisualEffects(node: node, items: cmds, rect: rect)
         items.replaceSubrange(start..<items.count, with: wrapped)
     }
 
-    private func childScrollbar(innerRect: Rect) -> ScrollbarBar? {
+    private func childScrollbar(innerRect: Rect) -> DisplayOp? {
         guard let frame, frame.loaded, let doc = frame.document else { return nil }
         let contentWidth: CGFloat = innerRect.right - innerRect.left
         let contentHeight: CGFloat = innerRect.bottom - innerRect.top
@@ -149,15 +149,7 @@ final class IframeLayout: EmbedLayout {
             forcedColors: frame.tab?.forcedColors ?? false
         )
         else { return nil }
-        return ScrollbarBar(
-            rect: Rect(
-                left: innerRect.left + bar.rect.left,
-                top: innerRect.top + bar.rect.top,
-                right: innerRect.left + bar.rect.right,
-                bottom: innerRect.top + bar.rect.bottom
-            ),
-            color: bar.color,
-            radius: ScrollbarStyle.thumbRadius
-        )
+        guard case .rrect(let rect, let radii, let color) = bar else { return nil }
+        return .rrect(rect.translated(dx: innerRect.left, dy: innerRect.top), radii, color)
     }
 }

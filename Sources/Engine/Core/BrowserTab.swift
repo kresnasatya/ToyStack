@@ -62,7 +62,7 @@ public class BrowserTab {
     public var url: WebURL! { rootFrame.url }
     var nodes: any DOMNode { rootFrame.nodes }
     var document: DocumentLayout? { rootFrame.document }
-    var displayList: [any DisplayItem] { rootFrame.displayList }
+    var displayList: [DisplayOp] { rootFrame.displayList }
     public var title: String { rootFrame.title }
     public var isSecure: Bool { rootFrame.isSecure }
     public var isLoaded: Bool { rootFrame.loaded }
@@ -203,7 +203,7 @@ public class BrowserTab {
         return rootFrame.linkURL(at: x / zoom, y: y / zoom)
     }
 
-    public func scrollbarCommands() -> [any DisplayCommand] {
+    public func scrollbarCommands() -> [DisplayOp] {
         rootFrame.scrollbarCommands()
     }
 

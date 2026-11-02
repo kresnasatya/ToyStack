@@ -341,10 +341,9 @@ Rules:
 | `paint.cache.hit.blocks`, `paint.cache.store.blocks` | count | block cache hits and stores |
 | `paint.cache.hit.lines`, `paint.cache.store.lines` | count | line cache hits and stores |
 | `paint.scroll` | count | scroll containers painted |
-| `paint.range.copy` | duration | `Array(displayList[childStart...])` allocation in `PaintTree` |
 | `paint.effect.check`, `paint.effect.wrap` | duration | visual-effect detection and wrapping |
 
-Layout text does no font work during paint: `DrawText` carries the font resolved
+Layout text does no font work during paint: `DisplayOp.text` carries the font resolved
 in layout. Canvas painting is the exception and can emit `text.font*` while
 resolving a canvas font.
 
@@ -360,7 +359,7 @@ resolving a canvas font.
 | `BrowserTab.load*` | main, awaits | load envelope |
 | `raster.queueWait` | `X` | enqueue → `raster.plan` start |
 | `raster.plan`, `raster.composite`, `raster.effect` | compositor | plan work |
-| `raster.composite.copy`, `.flatten`, `.layers` | compositor | display-list copy + parent links, flatten + filter, layer merge |
+| `raster.composite.walk` | compositor | one depth-first walk of the display list + layer merge |
 | `raster.plan.tiles`, `raster.install.tiles` | compositor | tile bookkeeping |
 | `raster.install`, `raster.bitmap` | compositor | tile install and bitmap composition |
 | `raster.installWait` | `X` | `raster.install` end → main-thread completion start |

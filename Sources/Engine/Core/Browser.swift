@@ -39,7 +39,7 @@ public class Browser: ObservableObject {
     private var activeFrame: TabFrame = TabFrame()
     private var presentRevision: Int = 0
 
-    public var drawList: [any DisplayItem] { activeFrame.render.drawList }
+    public var drawList: [DisplayOp] { activeFrame.render.drawList }
     public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
     public var pageZoom: CGFloat { activeTab?.pageZoom ?? 1.0 }
     public var contentImage: CGImage? { activeFrame.render.content.image }
@@ -88,10 +88,10 @@ public class Browser: ObservableObject {
                 ),
                 forcedColors: activeFrame.preferences.usesForcedColors,
                 topInset: topInset
-            )
+            ),
+            case .rrect(let rect, _, let color) = bar
         else { return nil }
-        let color: BrowserColor = BrowserColor(cssName: bar.color)
-        return (bar.rect.cgRect, color.cgColor)
+        return (rect.cgRect, color.cgColor)
     }
 
     private var needsComposite: Bool = false
@@ -487,7 +487,7 @@ public class Browser: ObservableObject {
                         measure.stop("raster.effect")
                     }
 
-                    let drawList: [any DisplayItem] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
+                    let drawList: [DisplayOp] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
                     let regionTop: CGFloat = inputs.scrollState.scroll
                     var contentImage: CGImage? = nil
 
@@ -511,12 +511,8 @@ public class Browser: ObservableObject {
                                     scroll: regionTop,
                                     topInset: inputs.settings.viewport.topInset
                                 ).apply(to: r)
-                                for item in drawList {
-                                    if let cmd = item as? any DisplayCommand {
-                                        cmd.execute(scroll: 0, renderer: r)
-                                    } else if let ve = item as? BrowserVisualEffect {
-                                        ve.execute(renderer: r)
-                                    }
+                                for op in drawList {
+                                    op.execute(renderer: r)
                                 }
                                 r.restoreState()
                             }
@@ -547,7 +543,7 @@ public class Browser: ObservableObject {
                     if let ownerID {
                         if ownerID == self.activeFrameID {
                             self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
-                            if let drawList: [any DisplayItem] = output.drawList { self.activeFrame.render.drawList = drawList }
+                            if let drawList: [DisplayOp] = output.drawList { self.activeFrame.render.drawList = drawList }
                             if inputs.settings.flags.needsDraw || output.content.usesSublayers {
                                 self.activeFrame.render.content = output.content
                                 self.dispatchPresent(frameID: frameID)
@@ -608,72 +604,35 @@ public class Browser: ObservableObject {
         measure: MeasureTime,
         frame: Int
     ) -> [CompositedLayer] {
-        measure.start("raster.composite.copy", category: .raster, frame: frame)
-        var displayList: [any DisplayItem] = inputs.scene.displayList
-        addParentPointers(&displayList)
-        measure.stop("raster.composite.copy")
-
-        measure.start("raster.composite.flatten", category: .raster, frame: frame)
-        var allItems: [any DisplayItem] = []
-        for item in displayList {
-            treeToList(item, into: &allItems)
-        }
-
-        let nonComposited: [any DisplayCommand] = allItems.compactMap({ item -> (any DisplayCommand)? in
-            if let pc = item as? (any DisplayCommand) { return pc }
-            if let ve = item as? BrowserVisualEffect, !ve.needsCompositing {
-                if ve.parent == nil || ve.parent!.needsCompositing { return nil }
-            }
-            return nil
-        })
-        measure.stop("raster.composite.flatten")
-
-        measure.start("raster.composite.layers", category: .raster, frame: frame)
+        measure.start("raster.composite.walk", category: .raster, frame: frame)
         var compositedLayers: [CompositedLayer] = []
+        var ordinals: [ObjectIdentifier?: Int] = [:]
         var assumeOverlap: Bool = false
-        for cmd in nonComposited {
-            let underAnimated: Bool = sequence(
-                first: cmd.parentEffect, next: { $0?.parent as? BrowserVisualEffect }
-            ).contains(where: { ($0 as? Transform)?.isAnimated == true })
-            if underAnimated { assumeOverlap = true }
-            var merged: Bool = false
+
+        func visit(_ op: DisplayOp, _ scopes: [BrowserVisualEffect]) {
+            let scope: ObjectIdentifier? = scopes.last.map(ObjectIdentifier.init)
+            if scopes.contains(where: { ($0 as? Transform)?.isAnimated == true }) {
+                assumeOverlap = true
+            }
             for layer in compositedLayers.reversed() {
-                if layer.canMerge(cmd) {
-                    layer.add(cmd)
-                    merged = true
-                    break
+                if layer.canMerge(scope: scope) {
+                    layer.add(op)
+                    return
                 } else if assumeOverlap {
-                    compositedLayers.append(CompositedLayer(displayItem: cmd))
-                    merged = true
                     break
                 }
             }
-            if !merged {
-                compositedLayers.append(CompositedLayer(displayItem: cmd))
-            }
+            let ordinal: Int = ordinals[scope, default: 0]
+            ordinals[scope] = ordinal + 1
+            let layer: CompositedLayer = CompositedLayer(displayItem: op)
+            layer.id = LayerID(effect: scope, ordinal: ordinal)
+            layer.ancestorChain = Array(scopes.reversed())
+            compositedLayers.append(layer)
         }
 
-        for layer in compositedLayers {
-            var chain: [BrowserVisualEffect] = []
-            var effect: BrowserVisualEffect? = layer.displayItems.first?.parentEffect
-            while let e = effect {
-                chain.append(e)
-                effect = e.parent
-            }
-            layer.ancestorChain = chain
-        }
-
-        var ordinals: [ObjectIdentifier?: Int] = [:]
-        for layer in compositedLayers {
-            let effect: ObjectIdentifier? = layer.displayItems.first?.parentEffect.map {
-                ObjectIdentifier($0)
-            }
-            let ordinal: Int = ordinals[effect, default: 0]
-            ordinals[effect] = ordinal + 1
-            layer.id = LayerID(effect: effect, ordinal: ordinal)
-        }
+        walkDisplayItems(inputs.scene.displayList, visit: visit)
+        measure.stop("raster.composite.walk")
         reuseRasterization(from: inputs.scene.previousLayers, into: compositedLayers)
-        measure.stop("raster.composite.layers")
         return compositedLayers
     }
 
@@ -710,7 +669,7 @@ public class Browser: ObservableObject {
                 return candidate
             }
             for child in candidate.children {
-                if let ve = child as? BrowserVisualEffect {
+                if case .effect(let ve) = child {
                     stack.append(ve)
                 }
             }
@@ -789,7 +748,7 @@ public class Browser: ObservableObject {
         }
         if let blur = effect as? BlurFilter, blur.radius > 0 { return false }
         for child in effect.children {
-            if let nested = child as? BrowserVisualEffect, isCAEffect(nested) { return false }
+            if case .effect(let nested) = child, isCAEffect(nested) { return false }
         }
         return true
     }
@@ -797,17 +756,18 @@ public class Browser: ObservableObject {
     nonisolated static func computePaintDrawList(
         layers: [CompositedLayer],
         inputs: RasterInput
-    ) -> [any DisplayItem] {
+    ) -> [DisplayOp] {
         var newEffects: [ObjectIdentifier: BrowserVisualEffect] = [:]
-        var drawList: [any DisplayItem] = []
+        var drawList: [DisplayOp] = []
         let scale: ContentScale = inputs.settings.viewport.scale
         let viewportHeight: CGFloat = (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) / scale.page
         for layer in layers {
             guard !layer.displayItems.isEmpty else { continue }
-            var currentEffect: any DisplayItem = DrawCompositedLayer(
-                layer: layer,
-                visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
-                visibleBottom: inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
+            var currentEffect: DisplayOp = .compositedLayer(
+                layer,
+                layer.absoluteBounds(),
+                inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
+                inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
             )
             var mergedIntoExisting: Bool = false
             for p in layer.ancestorChain {
@@ -820,7 +780,7 @@ public class Browser: ObservableObject {
                 } else {
                     let cloned: BrowserVisualEffect = newParent.clone(children: [currentEffect])
                     newEffects[newParentKey] = cloned
-                    currentEffect = cloned
+                    currentEffect = .effect(cloned)
                 }
             }
             if !mergedIntoExisting {
@@ -829,13 +789,13 @@ public class Browser: ObservableObject {
         }
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
-            drawList.append(DrawOutline(rect: bounds, color: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white", thickness: 4))
-            drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
+            drawList.append(.outline(bounds, BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), 4))
+            drawList.append(.outline(bounds, BrowserColor(cssName: "black"), 2))
         }
 
         if let bounds = inputs.settings.accessibility.readBounds {
-            drawList.append(DrawOutline(rect: bounds, color: "gold", thickness: 4))
-            drawList.append(DrawOutline(rect: bounds, color: "black", thickness: 2))
+            drawList.append(.outline(bounds, BrowserColor(cssName: "gold"), 4))
+            drawList.append(.outline(bounds, BrowserColor(cssName: "black"), 2))
         }
 
         return drawList

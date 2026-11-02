@@ -6,7 +6,7 @@ import Foundation
 // the same painted content. Used by the headless runner to detect a settled
 // frame and by the differential layout oracle to compare an incremental render
 // with a full rebuild.
-public func displaySignature(_ list: [any DisplayItem]) -> String {
+public func displaySignature(_ list: [DisplayOp]) -> String {
     var parts: [String] = []
     parts.reserveCapacity(list.count)
     appendDisplaySignature(list, into: &parts)
@@ -14,17 +14,13 @@ public func displaySignature(_ list: [any DisplayItem]) -> String {
 }
 
 private func appendDisplaySignature(
-    _ list: [any DisplayItem],
+    _ list: [DisplayOp],
     into parts: inout [String]
 ) {
     for item in list {
-        if let command = item as? any DisplayCommand {
-            parts.append("\(type(of: command)) \(command.rect) \(command.contentHash)")
-        } else if let effect = item as? BrowserVisualEffect {
-            parts.append("\(type(of: effect)) \(effect.rect)")
+        parts.append("\(item.name) \(item.rect) \(item.contentHash)")
+        if case .effect(let effect) = item {
             appendDisplaySignature(effect.children, into: &parts)
-        } else {
-            parts.append("\(type(of: item))")
         }
     }
 }

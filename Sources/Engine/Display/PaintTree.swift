@@ -1,7 +1,7 @@
 import CoreGraphics
 
 @MainActor
-func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt, window: PaintWindow) {
+func paintTree(_ obj: any LayoutObject, into displayList: inout [DisplayOp], epoch: UInt, window: PaintWindow) {
     if let line = obj as? LineLayout, !window.intersects(line.selfRect()) {
         profiler.count("paint.nodes.culled")
         return
@@ -66,7 +66,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
         for child in inPaintOrder(visibleChildren) {
             paintTree(child, into: &displayList, epoch: epoch, window: window)
         }
-        let childItems: [any DisplayItem] = profiler.measure("paint.range.copy", {
+        let childItems: [DisplayOp] = profiler.measure("paint.range.copy", {
             Array(displayList[childStart...])
         })
         displayList.removeSubrange(childStart..<displayList.count)
@@ -77,7 +77,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             node: block.node,
             children: childItems
         )
-        displayList.append(effect)
+        displayList.append(.effect(effect))
         displayList.append(contentsOf: block.paintScrollbar())
     } else if let block = obj as? BlockLayout, block.node.style["overflow"] == "hidden" || block.node.style["overflow"] == "clip" {
         let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
@@ -87,7 +87,7 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
             node: block.node,
             children: clippedChildren(of: obj, into: &displayList, epoch: epoch, window: window)
         )
-        displayList.append(clip)
+        displayList.append(.effect(clip))
     } else if let iframe = obj as? IframeLayout,
         let childFrame = (iframe.node as? Element)?.frame, childFrame.loaded,
         let childDoc = childFrame.document {
@@ -116,12 +116,12 @@ func paintTree(_ obj: any LayoutObject, into displayList: inout [any DisplayItem
 }
 
 @MainActor
-private func clippedChildren(of obj: any LayoutObject, into displayList: inout [any DisplayItem], epoch: UInt, window: PaintWindow) -> [any DisplayItem] {
+private func clippedChildren(of obj: any LayoutObject, into displayList: inout [DisplayOp], epoch: UInt, window: PaintWindow) -> [DisplayOp] {
     let start: Int = displayList.count
     for child in inPaintOrder(obj.children) {
         paintTree(child, into: &displayList, epoch: epoch, window: window)
     }
-    let items: [any DisplayItem] = Array(displayList[start...])
+    let items: [DisplayOp] = Array(displayList[start...])
     displayList.removeSubrange(start..<displayList.count)
     return items
 }

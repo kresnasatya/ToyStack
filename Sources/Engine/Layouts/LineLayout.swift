@@ -209,7 +209,7 @@ class LineLayout: LayoutObject {
         return !hasEmbed
     }
 
-    func paint(into items: inout [any DisplayItem]) {
+    func paint(into items: inout [DisplayOp]) {
         var outlineRect: Rect? = nil
         var focused: (any DOMNode)? = nil
         for child in children {
@@ -219,11 +219,11 @@ class LineLayout: LayoutObject {
             outlineRect = outlineRect?.union(childRect) ?? childRect
         }
         if let rect = outlineRect, let focused = focused {
-            if let outline = DrawOutline.fromStyle(focused, rect: rect) {
+            if let outline = DisplayOp.fromStyle(focused, rect: rect) {
                 items.append(outline)
             } else {
-                items.append(DrawOutline(rect: rect, color: focusRingColors(node).outer, thickness: 4))
-                items.append(DrawOutline(rect: rect, color: focusRingColors(node).inner, thickness: 2))
+                items.append(.outline(rect, BrowserColor(cssName: focusRingColors(node).outer), 4))
+                items.append(.outline(rect, BrowserColor(cssName: focusRingColors(node).inner), 2))
             }
 
         }

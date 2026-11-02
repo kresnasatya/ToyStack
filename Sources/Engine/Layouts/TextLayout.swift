@@ -102,20 +102,20 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         return Rect(left: x, top: top, right: x + width, bottom: top + height)
     }
 
-    func paint(into items: inout [any DisplayItem]) {
+    func paint(into items: inout [DisplayOp]) {
         let color: String = node.inheritedStyleOwner.style["color"] ?? "black"
         let top: CGFloat = absoluteY
         items.append(
-            DrawText(
-                rect: Rect(
+            .text(
+                displayWord ?? word,
+                font,
+                BrowserColor(cssName: color),
+                Rect(
                     left: x,
                     top: top,
                     right: x + textWidth,
                     bottom: top + font.linespace
-                ),
-                text: displayWord ?? word,
-                font: font,
-                color: color
+                )
             )
         )
     }

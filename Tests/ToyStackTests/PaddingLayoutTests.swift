@@ -107,8 +107,9 @@ struct PaddingLayoutTests {
         page.frame.paint()
 
         let layout: BlockLayout = try #require(box.layoutObject as? BlockLayout)
-        let rects: [Rect] = page.frame.displayList.compactMap {
-            ($0 as? DrawRect)?.rect
+        let rects: [Rect] = page.frame.displayList.compactMap { op -> Rect? in
+            guard case .rect(let rect, _) = op else { return nil }
+            return rect
         }
         #expect(rects.contains(layout.selfRect()))
     }

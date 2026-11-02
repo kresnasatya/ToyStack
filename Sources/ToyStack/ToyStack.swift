@@ -66,8 +66,8 @@ public struct BrowserView: View {
             BrowserContentView(browser: app)
             Canvas { ctx, size in
                 let chromeRenderer = SwiftUIRenderer(context: ctx)
-                for cmd in chrome.paint() {
-                    cmd.execute(scroll: 0, renderer: chromeRenderer)
+                for op in chrome.paint() {
+                    op.execute(renderer: chromeRenderer)
                 }
             }
         }

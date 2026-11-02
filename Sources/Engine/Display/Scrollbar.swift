@@ -19,18 +19,19 @@ func scrollbarBarRect(
     _ geometry: ScrollbarGeometry,
     forcedColors: Bool,
     topInset: CGFloat = 0
-) -> DrawRect? {
+) -> DisplayOp? {
     let maxScroll: CGFloat = max(geometry.docHeight - geometry.contentHeight, 0)
     guard maxScroll > 0 else { return nil }
     let barHeight: CGFloat = max((geometry.contentHeight / geometry.docHeight) * geometry.contentHeight, 30)
     let barTop: CGFloat = (geometry.scroll / maxScroll) * (geometry.contentHeight - barHeight)
-    return DrawRect(
-        rect: Rect(
+    return .rrect(
+        Rect(
             left: geometry.contentWidth - ScrollbarStyle.thumbInset - ScrollbarStyle.thumbWidth,
             top: topInset + barTop,
             right: geometry.contentWidth - ScrollbarStyle.thumbInset,
             bottom: topInset + barTop + barHeight
         ),
-        color: forcedColors ? ForcedColor.canvasText : ScrollbarStyle.thumbColor
+        .uniform(.px(ScrollbarStyle.thumbRadius)),
+        BrowserColor(cssName: forcedColors ? ForcedColor.canvasText : ScrollbarStyle.thumbColor)
     )
 }

@@ -26,19 +26,15 @@ private func renderImage(_ browser: Browser, scale: CGFloat) -> CGImage? {
             scroll: browser.activeTabScroll,
             topInset: 0
         ).apply(to: renderer)
-        for item in browser.drawList {
-            if let command = item as? any DisplayCommand {
-                command.execute(scroll: 0, renderer: renderer)
-            } else if let effect = item as? BrowserVisualEffect {
-                effect.execute(renderer: renderer)
-            }
+        for op in browser.drawList {
+            op.execute(renderer: renderer)
         }
         renderer.restoreState()
 
         renderer.saveState()
         renderer.scaleBy(x: browser.pageZoom, y: browser.pageZoom)
-        for command in tab.scrollbarCommands() {
-            command.execute(scroll: 0, renderer: renderer)
+        for op in tab.scrollbarCommands() {
+            op.execute(renderer: renderer)
         }
         renderer.restoreState()
     }

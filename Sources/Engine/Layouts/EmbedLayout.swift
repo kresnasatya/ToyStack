@@ -61,8 +61,8 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
     }
 
     func shouldPaint() -> Bool { true }
-    func paint(into items: inout [any DisplayItem]) {}
-    func paintEffects(into items: inout [any DisplayItem], from start: Int) {
+    func paint(into items: inout [DisplayOp]) {}
+    func paintEffects(into items: inout [DisplayOp], from start: Int) {
         applyPaintEffects(into: &items, from: start)
     }
 

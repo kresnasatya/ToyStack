@@ -95,10 +95,10 @@ private func tallPage() -> LayoutTestPage {
     )
 }
 
-private func displayTexts(_ list: [any DisplayItem]) -> [String] {
-    var items: [any DisplayItem] = []
-    for item in list {
-        treeToList(item, into: &items)
+private func displayTexts(_ list: [DisplayOp]) -> [String] {
+    var texts: [String] = []
+    walkDisplayItems(list) { op, _ in
+        if case .text(let text, _, _, _) = op { texts.append(text) }
     }
-    return items.compactMap({ ($0 as? DrawText)?.text })
+    return texts
 }

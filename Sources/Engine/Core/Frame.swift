@@ -30,7 +30,7 @@ class Frame {
             documentDirty = false
         }
     }
-    var displayList: [any DisplayItem] = []
+    var displayList: [DisplayOp] = []
     var paintRevision: UInt = 0
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
@@ -945,7 +945,7 @@ class Frame {
         }
         guard let doc = document else { return }
 
-        var list: [any DisplayItem] = []
+        var list: [DisplayOp] = []
         list.reserveCapacity(displayList.count)
         paintTree(doc, into: &list, epoch: paintEpoch, window: window)
 
@@ -981,8 +981,8 @@ class Frame {
                     {
                         node.style[property] = value
                         if let rect = (node.layoutObject as? BlockLayout)?.selfRect(),
-                            let effect = paintBrowserVisualEffects(node: node, items: [], rect: rect).first
-                                as? BrowserVisualEffect
+                            let first: DisplayOp = paintBrowserVisualEffects(node: node, items: [], rect: rect).first,
+                            case .effect(let effect) = first
                         {
                             compositedUpdates[ObjectIdentifier(node)] = effect
                         }
@@ -1178,7 +1178,7 @@ class Frame {
         return url?.resolve(href)
     }
 
-    func scrollbarCommands() -> [any DisplayCommand] {
+    func scrollbarCommands() -> [DisplayOp] {
         guard let doc = document else { return [] }
         guard let bar = scrollbarBarRect(
             ScrollbarGeometry(
@@ -1189,7 +1189,7 @@ class Frame {
             ),
             forcedColors: tab?.forcedColors ?? false
         ) else { return [] }
-        return [ScrollbarBar(rect: bar.rect, color: bar.color, radius: ScrollbarStyle.thumbRadius)]
+        return [bar]
     }
 
     func scrollDown() {
