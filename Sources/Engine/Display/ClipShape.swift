@@ -2,7 +2,7 @@ import CoreGraphics
 
 // MARK: - ClipShape
 
-struct ClipShape {
+public struct ClipShape {
     var rect: Rect
     var radii: CornerRadii
 }

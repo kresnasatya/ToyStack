@@ -1,6 +1,6 @@
 import CoreGraphics
 
-class CompositedLayer {
+public class CompositedLayer {
     struct EffectImageKey: Equatable {
         let scale: CGFloat
         let blur: CGFloat

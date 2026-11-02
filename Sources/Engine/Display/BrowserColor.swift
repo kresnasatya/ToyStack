@@ -3,7 +3,7 @@ import CoreGraphics
 typealias RGBColor = (r: Double, g: Double, b: Double)
 typealias RGBAColor = (r: Double, g: Double, b: Double, a: Double)
 
-public struct BrowserColor {
+public struct BrowserColor: Hashable {
     public var red: Double
     public var green: Double
     public var blue: Double
