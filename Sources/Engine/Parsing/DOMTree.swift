@@ -14,6 +14,7 @@ final class DOMTree {
     private var index: Index = Index()
     private var next: UInt32 = 0
     private(set) var root: NodeID
+    weak var layoutTree: LayoutTree?
 
     init(root: any DOMNode) {
         self.root = NodeID(raw: 0)

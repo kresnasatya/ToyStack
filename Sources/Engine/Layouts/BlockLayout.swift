@@ -1176,8 +1176,3 @@ private struct BlockChildBuild {
     var inlineRun: [DOMRef] = []
     var pendingRunIn: ElementRef?
 }
-
-private enum BlockChildChange {
-    case append([DOMRef])
-    case insert([DOMRef], before: DOMRef)
-}

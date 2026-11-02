@@ -2,7 +2,6 @@ import Foundation
 
 // MARK: - LayoutField
 
-@MainActor
 enum LayoutField: String, CaseIterable {
     case x
     case y

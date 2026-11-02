@@ -43,6 +43,13 @@ extension DOMRef {
         nonmutating set { raw.layoutObject = newValue }
     }
 
+    var layout: LayoutRef? {
+        guard let tree: LayoutTree = dom.layoutTree,
+            let id: LayoutID = tree.primaryLayout(for: id)
+        else { return nil }
+        return LayoutRef(id: id, tree: tree)
+    }
+
     var parent: DOMRef? {
         guard let parent: any DOMNode = raw.parent else { return nil }
         return DOMRef(id: dom.id(of: parent), dom: dom)
