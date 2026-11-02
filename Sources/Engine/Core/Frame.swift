@@ -948,7 +948,7 @@ class Frame {
         var list: [DisplayOp] = []
         list.reserveCapacity(displayList.count)
         var session: PaintSession = PaintSession(paint: paintRevision, epoch: paintEpoch, window: window)
-        paintTree(doc, into: &list, epoch: paintEpoch, window: window, session: &session)
+        paintTree(doc, into: &list, session: &session)
 
         displayList = list
         paintedBottom = contentBottom

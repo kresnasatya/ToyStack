@@ -341,7 +341,7 @@ Rules:
 | `paint.cache.hit.blocks`, `paint.cache.store.blocks` | count | block cache hits and stores |
 | `paint.cache.hit.lines`, `paint.cache.store.lines` | count | line cache hits and stores |
 | `paint.scroll` | count | scroll containers painted |
-| `paint.effect.check`, `paint.effect.wrap` | duration | visual-effect detection and wrapping |
+| `paint.effect.check` | duration | effect-scope detection per node |
 
 Layout text does no font work during paint: `DisplayOp.text` carries the font resolved
 in layout. Canvas painting is the exception and can emit `text.font*` while

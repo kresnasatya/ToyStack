@@ -13,8 +13,6 @@ protocol LayoutObject: AnyObject, FieldOwner {
     func selfRect() -> Rect
     func paint(into items: inout [DisplayOp])
     func shouldPaint() -> Bool
-    func paintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession)
-
 }
 
 extension LayoutObject {
@@ -142,21 +140,18 @@ extension LayoutObject {
         return fields.dependencyNames(field)
     }
 
-    func paintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession) {
-        applyPaintEffects(into: &items, from: start, session: &session)
-    }
-
-    func applyPaintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession) {
-        if self is LineLayout { return }
+    func paintScopeKinds() -> [EffectKind] {
+        if self is LineLayout { return [] }
         let style: PaintEffectStyle? = profiler.measure("paint.effect.check", {
             paintEffectStyle(node: node)
         })
-        guard let style else { return }
-        let produced: [DisplayOp] = Array(items[start...])
-        let wrapped: [DisplayOp] = profiler.measure("paint.effect.wrap", {
-            paintBrowserVisualEffects(style: style, node: node, items: produced, rect: selfRect(), session: &session)
-        })
-        items.replaceSubrange(start..<items.count, with: wrapped)
+        guard let style else { return [] }
+        var kinds: [EffectKind] = [.transform(style.translation)]
+        kinds.append(.blend(opacity: style.opacity, mode: style.blendMode))
+        if style.blurRadius > 0 {
+            kinds.append(.blur(radius: style.blurRadius))
+        }
+        return kinds
     }
 
     func selfRect() -> Rect {

@@ -66,9 +66,7 @@ public struct BrowserView: View {
             BrowserContentView(browser: app)
             Canvas { ctx, size in
                 let chromeRenderer = SwiftUIRenderer(context: ctx)
-                for op in chrome.paint() {
-                    op.execute(renderer: chromeRenderer)
-                }
+                renderDisplayList(chrome.paint(), renderer: chromeRenderer)
             }
         }
         .background(app.commitedForcedColors ? Color(engine: BrowserColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))

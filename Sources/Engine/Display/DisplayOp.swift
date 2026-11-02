@@ -9,7 +9,8 @@ public enum DisplayOp {
     case image(image: CGImage, rendering: ImageRendering, rect: Rect, version: UInt64)
     case clippedImage(image: CGImage, rendering: ImageRendering, rect: Rect, clip: Rect)
     case compositedLayer(layer: CompositedLayer, rect: Rect, visibleTop: CGFloat, visibleBottom: CGFloat)
-    case effect(DisplayEffect)
+    case beginEffect(EffectScope)
+    case endEffect
 }
 
 extension DisplayOp {
@@ -21,8 +22,10 @@ extension DisplayOp {
             return rect
         case .line(let from, let to, _, _):
             return Rect(left: from.x, top: from.y, right: to.x, bottom: to.y)
-        case .effect(let effect):
-            return effect.rect
+        case .beginEffect(let scope):
+            return scope.placement.rect
+        case .endEffect:
+            return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
     }
 
@@ -36,7 +39,8 @@ extension DisplayOp {
         case .image: return "image"
         case .clippedImage: return "clippedImage"
         case .compositedLayer: return "compositedLayer"
-        case .effect(let effect): return effect.name
+        case .beginEffect: return "beginEffect"
+        case .endEffect: return "endEffect"
         }
     }
 
@@ -61,8 +65,8 @@ extension DisplayOp {
             renderer.restoreState()
         case .compositedLayer(let layer, _, let visibleTop, let visibleBottom):
             executeCompositedLayer(layer, visibleTop: visibleTop, visibleBottom: visibleBottom, renderer: renderer)
-        case .effect(let effect):
-            effect.execute(renderer: renderer)
+        case .beginEffect, .endEffect:
+            preconditionFailure("\(name) must be rendered with renderDisplayList")
         }
     }
 
@@ -87,7 +91,7 @@ extension DisplayOp {
             return .image(image: image, rendering: rendering, rect: rect.translated(dx: dx, dy: dy), version: version)
         case .clippedImage(let image, let rendering, let rect, let clip):
             return .clippedImage(image: image, rendering: rendering, rect: rect.translated(dx: dx, dy: dy), clip: clip.translated(dx: dx, dy: dy))
-        case .compositedLayer, .effect:
+        case .compositedLayer, .beginEffect, .endEffect:
             preconditionFailure("\(name) cannot be shifted")
         }
     }
@@ -123,7 +127,7 @@ extension DisplayOp {
             hasher.combine(clip.top)
             hasher.combine(clip.right)
             hasher.combine(clip.bottom)
-        case .compositedLayer, .effect:
+        case .compositedLayer, .beginEffect, .endEffect:
             break
         }
         return hasher.finalize()
@@ -151,20 +155,6 @@ extension DisplayOp {
         else { return nil }
         let color: String = node.style["border-color"] ?? "black"
         return .outline(rect: rect, color: BrowserColor(cssName: color), width: thickness)
-    }
-}
-
-func walkDisplayItems(
-    _ items: [DisplayOp],
-    scopes: [EffectScope] = [],
-    visit: (DisplayOp, [EffectScope]) -> Void
-) {
-    for item in items {
-        if case .effect(let effect) = item {
-            walkDisplayItems(effect.children, scopes: scopes + [effect.scope], visit: visit)
-        } else {
-            visit(item, scopes)
-        }
     }
 }
 

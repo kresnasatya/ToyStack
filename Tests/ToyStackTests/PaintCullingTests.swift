@@ -97,7 +97,7 @@ private func tallPage() -> LayoutTestPage {
 
 private func displayTexts(_ list: [DisplayOp]) -> [String] {
     var texts: [String] = []
-    walkDisplayItems(list) { op, _ in
+    for op in list {
         if case .text(let text, _, _, _) = op { texts.append(text) }
     }
     return texts

@@ -1099,17 +1099,15 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    func paintEffects(into items: inout [DisplayOp], from start: Int, session: inout PaintSession) {
-        if let el = node as? Element, el.isFocused,
+    func paintCaret(into items: inout [DisplayOp]) {
+        guard let el = node as? Element, el.isFocused,
             el.attributes["contenteditable"] != nil
-        {
-            if let last = lastTextLayout() {
-                items.append(drawCursor(last, offset: last.textWidth))
-            } else {
-                items.append(drawCursor(self, offset: 0))
-            }
+        else { return }
+        if let last = lastTextLayout() {
+            items.append(drawCursor(last, offset: last.textWidth))
+        } else {
+            items.append(drawCursor(self, offset: 0))
         }
-        applyPaintEffects(into: &items, from: start, session: &session)
     }
 
     func paintScrollbar() -> [DisplayOp] {

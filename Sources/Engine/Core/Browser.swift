@@ -511,9 +511,7 @@ public class Browser: ObservableObject {
                                     scroll: regionTop,
                                     topInset: inputs.settings.viewport.topInset
                                 ).apply(to: r)
-                                for op in drawList {
-                                    op.execute(renderer: r)
-                                }
+                                renderDisplayList(drawList, renderer: r)
                                 r.restoreState()
                             }
                             : nil
@@ -606,34 +604,47 @@ public class Browser: ObservableObject {
     ) -> [CompositedLayer] {
         measure.start("raster.composite.walk", category: .raster, frame: frame)
         var compositedLayers: [CompositedLayer] = []
+        var scopes: [EffectScope] = []
         var ordinals: [EffectScopeID?: Int] = [:]
+        var animatedTransforms: Int = 0
         var assumeOverlap: Bool = false
 
-        func visit(_ op: DisplayOp, _ scopes: [EffectScope]) {
-            let scope: EffectScopeID? = scopes.last?.id
-            if scopes.contains(where: { scope in
-                if case .transform = scope.kind { return scope.placement.animatedTransform }
-                return false
-            }) {
-                assumeOverlap = true
-            }
-            for layer in compositedLayers.reversed() {
-                if layer.canMerge(scope: scope) {
-                    layer.add(op)
-                    return
-                } else if assumeOverlap {
-                    break
+        for op in inputs.scene.displayList {
+            switch op {
+            case .beginEffect(let scope):
+                scopes.append(scope)
+                if case .transform = scope.kind, scope.placement.animatedTransform {
+                    animatedTransforms += 1
+                }
+            case .endEffect:
+                let scope: EffectScope = scopes.removeLast()
+                if case .transform = scope.kind, scope.placement.animatedTransform {
+                    animatedTransforms -= 1
+                }
+            default:
+                let scopeID: EffectScopeID? = scopes.last?.id
+                if animatedTransforms > 0 { assumeOverlap = true }
+                var merged: Bool = false
+                for layer in compositedLayers.reversed() {
+                    if layer.id.effect == scopeID {
+                        layer.add(op)
+                        merged = true
+                        break
+                    } else if assumeOverlap {
+                        break
+                    }
+                }
+                if !merged {
+                    let ordinal: Int = ordinals[scopeID, default: 0]
+                    ordinals[scopeID] = ordinal + 1
+                    let layer: CompositedLayer = CompositedLayer(displayItem: op)
+                    layer.id = LayerID(effect: scopeID, ordinal: ordinal)
+                    layer.ancestorChain = Array(scopes.reversed())
+                    compositedLayers.append(layer)
                 }
             }
-            let ordinal: Int = ordinals[scope, default: 0]
-            ordinals[scope] = ordinal + 1
-            let layer: CompositedLayer = CompositedLayer(displayItem: op)
-            layer.id = LayerID(effect: scope, ordinal: ordinal)
-            layer.ancestorChain = Array(scopes.reversed())
-            compositedLayers.append(layer)
         }
 
-        walkDisplayItems(inputs.scene.displayList, visit: visit)
         measure.stop("raster.composite.walk")
         reuseRasterization(from: inputs.scene.previousLayers, into: compositedLayers)
         return compositedLayers
@@ -770,19 +781,21 @@ public class Browser: ObservableObject {
             }
         }
 
-        func materialize(_ child: DrawEffectChild) -> DisplayOp {
+        func materialize(_ child: DrawEffectChild) -> [DisplayOp] {
             switch child {
             case .op(let op):
-                return op
+                return [op]
             case .node(let node):
-                return .effect(DisplayEffect(
-                    scope: node.scope,
-                    children: node.children.map(materialize)
-                ))
+                var result: [DisplayOp] = [.beginEffect(node.scope)]
+                for child in node.children {
+                    result.append(contentsOf: materialize(child))
+                }
+                result.append(.endEffect)
+                return result
             }
         }
 
-        var drawList: [DisplayOp] = roots.map(materialize)
+        var drawList: [DisplayOp] = roots.flatMap(materialize)
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
             drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))

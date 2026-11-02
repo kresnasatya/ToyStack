@@ -18,9 +18,13 @@ private func appendDisplaySignature(
     into parts: inout [String]
 ) {
     for item in list {
-        parts.append("\(item.name) \(item.rect) \(item.contentHash)")
-        if case .effect(let effect) = item {
-            appendDisplaySignature(effect.children, into: &parts)
+        switch item {
+        case .beginEffect(let scope):
+            parts.append("beginEffect \(scope.kind.description) \(scope.placement.rect)")
+        case .endEffect:
+            parts.append("endEffect")
+        default:
+            parts.append("\(item.name) \(item.rect) \(item.contentHash)")
         }
     }
 }

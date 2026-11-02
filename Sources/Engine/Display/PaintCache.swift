@@ -17,15 +17,13 @@ struct PaintCache {
         var relative: [DisplayOp] = []
         relative.reserveCapacity(items.count)
         for item in items {
-            if case .effect = item {
+            switch item {
+            case .beginEffect, .endEffect, .compositedLayer:
                 valid = false
                 self.items.removeAll(keepingCapacity: true)
                 return
-            }
-            if case .compositedLayer = item {
-                valid = false
-                self.items.removeAll(keepingCapacity: true)
-                return
+            default:
+                break
             }
             relative.append(item.shifted(dx: -origin.x, dy: -origin.y))
         }

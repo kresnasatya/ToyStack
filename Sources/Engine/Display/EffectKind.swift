@@ -6,6 +6,16 @@ public enum EffectKind {
     case clip(ClipShape)
     case transform(CGPoint?)
     case scroll(ClipShape, offset: CGFloat)
+
+    var description: String {
+        switch self {
+        case .blend: return "blend"
+        case .blur: return "blur"
+        case .clip: return "clip"
+        case .transform: return "transform"
+        case .scroll: return "scroll"
+        }
+    }
 }
 
 func applyEffect(
