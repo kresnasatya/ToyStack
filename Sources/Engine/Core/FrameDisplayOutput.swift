@@ -1,5 +1,5 @@
 struct FrameDisplayOutput {
     let displayList: [DisplayOp]
-    let compositedUpdates: [NodeKey: EffectUpdate]?
+    let compositedUpdates: [NodeID: EffectUpdate]?
     let paintRevision: UInt
 }

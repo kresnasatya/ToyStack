@@ -28,10 +28,10 @@ public struct EffectScope {
 
 public struct EffectPlacement {
     let rect: Rect
-    let node: NodeKey?
+    let node: NodeID?
     let animatedTransform: Bool
 
-    init(rect: Rect, node: NodeKey?, animatedTransform: Bool) {
+    init(rect: Rect, node: NodeID?, animatedTransform: Bool) {
         self.rect = rect
         self.node = node
         self.animatedTransform = animatedTransform

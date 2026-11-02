@@ -247,10 +247,10 @@ public class Browser: ObservableObject {
         scheduleRasterAndDraw()
     }
 
-    private func applyEffectFastPath(_ updates: [NodeKey: EffectUpdate]) -> Bool {
+    private func applyEffectFastPath(_ updates: [NodeID: EffectUpdate]) -> Bool {
         let layers: [CompositedLayer] = activeFrame.render.layers
         let effectStrategies: [LayerEffectStrategy] = layers.map({ Browser.layerEffectStrategy($0, updates: updates) })
-        let keys: Set<NodeKey> = Set(effectStrategies.compactMap({ $0.effect?.key }))
+        let keys: Set<NodeID> = Set(effectStrategies.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
         for (index, info) in effectStrategies.enumerated() where info.kind == .ca {
             if layers[index].effectImage == nil { return false }
@@ -674,13 +674,13 @@ public class Browser: ObservableObject {
 
     nonisolated static func layerEffectStrategy(
         _ layer: CompositedLayer,
-        updates: [NodeKey: EffectUpdate]
+        updates: [NodeID: EffectUpdate]
     ) -> LayerEffectStrategy {
         var kind: LayerEffectStrategy.Kind = LayerEffectStrategy.Kind.flat
         var opacity: Double = 1
         var translation: CGPoint = CGPoint.zero
         var blur: CGFloat = 0
-        var key: NodeKey?
+        var key: NodeID?
         var blendMode: BrowserBlendMode?
         var clipRect: Rect?
         for scope in layer.ancestorChain {
@@ -742,7 +742,7 @@ public class Browser: ObservableObject {
         return LayerEffectStrategy(kind: kind, effect: effect, blur: blur)
     }
 
-    nonisolated static func updatesAreCA(_ updates: [NodeKey: EffectUpdate]) -> Bool {
+    nonisolated static func updatesAreCA(_ updates: [NodeID: EffectUpdate]) -> Bool {
         updates.values.allSatisfy({ update in
             update.style.blurRadius == 0
                 && (update.style.blendMode == nil
@@ -806,7 +806,7 @@ public class Browser: ObservableObject {
 
     nonisolated private static func updatedScope(
         _ scope: EffectScope,
-        updates: [NodeKey: EffectUpdate]
+        updates: [NodeID: EffectUpdate]
     ) -> EffectScope {
         guard let node = scope.placement.node, let update = updates[node] else { return scope }
         let kind: EffectKind

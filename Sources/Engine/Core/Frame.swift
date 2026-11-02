@@ -91,7 +91,7 @@ class Frame {
     private var lazyImages: [Element] = []
     var js: JSRuntime!
 
-    private var compositedUpdates: [NodeKey: EffectUpdate] = [:]
+    private var compositedUpdates: [NodeID: EffectUpdate] = [:]
 
     var needsRender: Bool = false
     var needsPaint: Bool = false
@@ -984,7 +984,7 @@ class Frame {
                         if (node.layoutObject as? BlockLayout) != nil,
                             let style: PaintEffectStyle = paintEffectStyle(node: dom.ref(node))
                         {
-                            compositedUpdates[NodeKey(node)] = EffectUpdate(
+                            compositedUpdates[dom.id(of: node)] = EffectUpdate(
                                 style: style,
                                 isAnimatedTransform: node.animations[.property(.transform)] != nil
                             )
@@ -1056,7 +1056,7 @@ class Frame {
     func commitFrame() {
         guard let tab else { return }
         scroll = min(scroll, maxScroll)
-        let updates: [NodeKey: EffectUpdate]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
+        let updates: [NodeID: EffectUpdate]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
             display: FrameDisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),

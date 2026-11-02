@@ -81,7 +81,7 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
         let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
         let scope: EffectScope = session.makeScope(
             .scroll(shape, offset: block.scrollOffset),
-            node: NodeKey(block.node.raw),
+            node: block.node.id,
             animatedTransform: false
         ).placed(rect: shape.rect)
         ops.append(.beginEffect(scope))
@@ -98,7 +98,7 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
         let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
         let scope: EffectScope = session.makeScope(
             .clip(shape),
-            node: NodeKey(block.node.raw),
+            node: block.node.id,
             animatedTransform: false
         ).placed(rect: block.selfRect())
         ops.append(.beginEffect(scope))
@@ -150,7 +150,7 @@ private func openNodeScopes(
     for kind in obj.paintScopeKinds() {
         let scope: EffectScope = session.makeScope(
             kind,
-            node: NodeKey(obj.node.raw),
+            node: obj.node.id,
             animatedTransform: obj.node.animations[.property(.transform)] != nil
         )
         opened.append(OpenScope(index: ops.count, scope: scope))
@@ -245,14 +245,14 @@ private func openIframeScopes(
 
     let blend: EffectScope = session.makeScope(
         .blend(opacity: 1.0, mode: .normal),
-        node: NodeKey(iframe.node.raw),
+        node: iframe.node.id,
         animatedTransform: false
     ).placed(rect: blendRect)
     ops.append(.beginEffect(blend))
 
     let transform: EffectScope = session.makeScope(
         .transform(CGPoint(x: iframe.x + diff, y: iframe.y + diff - scroll)),
-        node: NodeKey(iframe.node.raw),
+        node: iframe.node.id,
         animatedTransform: false
     ).placed(rect: rect)
     ops.append(.beginEffect(transform))

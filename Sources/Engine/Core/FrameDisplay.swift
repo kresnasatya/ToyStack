@@ -1,6 +1,6 @@
 struct FrameDisplay {
     var displayList: [DisplayOp] = []
-    var compositedUpdates: [NodeKey: EffectUpdate] = [:]
+    var compositedUpdates: [NodeID: EffectUpdate] = [:]
     var paintRevision: UInt = 0
     var effectRevision: UInt = 0
 }

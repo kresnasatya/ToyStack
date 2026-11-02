@@ -22,7 +22,7 @@ struct PaintSession {
         PaintSession(paint: paint, epoch: epoch, window: window, scopes: scopes)
     }
 
-    mutating func makeScope(_ kind: EffectKind, node: NodeKey?, animatedTransform: Bool) -> EffectScope {
+    mutating func makeScope(_ kind: EffectKind, node: NodeID?, animatedTransform: Bool) -> EffectScope {
         let ordinal: Int = scopes.next
         scopes.next += 1
         return EffectScope(
