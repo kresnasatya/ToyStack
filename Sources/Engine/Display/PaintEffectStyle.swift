@@ -24,7 +24,8 @@ func paintEffectStyle(node: DOMNode) -> PaintEffectStyle? {
     let blendMode: BrowserBlendMode? = browserBlendMode(node.style["mix-blend-mode"])
     let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")
     let blurRadius: CGFloat = CSSValueParser.blur(node.style["filter"] ?? "")
-    let animated: Bool = node.animations.values.contains(where: { $0.animatedProperty == "transform" || $0.animatedProperty == "opacity" })
+    let animated: Bool = node.animations[.property(.transform)] != nil
+        || node.animations[.property(.opacity)] != nil
 
     guard blurRadius > 0 || opacity < 1
         || (blendMode != nil && blendMode != .normal)

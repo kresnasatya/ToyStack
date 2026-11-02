@@ -21,7 +21,6 @@ final class StyleCascade {
     let scope: StyleScope?
     let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
     private var oldStyles: [ObjectIdentifier: ComputedStyle] = [:]
-    private var oldRawStyles: [ObjectIdentifier: [String: String]] = [:]
     private(set) var appliedNodes: [any DOMNode] = []
 
     init(
@@ -37,15 +36,10 @@ final class StyleCascade {
     func record(_ node: any DOMNode) {
         appliedNodes.append(node)
         oldStyles[ObjectIdentifier(node)] = node.style.computed
-        oldRawStyles[ObjectIdentifier(node)] = node.style.snapshot()
     }
 
     func oldStyle(for node: any DOMNode) -> ComputedStyle? {
         return oldStyles[ObjectIdentifier(node)]
-    }
-
-    func oldRawStyle(for node: any DOMNode) -> [String: String] {
-        return oldRawStyles[ObjectIdentifier(node)] ?? [:]
     }
 
     func inheritedChanged(_ node: any DOMNode) -> Bool {

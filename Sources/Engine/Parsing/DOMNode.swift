@@ -11,7 +11,7 @@ protocol DOMNode: AnyObject {
     var isHovered: Bool { get set }
     var satisfiedHas: Set<Int> { get set }
     var layoutObject: LayoutObject? { get set }
-    var animations: [String: Animation] { get set }
+    var animations: [AnimationKey: Animation] { get set }
 }
 
 extension DOMNode {
@@ -43,7 +43,7 @@ class Element: DOMNode {
     var isChecked: Bool = false
     var satisfiedHas: Set<Int> = []
     weak var layoutObject: LayoutObject? = nil
-    var animations: [String: Animation] = [:]
+    var animations: [AnimationKey: Animation] = [:]
     var scrollOffsetY: CGFloat = 0
     var image: CGImage? = nil
     var backgroundImage: CGImage? = nil
@@ -74,7 +74,7 @@ class TextNode: DOMNode {
     var isFocusVisible: Bool = false
     var satisfiedHas: Set<Int> = []
     weak var layoutObject: LayoutObject? = nil
-    var animations: [String: Animation] = [:]
+    var animations: [AnimationKey: Animation] = [:]
 
     init(text: String, parent: (any DOMNode)?) {
         self.text = text

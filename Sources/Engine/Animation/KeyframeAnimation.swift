@@ -4,7 +4,7 @@ struct KeyframeRange {
 }
 
 class KeyframeAnimation: Animation {
-    let animatedProperty: String
+    let animatedProperty: StyleProperty
     private let infinite: Bool
     private let alternate: Bool
     private let timing: FrameTiming
@@ -15,7 +15,7 @@ class KeyframeAnimation: Animation {
     private var reversed: Bool = false
 
     init(
-        animatedProperty: String,
+        animatedProperty: StyleProperty,
         range: KeyframeRange,
         playback: KeyframePlayback,
         factory: @escaping (AnimatedValue, AnimatedValue, Int, Easing) -> Animation?
@@ -30,7 +30,7 @@ class KeyframeAnimation: Animation {
         self.inner = factory(range.from, range.to, playback.timing.totalFrames, playback.timing.easing)!
     }
 
-    func nextValue() -> String? {
+    func nextValue() -> AnimatedValue? {
         if let value = inner.nextValue() {
             return value
         }
@@ -58,7 +58,9 @@ extension KeyframeAnimation {
         else { return nil }
 
         let differing: [String : String] = from.body.filter { to.body[$0.key] != $0.value }
-        guard let (property, oldVal) = differing.first, let newVal = to.body[property]
+        guard let (propertyName, oldVal) = differing.first,
+            let newVal = to.body[propertyName],
+            let property = StyleProperty(cssName: propertyName)
         else { return nil }
 
         guard let oldValue = AnimatedValue(css: oldVal, property: property),
@@ -79,11 +81,11 @@ extension KeyframeAnimation {
             }
         case (.length, .length):
             factory = { (from: AnimatedValue, to: AnimatedValue, tf: Int, e: Easing) -> Animation? in
-                guard let o: Double = from.length, let n: Double = to.length else { return nil }
+                guard case .length(let o) = from, case .length(let n) = to else { return nil }
                 return PixelAnimation(
                     animatedProperty: property,
-                    oldValue: o,
-                    newValue: n,
+                    oldValue: Double(o),
+                    newValue: Double(n),
                     timing: FrameTiming(totalFrames: tf, easing: e)
                 )
             }

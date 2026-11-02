@@ -1,41 +1,38 @@
 @MainActor
 enum StyleTransitions {
-    static func diff(node: DOMNode, oldStyle: [String: String], newStyle: [String: String]) -> [String: Animation]
-    {
-        var animations: [String: Animation] = [:]
-        let transitions: [String : FrameTiming] = FrameTiming.parse(newStyle["transition"] ?? "")
+    static func diff(
+        node: DOMNode,
+        oldStyle: ComputedStyle,
+        newStyle: ComputedStyle
+    ) -> [StyleProperty: Animation] {
+        var animations: [StyleProperty: Animation] = [:]
+        let transitions: [String: FrameTiming] =
+            FrameTiming.parse(node.style.unknownValue("transition") ?? "")
         for (property, timing) in transitions {
-            guard let oldValue = oldStyle[property],
-                let newValue = newStyle[property],
+            guard let key = StyleProperty(cssName: property),
+                let oldValue = oldStyle.value(for: key),
+                let newValue = newStyle.value(for: key),
                 oldValue != newValue,
-                let animation = makeAnimation(property: property, oldValue: oldValue, newValue: newValue, timing: timing)
+                let animation = makeAnimation(
+                    property: key,
+                    oldValue: oldValue,
+                    newValue: newValue,
+                    timing: timing
+                )
             else { continue }
-            animations[property] = animation
-            node.style[property] = oldValue
+            animations[key] = animation
+            node.style.set(oldValue, for: key)
         }
         return animations
     }
 
     private static func makeAnimation(
-        property: String,
-        oldValue: String,
-        newValue: String,
+        property: StyleProperty,
+        oldValue: AnimatedValue,
+        newValue: AnimatedValue,
         timing: FrameTiming
     ) -> Animation? {
-        if property == "transform", let oldPoint = CSSValueParser.transform(oldValue),
-            let newPoint = CSSValueParser.transform(newValue)
-        {
-            return TransformAnimation(
-                animatedProperty: property,
-                oldPoint: oldPoint,
-                newPoint: newPoint,
-                timing: timing
-            )
-        }
-        guard let old = AnimatedValue(css: oldValue, property: property),
-            let new = AnimatedValue(css: newValue, property: property)
-        else { return nil }
-        switch (old, new) {
+        switch (oldValue, newValue) {
         case (.number(let o), .number(let n)):
             return NumericAnimation(
                 animatedProperty: property,
@@ -46,8 +43,8 @@ enum StyleTransitions {
         case (.length(let o), .length(let n)):
             return PixelAnimation(
                 animatedProperty: property,
-                oldValue: o,
-                newValue: n,
+                oldValue: Double(o),
+                newValue: Double(n),
                 timing: timing
             )
         case (.color(let o), .color(let n)):
@@ -55,6 +52,13 @@ enum StyleTransitions {
                 animatedProperty: property,
                 oldColor: o,
                 newColor: n,
+                timing: timing
+            )
+        case (.transform(let o), .transform(let n)):
+            return TransformAnimation(
+                animatedProperty: property,
+                oldPoint: o,
+                newPoint: n,
                 timing: timing
             )
         default:

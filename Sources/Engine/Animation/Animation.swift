@@ -2,6 +2,6 @@ public let animationFramesPerSecond: Double = 60.0
 let secondsPerFrame: Double = 1.0 / 60.0
 
 protocol Animation: AnyObject {
-    func nextValue() -> String?
-    var animatedProperty: String { get }
+    func nextValue() -> AnimatedValue?
+    var animatedProperty: StyleProperty { get }
 }

@@ -1,31 +1,27 @@
 class ColorAnimation: Animation {
-    let animatedProperty: String
-    let oldColor: RGBColor
-    let newColor: RGBColor
+    let animatedProperty: StyleProperty
+    let oldColor: BrowserColor
+    let newColor: BrowserColor
     let timing: FrameTiming
     private(set) var currentFrame: Int = 0
-    private let changePerFrame: RGBColor
 
-    init(animatedProperty: String, oldColor: RGBColor, newColor: RGBColor, timing: FrameTiming) {
+    init(animatedProperty: StyleProperty, oldColor: BrowserColor, newColor: BrowserColor, timing: FrameTiming) {
         self.animatedProperty = animatedProperty
         self.oldColor = oldColor
         self.newColor = newColor
         self.timing = timing
-        self.changePerFrame = (
-            (newColor.r - oldColor.r) / Double(timing.totalFrames),
-            (newColor.g - oldColor.g) / Double(timing.totalFrames),
-            (newColor.b - oldColor.b) / Double(timing.totalFrames)
-        )
     }
 
-    func nextValue() -> String? {
+    func nextValue() -> AnimatedValue? {
         currentFrame += 1
         if currentFrame > timing.totalFrames { return nil }
         let t: Double = Double(currentFrame) / Double(timing.totalFrames)
         let eased: Double = timing.easing.apply(t)
-        let r: Double = oldColor.r + (newColor.r - oldColor.r) * eased
-        let g: Double = oldColor.g + (newColor.g - oldColor.g) * eased
-        let b: Double = oldColor.b + (newColor.b - oldColor.b) * eased
-        return rgbToHex(r, g, b)
+        return .color(BrowserColor(
+            red: oldColor.red + (newColor.red - oldColor.red) * eased,
+            green: oldColor.green + (newColor.green - oldColor.green) * eased,
+            blue: oldColor.blue + (newColor.blue - oldColor.blue) * eased,
+            alpha: 1
+        ))
     }
 }

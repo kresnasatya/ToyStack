@@ -89,6 +89,15 @@ nonisolated final class StyleFields: FieldOwner {
     }
 
     @MainActor
+    func set(_ value: AnimatedValue, for property: StyleProperty) {
+        guard storage.computed.set(value, for: property) else { return }
+        storage.raw[property.cssName] = property.cssString(value)
+        invalidation.dirtyKeys.remove(property.cssName)
+        revision += 1
+        notifyDependents(property.cssName)
+    }
+
+    @MainActor
     func mutate(_ body: (inout ComputedStyle) -> Void) {
         let old: ComputedStyle = storage.computed
         body(&storage.computed)
@@ -97,6 +106,9 @@ nonisolated final class StyleFields: FieldOwner {
         invalidation.dirtyKeys.subtract(Set(changed.map(\.cssName)))
         revision += 1
         for property in changed {
+            if let value = storage.computed.value(for: property) {
+                storage.raw[property.cssName] = property.cssString(value)
+            }
             notifyDependents(property.cssName)
         }
     }

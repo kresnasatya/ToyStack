@@ -148,7 +148,7 @@ private func openNodeScopes(
         let scope: EffectScope = session.makeScope(
             kind,
             node: NodeKey(obj.node),
-            animatedTransform: obj.node.animations["transform"] != nil
+            animatedTransform: obj.node.animations[.property(.transform)] != nil
         )
         opened.append(OpenScope(index: ops.count, scope: scope))
         ops.append(.beginEffect(scope))

@@ -80,3 +80,36 @@ extension ComputedStyle {
         return changed
     }
 }
+
+// MARK: - Animation bridge
+
+extension ComputedStyle {
+    func value(for property: StyleProperty) -> AnimatedValue? {
+        switch property {
+        case .opacity: return .number(visual.effects.opacity)
+        case .width: return box.size.width.map(AnimatedValue.length)
+        case .height: return box.size.height.map(AnimatedValue.length)
+        case .backgroundColor:
+            return visual.background.color.map(AnimatedValue.color)
+        case .transform:
+            return visual.effects.translation.map(AnimatedValue.transform)
+        default:
+            return nil
+        }
+    }
+
+    @discardableResult
+    mutating func set(_ value: AnimatedValue, for property: StyleProperty) -> Bool {
+        let before: ComputedStyle = self
+        switch (property, value) {
+        case (.opacity, .number(let v)): visual.effects.opacity = v
+        case (.width, .length(let v)): box.size.width = v
+        case (.height, .length(let v)): box.size.height = v
+        case (.fontSize, .length(let v)): text.font.size = v
+        case (.backgroundColor, .color(let c)): visual.background.color = c
+        case (.transform, .transform(let p)): visual.effects.translation = p
+        default: return false
+        }
+        return !matches(before, for: property)
+    }
+}

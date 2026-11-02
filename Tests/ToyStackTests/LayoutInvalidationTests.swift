@@ -161,7 +161,7 @@ struct LayoutInvalidationTests {
         let before: CGFloat = try #require(page.lines(in: p).first).height
 
         page.frame.addAnimation(PixelAnimation(
-            animatedProperty: "font-size",
+            animatedProperty: .fontSize,
             oldValue: 14,
             newValue: 28,
             timing: FrameTiming(totalFrames: 60, easing: .linear)
@@ -185,7 +185,7 @@ struct LayoutInvalidationTests {
     @Test func animatingOpacityDoesNotRebuildLayout() {
         let fixture = makeFixture()
         fixture.frame.addAnimation(NumericAnimation(
-            animatedProperty: "opacity",
+            animatedProperty: .opacity,
             oldValue: 1,
             newValue: 0.5,
             timing: FrameTiming(totalFrames: 60, easing: .linear)
@@ -204,7 +204,7 @@ struct LayoutInvalidationTests {
     @Test func animatingTransformDoesNotRebuiltLayout() {
         let fixture = makeFixture()
         fixture.frame.addAnimation(TransformAnimation(
-            animatedProperty: "transform",
+            animatedProperty: .transform,
             oldPoint: CGPoint.zero,
             newPoint: CGPoint(x: 20, y: 0),
             timing: FrameTiming(totalFrames: 60, easing: .linear)

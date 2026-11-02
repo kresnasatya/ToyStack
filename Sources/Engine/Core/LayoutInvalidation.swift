@@ -35,10 +35,10 @@ enum LayoutInvalidation {
         childrenChanged(node)
     }
 
-    static func animatedPropertyChanged(_ node: any DOMNode, property: String) {
-        let affectsSiblings: Bool = property == "display"
-            || property == "position"
-            || property == "margin-bottom"
+    static func animatedPropertyChanged(_ node: any DOMNode, property: StyleProperty) {
+        let affectsSiblings: Bool = property == .display
+            || property == .position
+            || property == .marginBottom
         markLayoutInput(node, affectsSiblings: affectsSiblings)
     }
 

@@ -779,13 +779,13 @@ class Frame {
                 {
                     markStructureChanged()
                 }
-                let newAnimations: [String : any Animation] = StyleTransitions.diff(
+                let newAnimations: [StyleProperty: any Animation] = StyleTransitions.diff(
                     node: node,
-                    oldStyle: cascade.oldRawStyle(for: node),
-                    newStyle: node.style.snapshot()
+                    oldStyle: old,
+                    newStyle: node.style.computed
                 )
                 for (property, animation) in newAnimations {
-                    node.animations[property] = animation
+                    node.animations[.property(property)] = animation
                 }
             }
             if paintedChanged {
@@ -796,11 +796,11 @@ class Frame {
             browser?.measure.start("BrowserTab.style.keyframes")
             if !keyframes.isEmpty {
                 for node in cascade.appliedNodes {
-                    guard let animDecl = node.style["animation"],
+                    guard let animDecl = node.style.unknownValue("animation"),
                         let playback = KeyframePlayback.parse(animDecl),
                         let frames = keyframes[playback.name]
                     else { continue }
-                    let key: String = "animation/\(playback.name)"
+                    let key: AnimationKey = .keyframes(playback.name)
                     guard node.animations[key] == nil else { continue }
                     if let anim = KeyframeAnimation.make(frames: frames, playback: playback)
                     {
@@ -821,7 +821,10 @@ class Frame {
                         continue
                     }
                     if tab?.hasVisited(url.resolve(href).toString()) == true {
-                        el.style["color"] = (tab?.forcedColors ?? false) ? ForcedColor.visitedText : "purple"
+                        let color: BrowserColor = BrowserColor(
+                            cssName: (tab?.forcedColors ?? false) ? ForcedColor.visitedText : "purple"
+                        )
+                        el.style.mutate { $0.text.color = color }
                     }
                 }
             }
@@ -975,35 +978,32 @@ class Frame {
         let animated: [any DOMNode] = activeAnimations > 0 ? treeToList(nodes) : []
         for node in animated {
             for (key, animation) in node.animations {
-                let property: String = animation.animatedProperty
+                let property: StyleProperty = animation.animatedProperty
                 if let value = animation.nextValue() {
                     needsAnotherFrame = true
-                    if property == "transform" || property == "opacity"
-                    {
-                        node.style[property] = value
+                    node.style.set(value, for: property)
+                    if property == .transform || property == .opacity {
                         if (node.layoutObject as? BlockLayout) != nil,
                             let style: PaintEffectStyle = paintEffectStyle(node: node)
                         {
                             compositedUpdates[NodeKey(node)] = EffectUpdate(
                                 style: style,
-                                isAnimatedTransform: node.animations["transform"] != nil
+                                isAnimatedTransform: node.animations[.property(.transform)] != nil
                             )
                         }
-                    } else if Self.affectsLayout(property) {
-                        node.style[property] = value
+                    } else if property.affectsLayout {
                         if document?.layoutNeeded() == true {
                             needsLayoutUpdate = true
                         } else {
                             // A layout property that marked no field is a missing edge.
                             // Trap in debug; mark the nearest block in release so the
                             // page still updates instead of freezing on a stale layout.
-                            assertionFailure("Animation for \(property) did not dirty a layout field")
+                            assertionFailure("Animation for \(property.cssName) did not dirty a layout field")
                             LayoutInvalidation.animatedPropertyChanged(node, property: property)
                             needsLayoutUpdate = true
                             animationFallbacks += 1
                         }
                     } else {
-                        node.style[property] = value
                         needsCompositeForPaint = true
                         needsPaint = true
                     }
@@ -1639,7 +1639,7 @@ class Frame {
     }
 
     func addAnimation(_ animation: any Animation, to node: any DOMNode) {
-        let key: String = animation.animatedProperty
+        let key: AnimationKey = .property(animation.animatedProperty)
         if node.animations.updateValue(animation, forKey: key) == nil {
             activeAnimations += 1
         }
