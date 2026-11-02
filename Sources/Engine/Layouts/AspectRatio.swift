@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - AspectRatio
-struct AspectRatio {
+struct AspectRatio: Equatable {
     let ratio: Double
 
     init?(css: String?) {

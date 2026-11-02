@@ -67,8 +67,7 @@ struct BlockStyleFlags {
 
 // MARK: - EdgeInsets
 
-@MainActor
-struct EdgeInsets {
+struct EdgeInsets: Equatable {
     let top: CGFloat
     let right: CGFloat
     let bottom: CGFloat
