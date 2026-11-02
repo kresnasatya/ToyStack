@@ -137,24 +137,25 @@ extension DisplayOp {
 
     @MainActor
     static func fromStyle(_ node: any DOMNode, rect: Rect) -> DisplayOp? {
-        let style: String = node.style["outline-style"] ?? "none"
-        guard style != "none", style != "hidden" else { return nil }
-        guard let thickness: CGFloat = CSSValueParser.outlineWidth(node.style["outline-width"] ?? "medium"),
-            thickness > 0
+        let computed: ComputedStyle = node.style.computed
+        let outline: BoxStyle.Decoration.Outline = computed.box.decoration.outline
+        guard outline.style != .none, outline.style != .hidden,
+            outline.width > 0
         else { return nil }
-        let color: String = node.style["outline-color"] ?? node.style["color"] ?? "black"
-        return .outline(rect: rect, color: BrowserColor(cssName: color), width: thickness)
+        return .outline(
+            rect: rect,
+            color: outline.color ?? computed.text.color,
+            width: outline.width
+        )
     }
 
     @MainActor
     static func fromBorderStyle(_ node: any DOMNode, rect: Rect) -> DisplayOp? {
-        let style: String = node.style["border-style"] ?? "none"
-        guard style != "none", style != "hidden" else { return nil }
-        guard let thickness: CGFloat = CSSValueParser.outlineWidth(node.style["border-width"] ?? "medium"),
-            thickness > 0
+        let border: BoxStyle.Decoration.Border = node.style.computed.box.decoration.border
+        guard border.style != .none, border.style != .hidden,
+            border.width > 0
         else { return nil }
-        let color: String = node.style["border-color"] ?? "black"
-        return .outline(rect: rect, color: BrowserColor(cssName: color), width: thickness)
+        return .outline(rect: rect, color: border.color, width: border.width)
     }
 }
 

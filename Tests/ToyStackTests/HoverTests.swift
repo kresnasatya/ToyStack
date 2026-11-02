@@ -46,12 +46,12 @@ struct HoverTests {
 
         #expect(a.isHovered)
         #expect(a.style.isDirty)
-        #expect(a.style["color"] == "black")
+        #expect(a.style.computed.text.color == BrowserColor(cssName: "black"))
 
         page.frame.render()
 
-        #expect(a.style["color"] == "red")
-        #expect(b.style["color"] == "black")
+        #expect(a.style.computed.text.color == BrowserColor(cssName: "red"))
+        #expect(b.style.computed.text.color == BrowserColor(cssName: "black"))
         #expect(!a.style.isDirty)
     }
 
@@ -77,22 +77,22 @@ struct HoverTests {
         page.tab.hover(x: pointA.x, y: pointA.y)
         page.frame.render()
         page.frame.render()
-        #expect(a.style["color"] == "red")
+        #expect(a.style.computed.text.color == BrowserColor(cssName: "red"))
 
         page.tab.hover(x: pointB.x, y: pointB.y)
         page.frame.render()
         page.frame.render()
 
         #expect(!a.isHovered)
-        #expect(a.style["color"] == "black")
+        #expect(a.style.computed.text.color == BrowserColor(cssName: "black"))
         #expect(b.isHovered)
-        #expect(b.style["color"] == "blue")
+        #expect(b.style.computed.text.color == BrowserColor(cssName: "blue"))
 
         page.tab.clearHover()
         page.frame.render()
 
         #expect(!b.isHovered)
-        #expect(b.style["color"] == "black")
+        #expect(b.style.computed.text.color == BrowserColor(cssName: "black"))
     }
 
     @Test func hoverChainIncludesAncestorsAndRestylesTheirSubtree() throws {
@@ -119,8 +119,8 @@ struct HoverTests {
         #expect(card.isHovered)
         #expect(label.isHovered)
         #expect(body.isHovered)
-        #expect(label.style["color"] == "purple")
-        #expect(card.style["color"] == "black")
+        #expect(label.style.computed.text.color == BrowserColor(cssName: "purple"))
+        #expect(card.style.computed.text.color == BrowserColor(cssName: "black"))
     }
 
     @Test func leavingTheAncestorRestoresItsHoverStyledDescendants() throws {
@@ -147,19 +147,19 @@ struct HoverTests {
         page.frame.render()
         page.frame.render()
         #expect(!label.isHovered)
-        #expect(label.style["color"] == "red")
+        #expect(label.style.computed.text.color == BrowserColor(cssName: "red"))
 
         page.tab.hover(x: labelPoint.x, y: labelPoint.y)
         page.frame.render()
         page.frame.render()
         #expect(label.isHovered)
-        #expect(label.style["color"] == "red")
+        #expect(label.style.computed.text.color == BrowserColor(cssName: "red"))
 
         page.tab.hover(x: afterPoint.x, y: afterPoint.y)
         page.frame.render()
         page.frame.render()
         #expect(!card.isHovered)
-        #expect(label.style["color"] == "black")
+        #expect(label.style.computed.text.color == BrowserColor(cssName: "black"))
     }
 
     @Test func hitTestUsesTheLayoutFromTheSameFrame() throws {

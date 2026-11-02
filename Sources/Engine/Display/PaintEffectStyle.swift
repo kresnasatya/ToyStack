@@ -13,29 +13,19 @@ struct PaintEffectStyle {
 
 @MainActor
 func paintEffectStyle(node: DOMNode) -> PaintEffectStyle? {
-    if node.animations.isEmpty,
-        node.style["opacity"] == nil,
-        node.style["mix-blend-mode"] == nil,
-        node.style["transform"] == nil,
-        node.style["filter"] == nil {
-        return nil
-    }
-    let opacity: Double = Double(node.style["opacity"] ?? "1.0") ?? 1.0
-    let blendMode: BrowserBlendMode? = browserBlendMode(node.style["mix-blend-mode"])
-    let translation: CGPoint? = CSSValueParser.transform(node.style["transform"] ?? "")
-    let blurRadius: CGFloat = CSSValueParser.blur(node.style["filter"] ?? "")
+    let effects: VisualStyle.Effects = node.style.computed.visual.effects
     let animated: Bool = node.animations[.property(.transform)] != nil
         || node.animations[.property(.opacity)] != nil
 
-    guard blurRadius > 0 || opacity < 1
-        || (blendMode != nil && blendMode != .normal)
-        || translation != nil || animated
+    guard effects.blurRadius > 0 || effects.opacity < 1
+        || (effects.blendMode != nil && effects.blendMode != .normal)
+        || effects.translation != nil || animated
     else { return nil }
 
     return PaintEffectStyle(
-        opacity: opacity,
-        blendMode: blendMode,
-        translation: translation,
-        blurRadius: blurRadius
+        opacity: effects.opacity,
+        blendMode: effects.blendMode,
+        translation: effects.translation,
+        blurRadius: effects.blurRadius
     )
 }

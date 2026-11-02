@@ -5,7 +5,7 @@ struct ObjectFit {
     let box: Rect
     let intrinsicWidth: CGFloat
     let intrinsicHeight: CGFloat
-    let css: String?
+    let fit: ObjectFitKind
 
     private var boxWidth: CGFloat { box.right - box.left }
     private var boxHeight: CGFloat { box.bottom - box.top }
@@ -25,18 +25,18 @@ struct ObjectFit {
     private func resolvedSize() -> (width: CGFloat, height: CGFloat) {
         guard intrinsicWidth > 0, intrinsicHeight > 0 else { return (boxWidth, boxHeight) }
         let contain: CGFloat = min(boxWidth / intrinsicWidth, boxHeight / intrinsicHeight)
-        switch (css ?? "fill").lowercased() {
-        case "contain":
+        switch fit {
+        case .contain:
             return (intrinsicWidth * contain, intrinsicHeight * contain)
-        case "cover":
+        case .cover:
             let cover: CGFloat = max(boxWidth / intrinsicWidth, boxHeight / intrinsicHeight)
             return (intrinsicWidth * cover, intrinsicHeight * cover)
-        case "none":
+        case .none:
             return (intrinsicWidth, intrinsicHeight)
-        case "scale-down":
+        case .scaleDown:
             let scale: CGFloat = min(1, contain)
             return (intrinsicWidth * scale, intrinsicHeight * scale)
-        default:
+        case .fill:
             return (boxWidth, boxHeight)
         }
     }

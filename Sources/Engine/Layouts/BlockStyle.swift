@@ -4,44 +4,32 @@ import CoreGraphics
 
 @MainActor
 struct BlockStyle {
-    let display: String
-    let position: String
+    let display: LayoutStyle.Display
+    let position: LayoutStyle.Position
     let box: BlockBoxStyle
     let flags: BlockStyleFlags
 
     init(node: any DOMNode) {
-        let style: StyleFields = node.style
-        self.display = style["display"] ?? "inline"
-        self.position = style["position"] ?? "static"
+        let style: ComputedStyle = node.style.computed
+        self.display = style.layout.display
+        self.position = style.layout.position.kind
         self.box = BlockBoxStyle(
-            width: BlockStyle.px(style["width"]),
-            height: BlockStyle.px(style["height"]),
+            width: style.box.size.width,
+            height: style.box.size.height,
             padding: EdgeInsets(
-                top: max(0, BlockStyle.px(style["padding-top"]) ?? 0),
-                right: max(0, BlockStyle.px(style["padding-right"]) ?? 0),
-                bottom: max(0, BlockStyle.px(style["padding-bottom"]) ?? 0),
-                left: max(0, BlockStyle.px(style["padding-left"]) ?? 0),
+                top: max(0, style.box.spacing.padding.top),
+                right: max(0, style.box.spacing.padding.right),
+                bottom: max(0, style.box.spacing.padding.bottom),
+                left: max(0, style.box.spacing.padding.left)
             ),
-            margin: EdgeInsets(
-                top: BlockStyle.px(style["margin-top"]) ?? 0,
-                right: BlockStyle.px(style["margin-right"]) ?? 0,
-                bottom: BlockStyle.px(style["margin-bottom"]) ?? 0,
-                left: BlockStyle.px(style["margin-left"]) ?? 0,
-            )
+            margin: style.box.spacing.margin
         )
         self.flags = BlockStyleFlags(
-            left: BlockStyle.px(style["left"]),
-            top: BlockStyle.px(style["top"]),
-            overflowScroll: style["overflow"] == "scroll",
-            directionRTL: style["direction"] == "rtl"
+            left: style.layout.position.left,
+            top: style.layout.position.top,
+            overflowScroll: style.layout.overflow == .scroll,
+            directionRTL: style.text.direction == .rtl
         )
-    }
-
-    private static func px(_ raw: String?) -> CGFloat? {
-        guard let raw, raw.hasSuffix("px"),
-            let value = Double(raw.dropLast(2))
-        else { return nil }
-        return CGFloat(value)
     }
 }
 

@@ -16,7 +16,7 @@ let forcedColorsAppliedKey: String = "-forced-colors"
 
 @MainActor
 func usesForcedColors(_ node: any DOMNode) -> Bool {
-    node.style[forcedColorsAppliedKey] == "active"
+    node.style.unknownValue(forcedColorsAppliedKey) == "active"
 }
 
 func applyForcedColors(to style: inout [String: String], node: any DOMNode) {

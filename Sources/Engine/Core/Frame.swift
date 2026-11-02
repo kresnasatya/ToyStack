@@ -499,13 +499,12 @@ class Frame {
 
         for node in nodes {
             guard let el = node as? Element,
-                let value = el.style["background-image"],
-                let raw = CSSValueParser.backgroundImageURL(value)
+                let raw: String = el.style.computed.visual.background.image
             else { continue }
 
-            if el.backgroundImageSource != value {
+            if el.backgroundImageSource != raw {
                 el.backgroundImage = nil
-                el.backgroundImageSource = value
+                el.backgroundImageSource = raw
             }
 
             let resolved: WebURL = base.resolve(raw)
@@ -879,33 +878,6 @@ class Frame {
         requestAnimationFrame()
     }
 
-    // Properties that cannot change geometry. Everything else is treated as a
-    // layout input, including properties this engine does not know yet.
-    private static let paintOnlyProperties: Set<String> = [
-        "color", "background-color", "background-image", "background-size",
-        "border-color", "border-radius",
-        "border-top-left-radius", "border-top-right-radius",
-        "border-bottom-left-radius", "border-bottom-right-radius",
-        "outline-color", "outline-style", "outline-width",
-        "filter", "mix-blend-mode", "opacity", "transform", "z-index",
-        "image-rendering", "object-fit"
-    ]
-
-    static func affectsLayout(_ property: String) -> Bool {
-        return !paintOnlyProperties.contains(property)
-    }
-
-    private static let paintStyleProperties: Set<String> = [
-        "background-color", "background-image", "background-size",
-        "border-color", "border-style", "border-width", "border-radius",
-        "border-top-left-radius", "border-top-right-radius",
-        "border-bottom-left-radius", "border-bottom-right-radius",
-        "color", "filter", "image-rendering", "mix-blend-mode",
-        "object-fit", "opacity",
-        "outline-color", "outline-style", "outline-width",
-        "transform", "z-index",
-    ]
-
     private static func paintStyleChanged(
         old: ComputedStyle,
         new: ComputedStyle
@@ -1099,7 +1071,7 @@ class Frame {
                 )
             }
             if let block = object as? BlockLayout,
-                block.node.style["overflow"] == "scroll",
+                block.node.style.computed.layout.overflow == .scroll,
                 let element = block.node as? Element
             {
                 blocks.append(
@@ -1272,7 +1244,7 @@ class Frame {
         while let c = current {
             if let block = c as? BlockLayout,
                 let el = block.node as? Element,
-                el.style["overflow"] == "scroll"
+                el.style.computed.layout.overflow == .scroll
             {
                 return el
             }

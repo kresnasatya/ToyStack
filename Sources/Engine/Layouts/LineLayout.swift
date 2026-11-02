@@ -82,7 +82,7 @@ class LineLayout: LayoutObject {
         }
 
         let widthMovesChildren: Bool = centered
-            || TextDirection(cssValue: node.style["direction"]) == .rtl
+            || node.style.computed.text.direction == .rtl
         let needsPlacement: Bool = xWasDirty || yWasDirty || childCountChanged
             || childWidthChanged
             || fields.isDirty(.ascent) || fields.isDirty(.descent)
@@ -161,7 +161,7 @@ class LineLayout: LayoutObject {
                 child.layout()
             }
 
-            if TextDirection(cssValue: node.style["direction"]) == .rtl {
+            if node.style.computed.text.direction == .rtl {
                 let usedWidth: CGFloat = contentWidth()
                 shiftChildren(by: width - usedWidth)
             }

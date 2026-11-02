@@ -16,11 +16,11 @@ final class IframeLayout: EmbedLayout {
         super.init(node: node, parent: parent, previous: previous)
         widthField.setDependencies([
             zoomField,
-            node.style.field("aspect-ratio"),
+            node.style.field(.aspectRatio),
         ])
         heightField.setDependencies([
             zoomField,
-            node.style.field("aspect-ratio"),
+            node.style.field(.aspectRatio),
         ])
     }
 
@@ -28,7 +28,8 @@ final class IframeLayout: EmbedLayout {
         for el: Element,
         notify: any InvalidatableField
     ) -> (width: CGFloat, height: CGFloat) {
-        let ratio: AspectRatio? = AspectRatio(css: el.style.read("aspect-ratio", notify: notify))
+        el.style.field(.aspectRatio).touch(notify)
+        let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
         let widthAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
         let heightAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
         let content: (width: Double, height: Double)
@@ -73,10 +74,10 @@ final class IframeLayout: EmbedLayout {
     }
 
     override func paint(into items: inout [DisplayOp]) {
-        let bgColor: String = node.style["background-color"] ?? "transparent"
-        guard bgColor != "transparent" else { return }
-        let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
-        items.append(.rrect(rect: selfRect(), radii: radii, color: BrowserColor(cssName: bgColor)))
+        let computed: ComputedStyle = node.style.computed
+        guard let bgColor: BrowserColor = computed.visual.background.color else { return }
+        let radii: CornerRadii = computed.box.decoration.border.radii
+        items.append(.rrect(rect: selfRect(), radii: radii, color: bgColor))
     }
 
 }

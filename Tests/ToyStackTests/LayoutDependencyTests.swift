@@ -46,10 +46,10 @@ struct LayoutDependencyTests {
             treeToList(block).compactMap({ $0 as? TextLayout }).first
         )
 
-        #expect(paragraph.style.field("font-size").containsInvalidation(text.fontField))
-        #expect(paragraph.style.field("font-style").containsInvalidation(text.fontField))
-        #expect(paragraph.style.field("font-weight").containsInvalidation(text.fontField))
-        #expect(paragraph.style.field("font-family").containsInvalidation(text.fontField))
+        #expect(paragraph.style.field(.fontSize).containsInvalidation(text.fontField))
+        #expect(paragraph.style.field(.fontStyle).containsInvalidation(text.fontField))
+        #expect(paragraph.style.field(.fontWeight).containsInvalidation(text.fontField))
+        #expect(paragraph.style.field(.fontFamily).containsInvalidation(text.fontField))
     }
 
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
@@ -87,7 +87,7 @@ struct LayoutDependencyTests {
         #expect(!block.widthField.containsInvalidation(block.childrenField))
         #expect(!block.widthField.containsInvalidation(block.inlineContentField))
         #expect(block.inlineContentField.containsInvalidation(block.childrenField))
-        #expect(p.style.field("font-size").containsInvalidation(block.inlineContentField))
+        #expect(p.style.field(.fontSize).containsInvalidation(block.inlineContentField))
     }
 }
 

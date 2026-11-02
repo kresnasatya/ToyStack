@@ -80,8 +80,8 @@ struct DOMNodeTests {
 
     @Test func styleCanBeSet() {
         let el = Element(tag: "p", attributes: [:], parent: nil)
-        el.style["color"] = "red"
-        #expect(el.style["color"] == "red")
+        el.style.mutate { $0.text.color = BrowserColor(cssName: "red") }
+        #expect(el.style.computed.text.color == BrowserColor(cssName: "red"))
     }
 
     @Test func isFocusedCanBeToggled() {

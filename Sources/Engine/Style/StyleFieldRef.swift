@@ -5,16 +5,16 @@ import Foundation
 @MainActor
 struct StyleFieldRef: InvalidatableField {
     weak var owner: StyleFields?
-    let key: String
+    let key: StyleProperty
 
-    var fieldName: String { "style.\(key)" }
+    var fieldName: String { "style.\(key.cssName)" }
     var dirty: Bool { isDirty }
     var isDirty: Bool { owner?.fieldIsDirty(.style(key)) ?? false }
     var frozenDependencies: Bool { owner?.fieldIsFrozen(.style(key)) ?? false }
     var invalidationNames: [String] { owner?.dependencyNames(.style(key)) ?? [] }
     var ref: FieldRef { FieldRef(owner: owner, name: .style(key)) }
 
-    func read(notify: any InvalidatableField) -> String? {
+    func touch(_ notify: any InvalidatableField) {
         if notify.frozenDependencies {
             #if DEBUG
             if !containsInvalidation(notify) {
@@ -24,7 +24,6 @@ struct StyleFieldRef: InvalidatableField {
         } else {
             addInvalidation(notify)
         }
-        return owner?[key]
     }
 
     func mark() {

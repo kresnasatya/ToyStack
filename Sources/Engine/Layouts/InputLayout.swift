@@ -39,13 +39,13 @@ class InputLayout: EmbedLayout {
 
     override func paint(into items: inout [DisplayOp]) {
         guard let element = node as? Element else { return }
-        let bgcolor: String = element.style["background-color"] ?? "transparent"
-        if bgcolor != "transparent" {
-            let radii: CornerRadii = CSSValueParser.cornerRadii(element.style) ?? .zero
+        let computed: ComputedStyle = element.style.computed
+        if let bgcolor: BrowserColor = computed.visual.background.color {
+            let radii: CornerRadii = computed.box.decoration.border.radii
             if !radii.isZero {
-                items.append(.rrect(rect: selfRect(), radii: radii, color: BrowserColor(cssName: bgcolor)))
+                items.append(.rrect(rect: selfRect(), radii: radii, color: bgcolor))
             } else {
-                items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: bgcolor)))
+                items.append(.rect(rect: selfRect(), color: bgcolor))
             }
         }
 
@@ -90,8 +90,7 @@ class InputLayout: EmbedLayout {
                 text = textNode.text
             }
         }
-        let color: String = element.style["color"] ?? "black"
-        items.append(.text(text: text, font: font, color: BrowserColor(cssName: color), rect: Rect(left: x, top: y, right: font.measure(text), bottom: y + font.linespace)))
+        items.append(.text(text: text, font: font, color: computed.text.color, rect: Rect(left: x, top: y, right: font.measure(text), bottom: y + font.linespace)))
 
         if element.isFocused {
             items.append(drawCursor(self, offset: font.measure(text)))

@@ -55,7 +55,7 @@ enum ComputedStyleParser {
         style.box.decoration.border.width = borderWidth == nil
             ? 3
             : CSSValueParser.outlineWidth(borderWidth!) ?? 0
-        style.box.decoration.border.style = BoxStyle.Border.LineStyle(css: take("border-style"))
+        style.box.decoration.border.style = BoxStyle.Decoration.LineStyle(css: take("border-style"))
         if let raw = take("border-color") {
             style.box.decoration.border.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
         }
@@ -68,7 +68,7 @@ enum ComputedStyleParser {
         style.box.decoration.outline.width = outlineWidth == nil
             ? 3
             : CSSValueParser.outlineWidth(outlineWidth!) ?? 0
-        style.box.decoration.outline.style = BoxStyle.Border.LineStyle(css: take("outline-style"))
+        style.box.decoration.outline.style = BoxStyle.Decoration.LineStyle(css: take("outline-style"))
         if let raw = take("outline-color") {
             style.box.decoration.outline.color = BrowserColor.parse(raw)
         }

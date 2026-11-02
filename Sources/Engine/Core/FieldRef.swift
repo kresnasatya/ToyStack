@@ -5,14 +5,14 @@ import Foundation
 @MainActor
 enum FieldName: Hashable {
     case layout(LayoutField)
-    case style(String)
+    case style(StyleProperty)
 
     var description: String {
         switch self {
         case .layout(let field):
             return field.rawValue
         case .style(let key):
-            return "style.\(key)"
+            return "style.\(key.cssName)"
         }
     }
 }

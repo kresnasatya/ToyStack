@@ -11,9 +11,9 @@ struct StyleFieldsTests {
         let style = StyleFields()
         style.apply(["width": "10px"])
         let target = StyleTestTarget()
-        _ = style.read("width", notify: target)
+        style.field(.width).touch(target)
 
-        style["width"] = "10px"
+        style.set(.length(10), for: .width)
         #expect(!target.dirty)
     }
 
@@ -21,9 +21,9 @@ struct StyleFieldsTests {
         let style = StyleFields()
         style.apply(["width": "10px"])
         let target = StyleTestTarget()
-        _ = style.read("width", notify: target)
+        style.field(.width).touch(target)
 
-        style["width"] = "20px"
+        style.set(.length(20), for: .width)
         #expect(target.dirty)
     }
 
@@ -31,8 +31,9 @@ struct StyleFieldsTests {
         let style = StyleFields()
         let target = StyleTestTarget()
 
-        #expect(style.read("width", notify: target) == nil)
-        style["width"] = "20px"
+        style.field(.width).touch(target)
+        #expect(style.computed.box.size.width == nil)
+        style.set(.length(20), for: .width)
 
         #expect(target.dirty)
     }
@@ -41,13 +42,13 @@ struct StyleFieldsTests {
         let style = StyleFields()
         style.apply(["width": "10px"])
         let target = StyleTestTarget()
-        _ = style.read("width", notify: target)
+        style.field(.width).touch(target)
 
         style.apply(["height": "5px"])
         #expect(target.dirty)
 
         target.set(1)
-        style["width"] = "30px"
+        style.set(.length(30), for: .width)
         #expect(target.dirty)
     }
 
@@ -55,7 +56,7 @@ struct StyleFieldsTests {
         let style = StyleFields()
         style.apply(["width": "10px"])
         let target = StyleTestTarget()
-        _ = style.read("width", notify: target)
+        style.field(.width).touch(target)
 
         profiler.reset()
         style.apply(["width": "10px"])
@@ -85,10 +86,10 @@ struct StyleFieldsTests {
         }
 
         let live = StyleTestTarget()
-        _ = style.read("width", notify: live)
+        style.field(.width).touch(live)
 
         withExtendedLifetime(live) {
-            #expect(style.dependentCount(for: "width") == 1)
+            #expect(style.dependentCount(for: .width) == 1)
         }
     }
 
@@ -96,13 +97,13 @@ struct StyleFieldsTests {
         let style = StyleFields()
         style.apply(["width": "10px"])
         let target = StyleTestTarget()
-        _ = style.read("width", notify: target)
+        style.field(.width).touch(target)
 
-        style.removeDependency(.style("width"), target.ref)
-        style["width"] = "20px"
+        style.removeDependency(.style(.width), target.ref)
+        style.set(.length(20), for: .width)
 
         #expect(!target.dirty)
-        #expect(style.dependentCount(for: "width") == 0)
+        #expect(style.dependentCount(for: .width) == 0)
     }
 
     @Test func applyBumpsRevisionOnceWhenValuesChange() {
@@ -124,18 +125,18 @@ struct StyleFieldsTests {
         #expect(style.revision == before)
     }
 
-    @Test func subscriptBumpsRevisionOnlyWhenValueChanges() {
+    @Test func typedWriteBumpsRevisionOnlyWhenValueChanges() {
         let style: StyleFields = StyleFields()
         let before: UInt64 = style.revision
 
-        style["width"] = "10px"
+        style.set(.length(10), for: .width)
         #expect(style.revision == before + 1)
 
         let afterFirstWrite: UInt64 = style.revision
-        style["width"] = "10px"
+        style.set(.length(10), for: .width)
         #expect(style.revision == afterFirstWrite)
 
-        style["width"] = "20px"
+        style.set(.length(20), for: .width)
         #expect(style.revision == afterFirstWrite + 1)
     }
 
@@ -157,7 +158,7 @@ private final class StyleTestTarget: FieldOwner, InvalidatableField {
     var isDirty: Bool { dirty }
     var frozenDependencies: Bool { false }
     var invalidationNames: [String] { [] }
-    var ref: FieldRef { FieldRef(owner: self, name: .style("target")) }
+    var ref: FieldRef { FieldRef(owner: self, name: .style(.width)) }
 
     func mark() { dirty = true }
     func set(_ value: CGFloat) { dirty = false }
@@ -177,5 +178,5 @@ private final class StyleTestTarget: FieldOwner, InvalidatableField {
 @MainActor
 private func registerDeadDependency(_ style: StyleFields) {
     let dead = StyleTestTarget()
-    _ = style.read("width", notify: dead)
+    style.field(.width).touch(dead)
 }

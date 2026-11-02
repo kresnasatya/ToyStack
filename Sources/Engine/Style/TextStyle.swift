@@ -38,6 +38,14 @@ extension TextStyle {
             default: self = .normal
             }
         }
+
+        var browserFontStyle: String {
+            switch self {
+            case .normal: return "roman"
+            case .italic: return "italic"
+            case .oblique: return "oblique"
+            }
+        }
     }
 
     enum Weight: Equatable {
@@ -56,6 +64,14 @@ extension TextStyle {
                     self = .normal
                 }
             case nil: self = .normal
+            }
+        }
+
+        var cssValue: String {
+            switch self {
+            case .normal: return "normal"
+            case .bold: return "bold"
+            case .number(let value): return String(value)
             }
         }
     }

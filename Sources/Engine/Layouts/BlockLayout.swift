@@ -58,35 +58,35 @@ class BlockLayout: LayoutObject {
     }
 
     private func freezeGeometry(parent: any LayoutObject, previous: (any LayoutObject)?) {
-        zoomField.setDependencies([parent.zoomField, node.style.field("zoom")])
+        zoomField.setDependencies([parent.zoomField, node.style.field(.zoom)])
         xField.setDependencies([
             parent.xField,
             zoomField,
-            node.style.field("padding-left"),
-            node.style.field("position"),
-            node.style.field("left"),
+            node.style.field(.paddingLeft),
+            node.style.field(.position),
+            node.style.field(.left),
         ])
         var yInputs: [any InvalidatableField] = [
             parent.yField,
             previousField,
             zoomField,
-            node.style.field("padding-top"),
-            node.style.field("top"),
-            node.style.field("margin-top"),
+            node.style.field(.paddingTop),
+            node.style.field(.top),
+            node.style.field(.marginTop),
         ]
         if let previous {
             yInputs.append(previous.yField)
             yInputs.append(previous.heightField)
-            yInputs.append(previous.node.style.field("margin-bottom"))
-            yInputs.append(previous.node.style.field("padding-bottom"))
+            yInputs.append(previous.node.style.field(.marginBottom))
+            yInputs.append(previous.node.style.field(.paddingBottom))
         }
         yField.setDependencies(yInputs)
         widthField.setDependencies([
             parent.widthField,
             zoomField,
-            node.style.field("padding-left"),
-            node.style.field("padding-right"),
-            node.style.field("width"),
+            node.style.field(.paddingLeft),
+            node.style.field(.paddingRight),
+            node.style.field(.width),
         ])
         let contentInputs: [any InvalidatableField] = inlineContentInputs()
         inlineContentField.setDependencies(contentInputs)
@@ -96,24 +96,24 @@ class BlockLayout: LayoutObject {
     private func inlineContentInputs() -> [any InvalidatableField] {
         var inputs: [any InvalidatableField] = [
             zoomField,
-            node.style.field("display"),
-            node.style.field("position"),
-            node.style.field("direction"),
+            node.style.field(.display),
+            node.style.field(.position),
+            node.style.field(.direction),
         ]
         if extraNodes.isEmpty {
             for child in node.children {
-                inputs.append(child.style.field("display"))
-                inputs.append(child.style.field("position"))
+                inputs.append(child.style.field(.display))
+                inputs.append(child.style.field(.position))
             }
         }
         let leaves: [any DOMNode] = inlineLeaves()
         for leaf in leaves {
             let owner: any DOMNode = leaf.inheritedStyleOwner
-            inputs.append(owner.style.field("white-space"))
+            inputs.append(owner.style.field(.whiteSpace))
             inputs.append(contentsOf: fontInputs(for: leaf))
             if let el = leaf as? Element {
-                inputs.append(el.style.field("aspect-ratio"))
-                inputs.append(el.style.field("max-width"))
+                inputs.append(el.style.field(.aspectRatio))
+                inputs.append(el.style.field(.maxWidth))
             }
         }
         return inputs
@@ -127,13 +127,13 @@ class BlockLayout: LayoutObject {
             return leaves
         }
         let hasBlockChild: Bool = node.children.contains(where: {
-            $0.style["display"] == "block"
+            $0.style.computed.layout.display == .block
         })
         if !hasBlockChild {
             collectLeaves(node, into: &leaves)
             return leaves
         }
-        for child in node.children where child.style["display"] != "block" {
+        for child in node.children where child.style.computed.layout.display != .block {
             collectLeaves(child, into: &leaves)
         }
         return leaves
@@ -186,18 +186,18 @@ class BlockLayout: LayoutObject {
         var inputs: [any InvalidatableField] = [
             childrenField,
             zoomField,
-            node.style.field("height"),
-            node.style.field("overflow"),
+            node.style.field(.height),
+            node.style.field(.overflow),
         ]
         for child in children {
             inputs.append(child.heightField)
-            inputs.append(child.node.style.field("position"))
-            inputs.append(child.node.style.field("margin-top"))
-            inputs.append(child.node.style.field("margin-bottom"))
+            inputs.append(child.node.style.field(.position))
+            inputs.append(child.node.style.field(.marginTop))
+            inputs.append(child.node.style.field(.marginBottom))
             if child is BlockLayout {
                 inputs.append(child.zoomField)
-                inputs.append(child.node.style.field("padding-top"))
-                inputs.append(child.node.style.field("padding-bottom"))
+                inputs.append(child.node.style.field(.paddingTop))
+                inputs.append(child.node.style.field(.paddingBottom))
             }
         }
         heightField.setDependencies(inputs)
@@ -225,8 +225,8 @@ class BlockLayout: LayoutObject {
         yField.setDependencies([
             newValue.yField,
             newValue.heightField,
-            newValue.node.style.field("margin-bottom"),
-            newValue.node.style.field("padding-bottom"),
+            newValue.node.style.field(.marginBottom),
+            newValue.node.style.field(.paddingBottom),
         ])
     }
 
@@ -265,7 +265,7 @@ class BlockLayout: LayoutObject {
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
             zoom = resolvedZoom()
-            let isAbsolute: Bool = style.position == "absolute"
+            let isAbsolute: Bool = style.position == .absolute
 
             let parentX: CGFloat = parent!.xField.read(notify: xField)
             let padLeft: CGFloat = extraNodes.isEmpty ? style.box.padding.left * zoom : 0
@@ -300,7 +300,7 @@ class BlockLayout: LayoutObject {
                 if let prev = previous {
                     let prevY: CGFloat = prev.yField.read(notify: yField)
                     let prevHeight: CGFloat = prev.heightField.read(notify: yField)
-                    let prevPadBottom: CGFloat = (prev as? BlockLayout)?.padding("bottom", notify: yField) ?? 0
+                    let prevPadBottom: CGFloat = (prev as? BlockLayout)?.padding(.paddingBottom, notify: yField) ?? 0
                     yField.set(
                         prevY + prevHeight + prevPadBottom
                             + ((prev as? BlockLayout)?.blockStyle().box.margin.bottom ?? 0) * zoom
@@ -343,7 +343,7 @@ class BlockLayout: LayoutObject {
                 let inlineContentChanged: Bool = fields.isDirty(.inlineContent) || !childChanges.isEmpty
                 childChanges.removeAll()
                 _ = zoomField.read(notify: childrenField)
-                _ = node.style.read("direction", notify: childrenField)
+                node.style.field(.direction).touch(childrenField)
                 if inlineContentChanged {
                     profiler.measure("layout.inline.refresh", { refreshInlineItems() })
                 }
@@ -364,8 +364,9 @@ class BlockLayout: LayoutObject {
         let heightChildren: [any LayoutObject] = childrenField.read(notify: heightField)
         let sumHeight: Double = profiler.measure("layout.height", {
             heightChildren.reduce(0) { total, child in
-                let position: String = child.node.style.read("position", notify: heightField) ?? "static"
-                if position == "absolute" { return total }
+                child.node.style.field(.position).touch(heightField)
+                let position: LayoutStyle.Position = child.node.style.computed.layout.position.kind
+                if position == .absolute { return total }
                 var h: CGFloat = child.heightField.read(notify: heightField)
                 if let block = child as? BlockLayout {
                     let childStyle: BlockStyle = block.blockStyle()
@@ -377,13 +378,11 @@ class BlockLayout: LayoutObject {
             }
         })
 
-        if let hStr = node.style.read("height", notify: heightField),
-            hStr.hasSuffix("px"),
-            let h = Double(hStr.dropLast(2))
-        {
+        node.style.field(.height).touch(heightField)
+        if let h: CGFloat = node.style.computed.box.size.height {
             contentHeight = sumHeight
             let styleHeightZoom: CGFloat = zoomField.read(notify: heightField)
-            heightField.set(CGFloat(h) * styleHeightZoom)
+            heightField.set(h * styleHeightZoom)
         } else {
             contentHeight = sumHeight
             heightField.set(sumHeight)
@@ -403,7 +402,7 @@ class BlockLayout: LayoutObject {
         if !extraNodes.isEmpty { return "inline" }
         if node is TextNode { return "inline" }
         let hasBlockChild: Bool = node.children.contains(where: {
-            $0.style.read("display", notify: childrenField) == "block"
+            $0.style.computed.layout.display == .block
         })
         if hasBlockChild { return "block" }
         if let el = node as? Element {
@@ -439,11 +438,11 @@ class BlockLayout: LayoutObject {
             built: current,
             previous: lastFlowChild(in: current)
         )
-        let startsInline: Bool = first.style.read("display", notify: childrenField) != "block"
+        let startsInline: Bool = first.style.computed.layout.display != .block
         if startsInline,
             let last: BlockLayout = state.built.last as? BlockLayout,
             !last.extraNodes.isEmpty,
-            last.extraNodes.allSatisfy({ $0.style.read("display", notify: childrenField ) != "block" })
+            last.extraNodes.allSatisfy({ $0.style.computed.layout.display != .block })
         {
             state.built.removeLast()
             state.inlineRun = last.extraNodes
@@ -513,7 +512,7 @@ class BlockLayout: LayoutObject {
             return current
         }
 
-        let startsInline: Bool = first.style.read("display", notify: childrenField) != "block"
+        let startsInline: Bool = first.style.computed.layout.display != .block
         if startsInline, index > 0,
             let previous = current[index - 1] as? BlockLayout,
             !previous.extraNodes.isEmpty
@@ -534,7 +533,7 @@ class BlockLayout: LayoutObject {
             guard let block = object as? BlockLayout else { return nil }
             block.previous = previous
             let isFlow: Bool = !block.extraNodes.isEmpty
-                || block.node.style.read("position", notify: childrenField) != "absolute"
+                || block.node.style.computed.layout.position.kind != .absolute
             if isFlow { previous = block }
         }
 
@@ -576,7 +575,7 @@ class BlockLayout: LayoutObject {
             if let block = child as? BlockLayout, !block.extraNodes.isEmpty {
                 return child
             }
-            if child.node.style.read("position", notify: childrenField) != "absolute" {
+            if child.node.style.computed.layout.position.kind != .absolute {
                 return child
             }
         }
@@ -588,7 +587,7 @@ class BlockLayout: LayoutObject {
             if let el = child as? Element, BlockLayout.hiddenElements.contains(el.tag) {
                 continue
             }
-            let isBlock: Bool = child.style.read("display", notify: childrenField) == "block"
+            let isBlock: Bool = child.style.computed.layout.display == .block
             if isBlock {
                 if let el = child as? Element, el.tag == "h6" {
                     flushInlineRun(into: &state)
@@ -604,7 +603,7 @@ class BlockLayout: LayoutObject {
                     } else {
                         let next: BlockLayout = BlockLayout(node: child, parent: self, previous: state.previous)
                         state.built.append(next)
-                        if child.style.read("position", notify: childrenField) != "absolute" {
+                        if child.style.computed.layout.position.kind != .absolute {
                             state.previous = next
                         }
                     }
@@ -632,33 +631,32 @@ class BlockLayout: LayoutObject {
         }
     }
 
-    private func marginPx(_ n: any DOMNode, _ prop: String, notify: any InvalidatableField) -> CGFloat {
-        guard let s = n.style.read(prop, notify: notify), s.hasSuffix("px"), let v = Double(s.dropLast(2)) else { return 0 }
-        return scaled(CGFloat(v))
-    }
-
     // MARK: - Padding
 
-    private func padding(_ side: String, notify: any InvalidatableField) -> CGFloat {
+    private func padding(_ side: StyleProperty, notify: any InvalidatableField) -> CGFloat {
         guard extraNodes.isEmpty else { return 0 }
-        guard let raw: String = node.style.read("padding-\(side)", notify: notify),
-            raw.hasSuffix("px"),
-            let value: Double = Double(raw.dropLast(2))
-        else { return 0 }
-        return scaled(CGFloat(max(0, value)))
+        node.style.field(side).touch(notify)
+        return scaled(max(0, paddingValue(side)))
     }
 
-    private func paintedPadding(_ side: String) -> CGFloat {
+    private func paintedPadding(_ side: StyleProperty) -> CGFloat {
         guard extraNodes.isEmpty else { return 0 }
-        guard let raw: String = node.style["padding-\(side)"],
-            raw.hasSuffix("px"),
-            let value: Double = Double(raw.dropLast(2))
-        else { return 0 }
-        return scaled(CGFloat(max(0, value)))
+        return scaled(max(0, paddingValue(side)))
+    }
+
+    private func paddingValue(_ side: StyleProperty) -> CGFloat {
+        let insets: EdgeInsets = node.style.computed.box.spacing.padding
+        switch side {
+        case .paddingTop: return insets.top
+        case .paddingRight: return insets.right
+        case .paddingBottom: return insets.bottom
+        case .paddingLeft: return insets.left
+        default: return 0
+        }
     }
 
     func paddingVertical(notify: any InvalidatableField) -> CGFloat {
-        padding("top", notify: notify) + padding("bottom", notify: notify)
+        padding(.paddingTop, notify: notify) + padding(.paddingBottom, notify: notify)
     }
 
     func boxHeight(notify: any InvalidatableField) -> CGFloat {
@@ -745,7 +743,8 @@ class BlockLayout: LayoutObject {
     }
 
     private func addTextNode(_ textNode: TextNode, into items: inout [InlineItem]) {
-        let mode: WhiteSpaceMode = WhiteSpaceMode(cssValue: textNode.inheritedStyleOwner.style.read("white-space", notify: inlineContentField))
+        textNode.inheritedStyleOwner.style.field(.whiteSpace).touch(inlineContentField)
+        let mode: WhiteSpaceMode = textNode.inheritedStyleOwner.style.computed.text.whiteSpace
         let zoom: CGFloat = zoomField.read(notify: inlineContentField)
         let font: BrowserFont = fontForElement(textNode, zoom: zoom, notify: inlineContentField)
         let run: InlineTextRun = InlineTextRun(
@@ -996,13 +995,16 @@ class BlockLayout: LayoutObject {
 
         let node: any DOMNode = run.node
         let owner: any DOMNode = node.inheritedStyleOwner
-        let weight: String = owner.style.read("font-weight", notify: inlineContentField) ?? "normal"
-        var styleStr: String = owner.style.read("font-style", notify: inlineContentField) ?? "normal"
-        if styleStr == "normal" { styleStr = "roman" }
-        let sizePx: Double = Double(owner.style["font-size"]?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(sizePx)
+        owner.style.field(.fontWeight).touch(inlineContentField)
+        owner.style.field(.fontStyle).touch(inlineContentField)
+        owner.style.field(.fontSize).touch(inlineContentField)
+        owner.style.field(.fontFamily).touch(inlineContentField)
+        let fontSpec: TextStyle.Font = owner.style.computed.text.font
+        let weight: String = fontSpec.weight.cssValue
+        let styleStr: String = fontSpec.style.browserFontStyle
+        let sizeInt: Int = Int(fontSpec.size)
         let smallSize: Int = Int(Double(sizeInt))
-        let family: String = owner.style.read("font-family", notify: inlineContentField) ?? "serif"
+        let family: String = fontSpec.family
 
         for (text, isLower) in runs {
             let displayText: String = isLower ? text.uppercased() : text
@@ -1032,10 +1034,10 @@ class BlockLayout: LayoutObject {
     }
 
     func selfRect() -> Rect {
-        let top: CGFloat = paintedPadding("top")
-        let right: CGFloat = paintedPadding("right")
-        let bottom: CGFloat = paintedPadding("bottom")
-        let left: CGFloat = paintedPadding("left")
+        let top: CGFloat = paintedPadding(.paddingTop)
+        let right: CGFloat = paintedPadding(.paddingRight)
+        let bottom: CGFloat = paintedPadding(.paddingBottom)
+        let left: CGFloat = paintedPadding(.paddingLeft)
         return Rect(
             left: x - left,
             top: y - top,
@@ -1046,9 +1048,8 @@ class BlockLayout: LayoutObject {
 
     private func borderPaintRect() -> Rect {
         let rect: Rect = selfRect()
-        guard let width: CGFloat = CSSValueParser.outlineWidth(node.style["border-width"] ?? "medium"),
-            width > 0
-        else { return rect }
+        let width: CGFloat = node.style.computed.box.decoration.border.width
+        guard width > 0 else { return rect }
         let half: CGFloat = width / 2
         return Rect(
             left: rect.left - half,
@@ -1059,21 +1060,31 @@ class BlockLayout: LayoutObject {
     }
 
     func paint(into items: inout [DisplayOp]) {
-        let bgcolor: String = node.style["background-color"] ?? "transparent"
-        if bgcolor != "transparent" || node.style["overflow"] == "scroll" {
-            let radii: CornerRadii = CSSValueParser.cornerRadii(node.style) ?? .zero
+        let computed: ComputedStyle = node.style.computed
+        let background: BrowserColor? = computed.visual.background.color
+        if background != nil || computed.layout.overflow == .scroll {
+            let radii: CornerRadii = computed.box.decoration.border.radii
+            let color: BrowserColor = background ?? BrowserColor(
+                red: 0, green: 0, blue: 0, alpha: 0
+            )
             if !radii.isZero {
-                items.append(.rrect(rect: selfRect(), radii: radii, color: BrowserColor(cssName: bgcolor)))
+                items.append(.rrect(rect: selfRect(), radii: radii, color: color))
             } else {
-                items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: bgcolor)))
+                items.append(.rect(rect: selfRect(), color: color))
             }
         }
 
         if let el = node as? Element, let image = el.backgroundImage,
-            let value = node.style["background-image"], value != "none" {
+            computed.visual.background.image != nil {
             let box: Rect = selfRect()
-            let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom).rect(css: node.style["background-size"])
-            items.append(.clippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: dest, clip: box))
+            let dest: Rect = BackgroundSize(box: box, image: image, zoom: zoom)
+                .rect(spec: computed.visual.background.size)
+            items.append(.clippedImage(
+                image: image,
+                rendering: computed.visual.image.rendering,
+                rect: dest,
+                clip: box
+            ))
         }
 
         if let border: DisplayOp = DisplayOp.fromBorderStyle(node, rect: borderPaintRect()) {
@@ -1111,7 +1122,7 @@ class BlockLayout: LayoutObject {
     }
 
     func paintScrollbar() -> [DisplayOp] {
-        guard node.style["overflow"] == "scroll", contentHeight > height else { return [] }
+        guard node.style.computed.layout.overflow == .scroll, contentHeight > height else { return [] }
         let barWidth: CGFloat = 8
         let ratio: CGFloat = height / contentHeight
         let barHeight: CGFloat = ratio * height

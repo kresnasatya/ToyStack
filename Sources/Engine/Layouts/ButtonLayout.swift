@@ -78,18 +78,7 @@ class ButtonLayout: EmbedLayout {
     }
 
     private func addWord(node: any DOMNode, word: String) {
-        let owner: any DOMNode = node.inheritedStyleOwner
-        let weight: String = owner.style.read("font-weight", notify: fontField) ?? "normal"
-        var style: String = owner.style.read("font-style", notify: fontField) ?? "normal"
-        if style == "normal" { style = "roman" }
-        let sizePx: Double = Double(owner.style.read("font-size", notify: fontField)?.dropLast(2) ?? "16") ?? 16.0
-        let sizeInt: Int = Int(scaled(sizePx))
-        let font: BrowserFont = getFont(
-            size: sizeInt,
-            weight: weight,
-            style: style,
-            family: owner.style.read("font-family", notify: fontField) ?? "serif"
-        )
+        let font: BrowserFont = fontForElement(node, zoom: zoom, notify: fontField)
         let w: CGFloat = font.measure(word)
         if cursorX + w > width { newLine() }
         let line: any LayoutObject = children.last!
@@ -117,9 +106,10 @@ class ButtonLayout: EmbedLayout {
 
     override func paint(into items: inout [DisplayOp]) {
         guard let element = node as? Element else { return }
-        let bgcolor: String = element.style["background-color"] ?? "transparent"
-        let displayColor: String = bgcolor == "transparent" ? (usesForcedColors(node) ? ForcedColor.buttonFace : "white") : bgcolor
-        items.append(.rect(rect: selfRect(), color: BrowserColor(cssName: displayColor)))
+        let computed: ComputedStyle = element.style.computed
+        let displayColor: BrowserColor = computed.visual.background.color
+            ?? BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonFace : "white")
+        items.append(.rect(rect: selfRect(), color: displayColor))
         items.append(.outline(rect: selfRect(), color: BrowserColor(cssName: usesForcedColors(node) ? ForcedColor.buttonBorder : "black"), width: 1))
 
         let outline: DisplayOp? = DisplayOp.fromStyle(node, rect: selfRect())

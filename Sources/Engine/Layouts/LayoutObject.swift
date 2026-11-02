@@ -162,7 +162,7 @@ extension LayoutObject {
         var x: CGFloat = x
         var y: CGFloat = y
 
-        if let t = CSSValueParser.transform(node.style["transform"] ?? "") {
+        if let t: CGPoint = node.style.computed.visual.effects.translation {
             x -= t.x
             y -= t.y
         }
@@ -195,7 +195,7 @@ extension LayoutObject {
         var rect: Rect = selfRect()
         var node: (any DOMNode)? = self.node
         while let current = node {
-            if let t = CSSValueParser.transform(current.style["transform"] ?? "") {
+            if let t: CGPoint = current.style.computed.visual.effects.translation {
                 rect = Rect(
                     left: rect.left + t.x,
                     top: rect.top + t.y,
@@ -210,16 +210,8 @@ extension LayoutObject {
 
     func resolvedZoom() -> CGFloat {
         let parentZoom: CGFloat = parent?.zoomField.read(notify: zoomField) ?? 1.0
-        guard let zoomStr = node.style.read("zoom", notify: zoomField) else {
-            return parentZoom
-        }
-        let trimmed: String = zoomStr.trimmingCharacters(in: .whitespaces)
-        let factor: CGFloat
-        if trimmed.hasSuffix("%"), let pct = Double(trimmed.dropLast()) {
-            factor = CGFloat(pct / 100.0)
-        } else if let val = Double(trimmed) {
-            factor = CGFloat(val)
-        } else {
+        node.style.field(.zoom).touch(zoomField)
+        guard let factor: CGFloat = node.style.computed.box.zoom else {
             return parentZoom
         }
         return parentZoom * factor

@@ -31,7 +31,7 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         descentField.setClean(inlineDefaultFont.descent)
         markAncestorsDirty()
 
-        var zoomInputs: [any InvalidatableField] = [node.style.field("zoom")]
+        var zoomInputs: [any InvalidatableField] = [node.style.field(.zoom)]
         if let parent { zoomInputs.append(parent.zoomField) }
         zoomField.setDependencies(zoomInputs)
 
@@ -103,13 +103,13 @@ class TextLayout: LayoutObject, InlineLayoutItem {
     }
 
     func paint(into items: inout [DisplayOp]) {
-        let color: String = node.inheritedStyleOwner.style["color"] ?? "black"
+        let color: BrowserColor = node.inheritedStyleOwner.style.computed.text.color
         let top: CGFloat = absoluteY
         items.append(
             .text(
                 text: displayWord ?? word,
                 font: font,
-                color: BrowserColor(cssName: color),
+                color: color,
                 rect: Rect(
                     left: x,
                     top: top,
@@ -135,6 +135,6 @@ class TextLayout: LayoutObject, InlineLayoutItem {
         self.parent = line
         self.previous = previous
 
-        zoomField.setDependencies([node.style.field("zoom"), line.zoomField])
+        zoomField.setDependencies([node.style.field(.zoom), line.zoomField])
     }
 }

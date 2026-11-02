@@ -13,8 +13,8 @@ struct BoxStyle: Equatable {
         spacing: Spacing(margin: EdgeInsets(top: 0, right: 0, bottom: 0, left: 0),
                          padding: EdgeInsets(top: 0, right: 0, bottom: 0, left: 0)),
         decoration: Decoration(
-            border: Border(width: 3, color: BrowserColor(red: 0, green: 0, blue: 0), style: .none, radii: .zero),
-            outline: Outline(width: 3, color: nil, style: .none)
+            border: Decoration.Border(width: 3, color: BrowserColor(red: 0, green: 0, blue: 0), style: .none, radii: .zero),
+            outline: Decoration.Outline(width: 3, color: nil, style: .none)
         ),
         zoom: nil
     )
@@ -46,49 +46,38 @@ extension BoxStyle {
     struct Decoration: Equatable {
         var border: Border
         var outline: Outline
-    }
 
-    struct Border: Equatable {
-        var width: CGFloat
-        var color: BrowserColor
-        var style: LineStyle
-        var radii: CornerRadii
-
-        init(width: CGFloat, color: BrowserColor, style: LineStyle, radii: CornerRadii) {
-            self.width = width
-            self.color = color
-            self.style = style
-            self.radii = radii
+        struct Border: Equatable {
+            var width: CGFloat
+            var color: BrowserColor
+            var style: LineStyle
+            var radii: CornerRadii
         }
-    }
 
-    struct Outline: Equatable {
-        var width: CGFloat
-        var color: BrowserColor?
-        var style: Border.LineStyle
-    }
-}
+        struct Outline: Equatable {
+            var width: CGFloat
+            var color: BrowserColor?
+            var style: LineStyle
+        }
 
-// MARK: - LineStyle
+        enum LineStyle: Equatable {
+            case none
+            case hidden
+            case solid
+            case dashed
+            case dotted
+            case other(String)
 
-extension BoxStyle.Border {
-    enum LineStyle: Equatable {
-        case none
-        case hidden
-        case solid
-        case dashed
-        case dotted
-        case other(String)
-
-        init(css: String?) {
-            switch css {
-            case "none": self = .none
-            case "hidden": self = .hidden
-            case "solid": self = .solid
-            case "dashed": self = .dashed
-            case "dotted": self = .dotted
-            case let value?: self = .other(value)
-            case nil: self = .none
+            init(css: String?) {
+                switch css {
+                case "none": self = .none
+                case "hidden": self = .hidden
+                case "solid": self = .solid
+                case "dashed": self = .dashed
+                case "dotted": self = .dotted
+                case let value?: self = .other(value)
+                case nil: self = .none
+                }
             }
         }
     }

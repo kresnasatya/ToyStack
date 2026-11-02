@@ -63,7 +63,9 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
             paintTree(childDoc, into: &ops, session: &childSession)
         }
         closeIframeScopes(iframe, scopes: scopes, into: &ops)
-    } else if let block = obj as? BlockLayout, block.node.style["overflow"] == "scroll" {
+    } else if let block = obj as? BlockLayout,
+        block.node.style.computed.layout.overflow == .scroll
+    {
         profiler.count("paint.scroll", by: 1)
         let box: Rect = block.selfRect()
         let visibleTop: CGFloat = box.top + block.scrollOffset
@@ -75,7 +77,7 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
             if childBox.top > visibleBottom { break }
             visibleChildren.append(child)
         }
-        let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
+        let radii: CornerRadii = block.node.style.computed.box.decoration.border.radii
         let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
         let scope: EffectScope = session.makeScope(
             .scroll(shape, offset: block.scrollOffset),
@@ -89,9 +91,10 @@ func paintTree(_ obj: any LayoutObject, into ops: inout [DisplayOp], session: in
         ops.append(.endEffect)
         ops.append(contentsOf: block.paintScrollbar())
     } else if let block = obj as? BlockLayout,
-        block.node.style["overflow"] == "hidden" || block.node.style["overflow"] == "clip"
+        block.node.style.computed.layout.overflow == .hidden
+            || block.node.style.computed.layout.overflow == .clip
     {
-        let radii: CornerRadii = CSSValueParser.cornerRadii(block.node.style) ?? .zero
+        let radii: CornerRadii = block.node.style.computed.box.decoration.border.radii
         let shape: ClipShape = ClipShape(rect: block.selfRect(), radii: radii)
         let scope: EffectScope = session.makeScope(
             .clip(shape),
@@ -310,13 +313,14 @@ private func iframeScrollbar(_ iframe: IframeLayout, innerRect: Rect) -> Display
 
 @MainActor
 func effectiveZIndex(_ node: any DOMNode) -> Int {
-    guard (node.style["position"] ?? "static") != "static" else { return 0 }
-    return Int(node.style["z-index"] ?? "0") ?? 0
+    let layout: LayoutStyle = node.style.computed.layout
+    guard layout.position.kind != .staticFlow else { return 0 }
+    return layout.zIndex
 }
 
 @MainActor
 func inPaintOrder(_ children: [any LayoutObject]) -> [any LayoutObject] {
-    guard children.contains(where: { ($0.node.style["position"] ?? "static") != "static" })
+    guard children.contains(where: { $0.node.style.computed.layout.position.kind != .staticFlow })
         else { return children }
     return children.enumerated()
         .sorted { a, b in

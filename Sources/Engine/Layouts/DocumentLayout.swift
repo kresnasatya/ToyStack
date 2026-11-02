@@ -60,8 +60,8 @@ class DocumentLayout: LayoutObject {
         child.layout()
         heightField.setDependencies([
             child.heightField,
-            child.node.style.field("padding-top"),
-            child.node.style.field("padding-bottom"),
+            child.node.style.field(.paddingTop),
+            child.node.style.field(.paddingBottom),
         ])
         heightField.set(child.boxHeight(notify: heightField))
     }

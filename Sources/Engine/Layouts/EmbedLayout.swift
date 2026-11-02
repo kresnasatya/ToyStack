@@ -24,7 +24,7 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         descentField.setClean(inlineDefaultFont.descent)
         markAncestorsDirty()
 
-        zoomField.setDependencies([parent.zoomField, node.style.field("zoom")])
+        zoomField.setDependencies([parent.zoomField, node.style.field(.zoom)])
         fontField.setDependencies([zoomField] + fontInputs(for: node))
         fontField.mark()
         ascentField.setDependencies([heightField])
@@ -88,6 +88,6 @@ class EmbedLayout: LayoutObject, InlineLayoutItem {
         self.parent = line
         self.previous = previous
 
-        zoomField.setDependencies([line.zoomField, node.style.field("zoom")])
+        zoomField.setDependencies([line.zoomField, node.style.field(.zoom)])
     }
 }

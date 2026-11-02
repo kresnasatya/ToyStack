@@ -41,7 +41,7 @@ struct StyleInvalidationTests {
         let textLayout: TextLayout = try #require(treeToList(block).compactMap({ $0 as? TextLayout }).first)
         let normal: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
 
-        p.style["font-size"] = "32px"
+        p.style.mutate { $0.text.font.size = 32 }
 
         let grown: BrowserFont = fontForElement(text, zoom: 1, notify: textLayout.fontField)
         #expect(grown.linespace > normal.linespace)
@@ -101,7 +101,7 @@ struct StyleInvalidationTests {
             treeToList(block).compactMap({ $0 as? TextLayout }).first
         )
 
-        p.style["font-size"] = "32px"
+        p.style.mutate { $0.text.font.size = 32 }
 
         #expect(text.fontField.dirty)
     }
@@ -154,7 +154,7 @@ struct StyleInvalidationTests {
         page.frame.render()
 
         #expect(usesForcedColors(p))
-        #expect(p.style["color"] == ForcedColor.canvasText)
+        #expect(p.style.computed.text.color == BrowserColor(cssName: ForcedColor.canvasText))
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) == 0)
     }
 
@@ -195,14 +195,14 @@ struct StyleInvalidationTests {
 
         // The cascade inherits black here. If the clean subtree is visited,
         // applyNodeStyle overwrites this value.
-        clean.style["color"] = "red"
+        clean.style.mutate { $0.text.color = BrowserColor(cssName: "red") }
 
         page.frame.setNeedsStyle(target)
         #expect(page.frame.nodes.style.hasDirtyDescendant)
         page.frame.render()
 
-        #expect(target.style["color"] == "blue")
-        #expect(clean.style["color"] == "red")
+        #expect(target.style.computed.text.color == BrowserColor(cssName: "blue"))
+        #expect(clean.style.computed.text.color == BrowserColor(cssName: "red"))
         #expect(!clean.style.hasDirtyDescendant)
 
         for node in treeToList(page.frame.nodes) {
@@ -231,6 +231,6 @@ struct StyleInvalidationTests {
         page.frame.focusElement(box)
         page.frame.render()
 
-        #expect(child.style["color"] == "purple")
+        #expect(child.style.computed.text.color == BrowserColor(cssName: "purple"))
     }
 }

@@ -13,21 +13,23 @@ final class ImageLayout: EmbedLayout {
         widthField.setDependencies([
             parent.widthField,
             zoomField,
-            node.style.field("aspect-ratio"),
-            node.style.field("max-width"),
+            node.style.field(.aspectRatio),
+            node.style.field(.maxWidth),
         ])
         heightField.setDependencies([
             widthField,
             zoomField,
             fontField,
-            node.style.field("aspect-ratio"),
+            node.style.field(.aspectRatio),
         ])
     }
 
     static func displaySize(for el: Element, notify: any InvalidatableField) -> (width: Double, height: Double) {
         let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
         let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0
-        let ratio: AspectRatio? = AspectRatio(css: el.style.read("aspect-ratio", notify: notify)) ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
+        el.style.field(.aspectRatio).touch(notify)
+        let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
+            ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
         let wAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
         let hAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
         if let w = wAttr, let h = hAttr { return (w, h) }
@@ -43,15 +45,19 @@ final class ImageLayout: EmbedLayout {
         notify: any InvalidatableField
     ) -> CGFloat {
         let intrinsic: CGFloat = CGFloat(displaySize(for: el, notify: notify).width) * zoom
-        guard let limit = lengthPx(el.style.read("max-width", notify: notify), available: available, zoom: zoom) else {
+        el.style.field(.maxWidth).touch(notify)
+        guard let maxWidth: Length = el.style.computed.box.size.maxWidth else {
             return intrinsic
         }
+        let limit: CGFloat = maxWidth.resolved(available: available, zoom: zoom)
         return min(intrinsic, limit)
     }
 
     static func usedHeight(for el: Element, usedWidth: CGFloat, zoom: CGFloat, notify: any InvalidatableField) -> CGFloat {
         let size: (width: Double, height: Double) = displaySize(for: el, notify: notify)
-        let ratio: AspectRatio? = AspectRatio(css: el.style.read("aspect-ratio", notify: notify)) ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
+        el.style.field(.aspectRatio).touch(notify)
+        let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
+            ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
         guard let height = ratio?.height(forWidth: Double(usedWidth / zoom)) else {
             return CGFloat(size.height) * zoom
         }
@@ -87,13 +93,19 @@ final class ImageLayout: EmbedLayout {
     override func paint(into items: inout [DisplayOp]) {
         guard let image = (node as? Element)?.image else { return }
         let box = Rect(left: x, top: y + height - imgHeight, right: x + width, bottom: y + height)
+        let computed: ComputedStyle = node.style.computed
         let content: Rect = ObjectFit(
             box: box,
             intrinsicWidth: scaled(CGFloat(image.width)),
             intrinsicHeight: scaled(CGFloat(image.height)),
-            css: node.style["object-fit"]
+            fit: computed.visual.image.fit
         ).contentRect
-        items.append(.clippedImage(image: image, rendering: ImageRendering(css: node.style["image-rendering"]), rect: content, clip: box))
+        items.append(.clippedImage(
+            image: image,
+            rendering: computed.visual.image.rendering,
+            rect: content,
+            clip: box
+        ))
     }
 
     override func attach(to line: LineLayout, previous: (any LayoutObject)?) {
@@ -101,14 +113,14 @@ final class ImageLayout: EmbedLayout {
         widthField.setDependencies([
             line.widthField,
             zoomField,
-            node.style.field("aspect-ratio"),
-            node.style.field("max-width")
+            node.style.field(.aspectRatio),
+            node.style.field(.maxWidth)
         ])
         heightField.setDependencies([
             widthField,
             zoomField,
             fontField,
-            node.style.field("aspect-ratio")
+            node.style.field(.aspectRatio)
         ])
     }
 }

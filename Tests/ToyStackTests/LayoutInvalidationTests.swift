@@ -7,17 +7,16 @@ import Testing
 @MainActor
 struct LayoutInvalidationTests {
     @Test func paintOnlyPropertiesDoNotAffectLayout() {
-        #expect(Frame.affectsLayout("width"))
-        #expect(Frame.affectsLayout("height"))
-        #expect(Frame.affectsLayout("aspect-ratio"))
-        #expect(Frame.affectsLayout("font-size"))
-        #expect(Frame.affectsLayout("margin-bottom"))
-        #expect(Frame.affectsLayout("future-property"))
+        #expect(StyleProperty.width.affectsLayout)
+        #expect(StyleProperty.height.affectsLayout)
+        #expect(StyleProperty.aspectRatio.affectsLayout)
+        #expect(StyleProperty.fontSize.affectsLayout)
+        #expect(StyleProperty.marginBottom.affectsLayout)
 
-        #expect(!Frame.affectsLayout("opacity"))
-        #expect(!Frame.affectsLayout("transform"))
-        #expect(!Frame.affectsLayout("background-color"))
-        #expect(!Frame.affectsLayout("border-radius"))
+        #expect(!StyleProperty.opacity.affectsLayout)
+        #expect(!StyleProperty.transform.affectsLayout)
+        #expect(!StyleProperty.backgroundColor.affectsLayout)
+        #expect(!StyleProperty.borderRadius.affectsLayout)
     }
 
     @Test func cleanSecondLayoutKeepsBlockChildren() throws {
@@ -198,7 +197,7 @@ struct LayoutInvalidationTests {
         fixture.frame.runAnimationFrame()
 
         #expect(profiler.snapshot()["layout.rebuilt"] == nil)
-        #expect(fixture.narrow.style["opacity"] != nil)
+        #expect(fixture.narrow.style.computed.visual.effects.opacity < 1)
     }
 
     @Test func animatingTransformDoesNotRebuiltLayout() {
@@ -217,7 +216,7 @@ struct LayoutInvalidationTests {
         fixture.frame.runAnimationFrame()
 
         #expect(profiler.snapshot()["layout.rebuilt"] == nil)
-        #expect(fixture.narrow.style["transform"] != nil)
+        #expect(fixture.narrow.style.computed.visual.effects.translation != nil)
     }
 }
 
