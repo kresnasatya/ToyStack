@@ -32,13 +32,13 @@ The process divided into 4 chapters:
 
 - **Core**: App facing controllers + frame bookkeeping + shared primitives.
 - **Parsing**: Turns text into trees.
-- **Style**: Cascade + compute style, media features, inline style, text direction, whitespace, forced colors.
+- **Style**: `ComputedStyle` parsing and cascade, media features, inline style, text direction, whitespace, forced colors.
 - **Style/Selectors**: It holds the matching machinery (tag/class/id/descendant/has/RuleIndex).
 - **Layouts**: Geometry/layout: block, inline, line, text, input, button layout + LayoutObject/LayoutMetrics.
 - **Display**: `DisplayOp` construction, typed colors, effect scopes, PaintTree, scrollbar, focus ring.
 - **Raster**: Turning display list into pixels: compositing layers, tiles/tile store, raster scheduler + worker pool, budgets, invalidation.
 - **Presentation**: The public hand-off of a finished frame to the UI.
-- **Animation**: Time-based interpolation, keyframe/numeric/color/transform animations, style transitions, frame timing.
+- **Animation**: `AnimatedValue` interpolation, keyframe/numeric/color/transform animations, style transitions, frame timing.
 - **Accessibility**: A11y tree, highlight bounds, and the speech thread.
 - **Networking**: Fetching from network.
 - **Platform**: OS/renderer abstraction: `Renderer` protocol + `CGRenderer` Core Graphics implementation, `BrowserFont`, `LayerOptions`, `JSRuntime`.
