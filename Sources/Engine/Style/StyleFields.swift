@@ -1,25 +1,38 @@
 import Foundation
 
 nonisolated final class StyleFields: FieldOwner {
-    private(set) var values: [String: String] = [:]
+    private var storage: StyleStorage = StyleStorage()
     private(set) var revision: UInt64 = 0
-    private var dirtyKeys: Set<String> = []
-    private var dependents: [String: [FieldDependencyKey: FieldRef]] = [:]
-    private var needsRestyle: Bool = true
-    private var descendantsDirty: Bool = false
+    private var invalidation: StyleInvalidationState = StyleInvalidationState()
+
+    var computed: ComputedStyle { return storage.computed }
+    var unknown: [String: String] { return storage.unknown }
+
+    @MainActor
+    func unknownValue(_ key: String) -> String? {
+        return storage.unknown[key]
+    }
 
     @MainActor
     subscript(_ key: String) -> String? {
         get {
-            return values[key]
+            return storage.raw[key] ?? storage.unknown[key]
         }
         set {
-            let before: String? = values[key]
-            values[key] = newValue
-            dirtyKeys.remove(key)
-            if before != newValue {
+            let old: ComputedStyle = storage.computed
+            let oldRaw: String? = storage.raw[key]
+            storage.raw[key] = newValue
+            let parsed: (style: ComputedStyle, unknown: [String: String]) =
+                ComputedStyleParser.parse(storage.raw, parent: nil)
+            let changed: Set<StyleProperty> = parsed.style.changed(from: old)
+            storage.computed = parsed.style
+            storage.unknown = parsed.unknown
+            invalidation.dirtyKeys.remove(key)
+            if !changed.isEmpty || oldRaw != newValue {
                 revision += 1
-                notifyDependents(key)
+            }
+            for property in changed {
+                notifyDependents(property.cssName)
             }
         }
     }
@@ -31,73 +44,77 @@ nonisolated final class StyleFields: FieldOwner {
 
     @MainActor
     func markAll() {
-        needsRestyle = true
-        for key in values.keys {
-            dirtyKeys.insert(key)
-        }
+        invalidation.needsRestyle = true
+        invalidation.dirtyKeys = Set(StyleProperty.allCases.map(\.cssName))
     }
 
     @MainActor
     var hasDirtyDescendant: Bool {
-        return descendantsDirty
+        return invalidation.descendantsDirty
     }
 
     @MainActor
     func markDirtyDescendants() {
-        descendantsDirty = true
+        invalidation.descendantsDirty = true
     }
 
     @MainActor
     func clearDirtyDescendants() {
-        descendantsDirty = false
+        invalidation.descendantsDirty = false
     }
 
     @MainActor
-    func apply(_ newValues: [String: String]) {
-        var written: Int = 0
-        var changed: Int = 0
+    func apply(_ newValues: [String: String], parent: ComputedStyle? = nil) {
+        let old: ComputedStyle = storage.computed
+        let oldUnknown: [String: String] = storage.unknown
+        let oldRaw: [String: String] = storage.raw
+        let parsed: (style: ComputedStyle, unknown: [String: String]) =
+            ComputedStyleParser.parse(newValues, parent: parent)
+        let changed: Set<StyleProperty> = parsed.style.changed(from: old)
 
-        for key in Array(values.keys) where newValues[key] == nil {
-            values.removeValue(forKey: key)
-            dirtyKeys.remove(key)
-            written += 1
-            changed += 1
-            notifyDependents(key)
-        }
+        storage.computed = parsed.style
+        storage.unknown = parsed.unknown
+        storage.raw = newValues
 
-        for (key, value) in newValues {
-            let before: String? = values[key]
-            values[key] = value
-            dirtyKeys.remove(key)
-            written += 1
-            if before != value {
-                changed += 1
-                notifyDependents(key)
-            }
-        }
-
-        needsRestyle = false
-        if changed > 0 {
+        invalidation.dirtyKeys.removeAll()
+        invalidation.needsRestyle = false
+        if !changed.isEmpty || parsed.unknown != oldUnknown || newValues != oldRaw {
             revision += 1
         }
-        profiler.count("style.fields.set", by: written)
-        profiler.count("style.fields.changed", by: changed)
+        for property in changed {
+            notifyDependents(property.cssName)
+        }
+        profiler.count("style.fields.set", by: storage.raw.count)
+        profiler.count("style.fields.changed", by: changed.count)
+    }
+
+    @MainActor
+    func mutate(_ body: (inout ComputedStyle) -> Void) {
+        let old: ComputedStyle = storage.computed
+        body(&storage.computed)
+        let changed: Set<StyleProperty> = storage.computed.changed(from: old)
+        guard !changed.isEmpty else { return }
+        invalidation.dirtyKeys.subtract(Set(changed.map(\.cssName)))
+        revision += 1
+        for property in changed {
+            notifyDependents(property.cssName)
+        }
     }
 
     @MainActor
     func snapshot() -> [String: String] {
-        return values
+        return storage.raw
     }
 
     @MainActor
     var isEmpty: Bool {
-        return values.isEmpty
+        return storage.raw.isEmpty
     }
 
     @MainActor
     var isDirty: Bool {
-        if needsRestyle { return true }
-        return !dirtyKeys.isEmpty
+        if invalidation.needsRestyle { return true }
+        return !invalidation.dirtyKeys.isEmpty
     }
 
     @MainActor
@@ -107,7 +124,7 @@ nonisolated final class StyleFields: FieldOwner {
 
     @MainActor
     private func notifyDependents(_ key: String) {
-        guard var fields = dependents[key] else { return }
+        guard var fields = invalidation.dependents[key] else { return }
         var dead: [FieldDependencyKey] = []
         for (id, field) in fields {
             if field.owner == nil {
@@ -120,37 +137,37 @@ nonisolated final class StyleFields: FieldOwner {
             fields.removeValue(forKey: id)
         }
         if fields.isEmpty {
-            dependents.removeValue(forKey: key)
+            invalidation.dependents.removeValue(forKey: key)
         } else {
-            dependents[key] = fields
+            invalidation.dependents[key] = fields
         }
     }
 
     @MainActor
     func markField(_ name: FieldName) {
         guard case .style(let key) = name else { return }
-        dirtyKeys.insert(key)
+        invalidation.dirtyKeys.insert(key)
         notifyDependents(key)
     }
 
     @MainActor
     func addDependency(_ name: FieldName, _ field: FieldRef) {
         guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
-        dependents[key, default: [:]][id] = field
+        invalidation.dependents[key, default: [:]][id] = field
     }
 
     @MainActor
     func removeDependency(_ name: FieldName, _ field: FieldRef) {
         guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return }
-        dependents[key]?[id] = nil
-        if dependents[key]?.isEmpty == true {
-            dependents.removeValue(forKey: key)
+        invalidation.dependents[key]?[id] = nil
+        if invalidation.dependents[key]?.isEmpty == true {
+            invalidation.dependents.removeValue(forKey: key)
         }
     }
 
     @MainActor
     func dependentCount(for key: String) -> Int {
-        return dependents[key]?.values.reduce(0, { total, field in
+        return invalidation.dependents[key]?.values.reduce(0, { total, field in
             total + (field.owner == nil ? 0 : 1)
         }) ?? 0
     }
@@ -158,13 +175,13 @@ nonisolated final class StyleFields: FieldOwner {
     @MainActor
     func containsDependency(_ name: FieldName, _ field: FieldRef) -> Bool {
         guard case .style(let key) = name, let id = FieldDependencyKey(field) else { return false }
-        return dependents[key]?[id]?.owner != nil
+        return invalidation.dependents[key]?[id]?.owner != nil
     }
 
     @MainActor
     func fieldIsDirty(_ name: FieldName) -> Bool {
         guard case .style(let key) = name else { return false }
-        return dirtyKeys.contains(key)
+        return invalidation.dirtyKeys.contains(key)
     }
 
     @MainActor
@@ -175,8 +192,25 @@ nonisolated final class StyleFields: FieldOwner {
     @MainActor
     func dependencyNames(_ name: FieldName) -> [String] {
         guard case .style(let key) = name else { return [] }
-        return (dependents[key] ?? [:])
+        return (invalidation.dependents[key] ?? [:])
             .compactMap({ $0.value.owner == nil ? nil : $0.value.fieldName })
             .sorted()
     }
+}
+
+// MARK: - StyleStorage
+
+private struct StyleStorage {
+    var computed: ComputedStyle = .initial
+    var unknown: [String: String] = [:]
+    var raw: [String: String] = [:]  // temporary; deleted in A4
+}
+
+// MARK: - StyleInvalidationState
+
+private struct StyleInvalidationState {
+    var dirtyKeys: Set<String> = []
+    var dependents: [String: [FieldDependencyKey: FieldRef]] = [:]
+    var needsRestyle: Bool = true
+    var descendantsDirty: Bool = false
 }

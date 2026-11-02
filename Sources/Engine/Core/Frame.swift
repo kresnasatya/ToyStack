@@ -768,18 +768,22 @@ class Frame {
             let animationsBefore: Int = cascade.appliedNodes.reduce(0) { $0 + $1.animations.count }
             var paintedChanged: Bool = false
             for node in cascade.appliedNodes {
-                let old: [String : String] = cascade.oldStyle(for: node)
-                if Self.paintStyleChanged(old: old, new: node.style.snapshot()) {
+                guard let old: ComputedStyle = cascade.oldStyle(for: node) else { continue }
+                if Self.paintStyleChanged(old: old, new: node.style.computed) {
                     paintedChanged = true
                 }
                 // Scroll targets are collected by layout class and computed overflow.
                 // A style-only change to either changes the target set, not just rects.
-                if old["display"] != node.style["display"]
-                    || old["overflow"] != node.style["overflow"]
+                if old.layout.display != node.style.computed.layout.display
+                    || old.layout.overflow != node.style.computed.layout.overflow
                 {
                     markStructureChanged()
                 }
-                let newAnimations: [String : any Animation] = StyleTransitions.diff(node: node, oldStyle: old, newStyle: node.style.snapshot())
+                let newAnimations: [String : any Animation] = StyleTransitions.diff(
+                    node: node,
+                    oldStyle: cascade.oldRawStyle(for: node),
+                    newStyle: node.style.snapshot()
+                )
                 for (property, animation) in newAnimations {
                     node.animations[property] = animation
                 }
@@ -900,16 +904,12 @@ class Frame {
     ]
 
     private static func paintStyleChanged(
-        old: [String: String],
-        new: [String: String]
+        old: ComputedStyle,
+        new: ComputedStyle
     ) -> Bool {
-        for (key, value) in new where old[key] != value {
-            if paintStyleProperties.contains(key) { return true }
+        return StyleProperty.paintStyle.contains {
+            !old.matches(new, for: $0)
         }
-        for key in old.keys where new[key] == nil {
-            if paintStyleProperties.contains(key) { return true }
-        }
-        return false
     }
 
     private func windowForScroll() -> PaintWindow {

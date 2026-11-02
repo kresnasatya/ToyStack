@@ -24,7 +24,7 @@ struct StyleFieldRef: InvalidatableField {
         } else {
             addInvalidation(notify)
         }
-        return owner?.values[key]
+        return owner?[key]
     }
 
     func mark() {

@@ -131,6 +131,6 @@ private func applyNodeStyle(
             newStyle["font-size"] = "\(percentage / 100.0 * parentPx)px"
         }
 
-        node.style.apply(newStyle)
+        node.style.apply(newStyle, parent: node.parent?.style.computed)
     })
 }

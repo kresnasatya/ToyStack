@@ -20,7 +20,8 @@ final class StyleCascade {
     let media: MediaFeatures
     let scope: StyleScope?
     let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
-    private var oldStyles: [ObjectIdentifier: [String: String]] = [:]
+    private var oldStyles: [ObjectIdentifier: ComputedStyle] = [:]
+    private var oldRawStyles: [ObjectIdentifier: [String: String]] = [:]
     private(set) var appliedNodes: [any DOMNode] = []
 
     init(
@@ -35,20 +36,24 @@ final class StyleCascade {
 
     func record(_ node: any DOMNode) {
         appliedNodes.append(node)
-        oldStyles[ObjectIdentifier(node)] = node.style.snapshot()
+        oldStyles[ObjectIdentifier(node)] = node.style.computed
+        oldRawStyles[ObjectIdentifier(node)] = node.style.snapshot()
     }
 
-    func oldStyle(for node: any DOMNode) -> [String: String] {
-        return oldStyles[ObjectIdentifier(node)] ?? [:]
+    func oldStyle(for node: any DOMNode) -> ComputedStyle? {
+        return oldStyles[ObjectIdentifier(node)]
+    }
+
+    func oldRawStyle(for node: any DOMNode) -> [String: String] {
+        return oldRawStyles[ObjectIdentifier(node)] ?? [:]
     }
 
     func inheritedChanged(_ node: any DOMNode) -> Bool {
-        guard let old: [String: String] = oldStyles[ObjectIdentifier(node)] else {
+        guard let old: ComputedStyle = oldStyles[ObjectIdentifier(node)] else {
             return true
         }
-        for property in inheritedPropertyDefaults.keys {
-            if old[property] != node.style[property] { return true }
+        return StyleProperty.inherited.contains {
+            !old.matches(node.style.computed, for: $0)
         }
-        return false
     }
 }
