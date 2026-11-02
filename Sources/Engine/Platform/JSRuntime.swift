@@ -205,7 +205,9 @@ class JSRuntime: @unchecked Sendable {
             [weak self] (handle: Int, value: String) in
             MainActor.assumeIsolated({
                 guard let self, let elt = self.handleToNode[handle] as? Element else { return }
-                elt.children = [TextNode(text: value, parent: elt)]
+                let text: TextNode = TextNode(text: value, parent: elt)
+                elt.children = [text]
+                self.frame?.dom.register(text)
                 LayoutInvalidation.childrenChanged(elt)
                 self.frame?.syncIframes()
                 self.frame?.setNeedsStyle(elt)
@@ -243,6 +245,9 @@ class JSRuntime: @unchecked Sendable {
             [weak self] (tag: String) -> Int in
             guard let self else { return -1 }
             let elt: Element = Element(tag: tag, attributes: [:], parent: nil)
+            _ = MainActor.assumeIsolated {
+                self.frame?.dom.register(elt)
+            }
             return self.getHandle(elt)
         } as @convention(block) (String) -> Int, forKeyedSubscript: "_createElement" as NSString)
 

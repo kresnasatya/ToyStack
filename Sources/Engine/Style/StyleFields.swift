@@ -1,12 +1,18 @@
 import Foundation
 
 nonisolated final class StyleFields: FieldOwner {
+    private(set) var owner: NodeID?
     private var storage: StyleStorage = StyleStorage()
     private(set) var revision: UInt64 = 0
     private var invalidation: StyleInvalidationState = StyleInvalidationState()
 
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
+
+    /// Stamps the node that owns these fields. Called once by `DOMTree.register`.
+    func attachOwner(_ id: NodeID) {
+        owner = id
+    }
 
     @MainActor
     func unknownValue(_ key: String) -> String? {

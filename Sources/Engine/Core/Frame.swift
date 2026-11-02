@@ -20,7 +20,16 @@ class Frame {
     let windowID: Int
 
     var url: WebURL!
-    var nodes: any DOMNode = Element(tag: "html", attributes: [:], parent: nil)
+    var dom: DOMTree = DOMTree(root: Element(tag: "html", attributes: [:], parent: nil))
+    var nodes: any DOMNode {
+        get {
+            guard let root: any DOMNode = dom.node(dom.root) else {
+                preconditionFailure("DOMTree is missing its root")
+            }
+            return root
+        }
+        set { dom = DOMTree(root: newValue) }
+    }
     private var documentValue: DocumentLayout?
     private var documentDirty: Bool = true
     var document: DocumentLayout? {
@@ -241,9 +250,10 @@ class Frame {
                 print("Blocked iframe", url.toString(), "due to X-Frame-Options")
                 return showFrameBlockedPage(message)
             }
-            nodes = profiler.measure("load.parse", {
+            let parsed: any DOMNode = profiler.measure("load.parse", {
                 HTMLParser(body: body).parse()
             })
+            dom = DOMTree(root: parsed)
             activeAnimations = 0
             hoveredElements.removeAll()
 
