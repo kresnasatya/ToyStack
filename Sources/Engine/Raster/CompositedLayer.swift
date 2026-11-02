@@ -8,6 +8,7 @@ public class CompositedLayer {
     }
 
     var id: LayerID = LayerID(effect: nil, ordinal: 0)
+    var firstCommandIndex: Int = -1
     var displayItems: [DisplayOp] = []
     var tiles: [TileIndex: CGImage] = [:]
     var effectImage: CGImage?
@@ -33,12 +34,14 @@ public class CompositedLayer {
         }
     }
 
-    init(displayItem: DisplayOp) {
+    init(
+        displayItem: DisplayOp,
+        firstCommandIndex: Int = -1,
+        id: LayerID = LayerID(effect: nil, ordinal: 0)
+    ) {
         self.displayItems = [displayItem]
-    }
-
-    func canMerge(scope: EffectScopeID?) -> Bool {
-        return id.effect == scope
+        self.firstCommandIndex = firstCommandIndex
+        self.id = id
     }
 
     func add(_ displayItem: DisplayOp) {

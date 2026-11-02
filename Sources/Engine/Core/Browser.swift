@@ -602,12 +602,13 @@ public class Browser: ObservableObject {
         measure: MeasureTime,
         frame: Int
     ) -> [CompositedLayer] {
-        measure.start("raster.composite.walk", category: .raster, frame: frame)
+        measure.start("raster.composite.scan", category: .raster, frame: frame)
         var compositedLayers: [CompositedLayer] = []
         var scopes: [EffectScope] = []
         var ordinals: [EffectScopeID?: Int] = [:]
         var animatedTransforms: Int = 0
         var assumeOverlap: Bool = false
+        var commandIndex: Int = 0
 
         for op in inputs.scene.displayList {
             switch op {
@@ -637,16 +638,20 @@ public class Browser: ObservableObject {
                 if !merged {
                     let ordinal: Int = ordinals[scopeID, default: 0]
                     ordinals[scopeID] = ordinal + 1
-                    let layer: CompositedLayer = CompositedLayer(displayItem: op)
-                    layer.id = LayerID(effect: scopeID, ordinal: ordinal)
+                    let layer: CompositedLayer = CompositedLayer(
+                        displayItem: op,
+                        firstCommandIndex: commandIndex,
+                        id: LayerID(effect: scopeID, ordinal: ordinal)
+                    )
                     layer.ancestorChain = Array(scopes.reversed())
                     compositedLayers.append(layer)
                 }
+                commandIndex += 1
             }
         }
 
-        measure.stop("raster.composite.walk")
         reuseRasterization(from: inputs.scene.previousLayers, into: compositedLayers)
+        measure.stop("raster.composite.scan")
         return compositedLayers
     }
 
@@ -750,52 +755,41 @@ public class Browser: ObservableObject {
         layers: [CompositedLayer],
         inputs: RasterInput
     ) -> [DisplayOp] {
+        var layerByIndex: [Int: CompositedLayer] = [:]
+        for layer in layers where layer.firstCommandIndex >= 0 {
+            layerByIndex[layer.firstCommandIndex] = layer
+        }
+
         let scale: ContentScale = inputs.settings.viewport.scale
         let viewportHeight: CGFloat = (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) / scale.page
-        var nodes: [EffectScopeID: DrawEffectNode] = [:]
-        var roots: [DrawEffectChild] = []
+        let visibleTop: CGFloat = inputs.scrollState.scroll - 2 * CompositedLayer.tileSize
+        let visibleBottom: CGFloat = inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
 
-        for layer in layers {
-            guard !layer.displayItems.isEmpty else { continue }
-            var current: DrawEffectChild = .op(.compositedLayer(
-                layer: layer,
-                rect: layer.absoluteBounds(),
-                visibleTop: inputs.scrollState.scroll - 2 * CompositedLayer.tileSize,
-                visibleBottom: inputs.scrollState.scroll + viewportHeight + 2 * CompositedLayer.tileSize
-            ))
-            var attached: Bool = false
-            for scope in layer.ancestorChain {
-                let updated: EffectScope = Browser.updatedScope(scope, updates: inputs.scene.compositedUpdates)
-                if let existing = nodes[updated.id] {
-                    existing.children.append(current)
-                    attached = true
-                    break
+        var commandIndex: Int = 0
+        var drawList: [DisplayOp] = []
+        drawList.reserveCapacity(inputs.scene.displayList.count)
+        for op in inputs.scene.displayList {
+            switch op {
+            case .beginEffect(let scope):
+                drawList.append(
+                    .beginEffect(Browser.updatedScope(scope, updates: inputs.scene.compositedUpdates))
+                )
+            case .endEffect:
+                drawList.append(op)
+            default:
+                if let layer: CompositedLayer = layerByIndex[commandIndex] {
+                    drawList.append(
+                        .compositedLayer(
+                            layer: layer,
+                            rect: layer.absoluteBounds(),
+                            visibleTop: visibleTop,
+                            visibleBottom: visibleBottom
+                        )
+                    )
                 }
-                let node: DrawEffectNode = DrawEffectNode(scope: updated)
-                node.children.append(current)
-                nodes[updated.id] = node
-                current = .node(node)
-            }
-            if !attached {
-                roots.append(current)
+                commandIndex += 1
             }
         }
-
-        func materialize(_ child: DrawEffectChild) -> [DisplayOp] {
-            switch child {
-            case .op(let op):
-                return [op]
-            case .node(let node):
-                var result: [DisplayOp] = [.beginEffect(node.scope)]
-                for child in node.children {
-                    result.append(contentsOf: materialize(child))
-                }
-                result.append(.endEffect)
-                return result
-            }
-        }
-
-        var drawList: [DisplayOp] = roots.flatMap(materialize)
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
             drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))
@@ -1145,18 +1139,3 @@ public class Browser: ObservableObject {
     }
 }
 
-// MARK: - Draw-list effect tree
-
-private final class DrawEffectNode {
-    let scope: EffectScope
-    var children: [DrawEffectChild] = []
-
-    init(scope: EffectScope) {
-        self.scope = scope
-    }
-}
-
-private enum DrawEffectChild {
-    case op(DisplayOp)
-    case node(DrawEffectNode)
-}
