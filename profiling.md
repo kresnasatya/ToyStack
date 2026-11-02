@@ -249,7 +249,7 @@ pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 
 | Metric | Kind | Meaning |
 |---|---|---|
-| `style.apply.reset`, `.flags`, `.test`, `.inline`, `.post`, `.push`, `.pop` | duration | phases of `applyStyle` |
+| `style.apply.flags`, `.test`, `.inline`, `.post`, `.push`, `.pop` | duration | phases of `applyStyle` |
 | `style.visited` | count | nodes that passed the clean-subtree gate |
 | `style.skipped` | count | child entries rejected by the clean-subtree gate |
 | `style.dirtyDescendants` | count | gate entries reached through an ancestor flag |

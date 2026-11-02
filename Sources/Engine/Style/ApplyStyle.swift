@@ -1,13 +1,4 @@
-// MARK: - Inherited CSS Properties
-let inheritedPropertyDefaults: [String: String] = [
-    "font-family": "serif",
-    "font-size": "16px",
-    "font-style": "normal",
-    "font-weight": "normal",
-    "color": "black",
-    "white-space": "normal",
-    "direction": "ltr"
-]
+import CoreGraphics
 
 // MARK: - applyStyle
 @MainActor
@@ -56,14 +47,7 @@ private func applyNodeStyle(
     cascade: StyleCascade
 ) {
 
-    let parentStyle: StyleFields? = node.parent?.style
     var newStyle: [String: String] = [:]
-    profiler.measure("style.apply.reset") {
-        newStyle.reserveCapacity(inheritedPropertyDefaults.count)
-        for (property, defaultValue) in inheritedPropertyDefaults {
-            newStyle[property] = parentStyle?[property] ?? defaultValue
-        }
-    }
 
     if let element = node as? Element {
         profiler.count("style.elements")
@@ -125,10 +109,9 @@ private func applyNodeStyle(
         }
 
         if let fontSize = newStyle["font-size"], fontSize.hasSuffix("%") {
-            let parentFontSize: String = node.parent?.style["font-size"] ?? inheritedPropertyDefaults["font-size"]!
             let percentage: Double = Double(fontSize.dropLast()) ?? 100.0
-            let parentPx: Double = Double(parentFontSize.dropLast(2)) ?? 16.0
-            newStyle["font-size"] = "\(percentage / 100.0 * parentPx)px"
+            let parentPx: CGFloat = node.parent?.style.computed.text.font.size ?? 16
+            newStyle["font-size"] = "\(percentage / 100.0 * Double(parentPx))px"
         }
 
         node.style.apply(newStyle, parent: node.parent?.style.computed)

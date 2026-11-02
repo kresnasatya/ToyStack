@@ -65,16 +65,16 @@ struct StyleFieldsTests {
         #expect((profiler.snapshot()["style.fields.changed"]?.count ?? 0) == 0)
     }
 
-    @Test func snapshotAndEmpty() {
+    @Test func applyStoresTypedValues() {
         let style = StyleFields()
-        #expect(style.isEmpty)
+        #expect(style.computed == .initial)
 
         style.apply(["width": "10px", "height": "5px"])
-        #expect(!style.isEmpty)
-        #expect(style.snapshot() == ["width": "10px", "height": "5px"])
+        #expect(style.computed.box.size.width == 10)
+        #expect(style.computed.box.size.height == 5)
 
         style.apply(["width": "10px"])
-        #expect(style.snapshot() == ["width": "10px"])
+        #expect(style.computed.box.size.height == nil)
     }
 
     @Test func deadDependentsDoNotAccumulate() {

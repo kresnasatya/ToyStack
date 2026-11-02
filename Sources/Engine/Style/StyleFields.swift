@@ -14,32 +14,6 @@ nonisolated final class StyleFields: FieldOwner {
     }
 
     @MainActor
-    subscript(_ key: String) -> String? {
-        get {
-            return storage.raw[key] ?? storage.unknown[key]
-        }
-        set {
-            let old: ComputedStyle = storage.computed
-            let oldRaw: String? = storage.raw[key]
-            storage.raw[key] = newValue
-            let parsed: (style: ComputedStyle, unknown: [String: String]) =
-                ComputedStyleParser.parse(storage.raw, parent: nil)
-            let changed: Set<StyleProperty> = parsed.style.changed(from: old)
-            storage.computed = parsed.style
-            storage.unknown = parsed.unknown
-            if let property = StyleProperty(cssName: key) {
-                invalidation.dirtyKeys.remove(property)
-            }
-            if !changed.isEmpty || oldRaw != newValue {
-                revision += 1
-            }
-            for property in changed {
-                notifyDependents(property)
-            }
-        }
-    }
-
-    @MainActor
     func markAll() {
         invalidation.needsRestyle = true
         invalidation.dirtyKeys = Set(StyleProperty.allCases)
@@ -64,31 +38,28 @@ nonisolated final class StyleFields: FieldOwner {
     func apply(_ newValues: [String: String], parent: ComputedStyle? = nil) {
         let old: ComputedStyle = storage.computed
         let oldUnknown: [String: String] = storage.unknown
-        let oldRaw: [String: String] = storage.raw
         let parsed: (style: ComputedStyle, unknown: [String: String]) =
             ComputedStyleParser.parse(newValues, parent: parent)
         let changed: Set<StyleProperty> = parsed.style.changed(from: old)
 
         storage.computed = parsed.style
         storage.unknown = parsed.unknown
-        storage.raw = newValues
 
         invalidation.dirtyKeys.removeAll()
         invalidation.needsRestyle = false
-        if !changed.isEmpty || parsed.unknown != oldUnknown || newValues != oldRaw {
+        if !changed.isEmpty || parsed.unknown != oldUnknown {
             revision += 1
         }
         for property in changed {
             notifyDependents(property)
         }
-        profiler.count("style.fields.set", by: storage.raw.count)
+        profiler.count("style.fields.set", by: StyleProperty.allCases.count)
         profiler.count("style.fields.changed", by: changed.count)
     }
 
     @MainActor
     func set(_ value: AnimatedValue, for property: StyleProperty) {
         guard storage.computed.set(value, for: property) else { return }
-        storage.raw[property.cssName] = property.cssString(value)
         invalidation.dirtyKeys.remove(property)
         revision += 1
         notifyDependents(property)
@@ -103,21 +74,8 @@ nonisolated final class StyleFields: FieldOwner {
         invalidation.dirtyKeys.subtract(changed)
         revision += 1
         for property in changed {
-            if let value = storage.computed.value(for: property) {
-                storage.raw[property.cssName] = property.cssString(value)
-            }
             notifyDependents(property)
         }
-    }
-
-    @MainActor
-    func snapshot() -> [String: String] {
-        return storage.raw
-    }
-
-    @MainActor
-    var isEmpty: Bool {
-        return storage.raw.isEmpty
     }
 
     @MainActor
@@ -212,7 +170,6 @@ nonisolated final class StyleFields: FieldOwner {
 private struct StyleStorage {
     var computed: ComputedStyle = .initial
     var unknown: [String: String] = [:]
-    var raw: [String: String] = [:]  // temporary; deleted in A4
 }
 
 // MARK: - StyleInvalidationState

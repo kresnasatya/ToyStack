@@ -22,7 +22,7 @@ struct DOMNodeTests {
         let el = Element(tag: "p", attributes: [:], parent: nil)
         #expect(el.children.isEmpty)
         #expect(el.parent == nil)
-        #expect(el.style.isEmpty)
+        #expect(el.style.computed == .initial)
         #expect(!el.isFocused)
     }
 
@@ -42,7 +42,7 @@ struct DOMNodeTests {
         let node = TextNode(text: "Hi", parent: nil)
         #expect(node.children.isEmpty)
         #expect(node.parent == nil)
-        #expect(node.style.isEmpty)
+        #expect(node.style.computed == .initial)
         #expect(!node.isFocused)
     }
 

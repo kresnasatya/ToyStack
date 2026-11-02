@@ -139,13 +139,4 @@ extension StyleProperty {
     var affectsLayout: Bool {
         return !StyleProperty.paintOnly.contains(self)
     }
-
-    func cssString(_ value: AnimatedValue) -> String {
-        switch value {
-        case .number(let v): return String(v)
-        case .length(let v): return "\(v)px"
-        case .color(let c): return rgbToHex(c.red * 255, c.green * 255, c.blue * 255)
-        case .transform(let p): return "translate(\(p.x)px, \(p.y)px)"
-        }
-    }
 }
