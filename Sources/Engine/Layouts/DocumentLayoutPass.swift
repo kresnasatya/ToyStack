@@ -28,7 +28,6 @@ extension LayoutTree {
         consumeStyleChanges()
         guard documentLayoutNeeded(root) else { return }
         dependencies.beginLayout()
-        dependencies.rebuild(from: self)
         defer {
             setDirtyDescendants(false, at: root)
             dependencies.endLayout(from: self)
