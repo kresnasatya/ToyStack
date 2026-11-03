@@ -311,14 +311,14 @@ The tab owns the state that was in `Browser.TabFrame`:
 
 ```swift
 struct TabPresentation {
-    var display: PresentedDisplay
+    var display: TabDisplayState
     var scroll: ScrollState
-    var render: PresentedRender
+    var render: TabRenderState
     var preferences: ColorPreferences
 }
 ```
 
-`PresentedDisplay` and `PresentedRender` are the renamed `FrameDisplay` and `FrameRender`. `Browser` no longer has `frames`, `activeFrameID`, or `activeFrame`.
+`TabDisplayState` and `TabRenderState` are the renamed `FrameDisplay` and `FrameRender`. `Browser` no longer has `frames`, `activeFrameID`, or `activeFrame`.
 
 ### 4. Snapshot
 
@@ -548,8 +548,8 @@ Every current stored property has one destination.
 | `Core/FrameSnapshot.swift` | `FrameSnapshot` |
 | `Core/DisplaySnapshot.swift` | `DisplaySnapshot` |
 | `Presentation/TabPresentation.swift` | `TabPresentation` |
-| `Presentation/PresentedDisplay.swift` | renamed `FrameDisplay` |
-| `Presentation/PresentedRender.swift` | renamed `FrameRender` |
+| `Presentation/TabDisplayState.swift` | renamed `FrameDisplay` |
+| `Presentation/TabRenderState.swift` | renamed `FrameRender` |
 | `Presentation/PresentationSignature.swift` | renamed `FrameSignature` |
 | `Presentation/PresentationViewport.swift` | renamed `FrameViewport` |
 | `Presentation/PresentationRevisions.swift` | renamed `FrameRevisions` |
@@ -857,7 +857,7 @@ Gate: `www/ch15/index.html` and `example15-dynamic-iframe.html` render identical
 
 ### Step B4 — Move presentation state into the tab
 
-Add `TabPresentation` to `BrowserTab`. Rename `FrameDisplay`/`FrameRender` to `PresentedDisplay`/`PresentedRender`.
+Add `TabPresentation` to `BrowserTab`. Rename `FrameDisplay`/`FrameRender` to `TabDisplayState`/`TabRenderState`.
 
 ```diff
 -private struct TabFrame {
