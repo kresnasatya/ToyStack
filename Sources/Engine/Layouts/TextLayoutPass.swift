@@ -90,24 +90,7 @@ extension LayoutTree {
         return Rect(left: ref.x, top: top, right: ref.x + ref.width, bottom: top + ref.height)
     }
 
-    func paintText(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        let data: TextData = ref.textData
-        let color: BrowserColor = ref.node.inheritedStyleOwner.style.computed.text.color
-        let top: CGFloat = textAbsoluteY(ref)
-        items.append(
-            .text(
-                text: data.display ?? data.word,
-                font: ref.font,
-                color: color,
-                rect: Rect(
-                    left: ref.x,
-                    top: top,
-                    right: ref.x + data.metrics.width,
-                    bottom: top + ref.font.linespace
-                )
-            )
-        )
-    }
+    
 
     func textTextWidth(_ ref: LayoutRef) -> CGFloat {
         return ref.textData.metrics.width

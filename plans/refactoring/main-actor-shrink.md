@@ -170,10 +170,10 @@ None of these starts without one of these triggers being true:
 - the package adopts `.swiftLanguageMode(.v6)` and the warnings must become zero;
 - a pass must be unit-tested without a live `Browser`.
 
-### Stage 3 — paint from a value input (5 of 13 done, rest blocked on payloads)
+### Stage 3 — paint from a value input (done)
 
-**3a — paint leaf helpers take values (applied).** Five factories only needed one style read and
-were isolated because they took a `DOMRef`/`LayoutRef`:
+**3a — leaf helpers take values.** Five factories only needed one style read and were isolated
+because they took a `DOMRef`/`LayoutRef`:
 
 | Function | New input | Removed |
 |---|---|---|
@@ -182,27 +182,38 @@ were isolated because they took a `DOMRef`/`LayoutRef`:
 | `focusRingColors` | `forcedColors: Bool` | 1 |
 | `drawCursor` | `Point`, `height`, `offset` | 1 |
 
-Callers already hold the style, so nothing new is computed. Engine annotations: 100 → 95.
+**3b — the walk now runs on a frozen scene.** Two new value types carry everything paint reads:
 
-**3b — the walk itself (`PaintTree`, 8 annotations): not a copy, a payload rewrite.** Inventory of
-what a node's paint actually reads, measured from the painters:
+```swift
+struct PaintScene { var frames: [PaintFrame] }
+struct PaintFrame { var nodes: [PaintNode]; var epoch: UInt }
+struct PaintNode { var geometry; var surface; var content; var links }
+```
 
-- `CanvasRenderingContext2D` is a `final class`; `paintCanvas` calls `ctx.image()` and
-  `ctx.revision` at draw time (`EmbedLayoutPass.swift:419-424`).
-- Images come from `DOMSideTables.images: [NodeID: CGImage]` (`DOMSideTables.swift:26`) and paint
-  reads them per node (`EmbedLayoutPass.swift:108`).
-- Iframes recurse into a live `Frame` (`PaintTree.swift:58-64`): `childFrame.document`,
-  `childFrame.paintEpoch`.
-- Caret and scrollbar read DOM flags and unknown style (`BlockLayoutPass.swift:1257-1281`).
+- `PaintGeometry` holds `selfRect()`, the frame rect, and zoom.
+- `PaintSurface` holds `ComputedStyle`, the font, resolved effects, and the DOM flags paint consults.
+- `PaintContent` is a closed set: `document`, `block`, `line`, `text`, `embed(image|input|button|iframe|canvas)`.
+- `PaintLinks` holds ids, parent index, and children indices, so recursion is over integers.
+- `PaintSceneBuilder` (one `@MainActor` type) copies all of it, including each iframe's own
+  `PaintFrame`, and pre-resolves the three DOM-dependent ops (line focus ring, block caret,
+  iframe scrollbar).
+- `PaintPass` is value-only: culling, cache hits, effect scopes, z-order, iframe nesting.
 
-So a `PaintInput` is not a flat copy of the layout tree; it is a *frame-tree* paint contract with a
-canvas-image payload, an image table, and per-frame recursion. Rewriting the four per-kind painters
-(`BlockLayoutPass` 125 lines, `EmbedLayoutPass` 123, `LineLayoutPass` 40, `TextLayoutPass` 30) plus
-`PaintTree` (350) is the cost, and every line of it changes render output if it is wrong.
+Cache stores stay per frame: `PaintPass` takes `[PaintCacheStore]`, indexed like `PaintScene.frames`,
+and `Frame.paint` writes the results back to each frame after the pass.
 
-**Recommendation:** defer 3b until the payloads are values — the canvas context and iframe `Frame`
-are exactly the class references item 6's value-state rewrite removes. Doing 3b first means writing
-the frame-tree paint contract twice.
+**Deleted:** `PaintTree.swift` (the walk and its scopes), the nine per-kind painters from
+`BlockLayoutPass` / `LineLayoutPass` / `TextLayoutPass` / `EmbedLayoutPass`, and
+`LayoutRef.paint(into:)` / `paintScopeKinds` / `shouldPaint`.
+
+**Verification:** 209 tests pass. Renders are pixel-identical to the previous commit across
+`granular-style` (styled boxes), `bench/large` (scroll), `ch13` width animation, `ch15` iframe and
+canvas pages, `ch14` checkbox/input pages, and `ch16` contenteditable. Paint counters match exactly
+(`paint.nodes` 5608, `paint.own.items` 1216, block/line cache hits identical). A 120-frame large-page
+run costs 6.36 s against 6.18 s before: the scene copy is ~3% of a debug run.
+
+**Annotation result:** Engine 95 → 89. The eight `PaintTree` annotations became one
+(`PaintSceneBuilder`); `effectiveZIndex` moved to `LayoutPaintPass` because hit-testing still uses it.
 
 ### Stage 4 — style over a value document (≈30 annotations)
 
@@ -236,7 +247,7 @@ stop being isolated. 30 suites, mostly one annotation each.
 | now (1 done) | 0 (structural) | 115 |
 | 2 (done) | 0 (structural) | 115 |
 | 3a (done) | 5 | 110 |
-| 3b (deferred) | 8 | — |
+| 3b (done) | 6 | 104 |
 | 4 | ~30 | ~72 |
 | 5 | ~24 | ~48 |
 | roots and UI boundary | — | ~37 floor |
@@ -257,7 +268,7 @@ The floor is the roots in audit §4 plus the boundary that owns them: Engine roo
 ## Order if it is scheduled
 
 ```
-1 (done) → 2 (done) ─┬─> 3 (paint)
+1 (done) → 2 (done) ─┬─> 3 (done)
               └─> 4 (style) → 5 (layout)
 ```
 

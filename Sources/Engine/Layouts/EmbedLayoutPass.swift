@@ -105,29 +105,7 @@ extension LayoutTree {
         embedSetAscentFromHeight(ref)
     }
 
-    func paintImage(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        guard let image = ref.node.element?.image else { return }
-        guard case .image(let data) = ref.embedData else { return }
-        let box = Rect(
-            left: ref.x,
-            top: ref.y + ref.height - data.imageHeight,
-            right: ref.x + ref.width,
-            bottom: ref.y + ref.height
-        )
-        let computed: ComputedStyle = ref.node.style.computed
-        let content: Rect = ObjectFit(
-            box: box,
-            intrinsicWidth: ref.scaled(CGFloat(image.width)),
-            intrinsicHeight: ref.scaled(CGFloat(image.height)),
-            fit: computed.visual.image.fit
-        ).contentRect
-        items.append(.clippedImage(
-            image: image,
-            rendering: computed.visual.image.rendering,
-            rect: content,
-            clip: box
-        ))
-    }
+    
 
     // MARK: - Input
 
@@ -149,75 +127,7 @@ extension LayoutTree {
         embedSetAscentFromHeight(ref)
     }
 
-    func paintInput(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        guard let element = ref.node.element else { return }
-        let computed: ComputedStyle = element.style.computed
-        if let bgcolor: BrowserColor = computed.visual.background.color {
-            let radii: CornerRadii = computed.box.decoration.border.radii
-            if !radii.isZero {
-                items.append(.rrect(rect: ref.selfRect(), radii: radii, color: bgcolor))
-            } else {
-                items.append(.rect(rect: ref.selfRect(), color: bgcolor))
-            }
-        }
-
-        if element.attributes["type"] == "checkbox" {
-            items.append(.rect(rect: ref.selfRect(), color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.buttonFace : "white")))
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.buttonBorder : "black"), width: 1))
-            if element.isChecked {
-                items.append(
-                    .text(
-                        text: "X",
-                        font: ref.font,
-                        color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.buttonText : "black"),
-                        rect: Rect(
-                            left: ref.x,
-                            top: ref.y,
-                            right: ref.x + ref.font.measure("X"),
-                            bottom: ref.y + ref.font.linespace
-                        )
-                    )
-                )
-            }
-            let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: ref.selfRect())
-            if element.isFocusVisible && outline == nil {
-                items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 2))
-                items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 4))
-            }
-            if let outline = outline { items.append(outline) }
-        }
-
-        var text: String = ""
-        if element.tag == "input" {
-            let value: String = element.attributes["value"] ?? ""
-            if element.attributes["type"] == "password" {
-                text = String(repeating: "*", count: value.count)
-            } else {
-                text = value
-            }
-        } else if element.tag == "button" {
-            if element.children.count == 1,
-                let textNode = element.children[0].text
-            {
-                text = textNode.text
-            }
-        }
-        items.append(.text(text: text, font: ref.font, color: computed.text.color, rect: Rect(left: ref.x, top: ref.y, right: ref.font.measure(text), bottom: ref.y + ref.font.linespace)))
-
-        if element.isFocused {
-            items.append(drawCursor(
-                origin: Point(x: ref.x, y: ref.y),
-                height: ref.height,
-                offset: ref.font.measure(text)
-            ))
-        }
-        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: ref.selfRect())
-        if element.isFocusVisible && outline == nil {
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 4))
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 2))
-        }
-        if let outline = outline { items.append(outline) }
-    }
+    
 
     // MARK: - Button
 
@@ -347,21 +257,7 @@ extension LayoutTree {
         ref.embedData = .button(data)
     }
 
-    func paintButton(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        guard let element = ref.node.element else { return }
-        let computed: ComputedStyle = element.style.computed
-        let displayColor: BrowserColor = computed.visual.background.color
-            ?? BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.buttonFace : "white")
-        items.append(.rect(rect: ref.selfRect(), color: displayColor))
-        items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.buttonBorder : "black"), width: 1))
-
-        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: ref.selfRect())
-        if element.isFocusVisible && outline == nil {
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 4))
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 2))
-        }
-        if let outline = outline { items.append(outline) }
-    }
+    
 
     // MARK: - Iframe
 
@@ -392,12 +288,7 @@ extension LayoutTree {
         }
     }
 
-    func paintIframe(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        let computed: ComputedStyle = ref.node.style.computed
-        guard let bgColor: BrowserColor = computed.visual.background.color else { return }
-        let radii: CornerRadii = computed.box.decoration.border.radii
-        items.append(.rrect(rect: ref.selfRect(), radii: radii, color: bgColor))
-    }
+    
 
     // MARK: - Canvas
 
@@ -420,12 +311,8 @@ extension LayoutTree {
         el.canvasContext?.setScale(canvasDisplayScale(ref) * ref.pageZoom * ref.zoom)
     }
 
-    func paintCanvas(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        guard let ctx = ref.node.element?.canvasContext,
-            let image: CGImage = ctx.image()
-        else { return }
-        items.append(.image(image: image, rendering: .auto, rect: ref.selfRect(), version: ctx.revision))
-    }
+    
+
 }
 
 // MARK: - Shared embed measurements

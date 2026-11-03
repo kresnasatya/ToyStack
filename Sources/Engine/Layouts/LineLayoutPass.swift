@@ -195,33 +195,9 @@ extension LayoutTree {
         return !ref.lineData.content.hasEmbed
     }
 
-    func paintLine(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        var outlineRect: Rect? = nil
-        var focused: DOMRef? = nil
-        for child in ref.children {
-            guard let ancestor: DOMRef = focusVisibleInlineAncestor(child.node, line: ref) else { continue }
-            focused = ancestor
-            let childRect: Rect = child.selfRect()
-            outlineRect = outlineRect?.union(childRect) ?? childRect
-        }
-        if let rect = outlineRect, let focused {
-            if let outline: DisplayOp = DisplayOp.fromStyle(focused.style.computed, rect: rect) {
-                items.append(outline)
-            } else {
-                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 4))
-                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 2))
-            }
-        }
-    }
+    
 
-    private func focusVisibleInlineAncestor(_ start: DOMRef, line: LayoutRef) -> DOMRef? {
-        var current: DOMRef? = start.parent
-        while let ancestor = current, ancestor.id != line.domNode {
-            if ancestor.isFocusVisible { return ancestor }
-            current = ancestor.parent
-        }
-        return nil
-    }
+    private 
 
     func lineSelfRect(_ ref: LayoutRef) -> Rect {
         return ref.selfRect()

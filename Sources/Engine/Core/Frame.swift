@@ -978,12 +978,18 @@ class Frame {
             epoch: state.display.paint.epoch,
             window: window
         )
-        paintTree(
-            doc.root,
-            into: &list,
-            session: &session,
-            caches: &state.display.caches
+        var builder: PaintSceneBuilder = PaintSceneBuilder()
+        let rootFrame: Int = builder.build(root: doc.root, frame: self)
+        var pass: PaintPass = PaintPass(
+            scene: PaintScene(frames: builder.sink.scenes),
+            caches: builder.sink.owners.map({ $0.paintCaches })
         )
+        pass.paint(rootFrame, into: &list, session: &session)
+
+        for (index, owner) in builder.sink.owners.enumerated() where index != rootFrame {
+            owner.paintCaches = pass.caches[index]
+        }
+        state.display.caches = pass.caches[rootFrame]
 
         state.display.paint.ops = list
         state.display.painted.bottom = contentBottom

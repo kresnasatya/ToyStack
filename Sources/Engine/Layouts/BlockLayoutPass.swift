@@ -1203,56 +1203,7 @@ extension LayoutTree {
         )
     }
 
-    func paintBlock(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        let computed: ComputedStyle = ref.node.style.computed
-        let background: BrowserColor? = computed.visual.background.color
-        if background != nil || computed.layout.overflow == .scroll {
-            let radii: CornerRadii = computed.box.decoration.border.radii
-            let color: BrowserColor = background ?? BrowserColor(
-                red: 0, green: 0, blue: 0, alpha: 0
-            )
-            if !radii.isZero {
-                items.append(.rrect(rect: blockSelfRect(ref), radii: radii, color: color))
-            } else {
-                items.append(.rect(rect: blockSelfRect(ref), color: color))
-            }
-        }
-
-        if let el = ref.node.element, let image = el.backgroundImage,
-            computed.visual.background.image != nil {
-            let box: Rect = blockSelfRect(ref)
-            let dest: Rect = BackgroundSize(box: box, image: image, zoom: ref.zoom)
-                .rect(spec: computed.visual.background.size)
-            items.append(.clippedImage(
-                image: image,
-                rendering: computed.visual.image.rendering,
-                rect: dest,
-                clip: box
-            ))
-        }
-
-        if let border: DisplayOp = DisplayOp.fromBorderStyle(ref.node.style.computed, rect: borderPaintRect(ref)) {
-            items.append(border)
-        }
-
-        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: blockSelfRect(ref))
-        if ref.node.isFocusVisible && outline == nil {
-            let ring: (outer: String, inner: String) = focusRingColors(forcedColors: usesForcedColors(ref.node))
-            items.append(.outline(rect: blockSelfRect(ref), color: BrowserColor(cssName: ring.outer), width: 4))
-            items.append(.outline(rect: blockSelfRect(ref), color: BrowserColor(cssName: ring.inner), width: 2))
-        }
-        if let outline = outline { items.append(outline) }
-
-        if let el = ref.node.element, el.tag == "li" {
-            let bulletX: CGFloat = ref.x - LayoutTree.liIndent
-            let bulletY: CGFloat = ref.y + (VSTEP - LayoutTree.bulletSize) / 2
-            let bulletRect: Rect = Rect(
-                left: bulletX, top: bulletY, right: bulletX + LayoutTree.bulletSize,
-                bottom: bulletY + LayoutTree.bulletSize
-            )
-            items.append(.rect(rect: bulletRect, color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.canvasText : "black")))
-        }
-    }
+    
 
     func blockPaintCaret(_ ref: LayoutRef, into items: inout [DisplayOp]) {
         guard let el = ref.node.element, el.isFocused,

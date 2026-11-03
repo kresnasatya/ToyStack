@@ -20,24 +20,6 @@ extension LayoutRef {
         return tree.node(id).kind.documentPageZoom
     }
 
-    func paintScopeKinds() -> [EffectKind] {
-        if case .line = kind { return [] }
-        let style: PaintEffectStyle? = profiler.measure("paint.effect.check", {
-            paintEffectStyle(
-                node.style.computed,
-                animated: node.animations[.property(.transform)] != nil
-                    || node.animations[.property(.opacity)] != nil
-            )
-        })
-        guard let style else { return [] }
-        var kinds: [EffectKind] = [.transform(style.translation)]
-        kinds.append(.blend(opacity: style.opacity, mode: style.blendMode))
-        if style.blurRadius > 0 {
-            kinds.append(.blur(radius: style.blurRadius))
-        }
-        return kinds
-    }
-
     func absoluteBounds() -> Rect {
         var rect: Rect = selfRect()
         var current: DOMRef? = node
@@ -87,41 +69,6 @@ extension LayoutRef {
         }
         return nil
     }
-
-    func paint(into items: inout [DisplayOp]) {
-        switch kind {
-        case .document:
-            break
-        case .block:
-            tree.paintBlock(self, into: &items)
-        case .line:
-            tree.paintLine(self, into: &items)
-        case .text:
-            tree.paintText(self, into: &items)
-        case .embed(let data):
-            switch data {
-            case .image:
-                tree.paintImage(self, into: &items)
-            case .input:
-                tree.paintInput(self, into: &items)
-            case .button:
-                tree.paintButton(self, into: &items)
-            case .iframe:
-                tree.paintIframe(self, into: &items)
-            case .canvas:
-                tree.paintCanvas(self, into: &items)
-            }
-        }
-    }
-
-    func shouldPaint() -> Bool {
-        switch kind {
-        case .block:
-            return tree.blockShouldPaint(self)
-        default:
-            return true
-        }
-    }
 }
 
 extension LayoutKind {
@@ -142,4 +89,11 @@ func inPaintOrder(_ children: [LayoutRef]) -> [LayoutRef] {
             return za == zb ? a.offset < b.offset : za < zb
         }
         .map { $0.element }
+}
+
+@MainActor
+func effectiveZIndex(_ node: DOMRef) -> Int {
+    let layout: LayoutStyle = node.style.computed.layout
+    guard layout.position.kind != .staticFlow else { return 0 }
+    return layout.zIndex
 }
