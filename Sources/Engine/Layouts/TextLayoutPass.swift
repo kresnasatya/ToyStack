@@ -53,7 +53,13 @@ extension LayoutTree {
                 if let override = data.fontOverride {
                     resolvedFont = override
                 } else {
-                    resolvedFont = fontForElement(domRef(id), zoom: zoom(id))
+                    let style: TextStyle.Font = inputs.font(domID(of: id))
+                    resolvedFont = getFont(
+                        size: Int(style.size * zoom(id)),
+                        weight: style.weight.cssValue,
+                        style: style.style.browserFontStyle,
+                        family: style.family
+                    )
                 }
                 setFont(resolvedFont, for: id)
                 data = textData(id)

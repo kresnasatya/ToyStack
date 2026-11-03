@@ -13,6 +13,11 @@ final class LayoutTree {
     let dom: DOMTree
     private(set) var primaryByNode: [NodeID: LayoutID] = [:]
     var dependencies: DependencyIndex = DependencyIndex()
+    private(set) var inputs: LayoutInputs = LayoutInputs(nodes: [])
+
+    func refreshInputs(_ inputs: LayoutInputs) {
+        self.inputs = inputs
+    }
 
     init(dom: DOMTree) {
         self.dom = dom

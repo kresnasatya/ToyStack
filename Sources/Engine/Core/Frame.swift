@@ -885,6 +885,7 @@ class Frame {
                 doc = LayoutTree(dom: dom)
                 state.layout.targets.isValid = false
             }
+            doc.refreshInputs(LayoutInputsBuilder.build(dom: dom))
             doc.layoutDocument(
                 availableWidth: frameWidth,
                 zoom: 1.0,
