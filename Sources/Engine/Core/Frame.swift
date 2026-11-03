@@ -1078,25 +1078,38 @@ class Frame {
         }
     }
 
-    func commitFrame() {
-        guard let tab else { return }
-        state.layout.scroll.offset = min(scroll, maxScroll)
+    func makeSnapshot() -> FrameSnapshot {
         let display: FrameDisplayState = state.display
         let updates: [NodeID: EffectUpdate]? =
             (display.composite.isNeeded || display.composite.isNeededForPaint)
             ? nil
             : display.composite.updates
-        let data: FrameCommit = FrameCommit(
-            scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
-            display: FrameDisplayOutput(displayList: display.paint.ops, compositedUpdates: updates, paintRevision: display.paint.revision),
+        return FrameSnapshot(
+            scroll: ScrollState(
+                scroll: scroll,
+                interestTop: interestTop,
+                interestBottom: interestBottom,
+                maxScroll: maxScroll
+            ),
+            display: DisplaySnapshot(
+                ops: display.paint.ops,
+                updates: updates,
+                revision: display.paint.revision
+            ),
             preferences: ColorPreferences(
-                prefersDark: tab.prefersDark,
-                usesForcedColors: tab.forcedColors
+                prefersDark: tab?.prefersDark ?? false,
+                usesForcedColors: tab?.forcedColors ?? false
             )
         )
+    }
+
+    func commitFrame() {
+        guard let tab else { return }
+        state.layout.scroll.offset = min(scroll, maxScroll)
+        let snapshot: FrameSnapshot = makeSnapshot()
         state.display.composite.updates.removeAll()
         state.display.composite.isNeededForPaint = false
-        browser?.commit(tab: tab, data: data)
+        browser?.commit(tab: tab, data: snapshot)
     }
 
     private func refreshScrollTargetRects() {

@@ -196,20 +196,20 @@ public class Browser: ObservableObject {
         return !compositeInFlight && !needsComposite && !needsRaster && !needsDraw && !needsTileContinuation
     }
 
-    func commit(tab: BrowserTab, data: FrameCommit) {
+    func commit(tab: BrowserTab, data: FrameSnapshot) {
         guard tab === activeTab else { return }
-        let paintChanged: Bool = data.display.paintRevision != activePresentation.display.paintRevision
-        activePresentation.display.displayList = data.display.displayList
-        activePresentation.scroll.scroll = data.scrollState.scroll
-        activePresentation.scroll.interestTop = data.scrollState.interestTop
-        activePresentation.scroll.interestBottom = data.scrollState.interestBottom
-        activePresentation.scroll.maxScroll = data.scrollState.maxScroll
+        let paintChanged: Bool = data.display.revision != activePresentation.display.paintRevision
+        activePresentation.display.displayList = data.display.ops
+        activePresentation.scroll.scroll = data.scroll.scroll
+        activePresentation.scroll.interestTop = data.scroll.interestTop
+        activePresentation.scroll.interestBottom = data.scroll.interestBottom
+        activePresentation.scroll.maxScroll = data.scroll.maxScroll
         activePresentation.preferences.prefersDark = data.preferences.prefersDark
         activePresentation.preferences.usesForcedColors = data.preferences.usesForcedColors
-        activePresentation.display.paintRevision = data.display.paintRevision
-        activePresentation.display.compositedUpdates = data.display.compositedUpdates ?? [:]
+        activePresentation.display.paintRevision = data.display.revision
+        activePresentation.display.compositedUpdates = data.display.updates ?? [:]
 
-        if let updates = data.display.compositedUpdates, !updates.isEmpty {
+        if let updates = data.display.updates, !updates.isEmpty {
             activePresentation.display.effectRevision += 1
         }
 
@@ -217,7 +217,7 @@ public class Browser: ObservableObject {
             objectWillChange.send()
         }
 
-        if let updates = data.display.compositedUpdates, !updates.isEmpty,
+        if let updates = data.display.updates, !updates.isEmpty,
             activePresentation.render.content.usesSublayers,
             !needsComposite, !needsRaster, !needsDraw, !compositeInFlight,
             Browser.updatesAreCA(updates),
@@ -226,7 +226,7 @@ public class Browser: ObservableObject {
             return
         }
 
-        if data.display.compositedUpdates == nil {
+        if data.display.updates == nil {
             setNeedsComposite()
         } else {
             setNeedsDrawOnly()
