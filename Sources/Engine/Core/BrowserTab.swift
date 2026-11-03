@@ -225,8 +225,10 @@ public class BrowserTab {
                 "heightChanged": heightChanged ? 1 : 0,
             ]
         )
-        rootFrame.frameWidth = width / rootFrame.pageZoom
-        rootFrame.frameHeight = height / rootFrame.pageZoom
+        rootFrame.setViewport(
+            width: width / rootFrame.pageZoom,
+            height: height / rootFrame.pageZoom
+        )
         rootFrame.setNeedsViewportResize()
     }
 

@@ -36,12 +36,9 @@ class Frame {
     func replaceDOM(_ newDOM: DOMTree) {
         guard dom !== newDOM else { return }
         state.document.dom = newDOM
-        documentValue = nil
-        documentDirty = true
-        scrollTargetsValid = false
-        scrollTargetsNeedRebuild = true
-        iframeTargets.removeAll()
-        scrollBlockTargets.removeAll()
+        state.layout.tree.value = nil
+        state.layout.tree.isDirty = true
+        state.layout.targets = ScrollTargetState()
         scrollFocusNode = nil
         compositedUpdates.removeAll()
         needsRender = true
@@ -54,8 +51,25 @@ class Frame {
         rulesRevision += 1
         needsHasPrecompute = true
     }
-    private var documentValue: LayoutTree?
-    private var documentDirty: Bool = true
+
+    /// Width and height change together on resize; only a width change dirties
+    /// the document's available width.
+    func setViewport(width: CGFloat, height: CGFloat) {
+        let oldWidth: CGFloat = state.layout.viewport.width
+        state.layout.viewport.width = width
+        state.layout.viewport.height = height
+        if oldWidth != width {
+            state.layout.tree.value?.markDocumentWidthDirty()
+        }
+    }
+    private var documentValue: LayoutTree? {
+        get { state.layout.tree.value }
+        set { state.layout.tree.value = newValue }
+    }
+    private var documentDirty: Bool {
+        get { state.layout.tree.isDirty }
+        set { state.layout.tree.isDirty = newValue }
+    }
     var document: LayoutTree? {
         get { documentValue }
         set {
@@ -81,15 +95,18 @@ class Frame {
         set { state.document.meta.isSecure = newValue }
     }
 
-    var scroll: CGFloat = 0
-    var frameWidth: CGFloat {
-        didSet {
-            if oldValue != frameWidth {
-                document?.markDocumentWidthDirty()
-            }
-        }
+    var scroll: CGFloat {
+        get { state.layout.scroll.offset }
+        set { state.layout.scroll.offset = newValue }
     }
-    var frameHeight: CGFloat
+    var frameWidth: CGFloat {
+        get { state.layout.viewport.width }
+        set { setViewport(width: newValue, height: frameHeight) }
+    }
+    var frameHeight: CGFloat {
+        get { state.layout.viewport.height }
+        set { state.layout.viewport.height = newValue }
+    }
     var loaded: Bool {
         get { state.document.meta.loaded }
         set { state.document.meta.loaded = newValue }
@@ -183,33 +200,39 @@ class Frame {
     var debugDumpDependencies: Bool = false
     #endif
 
-    private(set) var interestTop: CGFloat = 0
+    private(set) var interestTop: CGFloat {
+        get { state.layout.scroll.interestTop }
+        set { state.layout.scroll.interestTop = newValue }
+    }
     private var interestBottom: CGFloat { interestTop + 4 * frameHeight }
     private var scrollFocusNode: NodeID? = nil
     private var hoveredElements: [NodeID] = []
     private var scrollTween: ScrollTween? = nil
     private var paintedBottom: CGFloat = 0
     private var paintedWindow: PaintWindow = .full
-    private(set) var pageZoom: CGFloat = 1.0
+    private(set) var pageZoom: CGFloat {
+        get { state.layout.viewport.zoom }
+        set { state.layout.viewport.zoom = newValue }
+    }
 
     private var activeAnimations: Int = 0
 
-    private struct IframeTarget {
-        let rect: Rect
-        let layout: LayoutID
-        let node: NodeID
+    private var iframeTargets: [IframeTarget] {
+        get { state.layout.targets.iframes }
+        set { state.layout.targets.iframes = newValue }
     }
-
-    private struct ScrollBlockTarget {
-        let rect: Rect
-        let node: NodeID
-        let layout: LayoutID
+    private var scrollBlockTargets: [ScrollBlockTarget] {
+        get { state.layout.targets.blocks }
+        set { state.layout.targets.blocks = newValue }
     }
-
-    private var iframeTargets: [IframeTarget] = []
-    private var scrollBlockTargets: [ScrollBlockTarget] = []
-    private var scrollTargetsValid: Bool = false
-    private var scrollTargetsNeedRebuild: Bool = false
+    private var scrollTargetsValid: Bool {
+        get { state.layout.targets.isValid }
+        set { state.layout.targets.isValid = newValue }
+    }
+    private var scrollTargetsNeedRebuild: Bool {
+        get { state.layout.targets.needsRebuild }
+        set { state.layout.targets.needsRebuild = newValue }
+    }
 
     func markStructureChanged() {
         scrollTargetsNeedRebuild = true
@@ -226,12 +249,13 @@ class Frame {
     private var browser: Browser? { tab?.browser }
 
     init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
-        self.state = FrameState(document: FrameDocumentState(dom: DOMTree()))
+        self.state = FrameState(
+            document: FrameDocumentState(dom: DOMTree()),
+            layout: FrameLayoutState(width: frameWidth, height: frameHeight)
+        )
         self.tab = tab
         self.parentFrame = parent?.frame
         self.frameElement = parent?.element
-        self.frameWidth = frameWidth
-        self.frameHeight = frameHeight
         self.windowID = tab.reserveWindowID()
         tab.windowIDToFrame[self.windowID] = self
     }
@@ -1822,8 +1846,10 @@ class Frame {
         pageZoom = newZoom
         document?.markDocumentGeometryDirty()
         if parentFrame == nil, let tab {
-            frameWidth = tab.tabWidth / newZoom
-            frameHeight = tab.tabHeight / newZoom
+            setViewport(
+                width: tab.tabWidth / newZoom,
+                height: tab.tabHeight / newZoom
+            )
         }
         if let tab {
             for child in tab.windowIDToFrame.values where child.parentFrame === self {

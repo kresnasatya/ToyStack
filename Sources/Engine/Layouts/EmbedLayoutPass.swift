@@ -380,11 +380,10 @@ extension LayoutTree {
         let innerWidth: CGFloat = ref.width - ref.scaled(2)
         let innerHeight: CGFloat = ref.height - ref.scaled(2)
         if frame.frameWidth != innerWidth {
-            frame.frameWidth = innerWidth
-            frame.frameHeight = innerHeight
+            frame.setViewport(width: innerWidth, height: innerHeight)
             frame.setNeedsRender()
         } else if frame.frameHeight != innerHeight {
-            frame.frameHeight = innerHeight
+            frame.setViewport(width: innerWidth, height: innerHeight)
             frame.setNeedsLayout()
         }
     }
