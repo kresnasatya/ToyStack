@@ -2,7 +2,7 @@ import CoreGraphics
 
 // MARK: - RadiusLength
 
-enum RadiusLength: Hashable {
+enum RadiusLength: Hashable, Sendable {
     case px(CGFloat)
     case percent(CGFloat)
 

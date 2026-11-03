@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public struct LayerPlacement {
+public struct LayerPlacement: Sendable {
     public let key: LayerPlacementKey
     public let image: CGImage
     public let frame: CGRect

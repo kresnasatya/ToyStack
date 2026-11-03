@@ -1,4 +1,4 @@
-public struct EffectScopeID: Hashable {
+public struct EffectScopeID: Hashable, Sendable {
     let paint: UInt
     let ordinal: Int
 

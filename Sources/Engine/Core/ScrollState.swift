@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct ScrollState {
+struct ScrollState: Sendable {
     var scroll: CGFloat
     var interestTop: CGFloat
     var interestBottom: CGFloat

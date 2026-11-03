@@ -1,4 +1,4 @@
-struct RasterComposition: @unchecked Sendable {
+struct RasterComposition: Sendable {
     let inputs: RasterInput
     let layers: [RasterLayer]
     let effectStrategies: [LayerEffectStrategy]

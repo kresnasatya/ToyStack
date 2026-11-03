@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public enum BrowserBlendMode: String {
+public enum BrowserBlendMode: String, Sendable {
     case normal
     case multiply
     case difference

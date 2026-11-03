@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public struct RenderedContent {
+public struct RenderedContent: Sendable {
     public var placements: [LayerPlacement] = []
     public var image: CGImage?
     public var regionTop: CGFloat = 0

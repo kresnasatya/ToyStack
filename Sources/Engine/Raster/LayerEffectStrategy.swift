@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct LayerEffectStrategy {
+struct LayerEffectStrategy: Sendable {
     enum Kind: Comparable {
         case flat
         case ca

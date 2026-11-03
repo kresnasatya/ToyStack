@@ -3,12 +3,31 @@ import CoreText
 import Foundation
 
 // MARK: - FontMeasureCache
-final class FontMeasureCache {
-    var widths: [String: CGFloat] = [:]
+final class FontMeasureCache: @unchecked Sendable {
+    private let lock: NSLock = NSLock()
+    private var widths: [String: CGFloat] = [:]
+
+    func width(for text: String, compute: () -> CGFloat) -> CGFloat {
+        lock.lock()
+        if let cached: CGFloat = widths[text] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        let width: CGFloat = compute()
+
+        lock.lock()
+        widths[text] = width
+        lock.unlock()
+        return width
+    }
 }
 
 // MARK: - BrowserFont
-public struct BrowserFont {
+// CTFont is immutable but CoreText does not annotate it. The measure cache is
+// locked, so the value is safe to send.
+public struct BrowserFont: @unchecked Sendable {
     public let ctFont: CTFont
     let cache: FontMeasureCache
     let ascent: CGFloat
@@ -37,17 +56,16 @@ public struct BrowserFont {
 
     public func measure(_ text: String) -> CGFloat {
         profiler.count("text.measureCalls")
-        if let cached = cache.widths[text] { return cached }
-        profiler.count("text.measureMisses")
-        return profiler.measure("text.measure", {
-            let attr: NSAttributedString = NSAttributedString(string: text, attributes: [
-                NSAttributedString.Key(kCTFontAttributeName as String): ctFont
-            ])
-            let line: CTLine = CTLineCreateWithAttributedString(attr)
-            let width: CGFloat = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
-            cache.widths[text] = width
-            return width
-        })
+        return cache.width(for: text) {
+            profiler.count("text.measureMisses")
+            return profiler.measure("text.measure", {
+                let attr: NSAttributedString = NSAttributedString(string: text, attributes: [
+                    NSAttributedString.Key(kCTFontAttributeName as String): ctFont
+                ])
+                let line: CTLine = CTLineCreateWithAttributedString(attr)
+                return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+            })
+        }
     }
 }
 

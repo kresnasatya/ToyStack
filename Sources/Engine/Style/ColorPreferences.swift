@@ -1,4 +1,4 @@
-struct ColorPreferences: Equatable {
+struct ColorPreferences: Equatable, Sendable {
     var prefersDark: Bool
     var usesForcedColors: Bool
 

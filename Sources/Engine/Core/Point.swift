@@ -1,7 +1,7 @@
 import CoreGraphics
 
 // MARK: - Point
-public struct Point: Equatable {
+public struct Point: Equatable, Sendable {
     public var x: CGFloat
     public var y: CGFloat
 

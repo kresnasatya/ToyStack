@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public enum EffectKind {
+public enum EffectKind: Sendable {
     case blend(opacity: Double, mode: BrowserBlendMode?)
     case blur(radius: CGFloat)
     case clip(ClipShape)

@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public struct EffectScope {
+public struct EffectScope: Sendable {
     let id: EffectScopeID
     let kind: EffectKind
     let placement: EffectPlacement
@@ -26,7 +26,7 @@ public struct EffectScope {
 
 // MARK: - EffectPlacement
 
-public struct EffectPlacement {
+public struct EffectPlacement: Sendable {
     let rect: Rect
     let node: NodeID?
     let animatedTransform: Bool

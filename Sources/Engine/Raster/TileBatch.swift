@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct TileBatch: @unchecked Sendable {
+struct TileBatch: Sendable {
     let strips: [TileStrip]
     let tabHeight: CGFloat
     let deferred: Bool

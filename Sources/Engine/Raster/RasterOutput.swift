@@ -1,4 +1,4 @@
-struct RasterOutput: @unchecked Sendable {
+struct RasterOutput: Sendable {
     let compositedLayers: [RasterLayer]?
     let drawList: [DisplayOp]?
     let content: RenderedContent

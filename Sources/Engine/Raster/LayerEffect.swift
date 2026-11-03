@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public struct LayerEffect {
+public struct LayerEffect: Sendable {
     public let key: NodeID?
     public let opacity: Double
     public let translation: CGPoint

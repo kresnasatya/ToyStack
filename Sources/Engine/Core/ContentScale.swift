@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public struct ContentScale: Equatable {
+public struct ContentScale: Equatable, Sendable {
     public let display: CGFloat
     public let page: CGFloat
 

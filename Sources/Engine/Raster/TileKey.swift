@@ -1,4 +1,4 @@
-struct TileKey: Hashable {
+struct TileKey: Hashable, Sendable {
     let layer: LayerID
     let index: TileIndex
     let contentHash: Int

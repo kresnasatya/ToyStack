@@ -2,7 +2,7 @@ import CoreGraphics
 
 // MARK: - CornerRadius
 
-struct CornerRadius: Hashable {
+struct CornerRadius: Hashable, Sendable {
     var horizontal: RadiusLength
     var vertical: RadiusLength
 
@@ -16,7 +16,7 @@ struct CornerRadius: Hashable {
 
 // MARK: - CornerRadii
 
-public struct CornerRadii: Hashable {
+public struct CornerRadii: Hashable, Sendable {
     var topLeft: CornerRadius
     var topRight: CornerRadius
     var bottomRight: CornerRadius

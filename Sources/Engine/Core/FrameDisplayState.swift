@@ -1,5 +1,5 @@
 /// Paint output, composited updates, and the last painted region.
-struct FrameDisplayState {
+struct FrameDisplayState: Sendable {
     var paint: FramePaintState
     var composite: FrameCompositeState
     var painted: FramePaintedState

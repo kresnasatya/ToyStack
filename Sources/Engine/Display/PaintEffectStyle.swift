@@ -2,7 +2,7 @@ import CoreGraphics
 
 // MARK: - PaintEffectStyle
 
-struct PaintEffectStyle {
+struct PaintEffectStyle: Sendable {
     let opacity: Double
     let blendMode: BrowserBlendMode?
     let translation: CGPoint?

@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public enum DisplayOp {
+public enum DisplayOp: Sendable {
     case rect(rect: Rect, color: BrowserColor)
     case rrect(rect: Rect, radii: CornerRadii, color: BrowserColor)
     case line(from: Point, to: Point, color: BrowserColor, width: CGFloat)

@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct TileStrip: @unchecked Sendable {
+struct TileStrip: Sendable {
     let layerIndex: Int
     let bounds: Rect
     let items: [DisplayOp]

@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// The last effect bitmap generated for a layer.
-public struct LayerEffectImage {
+public struct LayerEffectImage: Sendable {
     var image: CGImage?
     var key: EffectImageKey?
 
@@ -13,7 +13,7 @@ public struct LayerEffectImage {
 
 // MARK: - EffectImageKey
 
-public struct EffectImageKey: Equatable {
+public struct EffectImageKey: Equatable, Sendable {
     let scale: CGFloat
     let blur: CGFloat
     let bounds: Rect
