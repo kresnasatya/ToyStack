@@ -2,20 +2,20 @@ import Foundation
 
 #if DEBUG
 @MainActor
-func dumpDependencies(_ object: LayoutRef, indent: Int = 0) {
+func dumpDependencies(_ tree: LayoutTree, _ id: LayoutID, indent: Int = 0) {
     let padding: String = String(repeating: "  ", count: indent)
-    print("\(padding)\(object.kind) \(String(describing: object.node))")
-    for field in LayoutField.allCases where object.tree.isUsed(field, at: object.id) {
+    print("\(padding)\(tree.kind(id)) \(String(describing: tree.domRef(id)))")
+    for field in LayoutField.allCases where tree.isUsed(field, at: id) {
         let inputs: String = LayoutInputTable
-            .inputs(for: object.id, field: field, in: object.tree)
+            .inputs(for: id, field: field, in: tree)
             .map({ $0.description })
             .sorted()
             .joined(separator: ", ")
-        let dirty: Bool = object.tree.isDirty(field, at: object.id)
+        let dirty: Bool = tree.isDirty(field, at: id)
         print("\(padding)  \(field.rawValue) dirty=\(dirty) inputs=[\(inputs)]")
     }
-    for child in object.children {
-        dumpDependencies(child, indent: indent + 1)
+    for child in tree.childrenIDs(of: id) {
+        dumpDependencies(tree, child, indent: indent + 1)
     }
 }
 #endif

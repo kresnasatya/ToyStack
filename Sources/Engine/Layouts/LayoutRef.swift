@@ -158,3 +158,16 @@ extension LayoutRef {
         tree.layout(id)
     }
 }
+
+// MARK: - Transitional helpers
+
+extension LayoutRef {
+    func hitTest(x: CGFloat, y: CGFloat) -> LayoutRef? {
+        guard let hit: LayoutID = tree.hitTest(id, x: x, y: y) else { return nil }
+        return LayoutRef(id: hit, tree: tree)
+    }
+
+    func absoluteBounds() -> Rect {
+        return tree.absoluteBounds(id)
+    }
+}

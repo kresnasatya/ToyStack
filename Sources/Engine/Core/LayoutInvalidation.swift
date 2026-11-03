@@ -9,7 +9,7 @@ enum LayoutInvalidation {
     }
 
     static func childrenAppend(_ parent: DOMRef, _ child: DOMRef) {
-        guard let block = nearestBlock(parent), block.isBlock else {
+        guard let block = nearestBlock(parent), block.tree.isBlock(block.id) else {
             childrenChanged(parent)
             return
         }
@@ -21,7 +21,7 @@ enum LayoutInvalidation {
         _ child: DOMRef,
         before reference: DOMRef
     ) {
-        guard let block = nearestBlock(parent), block.isBlock else {
+        guard let block = nearestBlock(parent), block.tree.isBlock(block.id) else {
             childrenChanged(parent)
             return
         }
@@ -53,36 +53,40 @@ enum LayoutInvalidation {
     }
 
     static func imageChanged(_ node: DOMRef) {
-        if let layout = node.layout, case .embed(.image) = layout.kind {
-            layout.tree.markField(.width, at: layout.id)
-            layout.tree.markField(.height, at: layout.id)
+        if let tree: LayoutTree = node.dom.layoutTree,
+            let id: LayoutID = node.layoutID,
+            case .embed(.image) = tree.kind(id)
+        {
+            tree.markField(.width, at: id)
+            tree.markField(.height, at: id)
         }
         childrenChanged(node)
     }
 
-    static func nearestBlock(_ node: DOMRef) -> LayoutRef? {
-        var layout: LayoutRef? = node.layout
-        while let current = layout {
-            if current.isBlock {
-                return current
+    static func nearestBlock(_ node: DOMRef) -> (tree: LayoutTree, id: LayoutID)? {
+        guard let tree: LayoutTree = node.dom.layoutTree else { return nil }
+        var current: LayoutID? = node.layoutID
+        while let id = current {
+            if tree.isBlock(id) {
+                return (tree, id)
             }
-            layout = current.parent
+            current = tree.parentID(of: id)
         }
         var dom: DOMRef? = node.parent
-        while let current = dom {
-            if let resolved = current.layout, resolved.isBlock {
-                return resolved
+        while let parent = dom {
+            if let id = parent.layoutID, tree.isBlock(id) {
+                return (tree, id)
             }
-            dom = current.parent
+            dom = parent.parent
         }
         return nil
     }
 
-    private static func parentBlock(of block: LayoutRef) -> LayoutRef? {
-        var layout: LayoutRef? = block.parent
-        while let current = layout {
-            if current.isBlock { return current }
-            layout = current.parent
+    private static func parentBlock(of block: (tree: LayoutTree, id: LayoutID)) -> (tree: LayoutTree, id: LayoutID)? {
+        var current: LayoutID? = block.tree.parentID(of: block.id)
+        while let id = current {
+            if block.tree.isBlock(id) { return (block.tree, id) }
+            current = block.tree.parentID(of: id)
         }
         return nil
     }

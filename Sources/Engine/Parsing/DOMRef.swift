@@ -38,11 +38,14 @@ extension DOMRef {
         return self
     }
 
+    var layoutID: LayoutID? {
+        return dom.layoutTree?.primaryLayout(for: id)
+    }
+
+    /// Transitional while the tests still read layout through a ref.
     var layout: LayoutRef? {
-        guard let tree: LayoutTree = dom.layoutTree,
-            let id: LayoutID = tree.primaryLayout(for: id)
-        else { return nil }
-        return LayoutRef(id: id, tree: tree)
+        guard let tree: LayoutTree = dom.layoutTree, let layoutID else { return nil }
+        return LayoutRef(id: layoutID, tree: tree)
     }
 
     var parent: DOMRef? {

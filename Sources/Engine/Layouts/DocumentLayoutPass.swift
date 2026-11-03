@@ -3,20 +3,20 @@ import CoreGraphics
 // MARK: - DocumentLayoutPass
 
 extension LayoutTree {
-    func documentLayoutNeeded(_ root: LayoutRef) -> Bool {
-        if root.hasDirtyDescendants {
+    func documentLayoutNeeded(_ id: LayoutID) -> Bool {
+        if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        if root.tree.isDirty(.zoom, at: root.id)
-            || root.tree.isDirty(.x, at: root.id)
-            || root.tree.isDirty(.y, at: root.id)
-            || root.tree.isDirty(.width, at: root.id)
-            || root.tree.isDirty(.height, at: root.id)
+        if isDirty(.zoom, at: id)
+            || isDirty(.x, at: id)
+            || isDirty(.y, at: id)
+            || isDirty(.width, at: id)
+            || isDirty(.height, at: id)
         {
             return true
         }
-        return root.tree.isDirty(.children, at: root.id)
+        return isDirty(.children, at: id)
     }
 
     func layoutDocument(
@@ -24,43 +24,41 @@ extension LayoutTree {
         zoom: CGFloat,
         pageZoom: CGFloat
     ) {
-        let root: LayoutRef = self.root
+        let root: LayoutID = rootID
         consumeStyleChanges()
         guard documentLayoutNeeded(root) else { return }
         dependencies.beginLayout()
         dependencies.rebuild(from: self)
         defer {
-            root.hasDirtyDescendants = false
+            setDirtyDescendants(false, at: root)
             dependencies.endLayout(from: self)
         }
 
-        root.zoom = zoom
-        var data: DocumentData = root.documentData
+        setField(.zoom, zoom, for: root)
+        var data: DocumentData = documentData(root)
         data.pageZoom = pageZoom
-        root.documentData = data
+        setKind(.document(data), at: root)
 
-        let child: LayoutRef
-        if let existing: LayoutRef = root.children.first,
-            existing.isBlock,
-            existing.domNode == root.domNode
+        let dom: NodeID = domID(of: root)
+        let child: LayoutID
+        if let existing: LayoutID = childrenIDs(of: root).first,
+            isBlock(existing),
+            domID(of: existing) == dom
         {
             child = existing
         } else {
-            child = LayoutRef(
-                id: makeBlock(dom: root.domNode, parent: root.id, previous: nil),
-                tree: self
-            )
+            child = makeBlock(dom: dom, parent: root, previous: nil)
         }
-        root.children = [child]
+        setChildrenField([child], of: root)
 
-        let rootZoom: CGFloat = root.zoom
-        root.width = availableWidth - 2 * HSTEP * rootZoom
-        root.x = HSTEP * root.zoom
-        root.y = VSTEP * root.zoom
+        let rootZoom: CGFloat = zoom
+        setField(.width, availableWidth - 2 * HSTEP * rootZoom, for: root)
+        setField(.x, HSTEP * rootZoom, for: root)
+        setField(.y, VSTEP * rootZoom, for: root)
 
-        child.layout()
+        layout(child)
 
-        markUsed(.height, at: root.id)
-        root.height = boxHeight(child.id)
+        markUsed(.height, at: root)
+        setField(.height, boxHeight(child), for: root)
     }
 }

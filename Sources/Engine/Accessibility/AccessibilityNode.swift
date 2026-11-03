@@ -20,24 +20,33 @@ class AccessibilityNode {
     }
 
     private static func computeBounds(for node: DOMRef) -> Rect {
-        guard let lo = node.layout else {
+        guard let tree: LayoutTree = node.dom.layoutTree,
+            let id: LayoutID = node.layoutID
+        else {
             return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
 
-        if lo.isText, let line = lo.parent, let block = line.parent, block.isBlock {
+        if tree.isText(id),
+            let line: LayoutID = tree.parentID(of: id),
+            let block: LayoutID = tree.parentID(of: line),
+            tree.isBlock(block)
+        {
             var result: Rect? = nil
-            for lineLayout in block.children {
-                for item in lineLayout.children where item.domNode == node.id {
+            for lineLayout in tree.childrenIDs(of: block) {
+                for item in tree.childrenIDs(of: lineLayout)
+                where tree.domID(of: item) == node.id {
+                    let x: CGFloat = tree.x(item)
+                    let y: CGFloat = tree.y(item)
                     let r: Rect = Rect(
-                        left: item.x, top: item.y,
-                        right: item.x + item.width, bottom: item.y + item.height
+                        left: x, top: y,
+                        right: x + tree.width(item), bottom: y + tree.height(item)
                     )
                     result = result.map { union($0, r) } ?? r
                 }
             }
             if let r = result { return r }
         }
-        return lo.absoluteBounds()
+        return tree.absoluteBounds(id)
     }
 
     private static func union(_ a: Rect, _ b: Rect) -> Rect {
@@ -119,7 +128,7 @@ class AccessibilityNode {
             buildInternal(childNode)
         }
 
-        if node.layout == nil, let first = children.first {
+        if node.layoutID == nil, let first = children.first {
             bounds = children.dropFirst().reduce(first.bounds) {
                 AccessibilityNode.union($0, $1.bounds)
             }
@@ -135,7 +144,7 @@ class AccessibilityNode {
         }
         let child: AccessibilityNode
         if let el = childNode.element, el.tag == "iframe",
-            let frame = el.frame, frame.loaded, childNode.layout != nil
+            let frame = el.frame, frame.loaded, childNode.layoutID != nil
         {
             child = FrameAccessibilityNode(node: childNode, parent: self)
         } else {

@@ -11,6 +11,7 @@ func treeToList(_ node: DOMRef) -> [DOMRef] {
     return result
 }
 
+/// Transitional: tests still walk layout refs.
 @MainActor
 func treeToList(_ ref: LayoutRef, into list: inout [LayoutRef]) {
     list.append(ref)
@@ -21,6 +22,17 @@ func treeToList(_ ref: LayoutRef, into list: inout [LayoutRef]) {
 func treeToList(_ ref: LayoutRef) -> [LayoutRef] {
     var list: [LayoutRef] = []
     treeToList(ref, into: &list)
+    return list
+}
+
+@MainActor
+func treeToList(_ tree: LayoutTree, _ root: LayoutID) -> [LayoutID] {
+    var list: [LayoutID] = []
+    var stack: [LayoutID] = [root]
+    while let id = stack.popLast() {
+        list.append(id)
+        stack.append(contentsOf: tree.childrenIDs(of: id).reversed())
+    }
     return list
 }
 

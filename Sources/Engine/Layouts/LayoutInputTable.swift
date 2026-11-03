@@ -164,9 +164,8 @@ enum LayoutInputTable {
         field: LayoutField
     ) -> [FieldKey] {
         return tree.children(of: id)
-            .map({ LayoutRef(id: $0, tree: tree) })
-            .filter({ $0.isText || $0.isEmbed })
-            .map({ .layout($0.id, field) })
+            .filter({ tree.isText($0) || tree.isEmbed($0) })
+            .map({ .layout($0, field) })
     }
 
     // MARK: - Text

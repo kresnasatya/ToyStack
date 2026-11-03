@@ -14,21 +14,21 @@ struct PaintBuildSink {
 
 /// Copies everything paint reads out of the live trees.
 ///
-/// This is the only paint code that touches `LayoutRef` and `DOMRef`. It also
-/// collects the few DOM facts that decide ops (focus rings, caret, iframe
+/// This is the only paint code that touches the layout tree and `DOMRef`. It
+/// also collects the few DOM facts that decide ops (focus rings, caret, iframe
 /// scrollbars), so the pass itself stays on values.
 @MainActor
 struct PaintSceneBuilder {
     private(set) var sink: PaintBuildSink = PaintBuildSink()
 
-    mutating func build(root: LayoutRef, frame: Frame) -> Int {
+    mutating func build(root: LayoutID, tree: LayoutTree, frame: Frame) -> Int {
         let index: Int = sink.scenes.count
         sink.owners.append(frame)
         sink.scenes.append(PaintFrame(nodes: [], epoch: frame.paintEpoch))
 
         var nodes: [PaintNode] = []
         nodes.reserveCapacity(64)
-        _ = appendNode(root, parent: nil, nodes: &nodes)
+        _ = appendNode(tree, root, parent: nil, nodes: &nodes)
         sink.scenes[index] = PaintFrame(nodes: nodes, epoch: frame.paintEpoch)
         return index
     }
@@ -36,43 +36,47 @@ struct PaintSceneBuilder {
     // MARK: - Nodes
 
     private mutating func appendNode(
-        _ ref: LayoutRef,
+        _ tree: LayoutTree,
+        _ id: LayoutID,
         parent: Int?,
         nodes: inout [PaintNode]
     ) -> Int {
         let index: Int = nodes.count
-        nodes.append(placeholder(id: ref.id, dom: ref.node.id))
+        nodes.append(placeholder(id: id, dom: tree.domID(of: id)))
         var children: [Int] = []
-        children.reserveCapacity(ref.children.count)
-        for child in ref.children {
-            children.append(appendNode(child, parent: index, nodes: &nodes))
+        let childIDs: [LayoutID] = tree.childrenIDs(of: id)
+        children.reserveCapacity(childIDs.count)
+        for child in childIDs {
+            children.append(appendNode(tree, child, parent: index, nodes: &nodes))
         }
-        nodes[index] = makeNode(ref, parent: parent, children: children)
+        nodes[index] = makeNode(tree, id, parent: parent, children: children)
         return index
     }
 
     private mutating func makeNode(
-        _ ref: LayoutRef,
+        _ tree: LayoutTree,
+        _ id: LayoutID,
         parent: Int?,
         children: [Int]
     ) -> PaintNode {
-        let style: ComputedStyle = ref.node.style.computed
-        let animatedTransform: Bool = ref.node.animations[.property(.transform)] != nil
-        let animatedOpacity: Bool = ref.node.animations[.property(.opacity)] != nil
+        let node: DOMRef = tree.domRef(id)
+        let style: ComputedStyle = node.style.computed
+        let animatedTransform: Bool = node.animations[.property(.transform)] != nil
+        let animatedOpacity: Bool = node.animations[.property(.opacity)] != nil
         return PaintNode(
             geometry: PaintGeometry(
-                rect: ref.selfRect(),
+                rect: tree.selfRect(id),
                 frame: Rect(
-                    left: ref.x,
-                    top: ref.y,
-                    right: ref.x + ref.width,
-                    bottom: ref.y + ref.height
+                    left: tree.x(id),
+                    top: tree.y(id),
+                    right: tree.x(id) + tree.width(id),
+                    bottom: tree.y(id) + tree.height(id)
                 ),
-                zoom: ref.zoom
+                zoom: tree.zoom(id)
             ),
             surface: PaintSurface(
                 style: style,
-                font: font(of: ref),
+                font: font(of: tree, id),
                 effects: PaintEffects(
                     style: paintEffectStyle(
                         style,
@@ -81,65 +85,75 @@ struct PaintSceneBuilder {
                     animatedTransform: animatedTransform
                 ),
                 state: PaintState(
-                    forcedColors: usesForcedColors(ref.node),
-                    isFocusVisible: ref.node.isFocusVisible,
-                    isFocused: ref.node.element?.isFocused ?? false
+                    forcedColors: usesForcedColors(node),
+                    isFocusVisible: node.isFocusVisible,
+                    isFocused: node.element?.isFocused ?? false
                 )
             ),
-            content: makeContent(ref),
-            links: PaintLinks(id: ref.id, dom: ref.node.id, parent: parent, children: children)
+            content: makeContent(tree, id),
+            links: PaintLinks(
+                id: id,
+                dom: node.id,
+                parent: parent,
+                children: children
+            )
         )
     }
 
     /// `.font` traps when the field is dirty; only text and input paint it.
-    private func font(of ref: LayoutRef) -> BrowserFont {
-        switch ref.kind {
+    private func font(of tree: LayoutTree, _ id: LayoutID) -> BrowserFont {
+        switch tree.kind(id) {
         case .text, .embed(.input):
-            return ref.font
+            return tree.font(id)
         default:
             return inlineDefaultFont
         }
     }
 
-    private mutating func makeContent(_ ref: LayoutRef) -> PaintContent {
-        switch ref.kind {
+    private mutating func makeContent(_ tree: LayoutTree, _ id: LayoutID) -> PaintContent {
+        switch tree.kind(id) {
         case .document:
             return .document
         case .block:
-            var trailing: [DisplayOp] = ref.tree.blockPaintScrollbar(ref.id)
-            ref.tree.blockPaintCaret(ref.id, into: &trailing)
+            var trailing: [DisplayOp] = tree.blockPaintScrollbar(id)
+            tree.blockPaintCaret(id, into: &trailing)
+            let node: DOMRef = tree.domRef(id)
             return .block(PaintBlock(
-                shouldPaint: ref.tree.blockShouldPaint(ref.id),
-                isListItem: ref.node.element?.tag == "li",
-                scrollOffset: ref.tree.blockScrollOffset(ref.id),
+                shouldPaint: tree.blockShouldPaint(id),
+                isListItem: node.element?.tag == "li",
+                scrollOffset: tree.blockScrollOffset(id),
                 extras: PaintBlockExtras(
-                    backgroundImage: ref.node.element?.backgroundImage,
+                    backgroundImage: node.element?.backgroundImage,
                     trailing: trailing
                 )
             ))
         case .line:
             return .line(PaintLine(
-                canCache: ref.tree.lineCanCachePaint(ref.id),
-                generation: ref.lineData.paint.generation,
-                focusRing: lineFocusRing(ref)
+                canCache: tree.lineCanCachePaint(id),
+                generation: tree.lineData(id).paint.generation,
+                focusRing: lineFocusRing(tree, id)
             ))
         case .text:
-            let data: TextData = ref.textData
+            let data: TextData = tree.textData(id)
             return .text(PaintText(
                 string: data.display ?? data.word,
                 width: data.metrics.width,
-                top: ref.tree.textAbsoluteY(ref.id),
-                color: ref.node.inheritedStyleOwner.style.computed.text.color
+                top: tree.textAbsoluteY(id),
+                color: tree.domRef(id).inheritedStyleOwner.style.computed.text.color
             ))
         case .embed(let data):
-            return .embed(makeEmbed(ref, data))
+            return .embed(makeEmbed(tree, id, data))
         }
     }
 
     // MARK: - Embeds
 
-    private mutating func makeEmbed(_ ref: LayoutRef, _ data: EmbedData) -> PaintEmbed {
-        let element: ElementRef? = ref.node.element
+    private mutating func makeEmbed(
+        _ tree: LayoutTree,
+        _ id: LayoutID,
+        _ data: EmbedData
+    ) -> PaintEmbed {
+        let element: ElementRef? = tree.domRef(id).element
         switch data {
         case .image(let image):
             return .image(PaintImage(
@@ -155,7 +169,7 @@ struct PaintSceneBuilder {
         case .button:
             return .button
         case .iframe:
-            return .iframe(makeIframe(ref, element))
+            return .iframe(makeIframe(tree, id, element))
         case .canvas:
             let context: CanvasRenderingContext2D? = element?.canvasContext
             return .canvas(PaintCanvas(
@@ -182,18 +196,24 @@ struct PaintSceneBuilder {
         return ""
     }
 
-    private mutating func makeIframe(_ ref: LayoutRef, _ element: ElementRef?) -> PaintIframe {
-        let diff: CGFloat = ref.scaled(1)
+    private mutating func makeIframe(
+        _ tree: LayoutTree,
+        _ id: LayoutID,
+        _ element: ElementRef?
+    ) -> PaintIframe {
+        let diff: CGFloat = tree.zoom(id)
+        let x: CGFloat = tree.x(id)
+        let y: CGFloat = tree.y(id)
         let inner: Rect = Rect(
-            left: ref.x + diff,
-            top: ref.y + diff,
-            right: ref.x + ref.width - diff,
-            bottom: ref.y + ref.height - diff
+            left: x + diff,
+            top: y + diff,
+            right: x + tree.width(id) - diff,
+            bottom: y + tree.height(id) - diff
         )
         guard let child: Frame = element?.frame, child.loaded, let doc = child.document else {
             return PaintIframe(frame: nil, inner: inner, scroll: 0, bar: nil)
         }
-        let index: Int = build(root: doc.root, frame: child)
+        let index: Int = build(root: doc.rootID, tree: doc, frame: child)
         return PaintIframe(
             frame: index,
             inner: inner,
@@ -204,15 +224,19 @@ struct PaintSceneBuilder {
 
     // MARK: - DOM-derived ops
 
-    private func lineFocusRing(_ ref: LayoutRef) -> [DisplayOp] {
+    private func lineFocusRing(_ tree: LayoutTree, _ id: LayoutID) -> [DisplayOp] {
         var outlineRect: Rect? = nil
         var focused: DOMRef? = nil
-        for child in ref.children {
-            guard let ancestor: DOMRef = focusVisibleInlineAncestor(child.node, line: ref) else {
+        for child in tree.childrenIDs(of: id) {
+            guard let ancestor: DOMRef = focusVisibleInlineAncestor(
+                tree.domRef(child),
+                line: id,
+                tree: tree
+            ) else {
                 continue
             }
             focused = ancestor
-            let childRect: Rect = child.selfRect()
+            let childRect: Rect = tree.selfRect(child)
             outlineRect = outlineRect?.union(childRect) ?? childRect
         }
         guard let rect: Rect = outlineRect, let focused else { return [] }
@@ -220,7 +244,7 @@ struct PaintSceneBuilder {
             return [outline]
         }
         let ring: (outer: String, inner: String) = focusRingColors(
-            forcedColors: usesForcedColors(ref.node)
+            forcedColors: usesForcedColors(tree.domRef(id))
         )
         return [
             .outline(rect: rect, color: BrowserColor(cssName: ring.outer), width: 4),
@@ -228,9 +252,13 @@ struct PaintSceneBuilder {
         ]
     }
 
-    private func focusVisibleInlineAncestor(_ start: DOMRef, line: LayoutRef) -> DOMRef? {
+    private func focusVisibleInlineAncestor(
+        _ start: DOMRef,
+        line: LayoutID,
+        tree: LayoutTree
+    ) -> DOMRef? {
         var current: DOMRef? = start.parent
-        while let ancestor = current, ancestor.id != line.domNode {
+        while let ancestor = current, ancestor.id != tree.domID(of: line) {
             if ancestor.isFocusVisible { return ancestor }
             current = ancestor.parent
         }
@@ -243,7 +271,7 @@ struct PaintSceneBuilder {
         let contentHeight: CGFloat = inner.bottom - inner.top
         guard let bar: DisplayOp = scrollbarBarRect(
             ScrollbarGeometry(
-                docHeight: doc.root.height + 2 * VSTEP,
+                docHeight: doc.height(doc.rootID) + 2 * VSTEP,
                 contentHeight: contentHeight,
                 contentWidth: contentWidth,
                 scroll: frame.scroll

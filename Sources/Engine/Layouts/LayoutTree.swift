@@ -65,21 +65,25 @@ final class LayoutTree {
         return primaryByNode[node]
     }
 
+    var rootID: LayoutID {
+        return LayoutID(raw: 0)
+    }
+
     var root: LayoutRef {
-        return LayoutRef(id: LayoutID(raw: 0), tree: self)
+        return LayoutRef(id: rootID, tree: self)
     }
 
     func markDocumentWidthDirty() {
-        markField(.width, at: root.id)
+        markField(.width, at: rootID)
     }
 
     func markDocumentGeometryDirty() {
-        markField(.width, at: root.id)
-        markField(.zoom, at: root.id)
+        markField(.width, at: rootID)
+        markField(.zoom, at: rootID)
     }
 
     func documentNeedsLayout() -> Bool {
-        return documentLayoutNeeded(root)
+        return documentLayoutNeeded(rootID)
     }
 
     var liveIDs: [LayoutID] {
@@ -447,6 +451,23 @@ extension LayoutTree {
         return DOMRef(id: domID(of: id), dom: dom)
     }
 
+    func absoluteBounds(_ id: LayoutID) -> Rect {
+        var rect: Rect = selfRect(id)
+        var current: DOMRef? = domRef(id)
+        while let dom = current {
+            if let t: CGPoint = dom.style.computed.visual.effects.translation {
+                rect = Rect(
+                    left: rect.left + t.x,
+                    top: rect.top + t.y,
+                    right: rect.right + t.x,
+                    bottom: rect.bottom + t.y
+                )
+            }
+            current = dom.parent
+        }
+        return rect
+    }
+
     func pageZoom(_ id: LayoutID) -> CGFloat {
         if let parent: LayoutID = parentID(of: id) {
             return pageZoom(parent)
@@ -591,7 +612,7 @@ extension LayoutTree {
     func layoutNeeded(_ id: LayoutID) -> Bool {
         switch kind(id) {
         case .document:
-            return documentLayoutNeeded(LayoutRef(id: id, tree: self))
+            return documentLayoutNeeded(id)
         case .block:
             return blockLayoutNeeded(id)
         case .line:

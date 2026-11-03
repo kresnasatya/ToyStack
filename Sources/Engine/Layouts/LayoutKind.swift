@@ -15,3 +15,10 @@ extension LayoutKind {
         return false
     }
 }
+
+extension LayoutKind {
+    var documentPageZoom: CGFloat {
+        if case .document(let data) = self { return data.pageZoom }
+        return 1
+    }
+}
