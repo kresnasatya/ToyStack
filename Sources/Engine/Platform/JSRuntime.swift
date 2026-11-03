@@ -24,8 +24,8 @@ class JSRuntime: @unchecked Sendable {
         jsContext.evaluateScript(code)
     }
 
-    func dispatchEvent(type: String, elt: DOMRef) -> Bool {
-        let handle: Int = getHandle(elt)
+    func dispatchEvent(type: String, el: DOMRef) -> Bool {
+        let handle: Int = getHandle(el)
         jsContext.setObject(handle, forKeyedSubscript: "__handle" as NSString)
         jsContext.setObject(type, forKeyedSubscript: "__type" as NSString)
         let result: JSValue? = jsContext.evaluateScript(Self.eventDispatchJS)
@@ -55,17 +55,17 @@ class JSRuntime: @unchecked Sendable {
         if let text = node.text {
             return text.text
         }
-        guard let elt = node.element else { return "" }
-        let attrs: String = elt.attributes.map { " \($0.key)=\($0.value)" }.joined()
-        let inner: String = elt.children.map { serialize($0) }.joined()
-        return "<\(elt.tag)\(attrs)>\(inner)</\(elt.tag)>"
+        guard let el = node.element else { return "" }
+        let attrs: String = el.attributes.map { " \($0.key)=\($0.value)" }.joined()
+        let inner: String = el.children.map { serialize($0) }.joined()
+        return "<\(el.tag)\(attrs)>\(inner)</\(el.tag)>"
     }
 
     @MainActor
     private func textContent(of node: DOMRef) -> String {
         if let text = node.text { return text.text }
-        guard let elt = node.element else { return "" }
-        return elt.children.map { self.textContent(of: $0) }.joined()
+        guard let el = node.element else { return "" }
+        return el.children.map { self.textContent(of: $0) }.joined()
     }
 
     private func registerCallbacks() {
@@ -89,8 +89,8 @@ class JSRuntime: @unchecked Sendable {
             return MainActor.assumeIsolated({
                 var result: [String: Int] = [:]
                 for node in treeToList(frame.nodes) {
-                    guard let elt = node.element,
-                        let id = elt.attributes["id"]
+                    guard let el = node.element,
+                        let id = el.attributes["id"]
                     else { continue }
                     result[id] = self.getHandle(node)
                 }
@@ -331,27 +331,27 @@ class JSRuntime: @unchecked Sendable {
             [weak self] (handle: Int, childHandles: [Int]) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,
-                    let elt = self.handleToNode[handle], frame.dom.isElement(elt)
+                    let el = self.handleToNode[handle], frame.dom.isElement(el)
                 else { return }
 
                 let newChildren: [NodeID] = childHandles.compactMap({ self.handleToNode[$0] })
-                guard newChildren.allSatisfy({ !frame.dom.isInclusiveAncestor($0, of: elt) }) else {
+                guard newChildren.allSatisfy({ !frame.dom.isInclusiveAncestor($0, of: el) }) else {
                     return
                 }
 
                 let oldParents: [NodeID] = newChildren.compactMap({ frame.dom.parent(of: $0) })
-                frame.dom.setChildren(newChildren, of: elt)
+                frame.dom.setChildren(newChildren, of: el)
 
-                for parent in oldParents where parent != elt {
+                for parent in oldParents where parent != el {
                     LayoutInvalidation.childrenChanged(frame.dom.ref(parent))
                 }
 
-                LayoutInvalidation.childrenChanged(frame.dom.ref(elt))
+                LayoutInvalidation.childrenChanged(frame.dom.ref(el))
                 frame.markStructureChanged()
                 for child in newChildren { frame.runNewScripts(in: frame.dom.ref(child)) }
                 frame.reloadStylesheets()
                 frame.syncIframes()
-                frame.setNeedsStyle(frame.dom.ref(elt))
+                frame.setNeedsStyle(frame.dom.ref(el))
                 for child in newChildren {
                     frame.setNeedsStyleSubtree(frame.dom.ref(child))
                 }
@@ -512,10 +512,10 @@ class JSRuntime: @unchecked Sendable {
             }
             Task {
                 @MainActor in
-                guard let frame = self.frame, let elt = frame.dom.ref(id).element else { return }
-                InlineStyle.set(elt, property: attr, value: value)
+                guard let frame = self.frame, let el = frame.dom.ref(id).element else { return }
+                InlineStyle.set(el, property: attr, value: value)
                 frame.noteStyleInvalidation("style.invalidate.js.style")
-                frame.setNeedsStyleSubtree(elt.ref)
+                frame.setNeedsStyleSubtree(el.ref)
             }
         } as @convention(block) (Int, String, String) -> Void, forKeyedSubscript: "__styleSet__" as NSString)
 

@@ -1427,7 +1427,7 @@ class Frame {
     func keypress(_ char: String) {
         guard let f = focus else { return }
         let focusRef: DOMRef = dom.ref(f)
-        if js.dispatchEvent(type: "keydown", elt: focusRef) { return }
+        if js.dispatchEvent(type: "keydown", el: focusRef) { return }
 
         if focusRef.element?.attributes["contenteditable"] != nil {
             let texts: [TextRef] = treeToList(focusRef).compactMap({ $0.text })
@@ -1460,7 +1460,7 @@ class Frame {
         dom.setFlag(\.isFocused, false, of: previous)
         dom.setFlag(\.isFocusVisible, false, of: previous)
         setNeedsStyleSubtree(ref)
-        _ = js?.dispatchEvent(type: "blur", elt: ref)
+        _ = js?.dispatchEvent(type: "blur", el: ref)
         focus = nil
     }
 
@@ -1472,7 +1472,7 @@ class Frame {
             dom.setFlag(\.isFocused, false, of: previous)
             dom.setFlag(\.isFocusVisible, false, of: previous)
             setNeedsStyleSubtree(ref)
-            _ = js?.dispatchEvent(type: "blur", elt: ref)
+            _ = js?.dispatchEvent(type: "blur", el: ref)
         }
         focus = node?.id
         if let node {
@@ -1481,7 +1481,7 @@ class Frame {
             dom.setFlag(\.isFocusVisible, showRing, of: node.id)
             setNeedsStyleSubtree(ref)
             needsFocusScroll = true
-            _ = js?.dispatchEvent(type: "focus", elt: ref)
+            _ = js?.dispatchEvent(type: "focus", el: ref)
         }
     }
 
@@ -1496,7 +1496,7 @@ class Frame {
 
         scrollFocusNode = scrollableAncestor(of: source)
 
-        let prevented: Bool = js.dispatchEvent(type: "click", elt: source.node)
+        let prevented: Bool = js.dispatchEvent(type: "click", el: source.node)
 
         if !prevented {
             var elt: DOMRef? = source.node
@@ -1562,9 +1562,9 @@ class Frame {
         }
     }
 
-    private func submitForm(_ elt: ElementRef) {
-        if js.dispatchEvent(type: "submit", elt: elt.ref) { return }
-        let inputs: [ElementRef] = treeToList(elt.ref)
+    private func submitForm(_ el: ElementRef) {
+        if js.dispatchEvent(type: "submit", el: el.ref) { return }
+        let inputs: [ElementRef] = treeToList(el.ref)
             .compactMap { $0.element }
             .filter({
                 $0.tag == "input" && $0.attributes["name"] != nil
@@ -1587,8 +1587,8 @@ class Frame {
             return "\(name)=\(value)"
         }).joined(separator: "&")
 
-        let action: WebURL = url.resolve(elt.attributes["action"]!)
-        let method: String = elt.attributes["method"]?.lowercased() ?? "get"
+        let action: WebURL = url.resolve(el.attributes["action"]!)
+        let method: String = el.attributes["method"]?.lowercased() ?? "get"
 
         if method == "post" {
             tab?.load(action, payload: body, in: self)
