@@ -4,11 +4,7 @@ import CoreGraphics
 
 extension LayoutRef {
     func resolvedZoom() -> CGFloat {
-        let parentZoom: CGFloat = parent?.zoom ?? 1.0
-        guard let factor: CGFloat = node.style.computed.box.zoom else {
-            return parentZoom
-        }
-        return parentZoom * factor
+        return tree.resolvedZoom(id)
     }
 
     func scaled(_ cssPx: CGFloat) -> CGFloat {

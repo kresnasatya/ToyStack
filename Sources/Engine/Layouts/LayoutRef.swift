@@ -155,17 +155,6 @@ extension LayoutRef {
     }
 
     func layout() {
-        switch kind {
-        case .document:
-            break
-        case .block:
-            tree.layoutBlock(self)
-        case .line:
-            tree.layoutLine(self)
-        case .text:
-            tree.layoutText(self)
-        case .embed:
-            tree.layoutEmbed(self)
-        }
+        tree.layout(id)
     }
 }

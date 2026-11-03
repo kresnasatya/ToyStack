@@ -14,92 +14,91 @@ extension LayoutTree {
             parent: parent,
             previous: previous
         )
-        let ref: LayoutRef = LayoutRef(id: id, tree: self)
         setChildrenClean([], of: id)
         setFieldClean(.ascent, 0, for: id)
         setFieldClean(.descent, 0, for: id)
         for field in [LayoutField.zoom, .width, .x, .y, .height] {
             markUsed(field, at: id)
         }
-        ref.markAncestorsDirty()
+        markAncestorsDirty(from: id)
         addDependencyEdges(for: id)
         return id
     }
 
-    func lineLayoutNeeded(_ ref: LayoutRef) -> Bool {
-        if ref.hasDirtyDescendants {
+    func lineLayoutNeeded(_ id: LayoutID) -> Bool {
+        if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(ref.id).state.fields
+        let state: LayoutFieldStore = node(id).state.fields
         return state.isDirty(.zoom) || state.isDirty(.x) || state.isDirty(.y)
             || state.isDirty(.width) || state.isDirty(.height)
             || state.isDirty(.ascent) || state.isDirty(.descent)
     }
 
-    func layoutLine(_ ref: LayoutRef) {
-        guard lineLayoutNeeded(ref) else { return }
-        defer { ref.hasDirtyDescendants = false }
-        let xWasDirty: Bool = ref.tree.isDirty(.x, at: ref.id)
-        let yWasDirty: Bool = ref.tree.isDirty(.y, at: ref.id)
-        let zoomWasDirty: Bool = ref.tree.isDirty(.zoom, at: ref.id)
-        let children: [LayoutRef] = ref.children
-        var data: LineData = ref.lineData
+    func layoutLine(_ id: LayoutID) {
+        guard lineLayoutNeeded(id) else { return }
+        defer { setDirtyDescendants(false, at: id) }
+        let xWasDirty: Bool = isDirty(.x, at: id)
+        let yWasDirty: Bool = isDirty(.y, at: id)
+        let zoomWasDirty: Bool = isDirty(.zoom, at: id)
+        let children: [LayoutID] = childrenIDs(of: id)
+        var data: LineData = lineData(id)
         let childCountChanged: Bool = children.count != data.placement.declaredInlineChildCount
         var childWidthChanged: Bool = false
-        for child in children where child.tree.isDirty(.width, at: child.id) {
+        for child in children where isDirty(.width, at: child) {
             childWidthChanged = true
             break
         }
         if children.count != data.paint.paintedChildCount {
             data.paint.generation += 1
             data.paint.paintedChildCount = children.count
-            ref.lineData = data
+            setKind(.line(data), at: id)
         }
-        let parent: LayoutRef = ref.parent!
-        ref.zoom = parent.zoom
-        ref.width = parent.width
-        ref.x = parent.x
-        if let previous: LayoutRef = ref.previous {
-            ref.y = previous.y + previous.height
+        let parent: LayoutID = parentID(of: id)!
+        setField(.zoom, zoom(parent), for: id)
+        setField(.width, width(parent), for: id)
+        setField(.x, x(parent), for: id)
+        if let previous: LayoutID = previousID(of: id) {
+            setField(.y, y(previous) + height(previous), for: id)
         } else {
-            ref.y = parent.y
+            setField(.y, y(parent), for: id)
         }
 
-        for child in children { child.layout() }
+        for child in children { layout(child) }
 
         if children.count != data.placement.declaredInlineChildCount {
-            var updated: LineData = ref.lineData
+            var updated: LineData = lineData(id)
             updated.placement.declaredInlineChildCount = children.count
-            ref.lineData = updated
-            addDependencyEdges(for: ref.id)
+            setKind(.line(updated), at: id)
+            addDependencyEdges(for: id)
         }
 
-        let widthMovesChildren: Bool = ref.lineData.content.centered
-            || ref.node.style.computed.text.direction == .rtl
+        let widthMovesChildren: Bool = lineData(id).content.centered
+            || domRef(id).style.computed.text.direction == .rtl
         let needsPlacement: Bool = xWasDirty || yWasDirty || childCountChanged
             || childWidthChanged
-            || ref.tree.isDirty(.ascent, at: ref.id)
-            || ref.tree.isDirty(.descent, at: ref.id)
-            || ref.tree.isDirty(.height, at: ref.id)
-            || ref.tree.isDirty(.children, at: ref.id)
+            || isDirty(.ascent, at: id)
+            || isDirty(.descent, at: id)
+            || isDirty(.height, at: id)
+            || isDirty(.children, at: id)
             || widthMovesChildren
 
-        let textOnly: Bool = children.allSatisfy({ $0.isText })
+        let textOnly: Bool = children.allSatisfy({ isText($0) })
         let verticalOnly: Bool = yWasDirty && !xWasDirty && !zoomWasDirty
             && !childCountChanged && !childWidthChanged && !widthMovesChildren
-            && !ref.tree.isDirty(.ascent, at: ref.id)
-            && !ref.tree.isDirty(.descent, at: ref.id)
-            && !ref.tree.isDirty(.height, at: ref.id)
-            && !ref.tree.isDirty(.children, at: ref.id)
-            && textOnly && ref.lineData.placement.childOriginY != nil
+            && !isDirty(.ascent, at: id)
+            && !isDirty(.descent, at: id)
+            && !isDirty(.height, at: id)
+            && !isDirty(.children, at: id)
+            && textOnly && lineData(id).placement.childOriginY != nil
 
-        if verticalOnly, let childOriginY: CGFloat = ref.lineData.placement.childOriginY {
+        if verticalOnly, let childOriginY: CGFloat = lineData(id).placement.childOriginY {
             profiler.count("layout.line.place.verticalOnly")
             profiler.measure("layout.line.place.vertical", {
-                var updated: LineData = ref.lineData
-                updated.placement.inlineYOffset = ref.y - childOriginY
-                ref.lineData = updated
+                var updated: LineData = lineData(id)
+                updated.placement.inlineYOffset = y(id) - childOriginY
+                setKind(.line(updated), at: id)
             })
             return
         }
@@ -112,94 +111,86 @@ extension LayoutTree {
         profiler.count("layout.line.place.placed")
         profiler.measure("layout.line.place", {
             guard !children.isEmpty else {
-                ref.ascent = 0
-                ref.descent = 0
-                ref.height = 0
+                setField(.ascent, 0, for: id)
+                setField(.descent, 0, for: id)
+                setField(.height, 0, for: id)
                 return
             }
 
-            let inlineChildren: [LayoutRef] = children.filter({ $0.isText || $0.isEmbed })
+            let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
             guard !inlineChildren.isEmpty else {
-                ref.height = 0
+                setField(.height, 0, for: id)
                 return
             }
 
-            let maxAscent: CGFloat = inlineChildren.map({ $0.ascent }).max() ?? 0
-            ref.ascent = maxAscent
-            let maxDescent: CGFloat = inlineChildren.map({ $0.descent }).max() ?? 0
-            ref.descent = maxDescent
+            let maxAscent: CGFloat = inlineChildren.map({ ascent($0) }).max() ?? 0
+            setField(.ascent, maxAscent, for: id)
+            let maxDescent: CGFloat = inlineChildren.map({ descent($0) }).max() ?? 0
+            setField(.descent, maxDescent, for: id)
 
-            var nextX: CGFloat = ref.x
+            var nextX: CGFloat = x(id)
             var previousFont: BrowserFont? = nil
             for child in inlineChildren {
-                if let previousFont, child.isEmbed {
+                if let previousFont, isEmbed(child) {
                     nextX += previousFont.spaceWidth
                 }
-                child.x = nextX
-                nextX += child.width
-                previousFont = child.font
+                setField(.x, nextX, for: child)
+                nextX += width(child)
+                previousFont = font(child)
             }
 
-            let lineY: CGFloat = ref.y
-            let baseline: CGFloat = lineY + ref.ascent
+            let lineY: CGFloat = y(id)
+            let baseline: CGFloat = lineY + ascent(id)
             for child in inlineChildren {
-                if let el = child.node.element, el.tag == "sup" {
-                    child.y = baseline - maxAscent
+                if let el = domRef(child).element, el.tag == "sup" {
+                    setField(.y, baseline - maxAscent, for: child)
                 } else {
-                    child.y = baseline - child.ascent
+                    setField(.y, baseline - ascent(child), for: child)
                 }
             }
 
-            for child in children where !child.children.isEmpty {
-                child.layout()
+            for child in children where !childrenIDs(of: child).isEmpty {
+                layout(child)
             }
 
-            if ref.node.style.computed.text.direction == .rtl {
-                let usedWidth: CGFloat = contentWidth(ref)
-                shiftChildren(ref, by: ref.width - usedWidth)
+            if domRef(id).style.computed.text.direction == .rtl {
+                let usedWidth: CGFloat = contentWidth(id)
+                shiftChildren(id, by: width(id) - usedWidth)
             }
 
-            if ref.lineData.content.centered {
-                let usedWidth: CGFloat = contentWidth(ref)
-                shiftChildren(ref, by: (ref.width - usedWidth) / 2)
+            if lineData(id).content.centered {
+                let usedWidth: CGFloat = contentWidth(id)
+                shiftChildren(id, by: (width(id) - usedWidth) / 2)
             }
 
-            ref.height = ref.ascent + ref.descent
-            var updated: LineData = ref.lineData
-            updated.placement.childOriginY = ref.y
+            setField(.height, ascent(id) + descent(id), for: id)
+            var updated: LineData = lineData(id)
+            updated.placement.childOriginY = y(id)
             updated.placement.inlineYOffset = 0
-            ref.lineData = updated
+            setKind(.line(updated), at: id)
         })
     }
 
-    private func shiftChildren(_ ref: LayoutRef, by offset: CGFloat) {
+    private func shiftChildren(_ id: LayoutID, by offset: CGFloat) {
         guard offset != 0 else { return }
-        var data: LineData = ref.lineData
+        var data: LineData = lineData(id)
         data.paint.generation += 1
-        ref.lineData = data
-        let children: [LayoutRef] = ref.children
-        let shifted: [CGFloat] = children.map { $0.x + offset }
+        setKind(.line(data), at: id)
+        let children: [LayoutID] = childrenIDs(of: id)
+        let shifted: [CGFloat] = children.map({ x($0) + offset })
 
         for (child, x) in zip(children, shifted) {
-            child.x = x
+            setField(.x, x, for: child)
         }
     }
 
-    private func contentWidth(_ ref: LayoutRef) -> CGFloat {
-        guard let last: LayoutRef = ref.children.last else { return 0 }
-        let trailing: CGFloat = last.isText ? textTextWidth(last) : last.width
-        return last.x + trailing - ref.x
+    private func contentWidth(_ id: LayoutID) -> CGFloat {
+        guard let last: LayoutID = childrenIDs(of: id).last else { return 0 }
+        let trailing: CGFloat = isText(last) ? textTextWidth(last) : width(last)
+        return x(last) + trailing - x(id)
     }
 
-    func lineCanCachePaint(_ ref: LayoutRef) -> Bool {
-        return !ref.lineData.content.hasEmbed
-    }
-
-    
-
-    private 
-
-    func lineSelfRect(_ ref: LayoutRef) -> Rect {
-        return ref.selfRect()
+    func lineCanCachePaint(_ id: LayoutID) -> Bool {
+        return !lineData(id).content.hasEmbed
     }
 }

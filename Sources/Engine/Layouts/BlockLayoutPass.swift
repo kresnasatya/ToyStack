@@ -902,7 +902,7 @@ extension LayoutTree {
             let cached: LayoutID = cachedText(ref, at: index, node: item.run.node, word: item.word)
         {
             text = cached
-            attachText(LayoutRef(id: cached, tree: self), to: lineID, previous: previous)
+            attachText(cached, to: lineID, previous: previous)
         } else {
             text = makeText(
                 TextData(
@@ -1211,7 +1211,7 @@ extension LayoutTree {
             items.append(drawCursor(
                 origin: Point(x: last.x, y: last.y),
                 height: last.height,
-                offset: textTextWidth(last)
+                offset: textTextWidth(last.id)
             ))
         } else {
             items.append(drawCursor(origin: Point(x: ref.x, y: ref.y), height: ref.height, offset: 0))

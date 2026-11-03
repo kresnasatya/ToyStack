@@ -12,7 +12,6 @@ extension LayoutTree {
         let kind: LayoutKind = .text(text)
         let id: LayoutID = append(kind: kind, dom: dom, parent: parent, previous: previous)
         setPrimary(id, for: dom)
-        let ref: LayoutRef = LayoutRef(id: id, tree: self)
 
         setChildrenClean([], of: id)
         setFontClean(inlineDefaultFont, for: id)
@@ -23,80 +22,81 @@ extension LayoutTree {
         ] {
             markUsed(field, at: id)
         }
-        ref.markAncestorsDirty()
+        markAncestorsDirty(from: id)
         markField(.font, at: id)
         addDependencyEdges(for: id)
         return id
     }
 
-    func textLayoutNeeded(_ ref: LayoutRef) -> Bool {
-        if ref.hasDirtyDescendants {
+    func textLayoutNeeded(_ id: LayoutID) -> Bool {
+        if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(ref.id).state.fields
+        let state: LayoutFieldStore = node(id).state.fields
         return state.isDirty(.zoom) || state.isDirty(.width) || state.isDirty(.height)
             || state.isDirty(.font) || state.isDirty(.ascent) || state.isDirty(.descent)
     }
 
-    func layoutText(_ ref: LayoutRef) {
-        guard textLayoutNeeded(ref) else { return }
-        defer { ref.hasDirtyDescendants = false }
+    func layoutText(_ id: LayoutID) {
+        guard textLayoutNeeded(id) else { return }
+        defer { setDirtyDescendants(false, at: id) }
         profiler.measure("layout.text", {
-            if ref.tree.isDirty(.zoom, at: ref.id) {
-                ref.zoom = ref.resolvedZoom()
+            if isDirty(.zoom, at: id) {
+                setField(.zoom, resolvedZoom(id), for: id)
             }
 
-            let fontChanged: Bool = ref.tree.isDirty(.font, at: ref.id)
+            let fontChanged: Bool = isDirty(.font, at: id)
             if fontChanged {
-                var data: TextData = ref.textData
+                var data: TextData = textData(id)
                 let resolvedFont: BrowserFont
                 if let override = data.fontOverride {
                     resolvedFont = override
                 } else {
-                    resolvedFont = fontForElement(ref.node, zoom: ref.zoom)
+                    resolvedFont = fontForElement(domRef(id), zoom: zoom(id))
                 }
-                ref.font = resolvedFont
-                data = ref.textData
+                setFont(resolvedFont, for: id)
+                data = textData(id)
             }
 
-            if fontChanged || ref.tree.isDirty(.width, at: ref.id) {
-                let measuredFont: BrowserFont = ref.font
-                let measured: CGFloat = measuredFont.measure(ref.textData.display ?? ref.textData.word)
-                var data: TextData = ref.textData
-                data.metrics.width = measured
-                ref.textData = data
-                ref.width = measured + measuredFont.spaceWidth
+            if fontChanged || isDirty(.width, at: id) {
+                let measuredFont: BrowserFont = font(id)
+                let data: TextData = textData(id)
+                let measured: CGFloat = measuredFont.measure(data.display ?? data.word)
+                var updated: TextData = data
+                updated.metrics.width = measured
+                setKind(.text(updated), at: id)
+                setField(.width, measured + measuredFont.spaceWidth, for: id)
             }
 
-            if fontChanged || ref.tree.isDirty(.height, at: ref.id) {
-                ref.height = ref.font.linespace
+            if fontChanged || isDirty(.height, at: id) {
+                setField(.height, font(id).linespace, for: id)
             }
-            if fontChanged || ref.tree.isDirty(.ascent, at: ref.id) {
-                ref.ascent = ref.font.ascent
+            if fontChanged || isDirty(.ascent, at: id) {
+                setField(.ascent, font(id).ascent, for: id)
             }
-            if fontChanged || ref.tree.isDirty(.descent, at: ref.id) {
-                ref.descent = ref.font.descent
+            if fontChanged || isDirty(.descent, at: id) {
+                setField(.descent, font(id).descent, for: id)
             }
         })
     }
 
-    func textAbsoluteY(_ ref: LayoutRef) -> CGFloat {
-        return ref.y + (ref.parent?.lineData.placement.inlineYOffset ?? 0)
+    func textAbsoluteY(_ id: LayoutID) -> CGFloat {
+        let inlineOffset: CGFloat = parentID(of: id).map({ lineData($0).placement.inlineYOffset }) ?? 0
+        return y(id) + inlineOffset
     }
 
-    func textSelfRect(_ ref: LayoutRef) -> Rect {
-        let top: CGFloat = textAbsoluteY(ref)
-        return Rect(left: ref.x, top: top, right: ref.x + ref.width, bottom: top + ref.height)
+    func textSelfRect(_ id: LayoutID) -> Rect {
+        let top: CGFloat = textAbsoluteY(id)
+        let x: CGFloat = x(id)
+        return Rect(left: x, top: top, right: x + width(id), bottom: top + height(id))
     }
 
-    
-
-    func textTextWidth(_ ref: LayoutRef) -> CGFloat {
-        return ref.textData.metrics.width
+    func textTextWidth(_ id: LayoutID) -> CGFloat {
+        return textData(id).metrics.width
     }
 
-    func attachText(_ ref: LayoutRef, to line: LayoutID, previous: LayoutID?) {
-        setPrevious(previous, of: ref.id)
+    func attachText(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
+        setPrevious(previous, of: id)
     }
 }

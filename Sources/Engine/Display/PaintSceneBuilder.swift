@@ -119,7 +119,7 @@ struct PaintSceneBuilder {
             ))
         case .line:
             return .line(PaintLine(
-                canCache: ref.tree.lineCanCachePaint(ref),
+                canCache: ref.tree.lineCanCachePaint(ref.id),
                 generation: ref.lineData.paint.generation,
                 focusRing: lineFocusRing(ref)
             ))
@@ -128,7 +128,7 @@ struct PaintSceneBuilder {
             return .text(PaintText(
                 string: data.display ?? data.word,
                 width: data.metrics.width,
-                top: ref.tree.textAbsoluteY(ref),
+                top: ref.tree.textAbsoluteY(ref.id),
                 color: ref.node.inheritedStyleOwner.style.computed.text.color
             ))
         case .embed(let data):

@@ -443,6 +443,18 @@ final class LayoutTree {
 /// Value API for one node. `LayoutRef` delegates here; layout passes migrate
 /// to it, then the ref can go away and the tree can become a value.
 extension LayoutTree {
+    func domRef(_ id: LayoutID) -> DOMRef {
+        return DOMRef(id: domID(of: id), dom: dom)
+    }
+
+    func resolvedZoom(_ id: LayoutID) -> CGFloat {
+        let parentZoom: CGFloat = parentID(of: id).map({ zoom($0) }) ?? 1.0
+        guard let factor: CGFloat = domRef(id).style.computed.box.zoom else {
+            return parentZoom
+        }
+        return parentZoom * factor
+    }
+
     func readCGFloat(_ field: LayoutField, at id: LayoutID) -> CGFloat {
         if isDirty(field, at: id) {
             assertionFailure("Read dirty field \(kind(id)).\(field.rawValue)")
@@ -545,11 +557,27 @@ extension LayoutTree {
         case .block:
             return blockSelfRect(LayoutRef(id: id, tree: self))
         case .text:
-            return textSelfRect(LayoutRef(id: id, tree: self))
+            return textSelfRect(id)
         default:
             let x: CGFloat = x(id)
             let y: CGFloat = y(id)
             return Rect(left: x, top: y, right: x + width(id), bottom: y + height(id))
+        }
+    }
+
+    /// Transitional dispatch: block and embed passes still take a ref.
+    func layout(_ id: LayoutID) {
+        switch kind(id) {
+        case .document:
+            break
+        case .block:
+            layoutBlock(LayoutRef(id: id, tree: self))
+        case .line:
+            layoutLine(id)
+        case .text:
+            layoutText(id)
+        case .embed:
+            layoutEmbed(LayoutRef(id: id, tree: self))
         }
     }
 
@@ -560,9 +588,9 @@ extension LayoutTree {
         case .block:
             return blockLayoutNeeded(LayoutRef(id: id, tree: self))
         case .line:
-            return lineLayoutNeeded(LayoutRef(id: id, tree: self))
+            return lineLayoutNeeded(id)
         case .text:
-            return textLayoutNeeded(LayoutRef(id: id, tree: self))
+            return textLayoutNeeded(id)
         case .embed:
             return embedLayoutNeeded(LayoutRef(id: id, tree: self))
         }
