@@ -81,16 +81,24 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
         lastUsesSublayers = usesSublayers
         lock.lock()
+        let previous: (revision: Int, size: CGSize)? = applied
         applied = (frame.revision, viewSize)
         lock.unlock()
+        let preview: Bool =
+            previous.map({ $0.size != viewSize && $0.revision == frame.revision }) ?? false
         measure.start("view.apply", category: .present, frame: frame.frameID)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
         if frame.content.usesSublayers {
-            applySublayers(frame, viewSize: viewSize)
+            applySublayers(
+                frame,
+                viewSize: viewSize,
+                preview: preview,
+                previousSize: previous?.size
+            )
         } else {
-            applyImage(frame, viewSize: viewSize)
+            applyImage(frame, viewSize: viewSize, preview: preview)
         }
         applyScrollbar(frame.viewport.scrollbar)
         measure.stop("view.apply")
@@ -110,8 +118,31 @@ final class ContentPresenter: @unchecked Sendable {
         }
     }
 
-    private func applySublayers(_ frame: PresentedFrame, viewSize: CGSize) {
+    private func applySublayers(
+        _ frame: PresentedFrame,
+        viewSize: CGSize,
+        preview: Bool,
+        previousSize: CGSize?
+    ) {
         let scale: ContentScale = frame.viewport.scale
+        if preview, let previousSize, previousSize.width > 0, previousSize.height > 0 {
+            contentLayer.backgroundColor = frame.viewport.canvasColor
+            contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
+            let base: CATransform3D = CATransform3DMakeScale(scale.page, scale.page, 1)
+            contentLayer.transform = CATransform3DScale(
+                base,
+                viewSize.width / previousSize.width,
+                viewSize.height / previousSize.height,
+                1
+            )
+            contentLayer.frame = CGRect(
+                x: 0,
+                y: frame.viewport.contentOffset,
+                width: previousSize.width,
+                height: previousSize.height
+            )
+            return
+        }
         if lastImage != nil {
             lastImage = nil
             contentLayer.contents = nil
@@ -258,7 +289,11 @@ final class ContentPresenter: @unchecked Sendable {
         layer.compositingFilter = filter
     }
 
-    private func applyImage(_ frame: PresentedFrame, viewSize: CGSize) {
+    private func applyImage(
+        _ frame: PresentedFrame,
+        viewSize: CGSize,
+        preview: Bool
+    ) {
         let scale: ContentScale = frame.viewport.scale
         for key in Array(layersByPlacement.keys) {
             guard var slot = layersByPlacement[key] else { continue }
@@ -294,12 +329,13 @@ final class ContentPresenter: @unchecked Sendable {
         }
 
         contentLayer.transform = CATransform3DIdentity
+        contentLayer.contentsGravity = preview ? .resize : .topLeft
         let imageHeight = CGFloat(image.height) / scale.display
         contentLayer.frame = CGRect(
             x: 0,
             y: 0,
             width: viewSize.width,
-            height: imageHeight
+            height: preview ? viewSize.height : imageHeight
         )
     }
 }

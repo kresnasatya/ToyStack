@@ -242,7 +242,7 @@ public struct BrowserView: View {
             }
         )
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
-            app.resize(to: newSize)
+            app.resize(to: newSize, deferLayout: true)
             chrome.resize(width: newSize.width)
         }
         .gesture(

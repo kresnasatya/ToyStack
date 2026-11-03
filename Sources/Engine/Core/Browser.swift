@@ -96,6 +96,9 @@ public class Browser: ObservableObject {
     private var currentFrameID: Int = 0
     private var needsTileContinuation: Bool = false
     private var tileContinuationPasses: UInt = 0
+    private var resizePreviewWorkItem: DispatchWorkItem?
+    private var isResizePreview: Bool = false
+    private let resizePreviewDelay: TimeInterval = 0.12
 
     @Published public var prefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
@@ -140,11 +143,44 @@ public class Browser: ObservableObject {
         startAnimationTimer()
     }
 
-    public func resize(to size: CGSize) {
+    public func resize(to size: CGSize, deferLayout: Bool = false) {
         windowSize = size
         for tab in tabs {
             tab.resize(width: size.width, height: size.height - topInset)
         }
+        guard deferLayout,
+            activeTab != nil,
+            estimatedFrameTime > FRAME_BUDGET * 2.0
+        else {
+            cancelResizePreview()
+            return
+        }
+        beginResizePreview()
+    }
+
+    private func beginResizePreview() {
+        isResizePreview = true
+        resizePreviewWorkItem?.cancel()
+
+        let work: DispatchWorkItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.isResizePreview = false
+            if let tab: BrowserTab = self.activeTab {
+                self.setNeedsAnimationFrame(tab)
+            }
+        }
+        resizePreviewWorkItem = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + resizePreviewDelay,
+            execute: work
+        )
+        dispatchPresent(frameID: currentFrameID)
+    }
+
+    private func cancelResizePreview() {
+        resizePreviewWorkItem?.cancel()
+        resizePreviewWorkItem = nil
+        isResizePreview = false
     }
 
     public func startAnimationTimer() {
@@ -171,6 +207,7 @@ public class Browser: ObservableObject {
 
     public func stopAnimationTimer() {
         pauseAnimationTimer()
+        cancelResizePreview()
         measure.close()
     }
 
@@ -184,6 +221,9 @@ public class Browser: ObservableObject {
             return
         }
         needsAnimationFrame = false
+        guard !isResizePreview else {
+            return
+        }
         frameStartTime = Date()
         activeTab?.runAnimationFrame()
     }
