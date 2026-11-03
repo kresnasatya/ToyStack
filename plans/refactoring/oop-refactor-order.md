@@ -67,7 +67,7 @@ Items 1 and 2 get **one plan file with two phases**, not two plans. Each phase i
 - **Overlapping file set.** Item 1 rewrites the leaf types and all 38 constructors; item 2 rewrites where those leaves are stored and how they are walked. Both touch `PaintTree.swift`, `PaintCache.swift`, `CompositedLayer.swift`, and the `Browser.swift` paint loop. Two plans would restate that context twice and could set different intermediate shapes.
 - **One seam decides both.** `Browser.swift:515-519` walks the draw list and casts each item to `DisplayCommand` or `BrowserVisualEffect`. Item 1 changes the cast target; item 2 deletes the loop. Designing that seam in two separate plans means designing it twice, in opposite directions.
 - **Phases are commits, not plans.** Phase A ends at a build-green commit (enum ops still inside the effect tree) that stays bisectable. Phase B ends at the commit that deletes the effect tree. The "do not park between them" rule lives inside the plan as a gate, not as a dependency between two documents.
-- **Items 3–6 each get their own plan.** Item 3 and item 4 share one plan for the same reason: `NodeID` must be threaded through `FieldRef` and `LayoutInvalidation` in one move, because both files depend on node identity. That plan is [oop-refactor-3-4-layout-dom.md](./oop-refactor-3-4-layout-dom.md).
+- **Items 3–6 each get their own plan.** Item 3 and item 4 share one plan for the same reason: `NodeID` must be threaded through `FieldRef` and `LayoutInvalidation` in one move, because both files depend on node identity. That plan is [oop-refactor-3-4-layout-dom.md](./oop-refactor-3-4-layout-dom.md). Item 6's plan is [oop-refactor-6-frame-state.md](./oop-refactor-6-frame-state.md).
 
 ## Decision deferred to item 5
 
