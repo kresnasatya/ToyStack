@@ -220,7 +220,7 @@ public class Browser: ObservableObject {
         if let updates = data.display.updates, !updates.isEmpty,
             activePresentation.render.content.usesSublayers,
             !needsComposite, !needsRaster, !needsDraw, !compositeInFlight,
-            Browser.updatesAreCA(updates),
+            LayerEffectStrategy.updatesAreCA(updates),
             applyEffectFastPath(updates)
         {
             return
@@ -237,13 +237,13 @@ public class Browser: ObservableObject {
 
     private func applyEffectFastPath(_ updates: [NodeID: EffectUpdate]) -> Bool {
         let layers: [RasterLayer] = activePresentation.render.layers
-        let effectStrategies: [LayerEffectStrategy] = layers.map({ Browser.layerEffectStrategy($0, updates: updates) })
+        let effectStrategies: [LayerEffectStrategy] = layers.map({ LayerEffectStrategy.resolve($0, updates: updates) })
         let keys: Set<NodeID> = Set(effectStrategies.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
         for (index, info) in effectStrategies.enumerated() where info.kind == .ca {
             if layers[index].effect.image == nil { return false }
         }
-        activePresentation.render.content.placements = Browser.layerPlacements(layers, effectStrategies: effectStrategies)
+        activePresentation.render.content.placements = RasterDrawList.placements(layers, effectStrategies: effectStrategies)
         dispatchPresent(frameID: currentFrameID)
         return true
     }
@@ -352,7 +352,7 @@ public class Browser: ObservableObject {
                     measure.start("raster.composite", category: .raster, frame: frameID)
                     var layers: [RasterLayer] =
                         inputs.settings.flags.needsComposite
-                        ? Browser.computeComposite(inputs, measure: measure, frame: frameID)
+                        ? RasterCompositor.compute(inputs, measure: measure, frame: frameID)
                         : inputs.scene.previousLayers
                     measure.stop("raster.composite")
 
@@ -377,7 +377,7 @@ public class Browser: ObservableObject {
                     )
 
                     let effectStrategies: [LayerEffectStrategy] = layers.map {
-                        Browser.layerEffectStrategy($0, updates: inputs.scene.compositedUpdates)
+                        LayerEffectStrategy.resolve($0, updates: inputs.scene.compositedUpdates)
                     }
                     let usesSublayers: Bool = !effectStrategies.contains {
                         $0.kind == .blendFallback || $0.kind == .scrollFallback
@@ -467,7 +467,7 @@ public class Browser: ObservableObject {
                         }
                         measure.start("raster.effect", category: .raster, frame: frameID)
                         for index in layers.indices where effectStrategies[index].kind == .ca {
-                            Browser.updateEffectImage(
+                            RasterEffectCache.update(
                                 &layers[index],
                                 scale: inputs.settings.viewport.scale.effective,
                                 blur: effectStrategies[index].blur
@@ -476,7 +476,7 @@ public class Browser: ObservableObject {
                         measure.stop("raster.effect")
                     }
 
-                    let drawList: [DisplayOp] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
+                    let drawList: [DisplayOp] = RasterDrawList.compute(layers: layers, inputs: inputs)
                     let regionTop: CGFloat = inputs.scrollState.scroll
                     var contentImage: CGImage? = nil
 
@@ -513,7 +513,7 @@ public class Browser: ObservableObject {
                         compositedLayers: layers,
                         drawList: drawList,
                         content: RenderedContent(
-                            placements: plan.composition.usesSublayers ? Browser.layerPlacements(layers, effectStrategies: effectStrategies) : [],
+                            placements: plan.composition.usesSublayers ? RasterDrawList.placements(layers, effectStrategies: effectStrategies) : [],
                             image: contentImage,
                             regionTop: regionTop,
                             usesSublayers: plan.composition.usesSublayers
@@ -584,302 +584,6 @@ public class Browser: ObservableObject {
                 }
             )
         )
-    }
-
-    nonisolated static func computeComposite(
-        _ inputs: RasterInput,
-        measure: MeasureTime,
-        frame: Int
-    ) -> [RasterLayer] {
-        measure.start("raster.composite.scan", category: .raster, frame: frame)
-        var compositedLayers: [RasterLayer] = []
-        var scopes: [EffectScope] = []
-        var ordinals: [EffectScopeID?: Int] = [:]
-        var animatedTransforms: Int = 0
-        var assumeOverlap: Bool = false
-        var commandIndex: Int = 0
-
-        for op in inputs.scene.displayList {
-            switch op {
-            case .beginEffect(let scope):
-                scopes.append(scope)
-                if case .transform = scope.kind, scope.placement.animatedTransform {
-                    animatedTransforms += 1
-                }
-            case .endEffect:
-                let scope: EffectScope = scopes.removeLast()
-                if case .transform = scope.kind, scope.placement.animatedTransform {
-                    animatedTransforms -= 1
-                }
-            default:
-                let scopeID: EffectScopeID? = scopes.last?.id
-                if animatedTransforms > 0 { assumeOverlap = true }
-                var merged: Bool = false
-                for index in compositedLayers.indices.reversed() {
-                    let layer: RasterLayer = compositedLayers[index]
-                    if layer.identity.id.effect == scopeID {
-                        compositedLayers[index].add(op)
-                        merged = true
-                        break
-                    } else if assumeOverlap {
-                        break
-                    }
-                }
-                if !merged {
-                    let ordinal: Int = ordinals[scopeID, default: 0]
-                    ordinals[scopeID] = ordinal + 1
-                    var layer: RasterLayer = RasterLayer(
-                        displayItem: op,
-                        firstCommandIndex: commandIndex,
-                        id: LayerID(effect: scopeID, ordinal: ordinal)
-                    )
-                    layer.identity.ancestorChain = Array(scopes.reversed())
-                    compositedLayers.append(layer)
-                }
-                commandIndex += 1
-            }
-        }
-
-        reuseRasterization(from: inputs.scene.previousLayers, into: &compositedLayers)
-        measure.stop("raster.composite.scan")
-        return compositedLayers
-    }
-
-    nonisolated private static func reuseRasterization(
-        from previous: [RasterLayer],
-        into layers: inout [RasterLayer]
-    ) {
-        guard !previous.isEmpty else { return }
-        var pool: [LayerID: [RasterLayer]] = [:]
-        for layer in previous {
-            pool[layer.identity.id, default: []].append(layer)
-        }
-        for index in layers.indices {
-            let id: LayerID = layers[index].identity.id
-            guard var candidates = pool[id], let source = candidates.popLast() else { continue }
-            pool[id] = candidates
-            layers[index].effect = source.effect
-        }
-    }
-
-    nonisolated static func layerEffectStrategy(
-        _ layer: RasterLayer,
-        updates: [NodeID: EffectUpdate]
-    ) -> LayerEffectStrategy {
-        var kind: LayerEffectStrategy.Kind = LayerEffectStrategy.Kind.flat
-        var opacity: Double = 1
-        var translation: CGPoint = CGPoint.zero
-        var blur: CGFloat = 0
-        var key: NodeID?
-        var blendMode: BrowserBlendMode?
-        var clipRect: Rect?
-        for scope in layer.identity.ancestorChain {
-            let update: EffectUpdate? = scope.placement.node.flatMap { updates[$0] }
-            let animated: Bool = update?.isAnimatedTransform ?? scope.placement.animatedTransform
-            switch scope.kind {
-            case .scroll:
-                kind = max(kind, .scrollFallback)
-            case .blend(let scopeOpacity, let scopeMode):
-                let updatedOpacity: Double = update?.style.opacity ?? scopeOpacity
-                let updatedMode: BrowserBlendMode? = update.map({ $0.style.blendMode }) ?? scopeMode
-                opacity *= updatedOpacity
-                if let updatedMode, updatedMode != .normal {
-                    if updatedMode.compositingFilterName != nil {
-                        kind = max(kind, .ca)
-                        if blendMode == nil { blendMode = updatedMode }
-                    } else {
-                        kind = max(kind, .blendFallback)
-                    }
-                } else if updatedOpacity < 1 {
-                    kind = max(kind, .ca)
-                }
-                if key == nil { key = scope.placement.node }
-            case .transform(let scopeTranslation):
-                let updatedTranslation: CGPoint? = update.map({ $0.style.translation }) ?? scopeTranslation
-                if let updatedTranslation {
-                    translation.x += updatedTranslation.x
-                    translation.y += updatedTranslation.y
-                    kind = max(kind, .ca)
-                }
-                if animated { kind = max(kind, .ca) }
-                if key == nil { key = scope.placement.node }
-            case .blur(let scopeRadius):
-                let updatedRadius: CGFloat = update?.style.blurRadius ?? scopeRadius
-                if updatedRadius > 0 {
-                    blur = max(blur, updatedRadius)
-                    kind = max(kind, .ca)
-                    if key == nil { key = scope.placement.node }
-                }
-            case .clip(let shape):
-                let local: Rect = Rect(
-                    left: shape.rect.left - translation.x,
-                    top: shape.rect.top - translation.y,
-                    right: shape.rect.right - translation.x,
-                    bottom: shape.rect.bottom - translation.y
-                )
-                clipRect = clipRect.map({ $0.intersect(local) }) ?? local
-            }
-        }
-        let effect: LayerEffect? = kind == .ca
-            ? LayerEffect(
-                key: key,
-                opacity: opacity,
-                translation: translation,
-                blendMode: blendMode,
-                clipRect: clipRect
-            )
-            : nil
-        return LayerEffectStrategy(kind: kind, effect: effect, blur: blur)
-    }
-
-    nonisolated static func updatesAreCA(_ updates: [NodeID: EffectUpdate]) -> Bool {
-        updates.values.allSatisfy({ update in
-            update.style.blurRadius == 0
-                && (update.style.blendMode == nil
-                    || update.style.blendMode == .normal
-                    || update.style.blendMode?.compositingFilterName != nil)
-        })
-    }
-
-    nonisolated static func computePaintDrawList(
-        layers: [RasterLayer],
-        inputs: RasterInput
-    ) -> [DisplayOp] {
-        var layerByIndex: [Int: RasterLayer] = [:]
-        for layer in layers where layer.identity.firstCommandIndex >= 0 {
-            layerByIndex[layer.identity.firstCommandIndex] = layer
-        }
-
-        let scale: ContentScale = inputs.settings.viewport.scale
-        let viewportHeight: CGFloat = (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) / scale.page
-        let visibleTop: CGFloat = inputs.scrollState.scroll - 2 * RasterLayer.tileSize
-        let visibleBottom: CGFloat = inputs.scrollState.scroll + viewportHeight + 2 * RasterLayer.tileSize
-
-        var commandIndex: Int = 0
-        var drawList: [DisplayOp] = []
-        drawList.reserveCapacity(inputs.scene.displayList.count)
-        for op in inputs.scene.displayList {
-            switch op {
-            case .beginEffect(let scope):
-                drawList.append(
-                    .beginEffect(Browser.updatedScope(scope, updates: inputs.scene.compositedUpdates))
-                )
-            case .endEffect:
-                drawList.append(op)
-            default:
-                if let layer: RasterLayer = layerByIndex[commandIndex] {
-                    drawList.append(
-                        .compositedLayer(
-                            layer: layer,
-                            rect: layer.absoluteBounds(),
-                            visibleTop: visibleTop,
-                            visibleBottom: visibleBottom
-                        )
-                    )
-                }
-                commandIndex += 1
-            }
-        }
-
-        if let bounds = inputs.settings.accessibility.hoveredBounds {
-            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))
-            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "black"), width: 2))
-        }
-
-        if let bounds = inputs.settings.accessibility.readBounds {
-            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "gold"), width: 4))
-            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "black"), width: 2))
-        }
-
-        return drawList
-    }
-
-    nonisolated private static func updatedScope(
-        _ scope: EffectScope,
-        updates: [NodeID: EffectUpdate]
-    ) -> EffectScope {
-        guard let node = scope.placement.node, let update = updates[node] else { return scope }
-        let kind: EffectKind
-        switch scope.kind {
-        case .blend:
-            kind = .blend(opacity: update.style.opacity, mode: update.style.blendMode)
-        case .transform:
-            kind = .transform(update.style.translation)
-        case .blur:
-            kind = .blur(radius: update.style.blurRadius)
-        case .clip, .scroll:
-            kind = scope.kind
-        }
-        return EffectScope(
-            id: scope.id,
-            kind: kind,
-            placement: EffectPlacement(
-                rect: scope.placement.rect,
-                node: scope.placement.node,
-                animatedTransform: update.isAnimatedTransform
-            )
-        )
-    }
-
-    nonisolated static func layerPlacements(_ layers: [RasterLayer], effectStrategies: [LayerEffectStrategy]) -> [LayerPlacement] {
-        let t: CGFloat = RasterLayer.tileSize
-        var placements: [LayerPlacement] = []
-        for (z, layer) in layers.enumerated() {
-            switch effectStrategies[z].kind {
-                case .flat:
-                    for index in layer.orderedTileIndices {
-                        guard let image: CGImage = layer.tiles[index] else { continue }
-                        placements.append(
-                            LayerPlacement(
-                                key: .tile(zIndex: z, col: index.col, row: index.row),
-                                image: image,
-                                frame: CGRect(
-                                    x: CGFloat(index.col) * t,
-                                    y: CGFloat(index.row) * t,
-                                    width: t,
-                                    height: t
-                                ),
-                            )
-                        )
-                    }
-                case .ca:
-                    guard let image = layer.effect.image else { break }
-                    let bounds: Rect = layer.compositedBounds()
-                    placements.append(
-                        LayerPlacement(
-                            key: .composited(zIndex: z),
-                            image: image,
-                            frame: CGRect(x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top),
-                            effect: effectStrategies[z].effect
-                        )
-                    )
-                case .blendFallback, .scrollFallback:
-                    break
-            }
-        }
-        return placements
-    }
-
-    nonisolated static func rasterEffectBitmap(_ layer: RasterLayer, scale: CGFloat, blur: CGFloat) -> CGImage? {
-        let bounds: Rect = layer.compositedBounds()
-        let size: CGSize = CGSize(width: bounds.right - bounds.left, height: bounds.bottom - bounds.top)
-        guard size.width > 0, size.height > 0 else { return nil }
-        return CGRenderer.renderBitmap(size: size, scale: scale, { renderer in
-            if blur > 0 {
-                renderer.drawLayer(LayerOptions(blur: blur), content: { inner in
-                    layer.raster(renderer: inner)
-                })
-            } else {
-                layer.raster(renderer: renderer)
-            }
-        })
-    }
-
-    nonisolated static func updateEffectImage(_ layer: inout RasterLayer, scale: CGFloat, blur: CGFloat) {
-        let key: EffectImageKey = EffectImageKey(scale: scale, blur: blur, bounds: layer.compositedBounds())
-        guard layer.effect.key != key else { return }
-        layer.effect.image = Browser.rasterEffectBitmap(layer, scale: scale, blur: blur)
-        layer.effect.key = key
     }
 
     func setNeedsComposite() {

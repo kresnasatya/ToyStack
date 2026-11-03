@@ -40,7 +40,7 @@ struct RasterCompositorTests {
             scrollState: ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
         )
 
-        let layers: [RasterLayer] = Browser.computeComposite(inputs, measure: MeasureTime(), frame: 0)
+        let layers: [RasterLayer] = RasterCompositor.compute(inputs, measure: MeasureTime(), frame: 0)
 
         #expect(layers.count == 2)
         #expect(layers[0].identity.id == LayerID(effect: nil, ordinal: 0))
@@ -52,7 +52,7 @@ struct RasterCompositorTests {
         #expect(layers[1].content.items.count == 2)
         #expect(layers[1].identity.ancestorChain.count == 1)
 
-        let drawList: [DisplayOp] = Browser.computePaintDrawList(layers: layers, inputs: inputs)
+        let drawList: [DisplayOp] = RasterDrawList.compute(layers: layers, inputs: inputs)
         #expect(drawList.count == 4)
         if case .compositedLayer = drawList[0] {} else { Issue.record("expected first layer") }
         if case .beginEffect = drawList[1] {} else { Issue.record("expected begin effect") }
