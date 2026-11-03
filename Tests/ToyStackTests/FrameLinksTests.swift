@@ -22,5 +22,10 @@ struct FrameLinksTests {
         #expect(child.parentFrame === root)
         #expect(child.frameElement == iframe)
         #expect(child.windowID == child.links.id.raw)
+
+        let iframeElement: ElementRef = try #require(root.dom.ref(iframe).element)
+        iframeElement.frame = child
+        #expect(iframeElement.frame === child)
+        #expect(root.dom.side.embeds.frames[iframe] == child.links.id)
     }
 }

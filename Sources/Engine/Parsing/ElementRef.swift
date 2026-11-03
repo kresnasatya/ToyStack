@@ -64,8 +64,8 @@ extension ElementRef {
     }
 
     var frame: Frame? {
-        get { dom.side.embeds.frames[id] }
-        nonmutating set { dom.side.embeds.frames[id] = newValue }
+        get { dom.links.owner?.frame(dom.side.embeds.frames[id]) }
+        nonmutating set { dom.side.embeds.frames[id] = newValue?.links.id }
     }
 
     var frameSource: String? {

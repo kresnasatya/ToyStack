@@ -23,6 +23,10 @@ class Frame {
     var frameElement: NodeID? { links.element }
     var windowID: Int { links.id.raw }
 
+    func frame(_ id: FrameID?) -> Frame? {
+        return tab?.frame(id)
+    }
+
     var url: WebURL! { state.document.meta.url }
     var dom: DOMTree { state.document.dom }
     var nodes: DOMRef { DOMRef(id: dom.root, dom: dom) }
@@ -35,6 +39,7 @@ class Frame {
     /// the old tree, so they are reset here instead of in a property observer.
     func replaceDOM(_ newDOM: DOMTree) {
         guard dom !== newDOM else { return }
+        newDOM.links.owner = self
         state.document.dom = newDOM
         state.layout.tree.value = nil
         state.layout.tree.isDirty = true
@@ -149,6 +154,7 @@ class Frame {
             display: FrameDisplayState(),
             runtime: FrameRuntimeState()
         )
+        self.state.document.dom.links.owner = self
         tab.registerFrame(self)
     }
 

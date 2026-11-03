@@ -39,7 +39,7 @@ extension ImageTable {
 // MARK: - EmbedTable
 
 struct EmbedTable {
-    var frames: [NodeID: Frame]
+    var frames: [NodeID: FrameID]
     var frameSources: [NodeID: String]
 }
 

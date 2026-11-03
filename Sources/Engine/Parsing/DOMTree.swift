@@ -10,7 +10,11 @@ final class DOMTree {
     private(set) var nodes: [DOMNode?]
     private(set) var root: NodeID
     var side: DOMSideTables
-    weak var layoutTree: LayoutTree?
+    var links: DOMLinks
+    weak var layoutTree: LayoutTree? {
+        get { links.layoutTree }
+        set { links.layoutTree = newValue }
+    }
 
     init() {
         let root: NodeID = NodeID(raw: 0)
@@ -22,6 +26,7 @@ final class DOMTree {
         self.nodes = [node]
         self.root = root
         self.side = DOMSideTables()
+        self.links = DOMLinks()
     }
 
     // MARK: - Reads

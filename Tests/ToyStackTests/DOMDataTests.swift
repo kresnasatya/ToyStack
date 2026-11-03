@@ -45,20 +45,21 @@ struct DOMDataTests {
         let id: NodeID = NodeID(raw: 7)
         let image: CGImage = try #require(makeImage())
         let frame: Frame = BrowserTab(tabHeight: 600, tabWidth: 800).rootFrame
+        let frameID: FrameID = frame.links.id
         let canvas: CanvasRenderingContext2D = try #require(
             CanvasRenderingContext2D(width: 1, height: 1, scale: 1)
         )
 
         tables.images.images[id] = image
         tables.images.backgroundSources[id] = "background.png"
-        tables.embeds.frames[id] = frame
+        tables.embeds.frames[id] = frameID
         tables.embeds.frameSources[id] = "frame.html"
         tables.canvases.contexts[id] = canvas
         tables.scrollOffsets[id] = 42
 
         #expect(tables.images.images[id] === image)
         #expect(tables.images.backgroundSources[id] == "background.png")
-        #expect(tables.embeds.frames[id] === frame)
+        #expect(tables.embeds.frames[id] == frameID)
         #expect(tables.embeds.frameSources[id] == "frame.html")
         #expect(tables.canvases.contexts[id] === canvas)
         #expect(tables.scrollOffsets[id] == 42)
