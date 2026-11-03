@@ -1,36 +1,38 @@
 // MARK: - TextDirectionResolver
 
-@MainActor
 enum TextDirectionResolver {
     private static let skippedTags: Set<String> = ["script", "style", "textarea", "bdi"]
 
-    static func resolve(_ element: ElementRef) -> TextDirection? {
-        let declared: String? = element.attributes["dir"]?.lowercased() ?? (element.tag == "bdi" ? "auto" : nil)
+    static func resolve(_ snapshot: StyleSnapshot, _ index: Int) -> TextDirection? {
+        let content: StyleContent = snapshot.node(index).content
+        let declared: String? =
+            content.attributes["dir"]?.lowercased() ?? (content.tag == "bdi" ? "auto" : nil)
         switch declared {
             case "ltr": return .ltr
             case "rtl": return .rtl
-            case "auto": return autoDirection(of: element.ref)
+            case "auto": return autoDirection(snapshot, index)
             default: return nil
         }
     }
 
-    private static func autoDirection(of node: DOMRef) -> TextDirection? {
-        for child in node.children {
-            if let direction = autoDirection(descendant: child) { return direction }
+    private static func autoDirection(_ snapshot: StyleSnapshot, _ index: Int) -> TextDirection? {
+        for child in snapshot.children(of: index) {
+            if let direction = autoDirection(descendant: snapshot, child) { return direction }
         }
         return nil
     }
 
-    private static func autoDirection(descendant node: DOMRef) -> TextDirection? {
-        if let text = node.text {
-            return firstStrongDirection(in: text.text)
+    private static func autoDirection(descendant snapshot: StyleSnapshot, _ index: Int) -> TextDirection? {
+        let content: StyleContent = snapshot.node(index).content
+        if let text = content.text {
+            return firstStrongDirection(in: text)
         }
-        if let element = node.element {
-            if element.attributes["dir"] != nil { return nil }
-            if skippedTags.contains(element.tag) { return nil }
+        if content.tag != nil {
+            if content.attributes["dir"] != nil { return nil }
+            if let tag = content.tag, skippedTags.contains(tag) { return nil }
         }
-        for child in node.children {
-            if let direction = autoDirection(descendant: child) { return direction }
+        for child in snapshot.children(of: index) {
+            if let direction = autoDirection(descendant: snapshot, child) { return direction }
         }
         return nil
     }

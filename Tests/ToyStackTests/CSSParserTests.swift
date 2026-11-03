@@ -22,8 +22,8 @@ struct CSSParserTests {
         let dom: DOMTree = DOMTree()
         let el: NodeID = dom.createElement(tag: "p", attributes: [:])
         let div: NodeID = dom.createElement(tag: "div", attributes: [:])
-        #expect(selector.matches(dom.ref(el)))
-        #expect(!selector.matches(dom.ref(div)))
+        #expect(matches(selector, dom.ref(el)))
+        #expect(!matches(selector, dom.ref(div)))
     }
 
     @Test func parseMultipleRules() {
@@ -115,7 +115,7 @@ struct CSSParserTests {
         let selector = TagSelector(tag: "p")
         let dom: DOMTree = DOMTree()
         let textNode: NodeID = dom.createText("hello")
-        #expect(!selector.matches(dom.ref(textNode)))
+        #expect(!matches(selector, dom.ref(textNode)))
     }
 
     // MARK: - DescendantSelector
@@ -138,7 +138,7 @@ struct CSSParserTests {
             TagSelector(tag: "p")
         ])
 
-        #expect(selector.matches(dom.ref(p)))
+        #expect(matches(selector, dom.ref(p)))
     }
 
     @Test func descendantSelectorDoesNotMatchWrongAncestor() {
@@ -152,6 +152,12 @@ struct CSSParserTests {
             TagSelector(tag: "p")
         ])
 
-        #expect(!selector.matches(dom.ref(p)))
+        #expect(!matches(selector, dom.ref(p)))
+    }
+
+    private func matches(_ selector: any CSSSelector, _ ref: DOMRef) -> Bool {
+        let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(dom: ref.dom)
+        guard let index: Int = snapshot.index(of: ref.id) else { return false }
+        return selector.matches(snapshot, index)
     }
 }

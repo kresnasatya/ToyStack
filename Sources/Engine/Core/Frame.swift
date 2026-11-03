@@ -326,9 +326,9 @@ class Frame {
                         return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
                     })
                 let imgs: [ElementRef] = elements.filter({ $0.tag == "img" })
-                self.state.document.resources.images.lazy = imgs.filter({ ImageLoading(element: $0) == .lazy }).map(\.id)
+                self.state.document.resources.images.lazy = imgs.filter({ ImageLoading(attributes: $0.attributes) == .lazy }).map(\.id)
                 let images: [ResourceLoad] = imgs.enumerated()
-                    .filter({ ImageLoading(element: $0.element) == .eager })
+                    .filter({ ImageLoading(attributes: $0.element.attributes) == .eager })
                     .map({ (i, img) in
                         let src: String = img.attributes["src"] ?? ""
                         let imageURL: WebURL = src.isEmpty ? url : url.resolve(src)
@@ -480,7 +480,7 @@ class Frame {
         let elements: [ElementRef] = treeToList(nodes).compactMap({ $0.element })
         let imgs: [ElementRef] = elements.filter({ $0.tag == "img" })
         for (i, image) in images where i < imgs.count {
-            imgs[i].image = image ?? BrokenImage.replacement(for: imgs[i])
+            imgs[i].image = image ?? BrokenImage.replacement(for: imgs[i].attributes)
             LayoutInvalidation.imageChanged(imgs[i].ref)
         }
     }
@@ -511,7 +511,7 @@ class Frame {
                     await self.decodeImage(url: imageURL, referrer: referrer)
                 })
                 guard let el = ref.element else { return }
-                el.image = image ?? BrokenImage.replacement(for: el)
+                el.image = image ?? BrokenImage.replacement(for: el.attributes)
                 LayoutInvalidation.imageChanged(ref)
                 self.setNeedsLayout()
             }
@@ -1699,9 +1699,19 @@ class Frame {
         let newState: Bool = element.isHovered
         var matched: [NodeID: DOMRef] = [:]
         dom.setFlag(\.isHovered, !newState, of: element.id)
-        collectHoverMatches(under: element, selectors: selectors, into: &matched)
+        collectHoverMatches(
+            under: element,
+            selectors: selectors,
+            snapshot: StyleSnapshotBuilder.build(root: nodes),
+            into: &matched
+        )
         dom.setFlag(\.isHovered, newState, of: element.id)
-        collectHoverMatches(under: element, selectors: selectors, into: &matched)
+        collectHoverMatches(
+            under: element,
+            selectors: selectors,
+            snapshot: StyleSnapshotBuilder.build(root: nodes),
+            into: &matched
+        )
 
         for node in matched.values {
             StyleInvalidation.markNode(node)
@@ -1713,14 +1723,24 @@ class Frame {
     private func collectHoverMatches(
         under element: DOMRef,
         selectors: [any CSSSelector],
+        snapshot: StyleSnapshot,
         into matched: inout [NodeID: DOMRef]
     ) {
         for child in element.children {
-            guard let childElement: ElementRef = child.element else { continue }
-            if selectors.contains(where: { subjectCanMatch($0, childElement) && $0.matches(child) }) {
+            guard let childElement: ElementRef = child.element,
+                let index: Int = snapshot.index(of: child.id)
+            else { continue }
+            if selectors.contains(where: {
+                subjectCanMatch($0, childElement) && $0.matches(snapshot, index)
+            }) {
                 matched[child.id] = child
             }
-            collectHoverMatches(under: child, selectors: selectors, into: &matched)
+            collectHoverMatches(
+                under: child,
+                selectors: selectors,
+                snapshot: snapshot,
+                into: &matched
+            )
         }
     }
 
@@ -1844,10 +1864,13 @@ class Frame {
         guard rules.count <= 64 else { return nil } // NOTE: why 64?
 
         var direct: Set<NodeID> = []
+        let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(root: nodes)
         for node in treeToList(nodes) {
-            guard node.element != nil else { continue }
+            guard node.element != nil,
+                let index: Int = snapshot.index(of: node.id)
+            else { continue }
             for rule in rules {
-                if rule.selector.matches(node) {
+                if rule.selector.matches(snapshot, index) {
                     StyleInvalidation.markNode(node)
                     direct.insert(node.id)
                     break

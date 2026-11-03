@@ -42,22 +42,28 @@ struct RuleIndex {
         self.descendantRequirements = descendantRequirements
     }
 
-    @MainActor
-    func candidateIndices(for element: ElementRef, ancestorKeys: AncestorSelectorKeys) -> [Int] {
+    func candidateIndices(
+        for snapshot: StyleSnapshot,
+        index nodeIndex: Int,
+        ancestorKeys: AncestorSelectorKeys
+    ) -> [Int] {
+        let content: StyleContent = snapshot.node(nodeIndex).content
         var result: [Int] = []
         result.reserveCapacity(8)
         for index in universal where requirementsMet(index, ancestorKeys) {
             result.append(index)
         }
-        for index in byTag[element.tag] ?? [] where requirementsMet(index, ancestorKeys) {
-            result.append(index)
+        if let tag = content.tag {
+            for index in byTag[tag] ?? [] where requirementsMet(index, ancestorKeys) {
+                result.append(index)
+            }
         }
-        if let id = element.attributes["id"] {
+        if let id = content.attributes["id"] {
             for index in byID[id] ?? [] where requirementsMet(index, ancestorKeys) {
                 result.append(index)
             }
         }
-        for cls in element.attributes["class"]?.split(separator: " ") ?? [] {
+        for cls in content.attributes["class"]?.split(separator: " ") ?? [] {
             for index in byClass[String(cls)] ?? [] where requirementsMet(index, ancestorKeys) {
                 result.append(index)
             }

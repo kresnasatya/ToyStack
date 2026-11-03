@@ -215,13 +215,34 @@ run costs 6.36 s against 6.18 s before: the scene copy is ~3% of a debug run.
 **Annotation result:** Engine 95 → 89. The eight `PaintTree` annotations became one
 (`PaintSceneBuilder`); `effectiveZIndex` moved to `LayoutPaintPass` because hit-testing still uses it.
 
-### Stage 4 — style over a value document (≈30 annotations)
+### Stage 4 — matching over a value snapshot (done for matching, applying stays main)
 
-`DOMTree` becomes a value (or an `inout` parameter threaded through the pass), `DOMRef`/`ElementRef`
-become IDs plus a borrow. Selectors, cascade, invalidation and `TextDirectionResolver` become plain
-functions over `NodeSnapshot`. Removes the `style` group (24, including `ApplyStyle` and
-`ForcedColor`), `TreeTraversal`'s DOM variant (1), `BrowserFont.fontInputs`/`fontForElement` (2),
-`ImageLoading` (1), `BrokenImage` (2). `HTMLParser` stays on main: it mutates.
+**What changed.** Selector matching now runs on `StyleSnapshot`, a frozen copy of the DOM facts it
+reads: tags, attributes, text, parent/children indices, and the focus/hover/`:has` state.
+
+- `Style/StyleSnapshot.swift` — `StyleSnapshot` + `StyleNode` (identity / content / state).
+- `Style/StyleSnapshotBuilder.swift` — the single `@MainActor` type that copies the DOM. It walks
+  every allocated node, so detached nodes match the way they did before.
+- `CSSSelector.matches(_ snapshot:_ index:)` replaces `matches(_ node: DOMRef)`; all eleven
+  selectors, `RuleIndex.candidateIndices`, `AncestorSelectorKeys.push`, and `:has` precomputation
+  follow it.
+- `TextDirectionResolver`, `applyForcedColors`, `ImageLoading`, `BrokenImage.hasAltText` take the
+  values they actually read.
+
+**What stays on the main actor, and why.** `applyStyle`, `StyleCascade`, `StyleFields`,
+`StyleInvalidation`, `StyleTransitions`, and `precomputeHas`'s write-back all *mutate* the DOM.
+Making them nonisolated without changing ownership would be the strip experiment from the audit:
+green build, deleted safety claim. They belong to Stage 5, where the arenas stop being classes.
+
+Per-node cost: one snapshot per style pass (and one per hover pass). Attributes are shared by COW,
+so the copy is array headers plus NodeIDs.
+
+**Verification:** 209 tests pass; renders pixel-identical to the previous commit on the styled,
+iframe, canvas, input, and hover pages; `profile.style` counters identical (`style.matched` counts,
+`style.bodyWrites`, `style.fields.changed`).
+
+**Annotation result:** Sources 104 → 87 (Engine 89 → 72). Nineteen style sites moved to values; one
+builder annotation was added.
 
 ### Stage 5 — layout ownership (≈24 annotations)
 
@@ -248,7 +269,8 @@ stop being isolated. 30 suites, mostly one annotation each.
 | 2 (done) | 0 (structural) | 115 |
 | 3a (done) | 5 | 110 |
 | 3b (done) | 6 | 104 |
-| 4 | ~30 | ~72 |
+| 4 (matching) | 17 | 87 |
+| 4 (apply side) | ~9 | — |
 | 5 | ~24 | ~48 |
 | roots and UI boundary | — | ~37 floor |
 
@@ -269,7 +291,7 @@ The floor is the roots in audit §4 plus the boundary that owns them: Engine roo
 
 ```
 1 (done) → 2 (done) ─┬─> 3 (done)
-              └─> 4 (style) → 5 (layout)
+              └─> 4 (matching done; apply in 5) → 5 (layout)
 ```
 
 1 and 2 are independent of each other and can land in either order. 3 and 4 are independent once 2

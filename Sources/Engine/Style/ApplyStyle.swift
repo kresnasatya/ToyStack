@@ -3,11 +3,17 @@ import CoreGraphics
 // MARK: - applyStyle
 @MainActor
 func applyStyle(node: DOMRef, cascade: StyleCascade) {
-    applyStyle(node: node, cascade: cascade, force: false)
+    let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(root: node)
+    applyStyle(node: node, cascade: cascade, snapshot: snapshot, force: false)
 }
 
 @MainActor
-private func applyStyle(node: DOMRef, cascade: StyleCascade, force: Bool) {
+private func applyStyle(
+    node: DOMRef,
+    cascade: StyleCascade,
+    snapshot: StyleSnapshot,
+    force: Bool
+) {
     guard force || node.style.isDirty || node.style.hasDirtyDescendant else {
         profiler.count("style.skipped")
         return
@@ -18,16 +24,16 @@ private func applyStyle(node: DOMRef, cascade: StyleCascade, force: Bool) {
     }
     defer { node.style.clearDirtyDescendants() }
 
+    let index: Int = snapshot.index(of: node.id) ?? 0
     let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
     let applies: Bool = force || direct || node.style.isDirty
     if applies {
         cascade.record(node)
-        applyNodeStyle(node: node, cascade: cascade)
+        applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
     }
 
-    let pushedElement: ElementRef? = node.element
-    let pushedKeys: [SelectorKey]? = pushedElement.map({ element in
-        profiler.measure("style.apply.push", { cascade.ancestorKeys.push(element) })
+    let pushedKeys: [SelectorKey]? = node.element.map({ _ in
+        profiler.measure("style.apply.push", { cascade.ancestorKeys.push(snapshot, index) })
     })
     defer {
         if let pushedKeys {
@@ -37,26 +43,32 @@ private func applyStyle(node: DOMRef, cascade: StyleCascade, force: Bool) {
 
     let inheritsChange: Bool = applies ? cascade.inheritedChanged(node) : false
     for child in node.children {
-        applyStyle(node: child, cascade: cascade, force: inheritsChange)
+        applyStyle(node: child, cascade: cascade, snapshot: snapshot, force: inheritsChange)
     }
 }
 
 @MainActor
 private func applyNodeStyle(
     node: DOMRef,
-    cascade: StyleCascade
+    cascade: StyleCascade,
+    snapshot: StyleSnapshot,
+    index: Int
 ) {
 
     var newStyle: [String: String] = [:]
 
     if let element = node.element {
         profiler.count("style.elements")
-        if let direction = TextDirectionResolver.resolve(element) {
+        if let direction = TextDirectionResolver.resolve(snapshot, index) {
             newStyle["direction"] = direction.rawValue
         }
 
         let candidates: [Int] = profiler.measure("style.apply.flags", {
-            cascade.index.candidateIndices(for: element, ancestorKeys: cascade.ancestorKeys)
+            cascade.index.candidateIndices(
+                for: snapshot,
+                index: index,
+                ancestorKeys: cascade.ancestorKeys
+            )
         })
         profiler.count("style.candidates", by: candidates.count)
         profiler.count("style.universalCandidates", by: cascade.index.universalRuleCount)
@@ -70,7 +82,7 @@ private func applyNodeStyle(
                 let (mediaQuery, selector, body) = cascade.index.orderedRules[candidate]
                 let isDescendant: Bool = isDescendantRule(selector)
                 if isDescendant { descendantCandidates += 1 }
-                guard cascade.media.matches(mediaQuery), selector.matches(node) else { continue }
+                guard cascade.media.matches(mediaQuery), selector.matches(snapshot, index) else { continue }
                 matchesTrue += 1
                 if isDescendant { descendantTrue += 1 }
                 for (property, value) in body {
@@ -96,7 +108,9 @@ private func applyNodeStyle(
     })
 
     profiler.measure("style.apply.post", {
-        if cascade.media.preferences.usesForcedColors { applyForcedColors(to: &newStyle, node: node) }
+        if cascade.media.preferences.usesForcedColors {
+            applyForcedColors(to: &newStyle, tag: node.element?.tag)
+        }
 
         if newStyle["overflow"] == nil {
             let scrolls: Bool = newStyle["overflow-y"] == "scroll" || newStyle["overflow-x"] == "scroll"

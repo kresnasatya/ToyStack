@@ -78,7 +78,11 @@ class JSRuntime: @unchecked Sendable {
             guard let self, let frame = self.frame else { return [] }
             return MainActor.assumeIsolated({
                 let selector: any CSSSelector = CSSParser(selectorText).selector()
-                let nodes: [DOMRef] = treeToList(frame.nodes).filter { selector.matches($0) }
+                let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(root: frame.nodes)
+                let nodes: [DOMRef] = treeToList(frame.nodes).filter { node in
+                    guard let index: Int = snapshot.index(of: node.id) else { return false }
+                    return selector.matches(snapshot, index)
+                }
                 return nodes.map { self.getHandle($0) }
             })
         } as @convention(block) (String) -> [Int], forKeyedSubscript: "_querySelectorAll" as NSString)

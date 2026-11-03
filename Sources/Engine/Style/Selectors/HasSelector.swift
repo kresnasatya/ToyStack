@@ -13,8 +13,7 @@ struct HasSelector: CSSSelector {
         self.inner = inner
     }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        node.satisfiedHas.contains(id)
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        return snapshot.node(index).state.satisfiedHas.contains(id)
     }
 }

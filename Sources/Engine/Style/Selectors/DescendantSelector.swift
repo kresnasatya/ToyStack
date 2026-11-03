@@ -5,16 +5,15 @@ struct DescendantSelector: CSSSelector {
     var hasSelectors: [HasSelector] { selectors.flatMap { $0.hasSelectors } }
     var key: SelectorKey { selectors.last?.key ?? .universal }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        guard selectors.last!.matches(node) else { return false }
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        guard selectors.last!.matches(snapshot, index) else { return false }
 
         var j: Int = selectors.count - 2
-        var current: DOMRef? = node.parent
+        var current: Int? = snapshot.parent(of: index)
         while let p = current {
             if j < 0 { return true }
-            if selectors[j].matches(p) { j -= 1 }
-            current = p.parent
+            if selectors[j].matches(snapshot, p) { j -= 1 }
+            current = snapshot.parent(of: p)
         }
         return j < 0
     }

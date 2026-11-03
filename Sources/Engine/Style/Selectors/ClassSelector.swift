@@ -5,10 +5,10 @@ struct ClassSelector: CSSSelector {
     var hasSelectors: [HasSelector] { [] }
     var key: SelectorKey { .className(cls) }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        guard let element = node.element else { return false }
-        let classes: [String] = element.attributes["class"]?.split(separator: " ").map(String.init) ?? []
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        let classes: [String] =
+            snapshot.node(index).content.attributes["class"]?
+            .split(separator: " ").map(String.init) ?? []
         return classes.contains(cls)
     }
 }

@@ -3,8 +3,7 @@ enum ImageLoading {
     case eager
     case lazy
 
-    @MainActor
-    init(element: ElementRef) {
-        self = element.attributes["loading"]?.lowercased() == "lazy" ? .lazy : .eager
+    init(attributes: [String: String]) {
+        self = attributes["loading"]?.lowercased() == "lazy" ? .lazy : .eager
     }
 }

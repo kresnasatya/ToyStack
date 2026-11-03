@@ -13,14 +13,12 @@ enum BrokenImage {
         return image
     }()
 
-    @MainActor
-    static func replacement(for element: ElementRef) -> CGImage? {
-        hasAltText(element) ? image : nil
+    static func replacement(for attributes: [String: String]) -> CGImage? {
+        hasAltText(attributes) ? image : nil
     }
 
-    @MainActor
-    static func hasAltText(_ element: ElementRef) -> Bool {
-        guard let alt: String = element.attributes["alt"] else { return false }
+    static func hasAltText(_ attributes: [String: String]) -> Bool {
+        guard let alt: String = attributes["alt"] else { return false }
         return !alt.isEmpty
     }
 }

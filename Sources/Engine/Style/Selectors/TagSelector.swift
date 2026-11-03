@@ -5,11 +5,7 @@ struct TagSelector: CSSSelector {
     var hasSelectors: [HasSelector] { [] }
     var key: SelectorKey { .tag(tag) }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        guard let element = node.element else {
-            return false
-        }
-        return element.tag == tag
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        return snapshot.node(index).content.tag == tag
     }
 }

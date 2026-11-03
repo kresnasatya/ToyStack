@@ -7,8 +7,7 @@ struct SelectorSequence: CSSSelector {
         selectors.map({ $0.key }).max(by: { $0.rank < $1.rank }) ?? .universal
     }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        selectors.allSatisfy({ $0.matches(node) })
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        return selectors.allSatisfy({ $0.matches(snapshot, index) })
     }
 }

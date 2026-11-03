@@ -6,11 +6,8 @@ struct AttributeSelector: CSSSelector {
     var hasSelectors: [HasSelector] { [] }
     var key: SelectorKey { .universal }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        guard let element = node.element,
-            let actual = element.attributes[attribute]
-        else { return false }
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        guard let actual = snapshot.node(index).content.attributes[attribute] else { return false }
         guard let value = value else { return true }
         return actual == value
     }

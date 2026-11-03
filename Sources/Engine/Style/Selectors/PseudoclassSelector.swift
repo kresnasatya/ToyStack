@@ -6,13 +6,13 @@ struct PseudoclassSelector: CSSSelector {
     var hasSelectors: [HasSelector] { base.hasSelectors }
     var key: SelectorKey { base.key }
 
-    @MainActor
-    func matches(_ node: DOMRef) -> Bool {
-        guard base.matches(node) else { return false }
+    func matches(_ snapshot: StyleSnapshot, _ index: Int) -> Bool {
+        guard base.matches(snapshot, index) else { return false }
+        let state: StyleState = snapshot.node(index).state
         switch pseudoclass {
-        case "focus": return node.isFocused
-        case "focus-visible": return node.isFocusVisible
-        case "hover": return node.isHovered
+        case "focus": return state.isFocused
+        case "focus-visible": return state.isFocusVisible
+        case "hover": return state.isHovered
         default: return false
         }
     }
