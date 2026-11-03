@@ -57,14 +57,14 @@ func emitBlock(_ node: PaintNode, block: PaintBlock, into items: inout [DisplayO
     if let outline { items.append(outline) }
 
     if block.isListItem {
-        let bulletX: CGFloat = node.geometry.frame.left - LayoutTree.liIndent
-        let bulletY: CGFloat = node.geometry.frame.top + (VSTEP - LayoutTree.bulletSize) / 2
+        let bulletX: CGFloat = node.geometry.frame.left - liIndent
+        let bulletY: CGFloat = node.geometry.frame.top + (VSTEP - bulletSize) / 2
         items.append(.rect(
             rect: Rect(
                 left: bulletX,
                 top: bulletY,
-                right: bulletX + LayoutTree.bulletSize,
-                bottom: bulletY + LayoutTree.bulletSize
+                right: bulletX + bulletSize,
+                bottom: bulletY + bulletSize
             ),
             color: BrowserColor(
                 cssName: node.surface.state.forcedColors ? ForcedColor.canvasText : "black"

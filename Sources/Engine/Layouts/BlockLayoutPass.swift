@@ -4,8 +4,6 @@ import CoreGraphics
 
 extension LayoutTree {
     static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
-    static let liIndent: CGFloat = 20.0
-    static let bulletSize: CGFloat = 8.0
 
     // MARK: - Construction
 
@@ -273,8 +271,8 @@ extension LayoutTree {
             }
 
             if let el = ref.node.element, el.tag == "li" {
-                ref.x += LayoutTree.liIndent
-                ref.width -= LayoutTree.liIndent
+                ref.x += liIndent
+                ref.width -= liIndent
             }
 
             if isAbsolute, let t = style.flags.top {
