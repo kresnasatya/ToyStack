@@ -133,12 +133,12 @@ private func makeParagraphFixture() -> ParagraphFixture {
         body: #"<p id="first">short</p><p id="second">after</p>"#
     ).parse()
 
-    frame.dom = dom
-    frame.rules = CSSParser("""
+    frame.replaceDOM(dom)
+    frame.setStyleRules(CSSParser("""
         html { width: 300px; }
         body { display: block; }
         p { display: block; width: 120px; }
-        """).parse().rules
+        """).parse().rules)
     frame.setNeedsRender()
     frame.render()
     return ParagraphFixture(
@@ -165,8 +165,8 @@ private func makeAbsoluteFixture() -> AbsoluteFixture {
         body: #"<div class="header"></div><div class="box"><div class="abs"></div></div>"#
     ).parse()
 
-    frame.dom = dom
-    frame.rules = CSSParser("""
+    frame.replaceDOM(dom)
+    frame.setStyleRules(CSSParser("""
         html { width: 300px; }
         body { display: block; }
         div { display: block; }
@@ -179,7 +179,7 @@ private func makeAbsoluteFixture() -> AbsoluteFixture {
             width: 40px;
             height: 40px;
         }
-        """).parse().rules
+        """).parse().rules)
     frame.setNeedsRender()
     frame.render()
     return AbsoluteFixture(
@@ -206,13 +206,13 @@ private func makeNestedListFixture() -> NestedListFixture {
         body: #"<ul><li id="first">first</li><li id="second">second</li></ul>"#
     ).parse()
 
-    frame.dom = dom
-    frame.rules = CSSParser("""
+    frame.replaceDOM(dom)
+    frame.setStyleRules(CSSParser("""
         html { width: 300px; }
         body { display: block; }
         ul { display: block; }
         li { display: block; height: 20px; }
-        """).parse().rules
+        """).parse().rules)
     frame.setNeedsRender()
     frame.render()
     return NestedListFixture(
@@ -239,14 +239,14 @@ private func makeRTLFixture() -> RTLFixture {
         body: #"<div class="header"></div><div class="rtl" dir="rtl">hello</div>"#
     ).parse()
 
-    frame.dom = dom
-    frame.rules = CSSParser("""
+    frame.replaceDOM(dom)
+    frame.setStyleRules(CSSParser("""
         html { width: 300px; }
         body { display: block; }
         div { display: block; }
         div.header { height: 10px; }
         div.rtl { width: 200px; }
-        """).parse().rules
+        """).parse().rules)
     frame.setNeedsRender()
     frame.render()
     return RTLFixture(

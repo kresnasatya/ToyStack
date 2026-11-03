@@ -104,13 +104,13 @@ private func makeFixture() -> Fixture {
     builder.text("Go", in: button)
     builder.text("block text that wraps", in: article)
 
-    frame.dom = builder.dom
-    frame.rules = CSSParser("""
+    frame.replaceDOM(builder.dom)
+    frame.setStyleRules(CSSParser("""
         html { width: 240px; }
         body { display: block; }
         section { display: block; }
         article { display: block; }
-        """).parse().rules
+        """).parse().rules)
     frame.setNeedsRender()
     frame.render()
     return Fixture(tab: tab, frame: frame, button: button)

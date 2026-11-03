@@ -17,12 +17,12 @@ func expectIncrementalMatchesFull(
     let incremental: String = renderSignature(page.frame)
 
     let savedDocument: LayoutTree? = page.frame.document
-    page.frame.document = nil
+    page.frame.setLayoutTree(nil)
     page.frame.setNeedsLayout()
     page.frame.render()
     let full: String = renderSignature(page.frame)
 
-    page.frame.document = savedDocument
+    page.frame.setLayoutTree(savedDocument)
     page.frame.markStructureChanged()
     page.frame.setNeedsPaint()
 

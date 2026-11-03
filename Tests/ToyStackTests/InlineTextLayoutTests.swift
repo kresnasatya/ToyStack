@@ -75,7 +75,7 @@ struct InlineTextLayoutTests {
             .filter({ $0.isText })
             .map { $0.id }
 
-        page.frame.frameWidth = 300
+        page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 

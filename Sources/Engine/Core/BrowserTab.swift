@@ -136,7 +136,7 @@ public class BrowserTab {
 
     func navigateToFragment(_ resolved: WebURL, in frame: Frame) {
         recordNavigation(url: resolved, payload: nil, frame: frame)
-        frame.url = resolved
+        frame.setURL(resolved)
         frame.jumpTo(resolved.fragment)
     }
 
@@ -312,7 +312,7 @@ public class BrowserTab {
         if let payload = state.payload {
             frame.load(state.url, payload: payload)
         } else if let currentURL = frame.url, isSameDocument(currentURL, state.url) {
-            frame.url = state.url
+            frame.setURL(state.url)
             frame.jumpTo(state.url.fragment)
         } else {
             frame.load(state.url)

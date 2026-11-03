@@ -39,7 +39,7 @@ struct LayoutInvalidationTests {
         let narrowBefore: LayoutRef = try #require(fixture.narrow.ref.layout)
         #expect(narrowBefore.width == CGFloat(200))
 
-        fixture.frame.frameWidth = 400
+        fixture.frame.setViewport(width: 400, height: fixture.frame.frameHeight)
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
@@ -54,7 +54,7 @@ struct LayoutInvalidationTests {
         let wideBefore: LayoutRef = try #require(fixture.wide.ref.layout)
         let wideYBefore: CGFloat = wideBefore.y
 
-        fixture.frame.frameWidth = 400
+        fixture.frame.setViewport(width: 400, height: fixture.frame.frameHeight)
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
@@ -85,11 +85,11 @@ struct LayoutInvalidationTests {
 
     @Test func nonReusableStylePassKeepsLayoutObjects() throws {
         let fixture = makeFixture()
-        fixture.frame.rules = CSSParser("""
+        fixture.frame.setStyleRules(CSSParser("""
             html { width: 600px; }
             body { display: block; }
             div { display: block; width: 120px; }
-            """).parse().rules
+            """).parse().rules)
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
@@ -169,7 +169,7 @@ struct LayoutInvalidationTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
         profiler.reset()
         for _ in 0..<40 {
             page.frame.runAnimationFrame()
@@ -192,7 +192,7 @@ struct LayoutInvalidationTests {
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
-        fixture.frame.js = JSRuntime(frame: fixture.frame)
+        fixture.frame.setJSRuntime(JSRuntime(frame: fixture.frame))
         profiler.reset()
         fixture.frame.runAnimationFrame()
 
@@ -211,7 +211,7 @@ struct LayoutInvalidationTests {
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
-        fixture.frame.js = JSRuntime(frame: fixture.frame)
+        fixture.frame.setJSRuntime(JSRuntime(frame: fixture.frame))
         profiler.reset()
         fixture.frame.runAnimationFrame()
 
@@ -248,13 +248,13 @@ private func makeFixture(mediaBody: String = "margin-bottom: 50px;") -> Fixture 
     let dom: DOMTree = HTMLParser(
         body: #"<div class="narrow"></div><div class="wide"></div>"#
     ).parse()
-    frame.dom = dom
-    frame.rules = CSSParser("""
+    frame.replaceDOM(dom)
+    frame.setStyleRules(CSSParser("""
         html { width: 600px; }
         body { display: block; }
         div { display: block; width: 100px; }
         @media (min-width: 600px) { div.narrow { \(mediaBody) } }
-        """).parse().rules
+        """).parse().rules)
     frame.setNeedsRender()
     frame.render()
     let body: ElementRef = treeToList(dom.ref(dom.root)).compactMap({ $0.element }).first(where: { $0.tag == "body" })!

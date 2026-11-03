@@ -133,7 +133,7 @@ struct LayoutOracleTests {
         let document: LayoutTree = try #require(page.frame.document)
         #expect(document.root.width == page.frame.frameWidth - 2 * HSTEP)
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
@@ -231,14 +231,14 @@ struct LayoutOracleTests {
         let rightBefore: LayoutRef = try #require(page.ref(of: right).layout)
 
         let js: JSRuntime = JSRuntime(frame: page.frame)
-        page.frame.js = js
+        page.frame.setJSRuntime(js)
         js.run(
             script: "test",
             code: #"document.getElementById("left").innerHTML = "<p id='new'>new text</p>";"#
         )
         // The JS DOM helpers reload stylesheets, which drops rules that were
         // installed directly by the test instead of through a <style> element.
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
         page.frame.setNeedsRender()
         page.frame.render()
 
@@ -269,7 +269,7 @@ struct LayoutOracleTests {
         #expect(targetBlock.children.count == 1)
 
         let js: JSRuntime = JSRuntime(frame: page.frame)
-        page.frame.js = js
+        page.frame.setJSRuntime(js)
         js.run(
             script: "test",
             code: """
@@ -278,7 +278,7 @@ struct LayoutOracleTests {
                 document.getElementById("target").appendChild(added);
                 """
         )
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
         page.frame.setNeedsRender()
         page.frame.render()
 
@@ -300,7 +300,7 @@ struct LayoutOracleTests {
         )
         let editable: ElementRef = try element("edit", in: page)
         let text: TextRef = try #require(editable.children.first?.text)
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.focusElement(editable)
         page.frame.render()

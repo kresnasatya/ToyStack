@@ -27,7 +27,7 @@ struct InsertBeforeTests {
         let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
         let threeLayout: LayoutRef = try #require(page.firstBlock(in: three))
         let twoYBefore: CGFloat = twoLayout.y
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.js.run(
             script: "insertBefore",
@@ -37,7 +37,7 @@ struct InsertBeforeTests {
                 fresh.textContent = 'inserted';
                 box.insertBefore(fresh, document.getElementById('two'));
             """)
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
 
         profiler.reset()
         page.frame.setNeedsRender()
@@ -66,7 +66,7 @@ struct InsertBeforeTests {
             rules: css
         )
         let box: ElementRef = try #require(page.firstElement(id: "box"))
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.js.run(
             script: "insertBefore",
@@ -78,7 +78,7 @@ struct InsertBeforeTests {
                 );
             """
         )
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
 
         profiler.reset()
         page.frame.setNeedsRender()

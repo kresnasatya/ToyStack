@@ -25,7 +25,7 @@ struct PaintCullingTests {
         #expect(!displayTexts(frame.displayList).contains("bottommarker"))
 
         let maxScroll: CGFloat = frame.maxScroll
-        frame.scroll = maxScroll
+        frame.setScroll(maxScroll)
         #expect(frame.repaintForScroll())
         #expect(displayTexts(frame.displayList).contains("bottommarker"))
         #expect(frame.maxScroll == maxScroll)
@@ -39,7 +39,7 @@ struct PaintCullingTests {
         frame.paint()
         let before: String = displaySignature(frame.displayList)
 
-        frame.scroll = 100
+        frame.setScroll(100)
         #expect(!frame.repaintForScroll())
         #expect(displaySignature(frame.displayList) == before)
     }
@@ -51,7 +51,7 @@ struct PaintCullingTests {
         frame.setNeedsPaint()
         frame.paint()
 
-        frame.scroll = frame.maxScroll
+        frame.setScroll(frame.maxScroll)
         #expect(frame.repaintForScroll())
         #expect(displayTexts(frame.displayList).contains("bottommarker"))
     }
@@ -74,7 +74,7 @@ struct PaintCullingTests {
         frame.paint()
         let extent: CGFloat = frame.maxScroll
 
-        frame.scroll = extent
+        frame.setScroll(extent)
         _ = frame.repaintForScroll()
 
         #expect(frame.maxScroll == extent)

@@ -9,13 +9,13 @@ struct BlockLayoutTests {
     @Test func inputKeepsContainingBlockWidth() throws {
         let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
         let frame: Frame = tab.rootFrame!
-        frame.dom = HTMLParser(body: #"<p>name<input></p>"#).parse()
+        frame.replaceDOM(HTMLParser(body: #"<p>name<input></p>"#).parse())
 
-        frame.rules = CSSParser("""
+        frame.setStyleRules(CSSParser("""
             html { width: 400px; }
             body { display: block; }
             p { display: block; }
-            """).parse().rules
+            """).parse().rules)
         frame.setNeedsRender()
         frame.render()
 

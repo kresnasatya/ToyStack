@@ -21,15 +21,13 @@ class Frame {
 
     var state: FrameState
 
-    var url: WebURL! {
-        get { state.document.meta.url }
-        set { state.document.meta.url = newValue }
-    }
-    var dom: DOMTree {
-        get { state.document.dom }
-        set { replaceDOM(newValue) }
-    }
+    var url: WebURL! { state.document.meta.url }
+    var dom: DOMTree { state.document.dom }
     var nodes: DOMRef { DOMRef(id: dom.root, dom: dom) }
+
+    func setURL(_ newURL: WebURL) {
+        state.document.meta.url = newURL
+    }
 
     /// The one path that swaps the document. Layout and display state point at
     /// the old tree, so they are reset here instead of in a property observer.
@@ -39,17 +37,27 @@ class Frame {
         state.layout.tree.value = nil
         state.layout.tree.isDirty = true
         state.layout.targets = ScrollTargetState()
-        scrollFocusNode = nil
+        state.runtime.interaction.scrollFocus = nil
         state.display.composite.updates.removeAll()
-        needsRender = true
+        state.runtime.schedule.needsRender = true
         state.display.paint.isNeeded = true
     }
 
     /// Replacing a sheet invalidates the sorted index and the `:has` precompute.
     func setStyleRules(_ newRules: [RuleIndex.Rule]) {
         state.document.sheets.rules = newRules
-        rulesRevision += 1
-        needsHasPrecompute = true
+        state.document.sheets.index.list.rulesRevision += 1
+        state.document.sheets.pending.needsHasPrecompute = true
+    }
+
+    func appendStyleRules(_ newRules: [RuleIndex.Rule]) {
+        state.document.sheets.rules.append(contentsOf: newRules)
+        state.document.sheets.index.list.rulesRevision += 1
+        state.document.sheets.pending.needsHasPrecompute = true
+    }
+
+    func mergeKeyframes(_ newFrames: [String: [Keyframe]]) {
+        state.document.sheets.keyframes.merge(newFrames) { _, new in new }
     }
 
     /// Width and height change together on resize; only a width change dirties
@@ -66,208 +74,56 @@ class Frame {
     func clearPaintRequest() {
         state.display.paint.isNeeded = false
     }
-    private var documentValue: LayoutTree? {
-        get { state.layout.tree.value }
-        set { state.layout.tree.value = newValue }
-    }
-    private var documentDirty: Bool {
-        get { state.layout.tree.isDirty }
-        set { state.layout.tree.isDirty = newValue }
-    }
-    var document: LayoutTree? {
-        get { documentValue }
-        set {
-            documentValue = newValue
-            documentDirty = false
-            if let newValue {
-                newValue.dom.layoutTree = newValue
-                newValue.dom.attachLayoutTree(newValue)
-            }
-        }
-    }
-    var displayList: [DisplayOp] {
-        get { state.display.paint.ops }
-        set { state.display.paint.ops = newValue }
-    }
-    // Bumped when anything that paint reads may have changed.
-    // One epoch covers many paints; a cached item is valid only in its epoch.
-    var paintEpoch: UInt {
-        get { state.display.paint.epoch }
-        set { state.display.paint.epoch = newValue }
-    }
-    var title: String {
-        get { state.document.meta.title }
-        set { state.document.meta.title = newValue }
-    }
-    var isSecure: Bool {
-        get { state.document.meta.isSecure }
-        set { state.document.meta.isSecure = newValue }
+
+    func setScroll(_ offset: CGFloat) {
+        state.layout.scroll.offset = offset
     }
 
-    var scroll: CGFloat {
-        get { state.layout.scroll.offset }
-        set { state.layout.scroll.offset = newValue }
+    func setJSRuntime(_ runtime: JSRuntime?) {
+        state.runtime.script = runtime
     }
-    var frameWidth: CGFloat {
-        get { state.layout.viewport.width }
-        set { setViewport(width: newValue, height: frameHeight) }
+    var document: LayoutTree? { state.layout.tree.value }
+
+    func setLayoutTree(_ tree: LayoutTree?) {
+        state.layout.tree.value = tree
+        state.layout.tree.isDirty = false
+        if let tree {
+            tree.dom.layoutTree = tree
+            tree.dom.attachLayoutTree(tree)
+        }
     }
-    var frameHeight: CGFloat {
-        get { state.layout.viewport.height }
-        set { state.layout.viewport.height = newValue }
-    }
-    var loaded: Bool {
-        get { state.document.meta.loaded }
-        set { state.document.meta.loaded = newValue }
-    }
+    var displayList: [DisplayOp] { state.display.paint.ops }
+    // Bumped when anything that paint reads may have changed.
+    // One epoch covers many paints; a cached item is valid only in its epoch.
+    var paintEpoch: UInt { state.display.paint.epoch }
+    var title: String { state.document.meta.title }
+    var isSecure: Bool { state.document.meta.isSecure }
+
+    var scroll: CGFloat { state.layout.scroll.offset }
+    var frameWidth: CGFloat { state.layout.viewport.width }
+    var frameHeight: CGFloat { state.layout.viewport.height }
+    var loaded: Bool { state.document.meta.loaded }
 
     private(set) var focus: NodeID? {
         get { state.runtime.interaction.focus }
         set { state.runtime.interaction.focus = newValue }
     }
-    private var rulesRevision: Int {
-        get { state.document.sheets.index.list.rulesRevision }
-        set { state.document.sheets.index.list.rulesRevision = newValue }
-    }
-    var rules: [RuleIndex.Rule] {
-        get { state.document.sheets.rules }
-        set { setStyleRules(newValue) }
-    }
-    var keyframes: [String: [Keyframe]] {
-        get { state.document.sheets.keyframes }
-        set { state.document.sheets.keyframes = newValue }
-    }
-    private var allowedOrigins: [String]? {
-        get { state.document.resources.network.allowedOrigins }
-        set { state.document.resources.network.allowedOrigins = newValue }
-    }
-    private var referrerPolicy: String {
-        get { state.document.resources.network.referrerPolicy }
-        set { state.document.resources.network.referrerPolicy = newValue }
-    }
-    private var loadedScriptURLs: Set<String> {
-        get { state.document.resources.loadedScripts }
-        set { state.document.resources.loadedScripts = newValue }
-    }
-    private var requestedBackgroundImages: Set<String> {
-        get { state.document.resources.images.requestedBackgrounds }
-        set { state.document.resources.images.requestedBackgrounds = newValue }
-    }
-    private var backgroundImageCache: [String: CGImage] {
-        get { state.document.resources.images.backgroundCache }
-        set { state.document.resources.images.backgroundCache = newValue }
-    }
-    private var lazyImages: [NodeID] {
-        get { state.document.resources.images.lazy }
-        set { state.document.resources.images.lazy = newValue }
-    }
-    var js: JSRuntime! {
-        get { state.runtime.script }
-        set { state.runtime.script = newValue }
-    }
-
-    var needsRender: Bool {
-        get { state.runtime.schedule.needsRender }
-        set { state.runtime.schedule.needsRender = newValue }
-    }
-    private var styleInvalidatedByViewport: Bool {
-        get { state.document.sheets.pending.byViewport }
-        set { state.document.sheets.pending.byViewport = newValue }
-    }
-    private var styleInvalidatedByOther: Bool {
-        get { state.document.sheets.pending.byOther }
-        set { state.document.sheets.pending.byOther = newValue }
-    }
-    private var pendingStyleInvalidations: [String: Int] {
-        get { state.document.sheets.pending.counters }
-        set { state.document.sheets.pending.counters = newValue }
-    }
-    private var needsHasPrecompute: Bool {
-        get { state.document.sheets.pending.needsHasPrecompute }
-        set { state.document.sheets.pending.needsHasPrecompute = newValue }
-    }
-    private var mediaQueries: Set<String> {
-        get { state.document.sheets.index.media.queries }
-        set { state.document.sheets.index.media.queries = newValue }
-    }
-    private var mediaMatches: [String: Bool] {
-        get { state.document.sheets.index.media.matches }
-        set { state.document.sheets.index.media.matches = newValue }
-    }
-    private var sortedRules: [RuleIndex.Rule] {
-        get { state.document.sheets.index.list.sorted }
-        set { state.document.sheets.index.list.sorted = newValue }
-    }
-    private var ruleIndex: RuleIndex {
-        get { state.document.sheets.index.list.index }
-        set { state.document.sheets.index.list.index = newValue }
-    }
-    private var indexedRulesRevision: Int {
-        get { state.document.sheets.index.list.indexedRevision }
-        set { state.document.sheets.index.list.indexedRevision = newValue }
-    }
-    var needsFocusScroll: Bool {
-        get { state.runtime.interaction.needsFocusScroll }
-        set { state.runtime.interaction.needsFocusScroll = newValue }
-    }
-
-    #if DEBUG
-    // Print the frozen field graph after a layout pass. Test-only escape hatch.
-    var debugDumpDependencies: Bool {
-        get { state.runtime.schedule.debugDumpDependencies }
-        set { state.runtime.schedule.debugDumpDependencies = newValue }
-    }
-    #endif
-
-    private(set) var interestTop: CGFloat {
-        get { state.layout.scroll.interestTop }
-        set { state.layout.scroll.interestTop = newValue }
-    }
-    private var interestBottom: CGFloat { interestTop + 4 * frameHeight }
-    private var scrollFocusNode: NodeID? {
-        get { state.runtime.interaction.scrollFocus }
-        set { state.runtime.interaction.scrollFocus = newValue }
-    }
-    private var hoveredElements: [NodeID] {
-        get { state.runtime.interaction.hovered }
-        set { state.runtime.interaction.hovered = newValue }
-    }
-    private var scrollTween: ScrollTween? {
-        get { state.runtime.animation.tween }
-        set { state.runtime.animation.tween = newValue }
+    var js: JSRuntime! { state.runtime.script }
+    var interestTop: CGFloat { state.layout.scroll.interestTop }
+    private var interestBottom: CGFloat {
+        return state.layout.scroll.interestTop + 4 * state.layout.viewport.height
     }
     private(set) var pageZoom: CGFloat {
         get { state.layout.viewport.zoom }
         set { state.layout.viewport.zoom = newValue }
     }
 
-    private var activeAnimations: Int {
-        get { state.runtime.animation.activeCount }
-        set { state.runtime.animation.activeCount = newValue }
-    }
-
-    private var iframeTargets: [IframeTarget] {
-        get { state.layout.targets.iframes }
-        set { state.layout.targets.iframes = newValue }
-    }
-    private var scrollBlockTargets: [ScrollBlockTarget] {
-        get { state.layout.targets.blocks }
-        set { state.layout.targets.blocks = newValue }
-    }
-    private var scrollTargetsValid: Bool {
-        get { state.layout.targets.isValid }
-        set { state.layout.targets.isValid = newValue }
-    }
-    private var scrollTargetsNeedRebuild: Bool {
-        get { state.layout.targets.needsRebuild }
-        set { state.layout.targets.needsRebuild = newValue }
-    }
 
     func markStructureChanged() {
-        scrollTargetsNeedRebuild = true
+        state.layout.targets.needsRebuild = true
     }
 
-    var hasScrollElement: Bool { scrollFocusNode != nil }
+    var hasScrollElement: Bool { state.runtime.interaction.scrollFocus != nil }
 
     var maxScroll: CGFloat {
         let documentHeight: CGFloat = document?.root.heightIfUsed ?? 0
@@ -352,7 +208,7 @@ class Frame {
 
             self.js.dispatchWindowLoad()
 
-            self.loaded = true
+            state.document.meta.loaded = true
         }
     }
 
@@ -382,22 +238,24 @@ class Frame {
             return nil
 
         case .success(let (_, headers, body)):
-            isSecure = url.scheme == "https"
-            scroll = 0
-            scrollTween = nil
-            interestTop = 0
-            self.url = url
+            state.document.meta.isSecure = url.scheme == "https"
+            state.layout.scroll.offset = 0
+            state.runtime.animation.tween = nil
+            state.layout.scroll.interestTop = 0
+            setURL(url)
             tab?.markVisited(url.toString())
             discardChildFrames()
             if let message = frameBlockMessage(headers: headers) {
                 print("Blocked iframe", url.toString(), "due to X-Frame-Options")
                 return showFrameBlockedPage(message)
             }
-            dom = profiler.measure("load.parse", {
-                HTMLParser(body: body).parse()
-            })
-            activeAnimations = 0
-            hoveredElements.removeAll()
+            replaceDOM(
+                profiler.measure("load.parse", {
+                    HTMLParser(body: body).parse()
+                })
+            )
+            state.runtime.animation.activeCount = 0
+            state.runtime.interaction.hovered.removeAll()
 
             profiler.measure("load.checkboxes", {
                 for node in treeToList(nodes) {
@@ -409,7 +267,7 @@ class Frame {
                 }
             })
 
-            js = profiler.measure("load.jsInit", { JSRuntime(frame: self) })
+            state.runtime.script = profiler.measure("load.jsInit", { JSRuntime(frame: self) })
 
             let titleText: String = profiler.measure("load.title", {
                 treeToList(nodes)
@@ -419,20 +277,20 @@ class Frame {
                 .map(\.text).joined()
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             })
-            title = titleText.isEmpty ? url.toString() : titleText
+            state.document.meta.title = titleText.isEmpty ? url.toString() : titleText
 
-            allowedOrigins = nil
-            referrerPolicy = headers["referrer-policy"] ?? ""
+            state.document.resources.network.allowedOrigins = nil
+            state.document.resources.network.referrerPolicy = headers["referrer-policy"] ?? ""
             if let csp = headers["content-security-policy"] {
                 let parts: [String] = csp.split(separator: " ").map(String.init)
                 if parts.first == "default-src" {
-                    allowedOrigins = parts.dropFirst().map {
+                    state.document.resources.network.allowedOrigins = parts.dropFirst().map {
                         WebURL($0).origin()
                     }
                 }
             }
 
-            rules = profiler.measure("load.defaultCss") { defaultStyleSheet }
+            setStyleRules(profiler.measure("load.defaultCss") { defaultStyleSheet })
 
             let (styleURLs, scriptURLs, imageURLs): ([ResourceLoad], [ResourceLoad], [ResourceLoad]) =
             profiler.measure("load.resources", {
@@ -452,7 +310,7 @@ class Frame {
                         return (i, scriptURL, self.effectiveReferrer(for: scriptURL))
                     })
                 let imgs: [ElementRef] = elements.filter({ $0.tag == "img" })
-                self.lazyImages = imgs.filter({ ImageLoading(element: $0) == .lazy }).map(\.id)
+                self.state.document.resources.images.lazy = imgs.filter({ ImageLoading(element: $0) == .lazy }).map(\.id)
                 let images: [ResourceLoad] = imgs.enumerated()
                     .filter({ ImageLoading(element: $0.element) == .eager })
                     .map({ (i, img) in
@@ -499,8 +357,8 @@ class Frame {
     private func applyStyles(bodies: [(index: Int, body: String)]) {
         for (_, body) in bodies.sorted(by: { $0.index < $1.index }) {
             let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
-            rules.append(contentsOf: parsed.rules)
-            keyframes.merge(parsed.keyframes) { _, new in new }
+            appendStyleRules(parsed.rules)
+            mergeKeyframes(parsed.keyframes)
         }
 
         for styleNode in treeToList(nodes).compactMap({ $0.element }).filter({
@@ -508,8 +366,8 @@ class Frame {
         }) {
             let css: String = styleNode.children.compactMap({ $0.text }).map(\.text).joined()
             let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(css).parse()
-            rules.append(contentsOf: parsed.rules)
-            keyframes.merge(parsed.keyframes) { _, new in new }
+            appendStyleRules(parsed.rules)
+            mergeKeyframes(parsed.keyframes)
         }
     }
 
@@ -548,7 +406,7 @@ class Frame {
     ) {
         for (_, scriptURL, body) in bodies.sorted(by: { $0.index < $1.index }) {
             js.run(script: scriptURL.toString(), code: body)
-            loadedScriptURLs.insert(scriptURL.toString())
+            state.document.resources.loadedScripts.insert(scriptURL.toString())
         }
 
         js.defineIDs()
@@ -619,7 +477,7 @@ class Frame {
             margin: frameHeight
         )
         var remaining: [NodeID] = []
-        for id in lazyImages {
+        for id in state.document.resources.images.lazy {
             let ref: DOMRef = DOMRef(id: id, dom: dom)
             guard let el = ref.element, el.image == nil,
                 let bounds: Rect = ref.layout?.absoluteBounds(),
@@ -642,7 +500,7 @@ class Frame {
                 self.setNeedsLayout()
             }
         }
-        lazyImages = remaining
+        state.document.resources.images.lazy = remaining
     }
 
     private func loadBackgroundImages(_ nodes: [DOMRef]) {
@@ -674,21 +532,21 @@ class Frame {
 
         for key in order {
             let elements: [ElementRef] = elementsByKey[key] ?? []
-            if let cached: CGImage = backgroundImageCache[key] {
+            if let cached: CGImage = state.document.resources.images.backgroundCache[key] {
                 for el in elements { el.backgroundImage = cached }
                 continue
             }
-            guard !requestedBackgroundImages.contains(key), let resolved = urlByKey[key] else {
+            guard !state.document.resources.images.requestedBackgrounds.contains(key), let resolved = urlByKey[key] else {
                 continue
             }
-            requestedBackgroundImages.insert(key)
+            state.document.resources.images.requestedBackgrounds.insert(key)
             let referrer: WebURL? = effectiveReferrer(for: resolved)
             Task { @MainActor in
                 let image: CGImage? = await runner.schedule(name: "bg-image", {
                     await self.decodeImage(url: resolved, referrer: referrer)
                 })
                 guard let image else { return }
-                self.backgroundImageCache[key] = image
+                self.state.document.resources.images.backgroundCache[key] = image
                 for el in elements { el.backgroundImage = image }
                 self.setNeedsPaint()
             }
@@ -771,7 +629,7 @@ class Frame {
     }
 
     private func effectiveReferrer(for targetURL: WebURL) -> WebURL? {
-        switch referrerPolicy {
+        switch state.document.resources.network.referrerPolicy {
         case "no-referrer":
             return nil
         case "same-origin":
@@ -782,7 +640,7 @@ class Frame {
     }
 
     func allowedRequest(_ url: WebURL) -> Bool {
-        allowedOrigins == nil || (allowedOrigins?.contains(url.origin()) ?? false)
+        state.document.resources.network.allowedOrigins == nil || (state.document.resources.network.allowedOrigins?.contains(url.origin()) ?? false)
     }
 
     private func frameBlockMessage(headers: [String: String]) -> String? {
@@ -803,16 +661,18 @@ class Frame {
     }
 
     private func showFrameBlockedPage(_ message: String) -> ResourceLoads {
-        dom = HTMLParser(body: """
-            <html>
-            <body><p>\(message)</p></body>
-            </html>
-            """).parse()
-        js = JSRuntime(frame: self)
-        title = "Blocked"
-        allowedOrigins = nil
-        referrerPolicy = ""
-        rules = defaultStyleSheet
+        replaceDOM(
+            HTMLParser(body: """
+                <html>
+                <body><p>\(message)</p></body>
+                </html>
+                """).parse()
+        )
+        state.runtime.script = JSRuntime(frame: self)
+        state.document.meta.title = "Blocked"
+        state.document.resources.network.allowedOrigins = nil
+        state.document.resources.network.referrerPolicy = ""
+        setStyleRules(defaultStyleSheet)
         return ResourceLoads(styleURLs: [], scriptURLs: [], imageURLs: [])
     }
 
@@ -827,16 +687,16 @@ class Frame {
                 continue
             }
             let urlStr: String = scriptURL.toString()
-            guard !loadedScriptURLs.contains(urlStr) else { continue }
+            guard !state.document.resources.loadedScripts.contains(urlStr) else { continue }
             guard let (status, headers, body) = scriptURL.requestSync() else { continue }
             guard BrowserTab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
-            loadedScriptURLs.insert(urlStr)
+            state.document.resources.loadedScripts.insert(urlStr)
             js.run(script: urlStr, code: body)
         }
     }
 
     func reloadStylesheets() {
-        rules = defaultStyleSheet
+        setStyleRules(defaultStyleSheet)
         for node in treeToList(nodes) {
             guard let el = node.element else { continue }
             if el.tag == "link", el.attributes["rel"] == "stylesheet",
@@ -847,14 +707,14 @@ class Frame {
                 guard let (status, headers, body) = styleURL.requestSync() else { continue }
                 guard BrowserTab.isUsableStylesheet(status: status, headers: headers, url: styleURL) else { continue }
                 let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
-                rules.append(contentsOf: parsed.rules)
-                keyframes.merge(parsed.keyframes) { _, new in new }
+                appendStyleRules(parsed.rules)
+                mergeKeyframes(parsed.keyframes)
             }
             if el.tag == "style" {
                 let css: String = el.children.compactMap({ $0.text }).map(\.text).joined()
                 let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(css).parse()
-                rules.append(contentsOf: parsed.rules)
-                keyframes.merge(parsed.keyframes) { _, new in new }
+                appendStyleRules(parsed.rules)
+                mergeKeyframes(parsed.keyframes)
             }
         }
         StyleInvalidation.markDocument(nodes)
@@ -863,14 +723,14 @@ class Frame {
     // MARK: - Render
 
     func render() {
-        if !pendingStyleInvalidations.isEmpty {
-            browser?.measure.counter("style.invalidation", pendingStyleInvalidations)
-            pendingStyleInvalidations.removeAll(keepingCapacity: true)
+        if !state.document.sheets.pending.counters.isEmpty {
+            browser?.measure.counter("style.invalidation", state.document.sheets.pending.counters)
+            state.document.sheets.pending.counters.removeAll(keepingCapacity: true)
         }
-        let viewportStyle: Bool = styleInvalidatedByViewport
+        let viewportStyle: Bool = state.document.sheets.pending.byViewport
         let reusableStyle: Bool = viewportStyle
-        styleInvalidatedByViewport = false
-        styleInvalidatedByOther = false
+        state.document.sheets.pending.byViewport = false
+        state.document.sheets.pending.byOther = false
         let stylesDirty: Bool = nodes.style.isDirty || nodes.style.hasDirtyDescendant
         if stylesDirty || viewportStyle {
             browser?.measure.start("BrowserTab.style")
@@ -879,25 +739,25 @@ class Frame {
             defer { browser?.measure.stop("BrowserTab.style") }
 
             browser?.measure.start("BrowserTab.style.rules")
-            if indexedRulesRevision != rulesRevision {
-                sortedRules = rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
-                ruleIndex = RuleIndex(rules: sortedRules)
-                mediaQueries = Set(sortedRules.compactMap({ $0.0 }))
-                indexedRulesRevision = rulesRevision
-                profiler.count("style.rules", by: sortedRules.count)
+            if state.document.sheets.index.list.indexedRevision != state.document.sheets.index.list.rulesRevision {
+                state.document.sheets.index.list.sorted = state.document.sheets.rules.sorted(by: { cascadePriority($0) < cascadePriority($1) })
+                state.document.sheets.index.list.index = RuleIndex(rules: state.document.sheets.index.list.sorted)
+                state.document.sheets.index.media.queries = Set(state.document.sheets.index.list.sorted.compactMap({ $0.0 }))
+                state.document.sheets.index.list.indexedRevision = state.document.sheets.index.list.rulesRevision
+                profiler.count("style.rules", by: state.document.sheets.index.list.sorted.count)
             }
             browser?.measure.stop("BrowserTab.style.rules")
 
             browser?.measure.start("BrowserTab.style.has")
-            if needsHasPrecompute {
-                precomputeHas(node: nodes, rules: sortedRules)
-                needsHasPrecompute = false
+            if state.document.sheets.pending.needsHasPrecompute {
+                precomputeHas(node: nodes, rules: state.document.sheets.index.list.sorted)
+                state.document.sheets.pending.needsHasPrecompute = false
             }
             browser?.measure.stop("BrowserTab.style.has")
 
             browser?.measure.start("BrowserTab.style.apply")
             let media: MediaFeatures = currentMedia()
-            let hasBaseline: Bool = !mediaMatches.isEmpty
+            let hasBaseline: Bool = !state.document.sheets.index.media.matches.isEmpty
             let flipped: Set<String> = flippedMediaQueries(media)
             recordMediaMatches(media)
             browser?.measure.start("BrowserTab.style.scope")
@@ -910,7 +770,7 @@ class Frame {
             profiler.count("style.flipped.queries", by: flipped.count)
             profiler.count("style.scope.direct", by: scope?.direct.count ?? 0)
             let cascade: StyleCascade = StyleCascade(
-                index: ruleIndex,
+                index: state.document.sheets.index.list.index,
                 media: media,
                 scope: scope
             )
@@ -950,11 +810,11 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.diff")
 
             browser?.measure.start("BrowserTab.style.keyframes")
-            if !keyframes.isEmpty {
+            if !state.document.sheets.keyframes.isEmpty {
                 for node in cascade.appliedNodes {
                     guard let animDecl = node.style.unknownValue("animation"),
                         let playback = KeyframePlayback.parse(animDecl),
-                        let frames = keyframes[playback.name]
+                        let frames = state.document.sheets.keyframes[playback.name]
                     else { continue }
                     let key: AnimationKey = .keyframes(playback.name)
                     guard node.animations[key] == nil else { continue }
@@ -966,7 +826,7 @@ class Frame {
             }
             browser?.measure.stop("BrowserTab.style.keyframes")
 
-            activeAnimations += cascade.appliedNodes.reduce(0) { $0 + $1.animations.count } - animationsBefore
+            state.runtime.animation.activeCount += cascade.appliedNodes.reduce(0) { $0 + $1.animations.count } - animationsBefore
 
             browser?.measure.start("BrowserTab.style.visited")
             if tab?.hasVisitedURLs == true {
@@ -991,7 +851,7 @@ class Frame {
             markDocumentDirty()
         }
 
-        if documentDirty {
+        if state.layout.tree.isDirty {
             browser?.measure.start("BrowserTab.layout")
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
@@ -1001,7 +861,7 @@ class Frame {
                 doc = existing
             } else {
                 doc = LayoutTree(dom: dom)
-                scrollTargetsValid = false
+                state.layout.targets.isValid = false
             }
             doc.layoutDocument(
                 availableWidth: frameWidth,
@@ -1013,23 +873,23 @@ class Frame {
                 state.display.composite.updates = state.display.composite.updates
                     .filter({ doc.primaryLayout(for: $0.key) != nil })
             }
-            if iframeTargets.contains(where: { removed.contains($0.layout) })
-                || scrollBlockTargets.contains(where: { removed.contains($0.layout) })
+            if state.layout.targets.iframes.contains(where: { removed.contains($0.layout) })
+                || state.layout.targets.blocks.contains(where: { removed.contains($0.layout) })
             {
-                scrollTargetsValid = false
-                scrollTargetsNeedRebuild = true
+                state.layout.targets.isValid = false
+                state.layout.targets.needsRebuild = true
             }
-            document = doc
+            setLayoutTree(doc)
             #if DEBUG
-            if debugDumpDependencies {
+            if state.runtime.schedule.debugDumpDependencies {
                 dumpDependencies(doc.root)
             }
             #endif
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
-            if scrollTargetsNeedRebuild || !scrollTargetsValid {
+            if state.layout.targets.needsRebuild || !state.layout.targets.isValid {
                 rebuildScrollTargets(doc)
-                scrollTargetsValid = true
-                scrollTargetsNeedRebuild = false
+                state.layout.targets.isValid = true
+                state.layout.targets.needsRebuild = false
                 profiler.count("scrollTargets.rebuilt")
             } else {
                 refreshScrollTargetRects()
@@ -1116,11 +976,11 @@ class Frame {
         js.run(script: "raf", code: "__runRAFHandlers()")
         browser?.measure.stop("BrowserTab.raf")
         var needsAnotherFrame: Bool = false
-        state.display.composite.isNeeded = nodes.style.isDirty || documentDirty || state.display.paint.isNeeded
+        state.display.composite.isNeeded = nodes.style.isDirty || state.layout.tree.isDirty || state.display.paint.isNeeded
         var needsLayoutUpdate: Bool = false
         var animationFallbacks: Int = 0
         browser?.measure.start("BrowserTab.animScan")
-        let animated: [DOMRef] = activeAnimations > 0 ? treeToList(nodes) : []
+        let animated: [DOMRef] = state.runtime.animation.activeCount > 0 ? treeToList(nodes) : []
         for node in animated {
             for (key, animation) in node.animations {
                 let property: StyleProperty = animation.animatedProperty
@@ -1153,7 +1013,7 @@ class Frame {
                         state.display.paint.isNeeded = true
                     }
                 } else {
-                    if dom.removeAnimation(key, from: node.id) != nil { activeAnimations -= 1 }
+                    if dom.removeAnimation(key, from: node.id) != nil { state.runtime.animation.activeCount -= 1 }
                     state.display.composite.isNeededForPaint = true
                     state.display.paint.isNeeded = true
                 }
@@ -1171,27 +1031,27 @@ class Frame {
             setNeedsLayout()
         }
 
-        if needsRender {
-            needsRender = false
+        if state.runtime.schedule.needsRender {
+            state.runtime.schedule.needsRender = false
             render()
 
-            if needsFocusScroll, let f = focus {
+            if state.runtime.interaction.needsFocusScroll, let f = focus {
                 scrollTo(dom.ref(f))
             }
-            needsFocusScroll = false
+            state.runtime.interaction.needsFocusScroll = false
         }
 
-        if let tween = scrollTween {
+        if let tween = state.runtime.animation.tween {
             if let value = tween.nextValue() {
-                scroll = max(0, min(value, maxScroll))
+                state.layout.scroll.offset = max(0, min(value, maxScroll))
                 needsAnotherFrame = true
                 checkInterestRegion()
             } else {
-                scrollTween = nil
+                state.runtime.animation.tween = nil
             }
         }
 
-        if !lazyImages.isEmpty {
+        if !state.document.resources.images.lazy.isEmpty {
             loadLazyImages()
         }
 
@@ -1202,7 +1062,7 @@ class Frame {
 
     func commitFrame() {
         guard let tab else { return }
-        scroll = min(scroll, maxScroll)
+        state.layout.scroll.offset = min(scroll, maxScroll)
         let display: FrameDisplayState = state.display
         let updates: [NodeID: EffectUpdate]? =
             (display.composite.isNeeded || display.composite.isNeededForPaint)
@@ -1223,11 +1083,11 @@ class Frame {
 
     private func refreshScrollTargetRects() {
         guard let doc = document else {
-            iframeTargets.removeAll()
-            scrollBlockTargets.removeAll()
+            state.layout.targets.iframes.removeAll()
+            state.layout.targets.blocks.removeAll()
             return
         }
-        iframeTargets = iframeTargets.compactMap({ target in
+        state.layout.targets.iframes = state.layout.targets.iframes.compactMap({ target in
             guard doc.contains(target.layout) else { return nil }
             let iframe: LayoutRef = LayoutRef(id: target.layout, tree: doc)
             return IframeTarget(
@@ -1236,7 +1096,7 @@ class Frame {
                 node: target.node
             )
         })
-        scrollBlockTargets = scrollBlockTargets.compactMap({ target in
+        state.layout.targets.blocks = state.layout.targets.blocks.compactMap({ target in
             guard doc.contains(target.layout) else { return nil }
             let block: LayoutRef = LayoutRef(id: target.layout, tree: doc)
             return ScrollBlockTarget(
@@ -1273,8 +1133,8 @@ class Frame {
                 )
             }
         }
-        iframeTargets = iframes
-        scrollBlockTargets = blocks
+        state.layout.targets.iframes = iframes
+        state.layout.targets.blocks = blocks
     }
 
     // MARK: - Scroll
@@ -1290,7 +1150,7 @@ class Frame {
     }
 
     private func scrollTo(_ elt: DOMRef) {
-        scrollTween = nil
+        state.runtime.animation.tween = nil
         guard let doc = document else { return }
         let node: NodeID = elt.id
         let objs: [LayoutRef] = treeToList(doc.root).filter({
@@ -1298,8 +1158,8 @@ class Frame {
         })
         guard let obj = objs.first else { return }
         if scroll < obj.y && obj.y + obj.height < scroll + frameHeight { return }
-        scroll = max(0, min(obj.y - Frame.scrollStep, maxScroll))
-        interestTop = max(0, scroll - frameHeight)
+        state.layout.scroll.offset = max(0, min(obj.y - Frame.scrollStep, maxScroll))
+        state.layout.scroll.interestTop = max(0, scroll - frameHeight)
     }
 
     private func scrollToFragment(_ id: String) {
@@ -1308,8 +1168,8 @@ class Frame {
             $0.node.element?.attributes["id"] == id
         })
         if let target = target {
-            scroll = max(0, min(target.y, maxScroll))
-            scrollTween = nil
+            state.layout.scroll.offset = max(0, min(target.y, maxScroll))
+            state.runtime.animation.tween = nil
         }
     }
 
@@ -1317,16 +1177,16 @@ class Frame {
         if let fragment {
             scrollToFragment(fragment)
         } else {
-            scroll = 0
+            state.layout.scroll.offset = 0
         }
-        interestTop = max(0, scroll - frameHeight)
+        state.layout.scroll.interestTop = max(0, scroll - frameHeight)
         browser?.applyScrollAndUpdateInterest(
             scroll: scroll,
             interestTop: interestTop,
             interestBottom: interestBottom
         )
         browser?.navigationStateChanged()
-        if !lazyImages.isEmpty {
+        if !state.document.resources.images.lazy.isEmpty {
             requestAnimationFrame()
         }
     }
@@ -1361,19 +1221,19 @@ class Frame {
     }
 
     func scrollDown() {
-        if let tween = scrollTween {
+        if let tween = state.runtime.animation.tween {
             tween.aim(from: scroll, by: Frame.scrollStep, within: 0...maxScroll)
         } else {
-            scrollTween = ScrollTween(from: scroll, to: min(scroll + Frame.scrollStep, maxScroll))
+            state.runtime.animation.tween = ScrollTween(from: scroll, to: min(scroll + Frame.scrollStep, maxScroll))
         }
         requestAnimationFrame()
     }
 
     func scrollUp() {
-        if let tween = scrollTween {
+        if let tween = state.runtime.animation.tween {
             tween.aim(from: scroll, by: -Frame.scrollStep, within: 0...maxScroll)
         } else {
-            scrollTween = ScrollTween(from: scroll, to: max(scroll - Frame.scrollStep, 0))
+            state.runtime.animation.tween = ScrollTween(from: scroll, to: max(scroll - Frame.scrollStep, 0))
         }
         requestAnimationFrame()
     }
@@ -1383,7 +1243,7 @@ class Frame {
         let adjustedY: CGFloat = y + scroll
         guard document != nil else { return false }
 
-        if let target = iframeTargets.last(where: {
+        if let target = state.layout.targets.iframes.last(where: {
             $0.rect.containsPoint(x, adjustedY)
         }),
             let doc = document,
@@ -1404,7 +1264,7 @@ class Frame {
             }
         }
 
-        if let target = scrollBlockTargets.first(where: {
+        if let target = state.layout.targets.blocks.first(where: {
             $0.rect.containsPoint(x, adjustedY)
         }),
             let doc = document,
@@ -1420,7 +1280,7 @@ class Frame {
             guard next != current else { return false }
             el.scrollOffsetY = next
             doc.setBlockScrollOffset(block, next)
-            scrollFocusNode = el.id
+            state.runtime.interaction.scrollFocus = el.id
             setNeedsPaint()
             return true
         }
@@ -1431,12 +1291,12 @@ class Frame {
     }
 
     func scrollBy(deltaY: CGFloat) {
-        scrollTween = nil
-        scroll = max(0, min(scroll - deltaY, maxScroll))
+        state.runtime.animation.tween = nil
+        state.layout.scroll.offset = max(0, min(scroll - deltaY, maxScroll))
         if !checkInterestRegion() {
             browser?.applyScroll(scroll)
         }
-        if !lazyImages.isEmpty {
+        if !state.document.resources.images.lazy.isEmpty {
             requestAnimationFrame()
         }
     }
@@ -1456,7 +1316,7 @@ class Frame {
     }
 
     private func liveScrollBlock() -> LayoutRef? {
-        guard let node = scrollFocusNode, let doc = document else {
+        guard let node = state.runtime.interaction.scrollFocus, let doc = document else {
             return nil
         }
         return treeToList(doc.root).first(where: {
@@ -1465,7 +1325,7 @@ class Frame {
     }
 
     func scrollElementDown() {
-        guard let node = scrollFocusNode, let doc = document,
+        guard let node = state.runtime.interaction.scrollFocus, let doc = document,
             let block = liveScrollBlock()
         else {
             return
@@ -1479,7 +1339,7 @@ class Frame {
     }
 
     func scrollElementUp() {
-        guard let node = scrollFocusNode, let doc = document,
+        guard let node = state.runtime.interaction.scrollFocus, let doc = document,
             let block = liveScrollBlock()
         else { return }
         let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
@@ -1497,7 +1357,7 @@ class Frame {
             return true
         }
         if scroll < interestTop || scroll + frameHeight > interestBottom {
-            interestTop = max(0, scroll - frameHeight)
+            state.layout.scroll.interestTop = max(0, scroll - frameHeight)
             browser?.applyScrollAndUpdateInterest(
                 scroll: scroll, interestTop: interestTop, interestBottom: interestBottom)
             return true
@@ -1531,11 +1391,11 @@ class Frame {
 
     private func setHoveredElements(_ chain: [NodeID]) {
         let entering: Set<NodeID> = Set(chain)
-        let leaving: Set<NodeID> = Set(hoveredElements)
+        let leaving: Set<NodeID> = Set(state.runtime.interaction.hovered)
         guard entering != leaving else { return }
 
         var changed: [NodeID] = []
-        for element in hoveredElements where !entering.contains(element) {
+        for element in state.runtime.interaction.hovered where !entering.contains(element) {
             dom.setFlag(\.isHovered, false, of: element)
             changed.append(element)
         }
@@ -1544,14 +1404,14 @@ class Frame {
             dom.setFlag(\.isHovered, true, of: element)
             changed.append(element)
         }
-        hoveredElements = chain
+        state.runtime.interaction.hovered = chain
 
         // A descendant (e.g. `li:hover span`) can be styled by an ancestor
         // that is still hovered after the descendant left the chain.
         // On exit that ancestor is the only path back to the descendant.
         for element in changed {
             let ref: DOMRef = dom.ref(element)
-            if ruleIndex.hoverStylesDescendants {
+            if state.document.sheets.index.list.index.hoverStylesDescendants {
                 noteStyleInvalidation("style.invalidate.hover.node")
                 setNeedsStyle(ref)
                 markHoverDescendants(of: ref)
@@ -1620,7 +1480,7 @@ class Frame {
             dom.setFlag(\.isFocused, true, of: node.id)
             dom.setFlag(\.isFocusVisible, showRing, of: node.id)
             setNeedsStyleSubtree(ref)
-            needsFocusScroll = true
+            state.runtime.interaction.needsFocusScroll = true
             _ = js?.dispatchEvent(type: "focus", el: ref)
         }
     }
@@ -1634,7 +1494,7 @@ class Frame {
             return
         }
 
-        scrollFocusNode = scrollableAncestor(of: source)
+        state.runtime.interaction.scrollFocus = scrollableAncestor(of: source)
 
         let prevented: Bool = js.dispatchEvent(type: "click", el: source.node)
 
@@ -1742,14 +1602,14 @@ class Frame {
     func setNeedsRender() {
         noteStyleInvalidation("style.invalidate.render")
         StyleInvalidation.markDocument(nodes)
-        needsHasPrecompute = true
+        state.document.sheets.pending.needsHasPrecompute = true
         invalidateStyle()
     }
 
     func setNeedsStyle(_ node: DOMRef) {
         noteStyleInvalidation("style.invalidate.node")
         StyleInvalidation.markNodeAndAncestors(node)
-        needsHasPrecompute = true
+        state.document.sheets.pending.needsHasPrecompute = true
         invalidateStyle()
     }
 
@@ -1757,30 +1617,30 @@ class Frame {
         noteStyleInvalidation("style.invalidate.subtree")
         noteStyleInvalidation("style.invalidate.subtree.nodes", by: treeToList(node).count)
         StyleInvalidation.markSubtreeAndAncestors(node)
-        needsHasPrecompute = true
+        state.document.sheets.pending.needsHasPrecompute = true
         invalidateStyle()
     }
 
     private func invalidateStyle(fromViewport: Bool = false) {
         if fromViewport {
             noteStyleInvalidation("style.invalidate.viewport")
-            styleInvalidatedByViewport = true
+            state.document.sheets.pending.byViewport = true
         } else {
             noteStyleInvalidation("style.invalidate.other")
-            styleInvalidatedByOther = true
+            state.document.sheets.pending.byOther = true
         }
         markDocumentDirty()
-        needsRender = true
+        state.runtime.schedule.needsRender = true
         parentFrame?.setNeedsLayout()
         requestAnimationFrame()
     }
 
     private func markDocumentDirty() {
-        documentDirty = true
+        state.layout.tree.isDirty = true
     }
 
     private func markHoverDescendants(of element: DOMRef) {
-        let selectors: [any CSSSelector] = ruleIndex.hoverAncestorSelectors
+        let selectors: [any CSSSelector] = state.document.sheets.index.list.index.hoverAncestorSelectors
         guard !selectors.isEmpty else { return }
 
         let newState: Bool = element.isHovered
@@ -1827,7 +1687,7 @@ class Frame {
     func addAnimation(_ animation: any Animation, to node: DOMRef) {
         let key: AnimationKey = .property(animation.animatedProperty)
         if dom.addAnimation(animation, key: key, of: node.id) {
-            activeAnimations += 1
+            state.runtime.animation.activeCount += 1
         }
     }
 
@@ -1837,14 +1697,14 @@ class Frame {
         // pass; dirtying the root here would turn every clean render into a
         // document pass and make a skipped block count as visited.
         markDocumentDirty()
-        needsRender = true
+        state.runtime.schedule.needsRender = true
         parentFrame?.setNeedsLayout()
         requestAnimationFrame()
     }
 
     func setNeedsViewportResize() {
         document?.markDocumentGeometryDirty()
-        if !mediaMatches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
+        if !state.document.sheets.index.media.matches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
             invalidateStyle(fromViewport: true)
         } else {
             setNeedsLayout()
@@ -1854,18 +1714,18 @@ class Frame {
     func setNeedsPaint() {
         state.display.paint.epoch += 1
         state.display.paint.isNeeded = true
-        needsRender = true
+        state.runtime.schedule.needsRender = true
         parentFrame?.setNeedsPaint()
         requestAnimationFrame()
     }
 
     func setNeedsHoverCheck() {
-        needsRender = true
+        state.runtime.schedule.needsRender = true
         requestAnimationFrame()
     }
 
     func noteStyleInvalidation(_ name: String, by amount: Int = 1) {
-        pendingStyleInvalidations[name, default: 0] += amount
+        state.document.sheets.pending.counters[name, default: 0] += amount
     }
 
     // MARK: - Zoom
@@ -1912,7 +1772,7 @@ class Frame {
 
     private func flippedMediaQueries(_ media: MediaFeatures) -> Set<String> {
         var flipped: Set<String> = []
-        for query in mediaQueries where mediaMatches[query] != media.matches(query) {
+        for query in state.document.sheets.index.media.queries where state.document.sheets.index.media.matches[query] != media.matches(query) {
             flipped.insert(query)
         }
         return flipped
@@ -1922,7 +1782,7 @@ class Frame {
         _ flipped: Set<String>
     ) -> StyleScope? {
         var rules: [(selector: any CSSSelector, body: [String: String])] = []
-        for rule in sortedRules {
+        for rule in state.document.sheets.index.list.sorted {
             guard let query: String = rule.0, flipped.contains(query) else { continue }
             rules.append((rule.1, rule.2))
         }
@@ -1945,7 +1805,7 @@ class Frame {
     }
 
     private func recordMediaMatches(_ media: MediaFeatures) {
-        mediaMatches = mediaQueries.reduce(into: [:], { verdicts, query in
+        state.document.sheets.index.media.matches = state.document.sheets.index.media.queries.reduce(into: [:], { verdicts, query in
             verdicts[query] = media.matches(query)
         })
     }

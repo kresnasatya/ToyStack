@@ -16,7 +16,7 @@ struct ViewportResizeTests {
             """
         )
         let tallMax: CGFloat = page.frame.maxScroll
-        page.frame.scroll = tallMax
+        page.frame.setScroll(tallMax)
 
         page.tab.resize(width: 800, height: 900)
         page.frame.render()
@@ -40,7 +40,7 @@ struct ViewportResizeTests {
             """
         )
         page.frame.paint()
-        page.frame.scroll = page.frame.maxScroll
+        page.frame.setScroll(page.frame.maxScroll)
         let tallMax: CGFloat = page.frame.maxScroll
 
         page.tab.resize(width: 1200, height: 600)
@@ -62,7 +62,7 @@ struct ViewportResizeTests {
         )
         let p: ElementRef = try #require(page.firstElement(id: "para"))
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
@@ -87,7 +87,7 @@ struct ViewportResizeTests {
         let card: LayoutRef = try #require(page.firstBlock(in: cardElement))
         let childrenBefore: [LayoutID] = card.children.map { $0.id }
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
@@ -108,7 +108,7 @@ struct ViewportResizeTests {
                 p { display: block; }
             """
         )
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
         expectIncrementalMatchesFull(page)
@@ -123,7 +123,7 @@ struct ViewportResizeTests {
             """
         )
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
@@ -150,7 +150,7 @@ struct ViewportResizeTests {
             .filter({ $0.isText })
             .map({ $0.id })
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
@@ -175,7 +175,7 @@ struct ViewportResizeTests {
             .filter({ $0.isText })
             .map { $0.id }
 
-        page.frame.frameWidth = 300
+        page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
@@ -198,7 +198,7 @@ struct ViewportResizeTests {
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         #expect(block.children.count == 2)
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
@@ -227,7 +227,7 @@ struct ViewportResizeTests {
             line.lineData = data
         }
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
@@ -248,7 +248,7 @@ struct ViewportResizeTests {
         let block: LayoutRef = try #require(page.firstBlock(in: p))
         #expect(block.children.count == 2)
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
@@ -276,7 +276,7 @@ struct ViewportResizeTests {
         let before: LayoutRef = try #require(page.firstEmbed(in: image))
         let beforeWidth: CGFloat = before.width
 
-        page.frame.frameWidth = 300
+        page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
@@ -296,7 +296,7 @@ struct ViewportResizeTests {
             """
         )
 
-        page.frame.frameWidth = 400
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
@@ -325,7 +325,7 @@ struct ViewportResizeTests {
         let changed = profiler.snapshot()
         #expect((changed["layout.block.style.cache.miss"]?.count ?? 0) > 0)
 
-        page.frame.frameWidth = 350
+        page.frame.setViewport(width: 350, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()

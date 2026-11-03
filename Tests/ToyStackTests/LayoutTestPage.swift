@@ -10,8 +10,8 @@ struct LayoutTestPage {
     init(html: String, rules: String) {
         let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
         let frame: Frame = tab.rootFrame
-        frame.dom = HTMLParser(body: html).parse()
-        frame.rules = CSSParser(rules).parse().rules
+        frame.replaceDOM(HTMLParser(body: html).parse())
+        frame.setStyleRules(CSSParser(rules).parse().rules)
         frame.setNeedsRender()
         frame.render()
         self.tab = tab

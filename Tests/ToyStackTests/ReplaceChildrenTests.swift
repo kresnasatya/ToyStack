@@ -18,7 +18,7 @@ struct ReplaceChildrenTests {
                 """
         )
         let box: ElementRef = try #require(page.firstElement(tag: "div"))
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         let removed: [DOMRef] = box.children
         let heightBefore: CGFloat = try #require(box.ref.layout).height
@@ -52,7 +52,7 @@ struct ReplaceChildrenTests {
         let old: NodeID = try #require(box.children.first).id
         let one: NodeID = donor.children[0].id
         let two: NodeID = donor.children[1].id
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         let boxHeightBefore: CGFloat = try #require(page.ref(of: box).layout).height
         let donorHeightBefore: CGFloat = try #require(page.ref(of: donor).layout).height
@@ -91,7 +91,7 @@ struct ReplaceChildrenTests {
         let box: ElementRef = try #require(page.firstElement(id: "box"))
         let one: NodeID = box.children[0].id
         let two: NodeID = box.children[1].id
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.js.run(
             script: "replaceChildren",

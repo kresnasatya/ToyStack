@@ -25,7 +25,7 @@ struct AppendChildTests {
         let old: NodeID = box.children[0].id
         let one: NodeID = oldParent.children[0].id
         let two: NodeID = oldParent.children[1].id
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         let boxHeightBefore: CGFloat = try #require(page.ref(of: box).layout).height
         let oldParentHeightBefore: CGFloat = try #require(page.ref(of: oldParent).layout).height
@@ -41,7 +41,7 @@ struct AppendChildTests {
         #expect(oldParent.children[0].id == two)
         #expect(page.frame.dom.parent(of: two) == oldParent.id)
 
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
         page.frame.setNeedsRender()
         page.frame.render()
 
@@ -63,7 +63,7 @@ struct AppendChildTests {
         let box: ElementRef = try #require(page.firstElement(id: "box"))
         let one: NodeID = box.children[0].id
         let two: NodeID = box.children[1].id
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.js.run(
             script: "appendChild",
@@ -103,7 +103,7 @@ struct AppendChildTests {
         let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
         let beforeChildren: [LayoutID] = boxLayout.children.map({ $0.id })
         #expect(beforeChildren.count == 5)
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
         page.frame.js.run(
             script: "appendChild",
             code: """
@@ -113,7 +113,7 @@ struct AppendChildTests {
                 box.appendChild(fresh);
             """
         )
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
 
         profiler.reset()
         page.frame.setNeedsRender()
@@ -148,7 +148,7 @@ struct AppendChildTests {
         let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
         let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
         #expect(boxLayout.children.count == 2)
-        page.frame.js = JSRuntime(frame: page.frame)
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.js.run(
             script: "appendChild",
@@ -159,7 +159,7 @@ struct AppendChildTests {
                 box.appendChild(fresh);
             """
         )
-        page.frame.rules = CSSParser(css).parse().rules
+        page.frame.setStyleRules(CSSParser(css).parse().rules)
         profiler.reset()
         page.frame.setNeedsRender()
         page.frame.render()
