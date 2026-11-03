@@ -104,7 +104,7 @@ extension LayoutTree {
         return ref.blockData.content.extraNodes.map({ DOMRef(id: $0, dom: dom) })
     }
 
-    private func inlineContentInputs(_ ref: LayoutRef) -> [any InvalidatableField] {
+    func inlineContentInputs(_ ref: LayoutRef) -> [any InvalidatableField] {
         let extraNodes: [DOMRef] = blockExtraNodes(ref)
         var inputs: [any InvalidatableField] = [
             ref.zoomField,
@@ -206,14 +206,17 @@ extension LayoutTree {
         var data: BlockData = ref.blockData
         data.changes.declaredHeightChildren = children.map({ $0.id })
         ref.blockData = data
+        ref.heightField.setDependencies(blockHeightInputs(ref))
+    }
 
+    func blockHeightInputs(_ ref: LayoutRef) -> [any InvalidatableField] {
         var inputs: [any InvalidatableField] = [
             ref.childrenField,
             ref.zoomField,
             ref.node.style.field(.height),
             ref.node.style.field(.overflow),
         ]
-        for child in children {
+        for child in ref.children {
             inputs.append(child.heightField)
             inputs.append(child.node.style.field(.position))
             inputs.append(child.node.style.field(.marginTop))
@@ -224,7 +227,7 @@ extension LayoutTree {
                 inputs.append(child.node.style.field(.paddingBottom))
             }
         }
-        ref.heightField.setDependencies(inputs)
+        return inputs
     }
 
     func blockMarkChildrenDirty(_ ref: LayoutRef) {

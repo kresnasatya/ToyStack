@@ -48,4 +48,43 @@ struct DependencyIndex {
     func count(of key: FieldKey) -> Int {
         return dependents[key]?.filter({ $0.isAlive }).count ?? 0
     }
+
+    /// Input keys that the given field depends on.
+    ///
+    /// The index is stored input-first, so this is the inverse lookup: scan for
+    /// every input whose dependent list contains `dependent`. Internal so tests
+    /// can compare the reverse index against `LayoutInputTable`; not public.
+    func fieldKeys(for dependent: FieldKey, in tree: LayoutTree) -> Set<FieldKey> {
+        var keys: Set<FieldKey> = []
+        for (input, refs) in dependents
+        where isLive(input, in: tree)
+            && refs.contains(where: { $0.isAlive && $0.fieldKey == dependent })
+        {
+            keys.insert(input)
+        }
+        return keys
+    }
+
+    private func isLive(_ key: FieldKey, in tree: LayoutTree) -> Bool {
+        if case .layout(let id, _) = key {
+            return tree.contains(id)
+        }
+        return true
+    }
+
+    /// Replaces the whole reverse index with the static input table.
+    ///
+    /// Every used field of every live layout node declares its inputs once in
+    /// `LayoutInputTable`; this method clears stale edges and rebuilds them.
+    mutating func rebuild(from tree: LayoutTree) {
+        dependents.removeAll(keepingCapacity: true)
+        for id in tree.liveIDs {
+            for field in LayoutField.allCases where tree.isUsed(field, at: id) {
+                let dependent: FieldRef = LayoutRef(id: id, tree: tree).fieldRef(field)
+                for key in LayoutInputTable.inputs(for: id, field: field, in: tree) {
+                    add(dependent, for: key)
+                }
+            }
+        }
+    }
 }
