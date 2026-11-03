@@ -149,7 +149,7 @@ class Frame {
             display: FrameDisplayState(),
             runtime: FrameRuntimeState()
         )
-        tab.windowIDToFrame[id.raw] = self
+        tab.registerFrame(self)
     }
 
     private func requestAnimationFrame() {
@@ -583,7 +583,7 @@ class Frame {
             }
         }
 
-        let children: [Frame] = tab.windowIDToFrame.values.filter({ $0.parentFrame === self })
+        let children: [Frame] = tab.allFrames.filter({ $0.links.parent == links.id })
         for child in children {
             guard let el = child.frameElement, live.contains(el) else {
                 unload(child)
@@ -615,20 +615,20 @@ class Frame {
             parentDOM.side.embeds.frameSources.removeValue(forKey: element)
         }
         frame.discardChildFrames()
-        tab?.windowIDToFrame.removeValue(forKey: frame.windowID)
-        if let tab, let focused = tab.focusedFrame, tab.windowIDToFrame[focused.windowID] == nil {
+        tab?.removeFrame(frame.links.id)
+        if let tab, tab.frame(tab.focusedFrameID) == nil {
             tab.setFocusedFrame(self)
         }
     }
 
     private func discardChildFrames() {
         guard let tab else { return }
-        let children: [Frame] = tab.windowIDToFrame.values.filter({ $0.parentFrame === self })
+        let children: [Frame] = tab.allFrames.filter({ $0.links.parent == links.id })
         for child in children {
             child.discardChildFrames()
-            tab.windowIDToFrame.removeValue(forKey: child.windowID)
+            tab.removeFrame(child.links.id)
         }
-        if let focused = tab.focusedFrame, tab.windowIDToFrame[focused.windowID] == nil {
+        if tab.frame(tab.focusedFrameID) == nil {
             tab.setFocusedFrame(self)
         }
     }
@@ -1758,7 +1758,7 @@ class Frame {
             )
         }
         if let tab {
-            for child in tab.windowIDToFrame.values where child.parentFrame === self {
+            for child in tab.allFrames where child.links.parent == links.id {
                 child.setPageZoom(newZoom)
             }
         }

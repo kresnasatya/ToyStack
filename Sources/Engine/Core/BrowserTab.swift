@@ -8,7 +8,7 @@ private struct NavigationLocation {
 
 private struct HistoryEntry {
     let state: NavigationLocation
-    let windowID: Int
+    let frame: FrameID
     let from: NavigationLocation?
 }
 
@@ -30,10 +30,14 @@ public class BrowserTab {
     private var history: [HistoryEntry] = []
     private var historyIndex: Int = -1
 
-    private var nextWindowID: Int = 0
-    var windowIDToFrame: [Int: Frame] = [:]
-    private(set) var rootFrame: Frame!
-    private(set) var focusedFrame: Frame!
+    private var nextFrameID: Int = 0
+    private var framesByID: [FrameID: Frame] = [:]
+    private(set) var rootFrameID: FrameID!
+    private(set) var focusedFrameID: FrameID!
+
+    var rootFrame: Frame { framesByID[rootFrameID]! }
+    var focusedFrame: Frame { framesByID[focusedFrameID]! }
+    var allFrames: [Frame] { Array(framesByID.values) }
 
     public private(set) var tabHeight: CGFloat
     public private(set) var tabWidth: CGFloat
@@ -49,13 +53,13 @@ public class BrowserTab {
 
     var prefersDark: Bool = false {
         didSet {
-            if oldValue != prefersDark { rootFrame?.setNeedsRender() }
+            if oldValue != prefersDark { rootFrame.setNeedsRender() }
         }
     }
 
     var forcedColors: Bool = false {
         didSet {
-            if oldValue != forcedColors { rootFrame?.setNeedsRender() }
+            if oldValue != forcedColors { rootFrame.setNeedsRender() }
         }
     }
 
@@ -84,8 +88,8 @@ public class BrowserTab {
             frameWidth: tabWidth,
             frameHeight: tabHeight
         )
-        rootFrame = frame
-        focusedFrame = frame
+        rootFrameID = frame.links.id
+        focusedFrameID = frame.links.id
     }
 
     func markVisited(_ url: String) {
@@ -96,19 +100,23 @@ public class BrowserTab {
         visitedURL.contains(url)
     }
 
-    func reserveWindowID() -> Int {
-        let id: Int = nextWindowID
-        nextWindowID += 1
+    func reserveFrameID() -> FrameID {
+        let id: FrameID = FrameID(raw: nextFrameID)
+        nextFrameID += 1
         return id
     }
 
-    func reserveFrameID() -> FrameID {
-        return FrameID(raw: reserveWindowID())
+    func registerFrame(_ frame: Frame) {
+        framesByID[frame.links.id] = frame
+    }
+
+    func removeFrame(_ id: FrameID) {
+        framesByID.removeValue(forKey: id)
     }
 
     func frame(_ id: FrameID?) -> Frame? {
         guard let id else { return nil }
-        return windowIDToFrame[id.raw]
+        return framesByID[id]
     }
 
     public func load(_ url: WebURL, payload: String? = nil) {
@@ -121,14 +129,14 @@ public class BrowserTab {
     }
 
     private func recordNavigation(url: WebURL, payload: String?, frame: Frame) {
-        let prior: HistoryEntry? = history.prefix(historyIndex + 1).last(where: { $0.windowID == frame.windowID })
+        let prior: HistoryEntry? = history.prefix(historyIndex + 1).last(where: { $0.frame == frame.links.id })
         let currentURL: WebURL? = frame.url
         let from: NavigationLocation? = prior?.state ?? currentURL.map({ NavigationLocation(url: $0, payload: nil) })
         history = Array(history.prefix(historyIndex + 1))
         history.append(
             HistoryEntry(
                 state: NavigationLocation(url: url, payload: payload),
-                windowID: frame.windowID,
+                frame: frame.links.id,
                 from: from
             )
         )
@@ -191,7 +199,7 @@ public class BrowserTab {
 
     func runAnimationFrame() {
         browser?.beginFrame()
-        let frames: [Frame] = windowIDToFrame.values.sorted(by: { $0.windowID < $1.windowID })
+        let frames: [Frame] = allFrames.sorted(by: { $0.windowID < $1.windowID })
         for frame in frames where frame.loaded {
             frame.runAnimationFrame()
         }
@@ -285,11 +293,11 @@ public class BrowserTab {
     }
 
     private func rewindFrames(after index: Int) {
-        var handled: Set<Int> = []
+        var handled: Set<FrameID> = []
         for i in (index + 1)..<history.count {
-            let windowID: Int = history[i].windowID
-            guard handled.insert(windowID).inserted else { continue }
-            guard let frame = windowIDToFrame[windowID], let from = history[i].from else { continue }
+            let frameID: FrameID = history[i].frame
+            guard handled.insert(frameID).inserted else { continue }
+            guard let frame = framesByID[frameID], let from = history[i].from else { continue }
             if from.payload != nil,
                 !BrowserTab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
                 continue
@@ -299,11 +307,11 @@ public class BrowserTab {
     }
 
     private func replayFrames(from start: Int, through end: Int) {
-        var handled: Set<Int> = []
+        var handled: Set<FrameID> = []
         for i in stride(from: end, through: start, by: -1) {
-            let windowID: Int = history[i].windowID
-            guard handled.insert(windowID).inserted else { continue }
-            guard let frame = windowIDToFrame[windowID] else { continue }
+            let frameID: FrameID = history[i].frame
+            guard handled.insert(frameID).inserted else { continue }
+            guard let frame = framesByID[frameID] else { continue }
             enter(frame, state: history[i].state)
         }
     }
@@ -311,7 +319,7 @@ public class BrowserTab {
     private func nearestLiveIndex(from index: Int, direction: Int) -> Int? {
         var i: Int = index
         while i >= 0 && i < history.count {
-            if windowIDToFrame[history[i].windowID] != nil { return i }
+            if framesByID[history[i].frame] != nil { return i }
             i += direction
         }
         return nil
@@ -341,14 +349,14 @@ public class BrowserTab {
     }
 
     func setFocusedFrame(_ frame: Frame) {
-        guard focusedFrame !== frame else { return }
-        let previous: Frame? = focusedFrame
-        focusedFrame = frame
+        guard focusedFrameID != frame.links.id else { return }
+        let previous: Frame? = framesByID[focusedFrameID]
+        focusedFrameID = frame.links.id
         previous?.clearFocus()
     }
 
     func postMessage(message: String, targetWindowID: Int, targetOrigin: String) {
-        guard let target = windowIDToFrame[targetWindowID] else { return }
+        guard let target = framesByID[FrameID(raw: targetWindowID)] else { return }
         guard matchesTargetOrigin(targetOrigin, frame: target) else { return }
         target.js.dispatchPostMessage(message: message)
     }

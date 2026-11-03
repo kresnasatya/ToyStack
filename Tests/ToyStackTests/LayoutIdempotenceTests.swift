@@ -91,7 +91,7 @@ private struct Fixture {
 @MainActor
 private func makeFixture() -> Fixture {
     let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
-    let frame: Frame = tab.rootFrame!
+    let frame: Frame = tab.rootFrame
     let builder: DOMBuilder = DOMBuilder()
     let body: NodeID = builder.element("body", in: builder.dom.root)
     let section: NodeID = builder.element("section", in: body)

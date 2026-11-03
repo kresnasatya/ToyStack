@@ -8,7 +8,7 @@ import Testing
 struct BlockLayoutTests {
     @Test func inputKeepsContainingBlockWidth() throws {
         let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
-        let frame: Frame = tab.rootFrame!
+        let frame: Frame = tab.rootFrame
         frame.replaceDOM(HTMLParser(body: #"<p>name<input></p>"#).parse())
 
         frame.setStyleRules(CSSParser("""

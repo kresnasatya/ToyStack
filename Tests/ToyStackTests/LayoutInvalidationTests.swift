@@ -244,7 +244,7 @@ private struct Fixture {
 @MainActor
 private func makeFixture(mediaBody: String = "margin-bottom: 50px;") -> Fixture {
     let tab = BrowserTab(tabHeight: 600, tabWidth: 800)
-    let frame = tab.rootFrame!
+    let frame = tab.rootFrame
     let dom: DOMTree = HTMLParser(
         body: #"<div class="narrow"></div><div class="wide"></div>"#
     ).parse()

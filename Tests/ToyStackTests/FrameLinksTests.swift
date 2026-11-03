@@ -7,7 +7,7 @@ import Testing
 struct FrameLinksTests {
     @Test func childFrameResolvesItsParentThroughTheTab() throws {
         let tab: BrowserTab = BrowserTab(tabHeight: 600, tabWidth: 800)
-        let root: Frame = try #require(tab.rootFrame)
+        let root: Frame = tab.rootFrame
         let iframe: NodeID = root.dom.createElement(tag: "iframe", attributes: [:])
         root.dom.append(iframe, to: root.dom.root)
 
