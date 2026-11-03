@@ -19,25 +19,41 @@ class Frame {
     var frameElement: NodeID?
     let windowID: Int
 
-    var url: WebURL!
-    var dom: DOMTree = DOMTree() {
-        didSet {
-            guard oldValue !== dom else { return }
-            // Layout objects point at the old tree. Drop them before the
-            // document is laid out again against the new one.
-            documentValue = nil
-            documentDirty = true
-            scrollTargetsValid = false
-            scrollTargetsNeedRebuild = true
-            iframeTargets.removeAll()
-            scrollBlockTargets.removeAll()
-            scrollFocusNode = nil
-            compositedUpdates.removeAll()
-            needsRender = true
-            needsPaint = true
-        }
+    var state: FrameState
+
+    var url: WebURL! {
+        get { state.document.meta.url }
+        set { state.document.meta.url = newValue }
+    }
+    var dom: DOMTree {
+        get { state.document.dom }
+        set { replaceDOM(newValue) }
     }
     var nodes: DOMRef { DOMRef(id: dom.root, dom: dom) }
+
+    /// The one path that swaps the document. Layout and display state point at
+    /// the old tree, so they are reset here instead of in a property observer.
+    func replaceDOM(_ newDOM: DOMTree) {
+        guard dom !== newDOM else { return }
+        state.document.dom = newDOM
+        documentValue = nil
+        documentDirty = true
+        scrollTargetsValid = false
+        scrollTargetsNeedRebuild = true
+        iframeTargets.removeAll()
+        scrollBlockTargets.removeAll()
+        scrollFocusNode = nil
+        compositedUpdates.removeAll()
+        needsRender = true
+        needsPaint = true
+    }
+
+    /// Replacing a sheet invalidates the sorted index and the `:has` precompute.
+    func setStyleRules(_ newRules: [RuleIndex.Rule]) {
+        state.document.sheets.rules = newRules
+        rulesRevision += 1
+        needsHasPrecompute = true
+    }
     private var documentValue: LayoutTree?
     private var documentDirty: Bool = true
     var document: LayoutTree? {
@@ -56,8 +72,14 @@ class Frame {
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
     var paintEpoch: UInt = 0
-    var title: String = "New Tab"
-    var isSecure: Bool = false
+    var title: String {
+        get { state.document.meta.title }
+        set { state.document.meta.title = newValue }
+    }
+    var isSecure: Bool {
+        get { state.document.meta.isSecure }
+        set { state.document.meta.isSecure = newValue }
+    }
 
     var scroll: CGFloat = 0
     var frameWidth: CGFloat {
@@ -68,38 +90,90 @@ class Frame {
         }
     }
     var frameHeight: CGFloat
-    var loaded: Bool = false
+    var loaded: Bool {
+        get { state.document.meta.loaded }
+        set { state.document.meta.loaded = newValue }
+    }
 
     private(set) var focus: NodeID?
-    private var rulesRevision: Int = 0
-    var rules: [(String?, any CSSSelector, [String: String])] = [] {
-        didSet {
-            rulesRevision += 1
-            needsHasPrecompute = true
-        }
+    private var rulesRevision: Int {
+        get { state.document.sheets.index.list.rulesRevision }
+        set { state.document.sheets.index.list.rulesRevision = newValue }
     }
-    var keyframes: [String: [Keyframe]] = [:]
-    private var allowedOrigins: [String]?
-    private var referrerPolicy: String = ""
-    private var loadedScriptURLs: Set<String> = []
-    private var requestedBackgroundImages: Set<String> = []
-    private var backgroundImageCache: [String: CGImage] = [:]
-    private var lazyImages: [NodeID] = []
+    var rules: [RuleIndex.Rule] {
+        get { state.document.sheets.rules }
+        set { setStyleRules(newValue) }
+    }
+    var keyframes: [String: [Keyframe]] {
+        get { state.document.sheets.keyframes }
+        set { state.document.sheets.keyframes = newValue }
+    }
+    private var allowedOrigins: [String]? {
+        get { state.document.resources.network.allowedOrigins }
+        set { state.document.resources.network.allowedOrigins = newValue }
+    }
+    private var referrerPolicy: String {
+        get { state.document.resources.network.referrerPolicy }
+        set { state.document.resources.network.referrerPolicy = newValue }
+    }
+    private var loadedScriptURLs: Set<String> {
+        get { state.document.resources.loadedScripts }
+        set { state.document.resources.loadedScripts = newValue }
+    }
+    private var requestedBackgroundImages: Set<String> {
+        get { state.document.resources.images.requestedBackgrounds }
+        set { state.document.resources.images.requestedBackgrounds = newValue }
+    }
+    private var backgroundImageCache: [String: CGImage] {
+        get { state.document.resources.images.backgroundCache }
+        set { state.document.resources.images.backgroundCache = newValue }
+    }
+    private var lazyImages: [NodeID] {
+        get { state.document.resources.images.lazy }
+        set { state.document.resources.images.lazy = newValue }
+    }
     var js: JSRuntime!
 
     private var compositedUpdates: [NodeID: EffectUpdate] = [:]
 
     var needsRender: Bool = false
     var needsPaint: Bool = false
-    private var styleInvalidatedByViewport: Bool = false
-    private var styleInvalidatedByOther: Bool = false
-    private var pendingStyleInvalidations: [String: Int] = [:]
-    private var needsHasPrecompute: Bool = true
-    private var mediaQueries: Set<String> = []
-    private var mediaMatches: [String: Bool] = [:]
-    private var sortedRules: [(String?, any CSSSelector, [String: String])] = []
-    private var ruleIndex: RuleIndex = RuleIndex(rules: [])
-    private var indexedRulesRevision: Int = -1
+    private var styleInvalidatedByViewport: Bool {
+        get { state.document.sheets.pending.byViewport }
+        set { state.document.sheets.pending.byViewport = newValue }
+    }
+    private var styleInvalidatedByOther: Bool {
+        get { state.document.sheets.pending.byOther }
+        set { state.document.sheets.pending.byOther = newValue }
+    }
+    private var pendingStyleInvalidations: [String: Int] {
+        get { state.document.sheets.pending.counters }
+        set { state.document.sheets.pending.counters = newValue }
+    }
+    private var needsHasPrecompute: Bool {
+        get { state.document.sheets.pending.needsHasPrecompute }
+        set { state.document.sheets.pending.needsHasPrecompute = newValue }
+    }
+    private var mediaQueries: Set<String> {
+        get { state.document.sheets.index.media.queries }
+        set { state.document.sheets.index.media.queries = newValue }
+    }
+    private var mediaMatches: [String: Bool] {
+        get { state.document.sheets.index.media.matches }
+        set { state.document.sheets.index.media.matches = newValue }
+    }
+    private var sortedRules: [RuleIndex.Rule] {
+        get { state.document.sheets.index.list.sorted }
+        set { state.document.sheets.index.list.sorted = newValue }
+    }
+    private var ruleIndex: RuleIndex {
+        get { state.document.sheets.index.list.index }
+        set { state.document.sheets.index.list.index = newValue }
+    }
+    private var indexedRulesRevision: Int {
+        get { state.document.sheets.index.list.indexedRevision }
+        set { state.document.sheets.index.list.indexedRevision = newValue }
+    }
     var needsCompositeForPaint: Bool = false
     private var needsComposite: Bool = false
     var needsFocusScroll: Bool = false
@@ -152,6 +226,7 @@ class Frame {
     private var browser: Browser? { tab?.browser }
 
     init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
+        self.state = FrameState(document: FrameDocumentState(dom: DOMTree()))
         self.tab = tab
         self.parentFrame = parent?.frame
         self.frameElement = parent?.element

@@ -1,15 +1,15 @@
 import CoreGraphics
 import Foundation
 
-private struct FrameState {
+private struct NavigationLocation {
     let url: WebURL
     let payload: String?
 }
 
 private struct HistoryEntry {
-    let state: FrameState
+    let state: NavigationLocation
     let windowID: Int
-    let from: FrameState?
+    let from: NavigationLocation?
 }
 
 @MainActor
@@ -114,11 +114,11 @@ public class BrowserTab {
     private func recordNavigation(url: WebURL, payload: String?, frame: Frame) {
         let prior: HistoryEntry? = history.prefix(historyIndex + 1).last(where: { $0.windowID == frame.windowID })
         let currentURL: WebURL? = frame.url
-        let from: FrameState? = prior?.state ?? currentURL.map({ FrameState(url: $0, payload: nil) })
+        let from: NavigationLocation? = prior?.state ?? currentURL.map({ NavigationLocation(url: $0, payload: nil) })
         history = Array(history.prefix(historyIndex + 1))
         history.append(
             HistoryEntry(
-                state: FrameState(url: url, payload: payload),
+                state: NavigationLocation(url: url, payload: payload),
                 windowID: frame.windowID,
                 from: from
             )
@@ -306,7 +306,7 @@ public class BrowserTab {
         return nil
     }
 
-    private func enter(_ frame: Frame, state: FrameState) {
+    private func enter(_ frame: Frame, state: NavigationLocation) {
         if let payload = state.payload {
             frame.load(state.url, payload: payload)
         } else if let currentURL = frame.url, isSameDocument(currentURL, state.url) {
