@@ -106,12 +106,12 @@ struct PaintSceneBuilder {
         case .document:
             return .document
         case .block:
-            var trailing: [DisplayOp] = ref.tree.blockPaintScrollbar(ref)
-            ref.tree.blockPaintCaret(ref, into: &trailing)
+            var trailing: [DisplayOp] = ref.tree.blockPaintScrollbar(ref.id)
+            ref.tree.blockPaintCaret(ref.id, into: &trailing)
             return .block(PaintBlock(
-                shouldPaint: ref.tree.blockShouldPaint(ref),
+                shouldPaint: ref.tree.blockShouldPaint(ref.id),
                 isListItem: ref.node.element?.tag == "li",
-                scrollOffset: ref.tree.blockScrollOffset(ref),
+                scrollOffset: ref.tree.blockScrollOffset(ref.id),
                 extras: PaintBlockExtras(
                     backgroundImage: ref.node.element?.backgroundImage,
                     trailing: trailing

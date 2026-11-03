@@ -112,8 +112,7 @@ enum LayoutInputTable {
         case .children:
             return blockContentInputs(id, in: tree) + [.layout(id, .inlineContent)]
         case .height:
-            let ref: LayoutRef = LayoutRef(id: id, tree: tree)
-            return tree.blockHeightInputs(ref)
+            return tree.blockHeightInputs(id)
         case .font, .ascent, .descent:
             return []
         }
@@ -123,8 +122,7 @@ enum LayoutInputTable {
         _ id: LayoutID,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        let ref: LayoutRef = LayoutRef(id: id, tree: tree)
-        return tree.inlineContentInputs(ref)
+        return tree.inlineContentInputs(id)
     }
 
     // MARK: - Line

@@ -61,6 +61,6 @@ extension LayoutTree {
         child.layout()
 
         markUsed(.height, at: root.id)
-        root.height = boxHeight(child)
+        root.height = boxHeight(child.id)
     }
 }

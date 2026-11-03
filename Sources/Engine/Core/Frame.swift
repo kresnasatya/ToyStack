@@ -1327,12 +1327,12 @@ class Frame {
             guard let el: ElementRef = DOMRef(id: target.node, dom: dom).element else {
                 return false
             }
-            let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
+            let maxScroll: CGFloat = max(0, doc.blockContentHeight(block.id) - block.height)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
             guard next != current else { return false }
             el.scrollOffsetY = next
-            doc.setBlockScrollOffset(block, next)
+            doc.setBlockScrollOffset(block.id, next)
             state.runtime.interaction.scrollFocus = el.id
             setNeedsPaint()
             return true
@@ -1383,11 +1383,11 @@ class Frame {
         else {
             return
         }
-        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
+        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block.id) - block.height)
         let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
         let next: CGFloat = min(current + Frame.scrollStep, maxScroll)
         dom.side.scrollOffsets[node] = next
-        doc.setBlockScrollOffset(block, next)
+        doc.setBlockScrollOffset(block.id, next)
         setNeedsPaint()
     }
 
@@ -1395,11 +1395,11 @@ class Frame {
         guard let node = state.runtime.interaction.scrollFocus, let doc = document,
             let block = liveScrollBlock()
         else { return }
-        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - block.height)
+        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block.id) - block.height)
         let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
         let next: CGFloat = max(current - Frame.scrollStep, 0)
         dom.side.scrollOffsets[node] = next
-        doc.setBlockScrollOffset(block, next)
+        doc.setBlockScrollOffset(block.id, next)
         setNeedsPaint()
     }
 

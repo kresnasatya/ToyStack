@@ -19,8 +19,7 @@ extension LayoutTree {
             previous: previous
         )
         setPrimary(id, for: dom)
-        let ref: LayoutRef = LayoutRef(id: id, tree: self)
-        initializeBlock(ref, extraNodes: [], previous: previous)
+        initializeBlock(id, extraNodes: [], previous: previous)
         addDependencyEdges(for: id)
         return id
     }
@@ -37,48 +36,47 @@ extension LayoutTree {
             parent: parent,
             previous: previous
         )
-        let ref: LayoutRef = LayoutRef(id: id, tree: self)
-        initializeBlock(ref, extraNodes: extraNodes, previous: previous)
+        initializeBlock(id, extraNodes: extraNodes, previous: previous)
         addDependencyEdges(for: id)
         return id
     }
 
     private func initializeBlock(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         extraNodes: [NodeID],
         previous: LayoutID?
     ) {
-        var data: BlockData = ref.blockData
+        var data: BlockData = blockData(id)
         data.content.extraNodes = extraNodes
-        ref.blockData = data
-        setPreviousClean(previous, of: ref.id)
+        setKind(.block(data), at: id)
+        setPreviousClean(previous, of: id)
         for field in [
             LayoutField.zoom, .x, .y, .width, .inlineContent, .children,
         ] {
-            markUsed(field, at: ref.id)
+            markUsed(field, at: id)
         }
-        ref.markAncestorsDirty()
+        markAncestorsDirty(from: id)
     }
 
-    func blockExtraNodes(_ ref: LayoutRef) -> [DOMRef] {
-        return ref.blockData.content.extraNodes.map({ DOMRef(id: $0, dom: dom) })
+    func blockExtraNodes(_ id: LayoutID) -> [DOMRef] {
+        return blockData(id).content.extraNodes.map({ DOMRef(id: $0, dom: dom) })
     }
 
-    func inlineContentInputs(_ ref: LayoutRef) -> [FieldKey] {
-        let extraNodes: [DOMRef] = blockExtraNodes(ref)
+    func inlineContentInputs(_ id: LayoutID) -> [FieldKey] {
+        let extraNodes: [DOMRef] = blockExtraNodes(id)
         var inputs: [FieldKey] = [
-            .layout(ref.id, .zoom),
-            .style(ref.domNode, .display),
-            .style(ref.domNode, .position),
-            .style(ref.domNode, .direction),
+            .layout(id, .zoom),
+            .style(domID(of: id), .display),
+            .style(domID(of: id), .position),
+            .style(domID(of: id), .direction),
         ]
         if extraNodes.isEmpty {
-            for child in ref.node.children {
+            for child in domRef(id).children {
                 inputs.append(.style(child.id, .display))
                 inputs.append(.style(child.id, .position))
             }
         }
-        for leaf in inlineLeaves(ref) {
+        for leaf in inlineLeaves(id) {
             let owner: DOMRef = leaf.inheritedStyleOwner
             inputs.append(.style(owner.id, .whiteSpace))
             inputs.append(contentsOf: fontInputs(for: leaf))
@@ -91,21 +89,21 @@ extension LayoutTree {
     }
 
     // Only leaves this block lays out inline. Nested blocks own their own inputs.
-    private func inlineLeaves(_ ref: LayoutRef) -> [DOMRef] {
+    private func inlineLeaves(_ id: LayoutID) -> [DOMRef] {
         var leaves: [DOMRef] = []
-        let extraNodes: [DOMRef] = blockExtraNodes(ref)
+        let extraNodes: [DOMRef] = blockExtraNodes(id)
         if !extraNodes.isEmpty {
             for node in extraNodes { collectLeaves(node, into: &leaves) }
             return leaves
         }
-        let hasBlockChild: Bool = ref.node.children.contains(where: {
+        let hasBlockChild: Bool = domRef(id).children.contains(where: {
             $0.style.computed.layout.display == .block
         })
         if !hasBlockChild {
-            collectLeaves(ref.node, into: &leaves)
+            collectLeaves(domRef(id), into: &leaves)
             return leaves
         }
-        for child in ref.node.children where child.style.computed.layout.display != .block {
+        for child in domRef(id).children where child.style.computed.layout.display != .block {
             collectLeaves(child, into: &leaves)
         }
         return leaves
@@ -113,12 +111,12 @@ extension LayoutTree {
 
     // MARK: - Line plan
 
-    private func inlineTextLinePlan(_ ref: LayoutRef) -> [[Int]]? {
-        let items: [InlineItem] = ref.blockData.content.inlineItems
+    private func inlineTextLinePlan(_ id: LayoutID) -> [[Int]]? {
+        let items: [InlineItem] = blockData(id).content.inlineItems
         var plan: [[Int]] = []
         var current: [Int] = []
         var cursorX: CGFloat = 0
-        let availableWidth: CGFloat = ref.width
+        let availableWidth: CGFloat = width(id)
         var updated: [InlineItem] = items
 
         for index in updated.indices {
@@ -151,82 +149,82 @@ extension LayoutTree {
             }
         }
 
-        var data: BlockData = ref.blockData
+        var data: BlockData = blockData(id)
         data.content.inlineItems = updated
-        ref.blockData = data
+        setKind(.block(data), at: id)
         plan.append(current)
         return plan
     }
 
-    private func setHeightInputs(_ ref: LayoutRef) {
-        let children: [LayoutRef] = ref.children
-        let declared: [LayoutID] = ref.blockData.changes.declaredHeightChildren
-        let unchanged: Bool = children.map({ $0.id }) == declared
+    private func setHeightInputs(_ id: LayoutID) {
+        let children: [LayoutID] = childrenIDs(of: id)
+        let declared: [LayoutID] = blockData(id).changes.declaredHeightChildren
+        let unchanged: Bool = children == declared
         if unchanged { return }
-        var data: BlockData = ref.blockData
-        data.changes.declaredHeightChildren = children.map({ $0.id })
-        ref.blockData = data
-        markUsed(.height, at: ref.id)
-        addDependencyEdges(for: ref.id)
+        var data: BlockData = blockData(id)
+        data.changes.declaredHeightChildren = children
+        setKind(.block(data), at: id)
+        markUsed(.height, at: id)
+        addDependencyEdges(for: id)
     }
 
-    func blockHeightInputs(_ ref: LayoutRef) -> [FieldKey] {
+    func blockHeightInputs(_ id: LayoutID) -> [FieldKey] {
         var inputs: [FieldKey] = [
-            .layout(ref.id, .children),
-            .layout(ref.id, .zoom),
-            .style(ref.domNode, .height),
-            .style(ref.domNode, .overflow),
+            .layout(id, .children),
+            .layout(id, .zoom),
+            .style(domID(of: id), .height),
+            .style(domID(of: id), .overflow),
         ]
-        for child in ref.children {
-            inputs.append(.layout(child.id, .height))
-            inputs.append(.style(child.domNode, .position))
-            inputs.append(.style(child.domNode, .marginTop))
-            inputs.append(.style(child.domNode, .marginBottom))
-            if child.isBlock {
-                inputs.append(.layout(child.id, .zoom))
-                inputs.append(.style(child.domNode, .paddingTop))
-                inputs.append(.style(child.domNode, .paddingBottom))
+        for child in childrenIDs(of: id) {
+            inputs.append(.layout(child, .height))
+            inputs.append(.style(domID(of: child), .position))
+            inputs.append(.style(domID(of: child), .marginTop))
+            inputs.append(.style(domID(of: child), .marginBottom))
+            if isBlock(child) {
+                inputs.append(.layout(child, .zoom))
+                inputs.append(.style(domID(of: child), .paddingTop))
+                inputs.append(.style(domID(of: child), .paddingBottom))
             }
         }
         return inputs
     }
 
-    func blockMarkChildrenDirty(_ ref: LayoutRef) {
-        var data: BlockData = ref.blockData
+    func blockMarkChildrenDirty(_ id: LayoutID) {
+        var data: BlockData = blockData(id)
         data.changes.childChanges.removeAll()
-        ref.blockData = data
-        markField(.inlineContent, at: ref.id)
-        markField(.children, at: ref.id)
+        setKind(.block(data), at: id)
+        markField(.inlineContent, at: id)
+        markField(.children, at: id)
     }
 
-    func blockNoteAppendedChildren(_ ref: LayoutRef, _ nodes: [DOMRef]) {
-        var data: BlockData = ref.blockData
+    func blockNoteAppendedChildren(_ id: LayoutID, _ nodes: [DOMRef]) {
+        var data: BlockData = blockData(id)
         data.changes.childChanges.append(.append(nodes))
-        ref.blockData = data
-        ref.markAncestorsDirty()
+        setKind(.block(data), at: id)
+        markAncestorsDirty(from: id)
     }
 
-    func blockNoteInsertedChildren(_ ref: LayoutRef, _ nodes: [DOMRef], before reference: DOMRef) {
-        var data: BlockData = ref.blockData
+    func blockNoteInsertedChildren(_ id: LayoutID, _ nodes: [DOMRef], before reference: DOMRef) {
+        var data: BlockData = blockData(id)
         data.changes.childChanges.append(.insert(nodes, before: reference))
-        ref.blockData = data
-        ref.markAncestorsDirty()
+        setKind(.block(data), at: id)
+        markAncestorsDirty(from: id)
     }
 
-    func setBlockPrevious(_ ref: LayoutRef, _ newValue: LayoutID?) {
-        ref.previous = newValue.map({ LayoutRef(id: $0, tree: self) })
+    func setBlockPrevious(_ id: LayoutID, _ newValue: LayoutID?) {
+        setPreviousField(newValue, of: id)
     }
 
-    func blockPrevious(_ ref: LayoutRef) -> LayoutID? {
-        return ref.previous?.id
+    func blockPrevious(_ id: LayoutID) -> LayoutID? {
+        return previousID(of: id)
     }
 
-    func blockLayoutNeeded(_ ref: LayoutRef) -> Bool {
-        if ref.hasDirtyDescendants {
+    func blockLayoutNeeded(_ id: LayoutID) -> Bool {
+        if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(ref.id).state.fields
+        let state: LayoutFieldStore = node(id).state.fields
         if state.isDirty(.zoom) || state.isDirty(.x) || state.isDirty(.y)
             || state.isDirty(.width) || state.isDirty(.height)
         {
@@ -234,141 +232,143 @@ extension LayoutTree {
         }
         return state.isDirty(.inlineContent)
             || state.isDirty(.children)
-            || !ref.blockData.changes.childChanges.isEmpty
+            || !blockData(id).changes.childChanges.isEmpty
     }
 
-    func layoutBlock(_ ref: LayoutRef) {
-        guard blockLayoutNeeded(ref) else {
+    func layoutBlock(_ id: LayoutID) {
+        guard blockLayoutNeeded(id) else {
             profiler.count("layout.skipped")
             return
         }
-        defer { ref.hasDirtyDescendants = false }
+        defer { setDirtyDescendants(false, at: id) }
         profiler.count("layout.visited")
-        let style: BlockStyle = blockStyle(ref)
+        let style: BlockStyle = blockStyle(id)
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
-            ref.zoom = ref.resolvedZoom()
+            setField(.zoom, resolvedZoom(id), for: id)
             let isAbsolute: Bool = style.position == .absolute
 
-            let parentX: CGFloat = ref.parent!.x
-            let padLeft: CGFloat = blockExtraNodes(ref).isEmpty ? style.box.padding.left * ref.zoom : 0
+            let parentX: CGFloat = x(parentID(of: id)!)
+            let padLeft: CGFloat = blockExtraNodes(id).isEmpty ? style.box.padding.left * zoom(id) : 0
             if isAbsolute, let l = style.flags.left {
-                let absoluteXZoom: CGFloat = ref.zoom
-                ref.x = l * absoluteXZoom + padLeft
+                let absoluteXZoom: CGFloat = zoom(id)
+                setField(.x, l * absoluteXZoom + padLeft, for: id)
             } else {
-                ref.x = parentX + padLeft
+                setField(.x, parentX + padLeft, for: id)
             }
 
-            let parentWidth: CGFloat = ref.parent!.width
-            let zoom: CGFloat = ref.zoom
-            let padHorizontal: CGFloat = blockExtraNodes(ref).isEmpty
-                ? (style.box.padding.left + style.box.padding.right) * zoom
+            let parentWidth: CGFloat = width(parentID(of: id)!)
+            let blockZoom: CGFloat = zoom(id)
+            let padHorizontal: CGFloat = blockExtraNodes(id).isEmpty
+                ? (style.box.padding.left + style.box.padding.right) * blockZoom
                 : 0
             if let w = style.box.width {
-                ref.width = w * zoom
+                setField(.width, w * blockZoom, for: id)
             } else {
-                ref.width = max(0, parentWidth - padHorizontal)
+                setField(.width, max(0, parentWidth - padHorizontal), for: id)
             }
 
-            if let el = ref.node.element, el.tag == "li" {
-                ref.x += liIndent
-                ref.width -= liIndent
+            if let el = domRef(id).element, el.tag == "li" {
+                setField(.x, x(id) + liIndent, for: id)
+                setField(.width, width(id) - liIndent, for: id)
             }
 
             if isAbsolute, let t = style.flags.top {
-                let absoluteYZoom: CGFloat = ref.zoom
-                let padTop: CGFloat = blockExtraNodes(ref).isEmpty ? style.box.padding.left * zoom : 0
-                ref.y = t * absoluteYZoom + padTop
+                let absoluteYZoom: CGFloat = zoom(id)
+                let padTop: CGFloat = blockExtraNodes(id).isEmpty ? style.box.padding.left * blockZoom : 0
+                setField(.y, t * absoluteYZoom + padTop, for: id)
             } else {
-                let ownTop: CGFloat = style.box.margin.top * zoom
-                let padTop: CGFloat = style.box.padding.top * zoom
-                if let previous: LayoutID = blockPrevious(ref) {
-                    let prev: LayoutRef = LayoutRef(id: previous, tree: self)
-                    let prevY: CGFloat = prev.y
-                    let prevHeight: CGFloat = prev.height
-                    let prevPadBottom: CGFloat = prev.isBlock
-                        ? prev.padding(.paddingBottom)
+                let ownTop: CGFloat = style.box.margin.top * blockZoom
+                let padTop: CGFloat = style.box.padding.top * blockZoom
+                if let previous: LayoutID = blockPrevious(id) {
+                    let prevY: CGFloat = y(previous)
+                    let prevHeight: CGFloat = height(previous)
+                    let prevPadBottom: CGFloat = isBlock(previous)
+                        ? padding(previous, .paddingBottom)
                         : 0
-                    ref.y =
-                        prevY + prevHeight + prevPadBottom
-                        + (prev.isBlock ? prev.blockStyle().box.margin.bottom : 0) * zoom
-                        + ownTop + padTop
+                    let prevMarginBottom: CGFloat = isBlock(previous)
+                        ? blockStyle(previous).box.margin.bottom
+                        : 0
+                    setField(
+                        .y,
+                        prevY + prevHeight + prevPadBottom + prevMarginBottom * blockZoom + ownTop + padTop,
+                        for: id
+                    )
                 } else {
-                    ref.y = ref.parent!.y
-                    ref.y = ref.y + ownTop + padTop
+                    setField(.y, y(parentID(of: id)!), for: id)
+                    setField(.y, y(id) + ownTop + padTop, for: id)
                 }
             }
 
-            if let el = ref.node.element, el.attributes["id"] == "toc" {
-                ref.y += VSTEP
+            if let el = domRef(id).element, el.attributes["id"] == "toc" {
+                setField(.y, y(id) + VSTEP, for: id)
             }
 
-            let mode: String = profiler.measure("layout.mode", { layoutMode(ref) })
+            let mode: String = profiler.measure("layout.mode", { layoutMode(id) })
             if mode == "block" {
                 profiler.count("layout.mode.block")
-                if ref.tree.isDirty(.children, at: ref.id) {
-                    ref.children = rebuildBlockChildren(ref).map({ LayoutRef(id: $0, tree: self) })
-                } else if !ref.blockData.changes.childChanges.isEmpty {
-                    let changes: [BlockChildChange] = ref.blockData.changes.childChanges
-                    var data: BlockData = ref.blockData
+                if isDirty(.children, at: id) {
+                    setChildrenField(rebuildBlockChildren(id), of: id)
+                } else if !blockData(id).changes.childChanges.isEmpty {
+                    let changes: [BlockChildChange] = blockData(id).changes.childChanges
+                    var data: BlockData = blockData(id)
                     data.changes.childChanges.removeAll()
-                    ref.blockData = data
-                    if let changed: [LayoutID] = applyBlockChanges(ref, changes) {
+                    setKind(.block(data), at: id)
+                    if let changed: [LayoutID] = applyBlockChanges(id, changes) {
                         countChildChanges(changes)
-                        ref.children = changed.map({ LayoutRef(id: $0, tree: self) })
+                        setChildrenField(changed, of: id)
                     } else {
-                        ref.children = rebuildBlockChildren(ref).map({ LayoutRef(id: $0, tree: self) })
+                        setChildrenField(rebuildBlockChildren(id), of: id)
                     }
                 }
 
-                if ref.tree.isDirty(.inlineContent, at: ref.id) {
-                    let revision: UInt64 = ref.tree.node(ref.id).state.fields.inlineText.inlineContent + 1
-                    ref.tree.setInlineContentClean(revision, for: ref.id)
-                    var data: BlockData = ref.blockData
+                if isDirty(.inlineContent, at: id) {
+                    let revision: UInt64 = node(id).state.fields.inlineText.inlineContent + 1
+                    setInlineContentClean(revision, for: id)
+                    var data: BlockData = blockData(id)
                     data.content.inlineObjects.removeAll(keepingCapacity: true)
                     data.content.inlineLinePlan = nil
-                    ref.blockData = data
+                    setKind(.block(data), at: id)
                 }
             } else {
                 profiler.count("layout.mode.inline")
-                let inlineContentChanged: Bool = ref.tree.isDirty(.inlineContent, at: ref.id)
-                    || !ref.blockData.changes.childChanges.isEmpty
-                var data: BlockData = ref.blockData
+                let inlineContentChanged: Bool = isDirty(.inlineContent, at: id)
+                    || !blockData(id).changes.childChanges.isEmpty
+                var data: BlockData = blockData(id)
                 data.changes.childChanges.removeAll()
-                ref.blockData = data
-                _ = ref.zoom
+                setKind(.block(data), at: id)
+                _ = zoom(id)
                 
                 if inlineContentChanged {
-                    profiler.measure("layout.inline.refresh", { refreshInlineItems(ref) })
+                    profiler.measure("layout.inline.refresh", { refreshInlineItems(id) })
                 }
-                let plan: [[Int]]? = inlineTextLinePlan(ref)
+                let plan: [[Int]]? = inlineTextLinePlan(id)
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
-                    || plan != ref.blockData.content.inlineLinePlan
+                    || plan != blockData(id).content.inlineLinePlan
                 if shouldPlace {
-                    profiler.measure("layout.inline.place", { placeInlineItems(ref) })
+                    profiler.measure("layout.inline.place", { placeInlineItems(id) })
                 } else {
-                    ref.children = ref.children
+                    setChildrenField(childrenIDs(of: id), of: id)
                 }
-                var updated: BlockData = ref.blockData
+                var updated: BlockData = blockData(id)
                 updated.content.inlineLinePlan = plan
-                ref.blockData = updated
+                setKind(.block(updated), at: id)
             }
         }
 
-        for child in ref.children { child.layout() }
+        for child in childrenIDs(of: id) { layout(child) }
 
-        setHeightInputs(ref)
-        let heightChildren: [LayoutID] = ref.children.map({ $0.id })
+        setHeightInputs(id)
+        let heightChildren: [LayoutID] = childrenIDs(of: id)
         let sumHeight: Double = profiler.measure("layout.height", {
             heightChildren.reduce(0) { total, childID in
-                let child: LayoutRef = LayoutRef(id: childID, tree: self)
-                let position: LayoutStyle.Position = child.node.style.computed.layout.position.kind
+                let position: LayoutStyle.Position = domRef(childID).style.computed.layout.position.kind
                 if position == .absolute { return total }
-                var h: CGFloat = child.height
-                if child.isBlock {
-                    let childStyle: BlockStyle = child.blockStyle()
-                    let childZoom: CGFloat = child.zoom
+                var h: CGFloat = height(childID)
+                if isBlock(childID) {
+                    let childStyle: BlockStyle = blockStyle(childID)
+                    let childZoom: CGFloat = zoom(childID)
                     h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
                     h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
                 }
@@ -376,66 +376,65 @@ extension LayoutTree {
             }
         })
 
-        var scroll: BlockScroll = ref.blockData.scroll
-        if let h: CGFloat = ref.node.style.computed.box.size.height {
+        var scroll: BlockScroll = blockData(id).scroll
+        if let h: CGFloat = domRef(id).style.computed.box.size.height {
             scroll.contentHeight = sumHeight
-            let styleHeightZoom: CGFloat = ref.zoom
-            ref.height = h * styleHeightZoom
+            let styleHeightZoom: CGFloat = zoom(id)
+            setField(.height, h * styleHeightZoom, for: id)
         } else {
             scroll.contentHeight = sumHeight
-            ref.height = sumHeight
+            setField(.height, sumHeight, for: id)
         }
 
-        if let el = ref.node.element, el.attributes["id"] == "toc" {
-            ref.height += VSTEP
+        if let el = domRef(id).element, el.attributes["id"] == "toc" {
+            setField(.height, height(id) + VSTEP, for: id)
         }
 
-        if style.flags.overflowScroll, let el = ref.node.element {
-            let maxScroll: CGFloat = max(0, scroll.contentHeight - ref.height)
+        if style.flags.overflowScroll, let el = domRef(id).element {
+            let maxScroll: CGFloat = max(0, scroll.contentHeight - height(id))
             scroll.offset = min(el.scrollOffsetY, maxScroll)
         }
-        var data: BlockData = ref.blockData
+        var data: BlockData = blockData(id)
         data.scroll = scroll
-        ref.blockData = data
+        setKind(.block(data), at: id)
     }
 
-    private func layoutMode(_ ref: LayoutRef) -> String {
-        if !blockExtraNodes(ref).isEmpty { return "inline" }
-        if ref.node.text != nil { return "inline" }
-        let hasBlockChild: Bool = ref.node.children.contains(where: {
+    private func layoutMode(_ id: LayoutID) -> String {
+        if !blockExtraNodes(id).isEmpty { return "inline" }
+        if domRef(id).text != nil { return "inline" }
+        let hasBlockChild: Bool = domRef(id).children.contains(where: {
             $0.style.computed.layout.display == .block
         })
         if hasBlockChild { return "block" }
-        if let el = ref.node.element {
+        if let el = domRef(id).element {
             return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
         }
         return "inline"
     }
 
-    private func rebuildBlockChildren(_ ref: LayoutRef) -> [LayoutID] {
+    private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
         profiler.count("layout.children.rebuilt")
-        var data: BlockData = ref.blockData
+        var data: BlockData = blockData(id)
         data.changes.childChanges.removeAll()
-        ref.blockData = data
+        setKind(.block(data), at: id)
         var state: BlockChildBuild = BlockChildBuild()
-        consumeBlockChildren(ref, ref.node.children, state: &state)
-        finishBlockChildren(ref, &state)
+        consumeBlockChildren(id, domRef(id).children, state: &state)
+        finishBlockChildren(id, &state)
         return state.built
     }
 
     private func appendBlockChildren(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ nodes: [DOMRef],
         to current: [LayoutID]
     ) -> [LayoutID]? {
-        guard blockExtraNodes(ref).isEmpty,
-            current.allSatisfy({ LayoutRef(id: $0, tree: self).isBlock })
+        guard blockExtraNodes(id).isEmpty,
+            current.allSatisfy({ isBlock($0) })
         else {
             return nil
         }
         if let lastID: LayoutID = current.last {
-            let last: LayoutRef = LayoutRef(id: lastID, tree: self)
-            if blockExtraNodes(last).isEmpty, last.node.element?.tag == "h6" {
+            if blockExtraNodes(lastID).isEmpty, domRef(lastID).element?.tag == "h6" {
                 return nil
             }
         }
@@ -445,41 +444,40 @@ extension LayoutTree {
 
         var state: BlockChildBuild = BlockChildBuild(
             built: current,
-            previous: lastFlowChild(ref, in: current)
+            previous: lastFlowChild(id, in: current)
         )
         let startsInline: Bool = first.style.computed.layout.display != .block
         if startsInline, let lastID: LayoutID = state.built.last {
-            let last: LayoutRef = LayoutRef(id: lastID, tree: self)
-            let extras: [DOMRef] = blockExtraNodes(last)
+            let extras: [DOMRef] = blockExtraNodes(lastID)
             if !extras.isEmpty,
                 extras.allSatisfy({ $0.style.computed.layout.display != .block })
             {
                 state.built.removeLast()
                 state.inlineRun = extras
-                state.previous = last.previous?.id
+                state.previous = previousID(of: lastID)
             }
         }
 
-        consumeBlockChildren(ref, nodes, state: &state)
-        finishBlockChildren(ref, &state)
+        consumeBlockChildren(id, nodes, state: &state)
+        finishBlockChildren(id, &state)
         return state.built
     }
 
     private func applyBlockChanges(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ changes: [BlockChildChange]
     ) -> [LayoutID]? {
-        var current: [LayoutID] = ref.children.map({ $0.id })
+        var current: [LayoutID] = childrenIDs(of: id)
         for change in changes {
             switch change {
             case .append(let nodes):
-                guard let next: [LayoutID] = appendBlockChildren(ref, nodes, to: current) else {
+                guard let next: [LayoutID] = appendBlockChildren(id, nodes, to: current) else {
                     return nil
                 }
                 current = next
             case .insert(let nodes, let reference):
                 guard let next: [LayoutID] = insertBlockChildren(
-                    ref,
+                    id,
                     nodes,
                     before: reference,
                     in: current
@@ -504,13 +502,13 @@ extension LayoutTree {
     }
 
     private func insertBlockChildren(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ nodes: [DOMRef],
         before reference: DOMRef,
         in current: [LayoutID]
     ) -> [LayoutID]? {
-        guard blockExtraNodes(ref).isEmpty,
-            current.allSatisfy({ LayoutRef(id: $0, tree: self).isBlock })
+        guard blockExtraNodes(id).isEmpty,
+            current.allSatisfy({ isBlock($0) })
         else {
             return nil
         }
@@ -520,12 +518,10 @@ extension LayoutTree {
         guard !nodes.contains(where: { $0.element?.tag == "h6" }) else {
             return nil
         }
-        if index > 0 {
-            let previous: LayoutRef = LayoutRef(id: current[index - 1], tree: self)
-            if isRunIn(previous) { return nil }
+        if index > 0, isRunIn(current[index - 1]) {
+            return nil
         }
-        let referenceBlock: LayoutRef = LayoutRef(id: current[index], tree: self)
-        if isRunIn(referenceBlock) {
+        if isRunIn(current[index]) {
             return nil
         }
         guard let first: DOMRef = firstVisibleChild(in: nodes) else {
@@ -534,7 +530,7 @@ extension LayoutTree {
 
         let startsInline: Bool = first.style.computed.layout.display != .block
         if startsInline, index > 0 {
-            let previous: LayoutRef = LayoutRef(id: current[index - 1], tree: self)
+            let previous: LayoutID = current[index - 1]
             if !blockExtraNodes(previous).isEmpty {
                 return nil
             }
@@ -543,17 +539,16 @@ extension LayoutTree {
         let prefix: [LayoutID] = Array(current[..<index])
         var state: BlockChildBuild = BlockChildBuild(
             built: prefix,
-            previous: lastFlowChild(ref, in: prefix)
+            previous: lastFlowChild(id, in: prefix)
         )
-        consumeBlockChildren(ref, nodes, state: &state)
-        finishBlockChildren(ref, &state)
+        consumeBlockChildren(id, nodes, state: &state)
+        finishBlockChildren(id, &state)
 
         var previous: LayoutID? = state.previous
         for id in current[index...] {
-            let block: LayoutRef = LayoutRef(id: id, tree: self)
-            setBlockPrevious(block, previous)
-            let isFlow: Bool = !blockExtraNodes(block).isEmpty
-                || block.node.style.computed.layout.position.kind != .absolute
+            setBlockPrevious(id, previous)
+            let isFlow: Bool = !blockExtraNodes(id).isEmpty
+                || domRef(id).style.computed.layout.position.kind != .absolute
             if isFlow { previous = id }
         }
 
@@ -567,9 +562,8 @@ extension LayoutTree {
         in current: [LayoutID]
     ) -> Int? {
         for (index, id) in current.enumerated() {
-            let block: LayoutRef = LayoutRef(id: id, tree: self)
-            let extras: [DOMRef] = blockExtraNodes(block)
-            if block.domNode == reference.id, extras.isEmpty {
+            let extras: [DOMRef] = blockExtraNodes(id)
+            if domID(of: id) == reference.id, extras.isEmpty {
                 return index
             }
             if extras.contains(where: { $0.id == reference.id }) {
@@ -579,8 +573,8 @@ extension LayoutTree {
         return nil
     }
 
-    private func isRunIn(_ block: LayoutRef) -> Bool {
-        let first: DOMRef = blockExtraNodes(block).first ?? block.node
+    private func isRunIn(_ id: LayoutID) -> Bool {
+        let first: DOMRef = blockExtraNodes(id).first ?? domRef(id)
         return first.element?.tag == "h6"
     }
 
@@ -591,13 +585,12 @@ extension LayoutTree {
         })
     }
 
-    private func lastFlowChild(_ ref: LayoutRef, in children: [LayoutID]) -> LayoutID? {
+    private func lastFlowChild(_ id: LayoutID, in children: [LayoutID]) -> LayoutID? {
         for id in children.reversed() {
-            let child: LayoutRef = LayoutRef(id: id, tree: self)
-            if child.isBlock, !blockExtraNodes(child).isEmpty {
+            if isBlock(id), !blockExtraNodes(id).isEmpty {
                 return id
             }
-            if child.node.style.computed.layout.position.kind != .absolute {
+            if domRef(id).style.computed.layout.position.kind != .absolute {
                 return id
             }
         }
@@ -605,7 +598,7 @@ extension LayoutTree {
     }
 
     private func consumeBlockChildren(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ nodes: [DOMRef],
         state: inout BlockChildBuild
     ) {
@@ -616,15 +609,15 @@ extension LayoutTree {
             let isBlock: Bool = child.style.computed.layout.display == .block
             if isBlock {
                 if let el = child.element, el.tag == "h6" {
-                    flushInlineRun(ref, &state)
+                    flushInlineRun(id, &state)
                     state.pendingRunIn = el
                 } else {
-                    flushInlineRun(ref, &state)
+                    flushInlineRun(id, &state)
                     if let runIn: ElementRef = state.pendingRunIn {
                         let run: [NodeID] = [runIn.ref.id, child.id]
                         let next: LayoutID = makeAnonymousBlock(
                             extraNodes: run,
-                            parent: ref.id,
+                            parent: id,
                             previous: state.previous
                         )
                         state.built.append(next)
@@ -633,7 +626,7 @@ extension LayoutTree {
                     } else {
                         let next: LayoutID = makeBlock(
                             dom: child.id,
-                            parent: ref.id,
+                            parent: id,
                             previous: state.previous
                         )
                         state.built.append(next)
@@ -648,12 +641,12 @@ extension LayoutTree {
         }
     }
 
-    private func flushInlineRun(_ ref: LayoutRef, _ state: inout BlockChildBuild) {
+    private func flushInlineRun(_ id: LayoutID, _ state: inout BlockChildBuild) {
         guard !state.inlineRun.isEmpty else { return }
         let run: [DOMRef] = state.inlineRun
         let anon: LayoutID = makeAnonymousBlock(
             extraNodes: run.map({ $0.id }),
-            parent: ref.id,
+            parent: id,
             previous: state.previous
         )
         state.built.append(anon)
@@ -661,12 +654,12 @@ extension LayoutTree {
         state.inlineRun = []
     }
 
-    private func finishBlockChildren(_ ref: LayoutRef, _ state: inout BlockChildBuild) {
-        flushInlineRun(ref, &state)
+    private func finishBlockChildren(_ id: LayoutID, _ state: inout BlockChildBuild) {
+        flushInlineRun(id, &state)
         if let runIn: ElementRef = state.pendingRunIn {
             let next: LayoutID = makeBlock(
                 dom: runIn.ref.id,
-                parent: ref.id,
+                parent: id,
                 previous: state.previous
             )
             state.built.append(next)
@@ -675,8 +668,8 @@ extension LayoutTree {
 
     // MARK: - Padding
 
-    private func paddingValue(_ ref: LayoutRef, _ side: StyleProperty) -> CGFloat {
-        let insets: EdgeInsets = ref.node.style.computed.box.spacing.padding
+    private func paddingValue(_ id: LayoutID, _ side: StyleProperty) -> CGFloat {
+        let insets: EdgeInsets = domRef(id).style.computed.box.spacing.padding
         switch side {
         case .paddingTop: return insets.top
         case .paddingRight: return insets.right
@@ -686,58 +679,58 @@ extension LayoutTree {
         }
     }
 
-    func padding(_ ref: LayoutRef, _ side: StyleProperty) -> CGFloat {
-        guard blockExtraNodes(ref).isEmpty else { return 0 }
-        return ref.scaled(max(0, paddingValue(ref, side)))
+    func padding(_ id: LayoutID, _ side: StyleProperty) -> CGFloat {
+        guard blockExtraNodes(id).isEmpty else { return 0 }
+        return max(0, paddingValue(id, side) * zoom(id))
     }
 
-    private func paintedPadding(_ ref: LayoutRef, _ side: StyleProperty) -> CGFloat {
-        guard blockExtraNodes(ref).isEmpty else { return 0 }
-        return ref.scaled(max(0, paddingValue(ref, side)))
+    private func paintedPadding(_ id: LayoutID, _ side: StyleProperty) -> CGFloat {
+        guard blockExtraNodes(id).isEmpty else { return 0 }
+        return max(0, paddingValue(id, side) * zoom(id))
     }
 
-    func paddingVertical(_ ref: LayoutRef) -> CGFloat {
-        return padding(ref, .paddingTop) + padding(ref, .paddingBottom)
+    func paddingVertical(_ id: LayoutID) -> CGFloat {
+        return padding(id, .paddingTop) + padding(id, .paddingBottom)
     }
 
-    func boxHeight(_ ref: LayoutRef) -> CGFloat {
-        return ref.height + paddingVertical(ref)
+    func boxHeight(_ id: LayoutID) -> CGFloat {
+        return height(id) + paddingVertical(id)
     }
 
     // MARK: - Inline items
 
-    private func placeInlineItems(_ ref: LayoutRef) {
-        let items: [InlineItem] = ref.blockData.content.inlineItems
-        var placement: InlinePlacement = InlinePlacement(tree: self, parent: ref.id)
+    private func placeInlineItems(_ id: LayoutID) {
+        let items: [InlineItem] = blockData(id).content.inlineItems
+        var placement: InlinePlacement = InlinePlacement(tree: self, parent: id)
         placement.start()
         for (index, item) in items.enumerated() {
             switch item {
             case .lineBreak:
                 placement.endLine()
             case .text(let text):
-                placeText(ref, text, index: index, into: &placement)
+                placeText(id, text, index: index, into: &placement)
             case .embed(let element):
-                placeEmbed(ref, element, index: index, into: &placement)
+                placeEmbed(id, element, index: index, into: &placement)
             }
         }
         placement.finish()
-        ref.children = placement.lines.map({ LayoutRef(id: $0, tree: self) })
+        setChildrenField(placement.lines, of: id)
         profiler.count("layout.lines.total", by: placement.lines.count)
     }
 
-    private func refreshInlineItems(_ ref: LayoutRef) {
-        let leaves: [DOMRef] = inlineLeaves(ref)
+    private func refreshInlineItems(_ id: LayoutID) {
+        let leaves: [DOMRef] = inlineLeaves(id)
         var items: [InlineItem] = []
         for leaf in leaves {
-            items.append(contentsOf: makeItems(ref, for: leaf))
+            items.append(contentsOf: makeItems(id, for: leaf))
         }
-        var data: BlockData = ref.blockData
+        var data: BlockData = blockData(id)
         data.content.inlineItems = items
         data.content.inlineObjects.removeAll(keepingCapacity: true)
         data.content.inlineLinePlan = nil
-        ref.blockData = data
-        let revision: UInt64 = ref.tree.node(ref.id).state.fields.inlineText.inlineContent + 1
-        setInlineContent(revision, for: ref.id)
+        setKind(.block(data), at: id)
+        let revision: UInt64 = node(id).state.fields.inlineText.inlineContent + 1
+        setInlineContent(revision, for: id)
     }
 
     private func collectLeaves(_ n: DOMRef, into leaves: inout [DOMRef]) {
@@ -758,10 +751,10 @@ extension LayoutTree {
         || el.tag == "iframe" || el.tag == "canvas"
     }
 
-    private func makeItems(_ ref: LayoutRef, for leaf: DOMRef) -> [InlineItem] {
+    private func makeItems(_ id: LayoutID, for leaf: DOMRef) -> [InlineItem] {
         var items: [InlineItem] = []
         if let text = leaf.text {
-            addTextNode(ref, text, into: &items)
+            addTextNode(id, text, into: &items)
         } else if let el = leaf.element {
             if el.tag == "br" {
                 items.append(.lineBreak)
@@ -773,12 +766,12 @@ extension LayoutTree {
     }
 
     private func addTextNode(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ textNode: TextRef,
         into items: inout [InlineItem]
     ) {
         let mode: WhiteSpaceMode = textNode.ref.inheritedStyleOwner.style.computed.text.whiteSpace
-        let zoom: CGFloat = ref.zoom
+        let zoom: CGFloat = zoom(id)
         let font: BrowserFont = fontForElement(textNode.ref, zoom: zoom)
         let run: InlineTextRun = InlineTextRun(
             node: textNode.ref,
@@ -790,30 +783,30 @@ extension LayoutTree {
             let segments: [String] = textNode.text.components(separatedBy: "\n")
             for (i, segment) in segments.enumerated() {
                 if i > 0 { items.append(.lineBreak) }
-                addSegment(ref, text: segment, run: run, into: &items)
+                addSegment(id, text: segment, run: run, into: &items)
             }
         } else {
-            addSegment(ref, text: textNode.text, run: run, into: &items)
+            addSegment(id, text: textNode.text, run: run, into: &items)
         }
     }
 
     private func addSegment(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         text: String,
         run: InlineTextRun,
         into items: inout [InlineItem]
     ) {
         if run.whiteSpace.keepSpaces {
-            if !text.isEmpty { addWord(ref, text, run: run, into: &items) }
+            if !text.isEmpty { addWord(id, text, run: run, into: &items) }
         } else {
             for word in text.split(whereSeparator: { $0.isWhitespace }) {
-                addWord(ref, String(word), run: run, into: &items)
+                addWord(id, String(word), run: run, into: &items)
             }
         }
     }
 
     private func addWord(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ word: String,
         run: InlineTextRun,
         into items: inout [InlineItem]
@@ -821,35 +814,35 @@ extension LayoutTree {
         profiler.count("text.words")
 
         if run.isAbbr && word.contains(where: { $0.isLowercase }) {
-            addAbbrWord(ref, run: run, word: word, into: &items)
+            addAbbrWord(id, run: run, word: word, into: &items)
             return
         }
         items.append(.text(InlineTextItem(run: run, word: word, display: nil)))
     }
 
     private func placeEmbed(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ element: ElementRef,
         index: Int,
         into placement: inout InlinePlacement
     ) {
         if placement.currentLine != nil {
-            var data: LineData = LayoutRef(id: placement.currentLine!, tree: self).lineData
+            var data: LineData = lineData(placement.currentLine!)
             data.content.hasEmbed = true
-            LayoutRef(id: placement.currentLine!, tree: self).lineData = data
+            setKind(.line(data), at: placement.currentLine!)
         }
         switch element.tag {
-        case "input": addInput(ref, element, index: index, into: &placement)
-        case "button": addButton(ref, element, index: index, into: &placement)
-        case "img": addImage(ref, element, index: index, into: &placement)
-        case "iframe": addIframe(ref, element, index: index, into: &placement)
-        case "canvas": addCanvas(ref, element, index: index, into: &placement)
+        case "input": addInput(id, element, index: index, into: &placement)
+        case "button": addButton(id, element, index: index, into: &placement)
+        case "img": addImage(id, element, index: index, into: &placement)
+        case "iframe": addIframe(id, element, index: index, into: &placement)
+        case "canvas": addCanvas(id, element, index: index, into: &placement)
         default: break
         }
     }
 
     private func placeText(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ item: InlineTextItem,
         index: Int?,
         into placement: inout InlinePlacement
@@ -857,23 +850,23 @@ extension LayoutTree {
         let font: BrowserFont = item.fontOverride ?? item.run.font
         let measured: CGFloat = item.measuredWidth ?? font.measure(item.display ?? item.word)
         let w: CGFloat = measured + font.spaceWidth
-        if placement.cursorX + w > ref.width && item.run.whiteSpace.wraps {
+        if placement.cursorX + w > width(id) && item.run.whiteSpace.wraps {
             if item.word.contains("\u{00AD}") {
                 let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
                 var chunk: String = ""
                 var breakIdx: Int = -1
                 for (i, part) in parts.dropLast().enumerated() {
                     let candidate: String = chunk + part + "-"
-                    if placement.cursorX + font.measure(candidate) <= ref.width {
+                    if placement.cursorX + font.measure(candidate) <= width(id) {
                         chunk = chunk + part
                         breakIdx = i
                     }
                 }
                 if breakIdx >= 0 {
-                    appendToLine(ref, clone(item, word: chunk + "-"), index: nil, into: &placement)
+                    appendToLine(id, clone(item, word: chunk + "-"), index: nil, into: &placement)
                     placement.endLine()
                     placeText(
-                        ref,
+                        id,
                         clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")),
                         index: nil,
                         into: &placement
@@ -884,12 +877,12 @@ extension LayoutTree {
             placement.endLine()
         }
 
-        appendToLine(ref, item, index: index, into: &placement)
+        appendToLine(id, item, index: index, into: &placement)
         placement.cursorX += w
     }
 
     private func appendToLine(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ item: InlineTextItem,
         index: Int?,
         into placement: inout InlinePlacement
@@ -899,7 +892,7 @@ extension LayoutTree {
         let previous: LayoutID? = placement.children.last
         let text: LayoutID
         if let index,
-            let cached: LayoutID = cachedText(ref, at: index, node: item.run.node, word: item.word)
+            let cached: LayoutID = cachedText(id, at: index, node: item.run.node, word: item.word)
         {
             text = cached
             attachText(cached, to: lineID, previous: previous)
@@ -915,11 +908,11 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            LayoutRef(id: text, tree: self).font = font
+            setFont(font, for: text)
             if let index {
-                var data: BlockData = ref.blockData
+                var data: BlockData = blockData(id)
                 data.content.inlineObjects[index] = text
-                ref.blockData = data
+                setKind(.block(data), at: id)
             }
         }
         placement.append(text)
@@ -935,15 +928,15 @@ extension LayoutTree {
     }
 
     private func addInput(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ node: ElementRef,
         index: Int,
         into placement: inout InlinePlacement
     ) {
         if node.attributes["type"] == "hidden" { return }
 
-        let available: CGFloat = ref.width
-        let zoom: CGFloat = ref.zoom
+        let available: CGFloat = width(id)
+        let zoom: CGFloat = zoom(id)
         let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom
@@ -951,14 +944,14 @@ extension LayoutTree {
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let input: LayoutID
-        if let cached: LayoutID = cachedEmbed(ref, .input, at: index, node: node) {
+        if let cached: LayoutID = cachedEmbed(id, .input, at: index, node: node) {
             input = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
             input = makeEmbed(dom: node.ref.id, data: .input, parent: lineID, previous: previous)
-            var data: BlockData = ref.blockData
+            var data: BlockData = blockData(id)
             data.content.inlineObjects[index] = input
-            ref.blockData = data
+            setKind(.block(data), at: id)
         }
         placement.append(input)
 
@@ -966,19 +959,19 @@ extension LayoutTree {
     }
 
     private func addButton(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ node: ElementRef,
         index: Int,
         into placement: inout InlinePlacement
     ) {
-        let available: CGFloat = ref.width
-        let zoom: CGFloat = ref.zoom
+        let available: CGFloat = width(id)
+        let zoom: CGFloat = zoom(id)
         let w: CGFloat = inputWidthPx * zoom
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let button: LayoutID
-        if let cached: LayoutID = cachedEmbed(ref, .button, at: index, node: node) {
+        if let cached: LayoutID = cachedEmbed(id, .button, at: index, node: node) {
             button = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -988,9 +981,9 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = ref.blockData
+            var data: BlockData = blockData(id)
             data.content.inlineObjects[index] = button
-            ref.blockData = data
+            setKind(.block(data), at: id)
         }
         placement.append(button)
         let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
@@ -998,19 +991,19 @@ extension LayoutTree {
     }
 
     private func addImage(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ node: ElementRef,
         index: Int,
         into placement: inout InlinePlacement
     ) {
-        let available: CGFloat = ref.width
-        let zoom: CGFloat = ref.zoom
+        let available: CGFloat = width(id)
+        let zoom: CGFloat = zoom(id)
         let w: CGFloat = imageUsedWidth(for: node, available: available, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let image: LayoutID
-        if let cached: LayoutID = cachedEmbed(ref, .image, at: index, node: node) {
+        if let cached: LayoutID = cachedEmbed(id, .image, at: index, node: node) {
             image = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1020,9 +1013,9 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = ref.blockData
+            var data: BlockData = blockData(id)
             data.content.inlineObjects[index] = image
-            ref.blockData = data
+            setKind(.block(data), at: id)
         }
         placement.append(image)
 
@@ -1031,19 +1024,19 @@ extension LayoutTree {
     }
 
     private func addIframe(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ node: ElementRef,
         index: Int,
         into placement: inout InlinePlacement
     ) {
-        let available: CGFloat = ref.width
-        let zoom: CGFloat = ref.zoom
+        let available: CGFloat = width(id)
+        let zoom: CGFloat = zoom(id)
         let w: CGFloat = iframeDisplaySize(for: node).width * zoom
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let iframe: LayoutID
-        if let cached: LayoutID = cachedEmbed(ref, .iframe, at: index, node: node) {
+        if let cached: LayoutID = cachedEmbed(id, .iframe, at: index, node: node) {
             iframe = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1053,9 +1046,9 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = ref.blockData
+            var data: BlockData = blockData(id)
             data.content.inlineObjects[index] = iframe
-            ref.blockData = data
+            setKind(.block(data), at: id)
         }
         placement.append(iframe)
 
@@ -1064,19 +1057,19 @@ extension LayoutTree {
     }
 
     private func addCanvas(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ node: ElementRef,
         index: Int,
         into placement: inout InlinePlacement
     ) {
-        let available: CGFloat = ref.width
-        let zoom: CGFloat = ref.zoom
+        let available: CGFloat = width(id)
+        let zoom: CGFloat = zoom(id)
         let w: CGFloat = canvasContentSize(for: node).width * zoom
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let canvas: LayoutID
-        if let cached: LayoutID = cachedEmbed(ref, .canvas, at: index, node: node) {
+        if let cached: LayoutID = cachedEmbed(id, .canvas, at: index, node: node) {
             canvas = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1086,9 +1079,9 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = ref.blockData
+            var data: BlockData = blockData(id)
             data.content.inlineObjects[index] = canvas
-            ref.blockData = data
+            setKind(.block(data), at: id)
         }
         placement.append(canvas)
 
@@ -1106,7 +1099,7 @@ extension LayoutTree {
     }
 
     private func addAbbrWord(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         run: InlineTextRun,
         word: String,
         into items: inout [InlineItem]
@@ -1141,55 +1134,53 @@ extension LayoutTree {
     }
 
     private func cachedText(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         at index: Int,
         node: DOMRef,
         word: String
     ) -> LayoutID? {
-        guard let id: LayoutID = ref.blockData.content.inlineObjects[index] else { return nil }
+        guard let id: LayoutID = blockData(id).content.inlineObjects[index] else { return nil }
         guard contains(id) else { return nil }
-        let candidate: LayoutRef = LayoutRef(id: id, tree: self)
-        guard candidate.isText,
-            candidate.domNode == node.id,
-            candidate.textData.word == word
+        guard isText(id),
+            domID(of: id) == node.id,
+            textData(id).word == word
         else { return nil }
         return id
     }
 
     private func cachedEmbed(
-        _ ref: LayoutRef,
+        _ id: LayoutID,
         _ kind: EmbedMatch,
         at index: Int,
         node: ElementRef
     ) -> LayoutID? {
-        guard let id: LayoutID = ref.blockData.content.inlineObjects[index] else { return nil }
+        guard let id: LayoutID = blockData(id).content.inlineObjects[index] else { return nil }
         guard contains(id) else { return nil }
-        let candidate: LayoutRef = LayoutRef(id: id, tree: self)
-        guard candidate.isEmbed,
-            candidate.domNode == node.ref.id,
-            kind.matches(candidate.embedData)
+        guard isEmbed(id),
+            domID(of: id) == node.ref.id,
+            kind.matches(embedData(id))
         else { return nil }
         return id
     }
 
     // MARK: - Paint
 
-    func blockSelfRect(_ ref: LayoutRef) -> Rect {
-        let top: CGFloat = paintedPadding(ref, .paddingTop)
-        let right: CGFloat = paintedPadding(ref, .paddingRight)
-        let bottom: CGFloat = paintedPadding(ref, .paddingBottom)
-        let left: CGFloat = paintedPadding(ref, .paddingLeft)
+    func blockSelfRect(_ id: LayoutID) -> Rect {
+        let top: CGFloat = paintedPadding(id, .paddingTop)
+        let right: CGFloat = paintedPadding(id, .paddingRight)
+        let bottom: CGFloat = paintedPadding(id, .paddingBottom)
+        let left: CGFloat = paintedPadding(id, .paddingLeft)
         return Rect(
-            left: ref.x - left,
-            top: ref.y - top,
-            right: ref.x + ref.width + right,
-            bottom: ref.y + ref.height + bottom
+            left: x(id) - left,
+            top: y(id) - top,
+            right: x(id) + width(id) + right,
+            bottom: y(id) + height(id) + bottom
         )
     }
 
-    private func borderPaintRect(_ ref: LayoutRef) -> Rect {
-        let rect: Rect = blockSelfRect(ref)
-        let width: CGFloat = ref.node.style.computed.box.decoration.border.width
+    private func borderPaintRect(_ id: LayoutID) -> Rect {
+        let rect: Rect = blockSelfRect(id)
+        let width: CGFloat = domRef(id).style.computed.box.decoration.border.width
         guard width > 0 else { return rect }
         let half: CGFloat = width / 2
         return Rect(
@@ -1202,82 +1193,82 @@ extension LayoutTree {
 
     
 
-    func blockPaintCaret(_ ref: LayoutRef, into items: inout [DisplayOp]) {
-        guard let el = ref.node.element, el.isFocused,
+    func blockPaintCaret(_ id: LayoutID, into items: inout [DisplayOp]) {
+        guard let el = domRef(id).element, el.isFocused,
             el.attributes["contenteditable"] != nil
         else { return }
-        if let last: LayoutRef = lastTextLayout(ref) {
+        if let last: LayoutID = lastTextLayout(id) {
             items.append(drawCursor(
-                origin: Point(x: last.x, y: last.y),
-                height: last.height,
-                offset: textTextWidth(last.id)
+                origin: Point(x: x(last), y: y(last)),
+                height: height(last),
+                offset: textTextWidth(last)
             ))
         } else {
-            items.append(drawCursor(origin: Point(x: ref.x, y: ref.y), height: ref.height, offset: 0))
+            items.append(drawCursor(origin: Point(x: x(id), y: y(id)), height: height(id), offset: 0))
         }
     }
 
-    func blockPaintScrollbar(_ ref: LayoutRef) -> [DisplayOp] {
-        let scroll: BlockScroll = ref.blockData.scroll
-        guard ref.node.style.computed.layout.overflow == .scroll,
-            scroll.contentHeight > ref.height
+    func blockPaintScrollbar(_ id: LayoutID) -> [DisplayOp] {
+        let scroll: BlockScroll = blockData(id).scroll
+        guard domRef(id).style.computed.layout.overflow == .scroll,
+            scroll.contentHeight > height(id)
         else { return [] }
         let barWidth: CGFloat = 8
-        let ratio: CGFloat = ref.height / scroll.contentHeight
-        let barHeight: CGFloat = ratio * ref.height
-        let barTop: CGFloat = ref.y + (scroll.offset / scroll.contentHeight) * ref.height
+        let ratio: CGFloat = height(id) / scroll.contentHeight
+        let barHeight: CGFloat = ratio * height(id)
+        let barTop: CGFloat = y(id) + (scroll.offset / scroll.contentHeight) * height(id)
         let barRect: Rect = Rect(
-            left: ref.x + ref.width - barWidth, top: barTop,
-            right: ref.x + ref.width, bottom: barTop + barHeight)
-        return [.rect(rect: barRect, color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.canvasText : "gray"))]
+            left: x(id) + width(id) - barWidth, top: barTop,
+            right: x(id) + width(id), bottom: barTop + barHeight)
+        return [.rect(rect: barRect, color: BrowserColor(cssName: usesForcedColors(domRef(id)) ? ForcedColor.canvasText : "gray"))]
     }
 
-    func blockShouldPaint(_ ref: LayoutRef) -> Bool {
-        if ref.node.text != nil { return true }
-        guard let el = ref.node.element else { return true }
+    func blockShouldPaint(_ id: LayoutID) -> Bool {
+        if domRef(id).text != nil { return true }
+        guard let el = domRef(id).element else { return true }
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
     }
 
-    func blockStyle(_ ref: LayoutRef) -> BlockStyle {
-        let revision: UInt64 = ref.node.style.revision
-        let paint: BlockPaint = ref.blockData.paint
+    func blockStyle(_ id: LayoutID) -> BlockStyle {
+        let revision: UInt64 = domRef(id).style.revision
+        let paint: BlockPaint = blockData(id).paint
         if let cachedStyle = paint.style, paint.styleRevision == revision {
             profiler.count("layout.block.style.cache.hit")
             return cachedStyle
         }
         profiler.count("layout.block.style.cache.miss")
-        let style: BlockStyle = BlockStyle(node: ref.node)
-        var data: BlockData = ref.blockData
+        let style: BlockStyle = BlockStyle(node: domRef(id))
+        var data: BlockData = blockData(id)
         data.paint.style = style
         data.paint.styleRevision = revision
-        ref.blockData = data
+        setKind(.block(data), at: id)
         return style
     }
 
     // MARK: - Cursor
 
-    private func lastTextLayout(_ ref: LayoutRef) -> LayoutRef? {
-        for child in ref.children.reversed() {
-            if child.isText { return child }
-            if let nested: LayoutRef = lastTextLayout(child) { return nested }
+    private func lastTextLayout(_ id: LayoutID) -> LayoutID? {
+        for child in childrenIDs(of: id).reversed() {
+            if isText(child) { return child }
+            if let nested: LayoutID = lastTextLayout(child) { return nested }
         }
         return nil
     }
 
     // MARK: - Scroll
 
-    func blockScrollOffset(_ ref: LayoutRef) -> CGFloat {
-        return ref.blockData.scroll.offset
+    func blockScrollOffset(_ id: LayoutID) -> CGFloat {
+        return blockData(id).scroll.offset
     }
 
-    func setBlockScrollOffset(_ ref: LayoutRef, _ value: CGFloat) {
-        var data: BlockData = ref.blockData
+    func setBlockScrollOffset(_ id: LayoutID, _ value: CGFloat) {
+        var data: BlockData = blockData(id)
         data.scroll.offset = value
-        ref.blockData = data
+        setKind(.block(data), at: id)
     }
 
-    func blockContentHeight(_ ref: LayoutRef) -> CGFloat {
-        return ref.blockData.scroll.contentHeight
+    func blockContentHeight(_ id: LayoutID) -> CGFloat {
+        return blockData(id).scroll.contentHeight
     }
 }
 
@@ -1356,16 +1347,14 @@ struct InlinePlacement {
 
     mutating func endLine() {
         guard let line: LayoutID = state.currentLine else { return }
-        LayoutRef(id: line, tree: context.tree).children =
-            state.children.map({ LayoutRef(id: $0, tree: context.tree) })
+        context.tree.setChildrenField(state.children, of: line)
         state.lines.append(line)
         start()
     }
 
     mutating func finish() {
         guard let line: LayoutID = state.currentLine else { return }
-        LayoutRef(id: line, tree: context.tree).children =
-            state.children.map({ LayoutRef(id: $0, tree: context.tree) })
+        context.tree.setChildrenField(state.children, of: line)
         state.lines.append(line)
         state.currentLine = nil
         state.children = []
@@ -1376,13 +1365,3 @@ struct InlinePlacement {
     }
 }
 
-
-extension LayoutRef {
-    func blockStyle() -> BlockStyle {
-        return tree.blockStyle(self)
-    }
-
-    func padding(_ side: StyleProperty) -> CGFloat {
-        return tree.padding(self, side)
-    }
-}

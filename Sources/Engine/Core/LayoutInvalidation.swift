@@ -5,7 +5,7 @@ enum LayoutInvalidation {
 
     static func childrenChanged(_ node: DOMRef) {
         guard let block = nearestBlock(node) else { return }
-        block.tree.blockMarkChildrenDirty(block)
+        block.tree.blockMarkChildrenDirty(block.id)
     }
 
     static func childrenAppend(_ parent: DOMRef, _ child: DOMRef) {
@@ -13,7 +13,7 @@ enum LayoutInvalidation {
             childrenChanged(parent)
             return
         }
-        block.tree.blockNoteAppendedChildren(block, [child])
+        block.tree.blockNoteAppendedChildren(block.id, [child])
     }
 
     static func childrenInsert(
@@ -25,7 +25,7 @@ enum LayoutInvalidation {
             childrenChanged(parent)
             return
         }
-        block.tree.blockNoteInsertedChildren(block, [child], before: reference)
+        block.tree.blockNoteInsertedChildren(block.id, [child], before: reference)
     }
 
     static func textChanged(_ node: DOMRef) {
@@ -45,11 +45,11 @@ enum LayoutInvalidation {
 
     private static func markLayoutInput(_ node: DOMRef, affectsSiblings: Bool) {
         guard let block = nearestBlock(node) else { return }
-        block.tree.blockMarkChildrenDirty(block)
+        block.tree.blockMarkChildrenDirty(block.id)
 
         guard affectsSiblings else { return }
         guard let parent = parentBlock(of: block) else { return }
-        parent.tree.blockMarkChildrenDirty(parent)
+        parent.tree.blockMarkChildrenDirty(parent.id)
     }
 
     static func imageChanged(_ node: DOMRef) {

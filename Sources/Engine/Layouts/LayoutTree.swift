@@ -562,7 +562,7 @@ extension LayoutTree {
     func selfRect(_ id: LayoutID) -> Rect {
         switch kind(id) {
         case .block:
-            return blockSelfRect(LayoutRef(id: id, tree: self))
+            return blockSelfRect(id)
         case .text:
             return textSelfRect(id)
         default:
@@ -578,7 +578,7 @@ extension LayoutTree {
         case .document:
             break
         case .block:
-            layoutBlock(LayoutRef(id: id, tree: self))
+            layoutBlock(id)
         case .line:
             layoutLine(id)
         case .text:
@@ -593,7 +593,7 @@ extension LayoutTree {
         case .document:
             return documentLayoutNeeded(LayoutRef(id: id, tree: self))
         case .block:
-            return blockLayoutNeeded(LayoutRef(id: id, tree: self))
+            return blockLayoutNeeded(id)
         case .line:
             return lineLayoutNeeded(id)
         case .text:
