@@ -1692,6 +1692,10 @@ class Frame {
     }
 
     func setNeedsLayout() {
+        // Invalidation is field-based: style, structure, and geometry writes
+        // mark the fields that read them. This flag only schedules a render
+        // pass; dirtying the root here would turn every clean render into a
+        // document pass and make a skipped block count as visited.
         markDocumentDirty()
         needsRender = true
         parentFrame?.setNeedsLayout()
