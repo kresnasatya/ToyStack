@@ -75,7 +75,7 @@ That requires `ElementSnapshot` to be usable off-main, which is exactly the rewr
 
 | Effect | Evidence in this repo |
 |---|---|
-| **It is viral.** A call to an isolated member is itself isolated; the annotation propagates outward until it hits a boundary. | Removing `@MainActor` from `StyleFields.notifyLayout` (`Style/StyleFields.swift:91`) produces 3 new "main actor-isolated … in a synchronous nonisolated context" errors at its callers (`apply`, `set`, `mutate`). Removing all 107 declarations required editing 57 files. |
+| **It is viral.** A call to an isolated member is itself isolated; the annotation propagates outward until it hits a boundary. | Deleting the 8 `@MainActor` in `Display/PaintTree.swift` stops the module building: every `LayoutRef` access in it (`node`, `x`, `y`, `selfRect()`) is itself isolated. Engine holds 58 files' worth of annotations propagated this way. |
 | **It pins the slowest work to the UI thread.** Style, layout, paint, and composite all run on main, so a relayout blocks event handling and raster presentation. | Layout and paint still walk `DOMTree`/`LayoutTree`, which are the roots below. `oop-findings.md:974-978` describes this exact cost. |
 | **It adds hops and reordering.** Every cross-boundary call is an unstructured `Task`. | 12 sites: `Core/Browser.swift:163`, `Core/Frame.swift:506,557`, `Platform/JSRuntime.swift:442,461,514`, `Raster/RasterScheduler.swift:56`, `ToyStack/ToyStack.swift:86,180,207,225,252`. Each one can interleave with other work in a different order than written. |
 | **It serializes the test suite.** Test trees carry the same isolation. | 30 of 30 test files with `@MainActor` suites; e.g. `Tests/ToyStackTests/HoverTests.swift:6-7` combines `@Suite(.serialized)` with `@MainActor`. |

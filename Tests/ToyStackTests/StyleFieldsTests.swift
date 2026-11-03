@@ -10,18 +10,22 @@ struct StyleFieldsTests {
     @Test func sameValueDoesNotMark() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
+        tree.consumeStyleChanges()
         tree.setFieldClean(.width, 10, for: block.id)
 
         style.set(.length(10), for: .width)
+        tree.consumeStyleChanges()
         #expect(!tree.isDirty(.width, at: block.id))
     }
 
     @Test func differentValueMarks() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
+        tree.consumeStyleChanges()
         tree.setFieldClean(.width, 10, for: block.id)
 
         style.set(.length(20), for: .width)
+        tree.consumeStyleChanges()
         #expect(tree.isDirty(.width, at: block.id))
     }
 
@@ -31,6 +35,7 @@ struct StyleFieldsTests {
         #expect(style.computed.box.size.width == nil)
 
         style.set(.length(20), for: .width)
+        tree.consumeStyleChanges()
 
         #expect(tree.isDirty(.width, at: block.id))
     }
@@ -38,9 +43,11 @@ struct StyleFieldsTests {
     @Test func removingAPropertyMarksTheLayoutField() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
+        tree.consumeStyleChanges()
         tree.setFieldClean(.width, 10, for: block.id)
 
         style.apply(["height": "5px"])
+        tree.consumeStyleChanges()
         #expect(tree.isDirty(.width, at: block.id))
     }
 
@@ -49,6 +56,7 @@ struct StyleFieldsTests {
         tree.setFieldClean(.width, 10, for: block.id)
 
         style.apply(["color": "red"])
+        tree.consumeStyleChanges()
 
         #expect(!tree.isDirty(.width, at: block.id))
     }
@@ -56,10 +64,12 @@ struct StyleFieldsTests {
     @Test func identicalApplyDoesNotMark() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
+        tree.consumeStyleChanges()
         tree.setFieldClean(.width, 10, for: block.id)
 
         profiler.reset()
         style.apply(["width": "10px"])
+        tree.consumeStyleChanges()
 
         #expect(!tree.isDirty(.width, at: block.id))
         #expect((profiler.snapshot()["style.fields.changed"]?.count ?? 0) == 0)
@@ -70,8 +80,20 @@ struct StyleFieldsTests {
         tree.setFieldClean(.width, 10, for: block.id)
 
         style.mutate { $0.box.size.width = 30 }
+        tree.consumeStyleChanges()
 
         #expect(tree.isDirty(.width, at: block.id))
+    }
+
+    @Test func aRevisionIsAppliedOnce() {
+        let (style, tree, block) = makeStyleFixture()
+        style.set(.length(20), for: .width)
+        tree.consumeStyleChanges()
+        tree.setFieldClean(.width, 20, for: block.id)
+
+        tree.consumeStyleChanges()
+
+        #expect(!tree.isDirty(.width, at: block.id))
     }
 
     @Test func applyStoresTypedValues() {

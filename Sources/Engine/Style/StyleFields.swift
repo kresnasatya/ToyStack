@@ -2,18 +2,23 @@ import Foundation
 
 @MainActor
 final class StyleFields {
-    private(set) var owner: NodeID?
     private var storage: StyleStorage = StyleStorage()
     private(set) var revision: UInt64 = 0
     private var invalidation: StyleInvalidationState = StyleInvalidationState()
-    weak var layoutTree: LayoutTree?
+    private var layoutChanges: Set<StyleProperty> = []
 
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
 
-    /// Stamps the node that owns these fields. Called once by `DOMTree.register`.
-    func attachOwner(_ id: NodeID) {
-        owner = id
+    /// Properties that changed since layout last asked, consumed on read.
+    ///
+    /// Style writes do not reach into the layout tree; the tree asks for this
+    /// set when it starts a pass.
+    func takeLayoutChanges() -> Set<StyleProperty> {
+        guard !layoutChanges.isEmpty else { return [] }
+        let changes: Set<StyleProperty> = layoutChanges
+        layoutChanges.removeAll(keepingCapacity: true)
+        return changes
     }
 
     func unknownValue(_ key: String) -> String? {
@@ -52,7 +57,7 @@ final class StyleFields {
         if !changed.isEmpty || parsed.unknown != oldUnknown {
             revision += 1
         }
-        notifyLayout(changed)
+        layoutChanges.formUnion(changed)
         profiler.count("style.fields.set", by: StyleProperty.allCases.count)
         profiler.count("style.fields.changed", by: changed.count)
     }
@@ -61,7 +66,7 @@ final class StyleFields {
         guard storage.computed.set(value, for: property) else { return }
         invalidation.dirtyKeys.remove(property)
         revision += 1
-        notifyLayout([property])
+        layoutChanges.insert(property)
     }
 
     func mutate(_ body: (inout ComputedStyle) -> Void) {
@@ -71,19 +76,12 @@ final class StyleFields {
         guard !changed.isEmpty else { return }
         invalidation.dirtyKeys.subtract(changed)
         revision += 1
-        notifyLayout(changed)
+        layoutChanges.formUnion(changed)
     }
 
     var isDirty: Bool {
         if invalidation.needsRestyle { return true }
         return !invalidation.dirtyKeys.isEmpty
-    }
-
-    private func notifyLayout(_ changed: Set<StyleProperty>) {
-        guard let owner, let tree = layoutTree else { return }
-        for property in changed where property.affectsLayout {
-            tree.dependencies.mark(.style(owner, property), in: tree)
-        }
     }
 }
 

@@ -92,7 +92,6 @@ class Frame {
         state.layout.tree.isDirty = false
         if let tree {
             tree.dom.layoutTree = tree
-            tree.dom.attachLayoutTree(tree)
         }
     }
     var displayList: [DisplayOp] { state.display.paint.ops }
@@ -1005,6 +1004,9 @@ class Frame {
                 if let value = animation.nextValue() {
                     needsAnotherFrame = true
                     node.style.set(value, for: property)
+                    if property.affectsLayout {
+                        document?.consumeStyleChanges(for: node.id)
+                    }
                     if property == .transform || property == .opacity {
                         if node.layout?.isBlock == true,
                             let style: PaintEffectStyle = paintEffectStyle(node: node)

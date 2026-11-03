@@ -22,7 +22,6 @@ final class DOMTree {
             kind: .element(ElementData(tag: "html", attributes: [:], isChecked: false)),
             base: DOMBase()
         )
-        node.base.style.attachOwner(root)
         self.nodes = [node]
         self.root = root
         self.side = DOMSideTables()
@@ -34,6 +33,13 @@ final class DOMTree {
     func node(_ id: NodeID) -> DOMNode? {
         guard id.raw < nodes.count else { return nil }
         return nodes[Int(id.raw)]
+    }
+
+    /// Walks every live node id in allocation order.
+    func forEachNode(_ body: (NodeID) -> Void) {
+        for index in nodes.indices where nodes[index] != nil {
+            body(NodeID(raw: UInt32(index)))
+        }
     }
 
     func isElement(_ id: NodeID) -> Bool {
@@ -119,9 +125,6 @@ final class DOMTree {
 
     private func allocate(_ node: DOMNode) -> NodeID {
         let id: NodeID = NodeID(raw: UInt32(nodes.count))
-        let node: DOMNode = node
-        node.base.style.attachOwner(id)
-        node.base.style.layoutTree = layoutTree
         nodes.append(node)
         return id
     }
@@ -281,13 +284,6 @@ final class DOMTree {
             }
         case .text(let data):
             append(createText(data.text), to: parent)
-        }
-    }
-
-    func attachLayoutTree(_ tree: LayoutTree) {
-        for node in nodes {
-            guard node != nil else { continue }
-            node?.base.style.layoutTree = tree
         }
     }
 

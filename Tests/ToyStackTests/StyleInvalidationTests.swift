@@ -102,6 +102,7 @@ struct StyleInvalidationTests {
         )
 
         p.style.mutate { $0.text.font.size = 32 }
+        block.tree.consumeStyleChanges()
 
         #expect(text.tree.isDirty(.font, at: text.id))
     }

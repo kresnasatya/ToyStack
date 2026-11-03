@@ -17,7 +17,6 @@ final class LayoutTree {
     init(dom: DOMTree) {
         self.dom = dom
         dom.layoutTree = self
-        dom.attachLayoutTree(self)
         self.nodes.reserveCapacity(1024)
         let document: LayoutID = append(
             kind: .document(DocumentData(pageZoom: 1)),
@@ -53,6 +52,8 @@ final class LayoutTree {
             hasDirtyDescendants: false
         )
         nodes.append(LayoutNode(kind: kind, dom: dom, links: links, state: state))
+        // The node is built from the current style, so those changes are already applied.
+        _ = self.dom.style(of: dom).takeLayoutChanges()
         return id
     }
 
@@ -190,6 +191,29 @@ final class LayoutTree {
         reachable.insert(id)
         for child in node(id).links.children {
             collectReachable(child, into: &reachable)
+        }
+    }
+
+    // MARK: - Style changes
+
+    /// Marks the layout fields whose style inputs changed since the last pass.
+    ///
+    /// Style writes do not reach into layout. Each style store keeps the
+    /// properties that changed since layout last asked, and `LayoutInputTable`
+    /// already states which layout fields read them.
+    ///
+    /// Every DOM node is visited, not every layout node: an inline child has no
+    /// node of its own, yet its `display` decides the parent's children.
+    func consumeStyleChanges() {
+        dom.forEachNode { node in
+            consumeStyleChanges(for: node)
+        }
+    }
+
+    /// Marks the layout fields that read one DOM node's changed style properties.
+    func consumeStyleChanges(for node: NodeID) {
+        for property in dom.style(of: node).takeLayoutChanges() {
+            dependencies.mark(.style(node, property), in: self)
         }
     }
 

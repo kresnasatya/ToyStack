@@ -25,6 +25,7 @@ extension LayoutTree {
         pageZoom: CGFloat
     ) {
         let root: LayoutRef = self.root
+        consumeStyleChanges()
         guard documentLayoutNeeded(root) else { return }
         dependencies.beginLayout()
         dependencies.rebuild(from: self)
