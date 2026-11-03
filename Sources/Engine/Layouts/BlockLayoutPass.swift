@@ -953,7 +953,7 @@ extension LayoutTree {
         let input: LayoutID
         if let cached: LayoutID = cachedEmbed(ref, .input, at: index, node: node) {
             input = cached
-            attachEmbed(LayoutRef(id: cached, tree: self), to: lineID, previous: previous)
+            attachEmbed(cached, to: lineID, previous: previous)
         } else {
             input = makeEmbed(dom: node.ref.id, data: .input, parent: lineID, previous: previous)
             var data: BlockData = ref.blockData
@@ -980,7 +980,7 @@ extension LayoutTree {
         let button: LayoutID
         if let cached: LayoutID = cachedEmbed(ref, .button, at: index, node: node) {
             button = cached
-            attachEmbed(LayoutRef(id: cached, tree: self), to: lineID, previous: previous)
+            attachEmbed(cached, to: lineID, previous: previous)
         } else {
             button = makeEmbed(
                 dom: node.ref.id,
@@ -1012,8 +1012,7 @@ extension LayoutTree {
         let image: LayoutID
         if let cached: LayoutID = cachedEmbed(ref, .image, at: index, node: node) {
             image = cached
-            let imageRef: LayoutRef = LayoutRef(id: cached, tree: self)
-            attachEmbed(imageRef, to: lineID, previous: previous)
+            attachEmbed(cached, to: lineID, previous: previous)
         } else {
             image = makeEmbed(
                 dom: node.ref.id,
@@ -1046,7 +1045,7 @@ extension LayoutTree {
         let iframe: LayoutID
         if let cached: LayoutID = cachedEmbed(ref, .iframe, at: index, node: node) {
             iframe = cached
-            attachEmbed(LayoutRef(id: cached, tree: self), to: lineID, previous: previous)
+            attachEmbed(cached, to: lineID, previous: previous)
         } else {
             iframe = makeEmbed(
                 dom: node.ref.id,
@@ -1079,7 +1078,7 @@ extension LayoutTree {
         let canvas: LayoutID
         if let cached: LayoutID = cachedEmbed(ref, .canvas, at: index, node: node) {
             canvas = cached
-            attachEmbed(LayoutRef(id: cached, tree: self), to: lineID, previous: previous)
+            attachEmbed(cached, to: lineID, previous: previous)
         } else {
             canvas = makeEmbed(
                 dom: node.ref.id,

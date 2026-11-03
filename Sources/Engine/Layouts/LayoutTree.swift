@@ -447,6 +447,13 @@ extension LayoutTree {
         return DOMRef(id: domID(of: id), dom: dom)
     }
 
+    func pageZoom(_ id: LayoutID) -> CGFloat {
+        if let parent: LayoutID = parentID(of: id) {
+            return pageZoom(parent)
+        }
+        return kind(id).documentPageZoom
+    }
+
     func resolvedZoom(_ id: LayoutID) -> CGFloat {
         let parentZoom: CGFloat = parentID(of: id).map({ zoom($0) }) ?? 1.0
         guard let factor: CGFloat = domRef(id).style.computed.box.zoom else {
@@ -577,7 +584,7 @@ extension LayoutTree {
         case .text:
             layoutText(id)
         case .embed:
-            layoutEmbed(LayoutRef(id: id, tree: self))
+            layoutEmbed(id)
         }
     }
 
@@ -592,7 +599,7 @@ extension LayoutTree {
         case .text:
             return textLayoutNeeded(id)
         case .embed:
-            return embedLayoutNeeded(LayoutRef(id: id, tree: self))
+            return embedLayoutNeeded(id)
         }
     }
 }

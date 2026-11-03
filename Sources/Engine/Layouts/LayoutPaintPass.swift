@@ -12,8 +12,7 @@ extension LayoutRef {
     }
 
     var pageZoom: CGFloat {
-        if let parent { return parent.pageZoom }
-        return tree.node(id).kind.documentPageZoom
+        return tree.pageZoom(id)
     }
 
     func absoluteBounds() -> Rect {

@@ -11,7 +11,6 @@ extension LayoutTree {
     ) -> LayoutID {
         let id: LayoutID = append(kind: .embed(data), dom: dom, parent: parent, previous: previous)
         setPrimary(id, for: dom)
-        let ref: LayoutRef = LayoutRef(id: id, tree: self)
 
         setChildrenClean([], of: id)
         setFontClean(inlineDefaultFont, for: id)
@@ -22,193 +21,193 @@ extension LayoutTree {
         ] {
             markUsed(field, at: id)
         }
-        ref.markAncestorsDirty()
+        markAncestorsDirty(from: id)
         markField(.font, at: id)
 
         if case .button = data {
             // The first inner-line pass runs before the containing line can
             // place this button. Seed a known position so that pass does not
             // read a dirty field.
-            ref.x = 0
-            ref.y = 0
+            setField(.x, 0, for: id)
+            setField(.y, 0, for: id)
         }
         addDependencyEdges(for: id)
         return id
     }
 
-    func embedLayoutNeeded(_ ref: LayoutRef) -> Bool {
-        if ref.hasDirtyDescendants {
+    func embedLayoutNeeded(_ id: LayoutID) -> Bool {
+        if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(ref.id).state.fields
+        let state: LayoutFieldStore = node(id).state.fields
         return state.isDirty(.zoom) || state.isDirty(.width) || state.isDirty(.height)
             || state.isDirty(.font) || state.isDirty(.ascent) || state.isDirty(.descent)
     }
 
     /// Shared embed body: resolve zoom and baseline font.
-    func layoutEmbedCommon(_ ref: LayoutRef) {
-        if ref.tree.isDirty(.zoom, at: ref.id) {
-            ref.zoom = ref.resolvedZoom()
+    func layoutEmbedCommon(_ id: LayoutID) {
+        if isDirty(.zoom, at: id) {
+            setField(.zoom, resolvedZoom(id), for: id)
         }
-        if ref.tree.isDirty(.font, at: ref.id) {
-            ref.font = fontForElement(ref.node, zoom: ref.zoom)
+        if isDirty(.font, at: id) {
+            setFont(fontForElement(domRef(id), zoom: zoom(id)), for: id)
         }
     }
 
-    func embedSetAscentFromHeight(_ ref: LayoutRef) {
-        ref.ascent = ref.height
-        ref.descent = 0
+    func embedSetAscentFromHeight(_ id: LayoutID) {
+        setField(.ascent, height(id), for: id)
+        setField(.descent, 0, for: id)
     }
 
-    func layoutEmbed(_ ref: LayoutRef) {
-        guard embedLayoutNeeded(ref) else { return }
-        switch ref.embedData {
+    func layoutEmbed(_ id: LayoutID) {
+        guard embedLayoutNeeded(id) else { return }
+        switch embedData(id) {
         case .image:
-            layoutImage(ref)
+            layoutImage(id)
         case .input:
-            layoutInput(ref)
+            layoutInput(id)
         case .button:
-            layoutButton(ref)
+            layoutButton(id)
         case .iframe:
-            layoutIframe(ref)
+            layoutIframe(id)
         case .canvas:
-            layoutCanvas(ref)
+            layoutCanvas(id)
         }
     }
 
     // MARK: - Image
 
-    func layoutImage(_ ref: LayoutRef) {
-        let sizeDirty: Bool = ref.tree.isDirty(.width, at: ref.id)
-            || ref.tree.isDirty(.height, at: ref.id)
-            || ref.tree.isDirty(.zoom, at: ref.id)
-            || ref.tree.isDirty(.font, at: ref.id)
-        ref.hasDirtyDescendants = false
-        layoutEmbedCommon(ref)
+    func layoutImage(_ id: LayoutID) {
+        let sizeDirty: Bool = isDirty(.width, at: id)
+            || isDirty(.height, at: id)
+            || isDirty(.zoom, at: id)
+            || isDirty(.font, at: id)
+        setDirtyDescendants(false, at: id)
+        layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        guard let el = ref.node.element else { return }
-        let available: CGFloat = ref.parent!.width
-        let zoom: CGFloat = ref.zoom
-        let usedWidth: CGFloat = imageUsedWidth(for: el, available: available, zoom: zoom)
-        ref.width = usedWidth
-        let usedHeight: CGFloat = imageUsedHeight(for: el, usedWidth: ref.width, zoom: ref.zoom)
+        guard let el = domRef(id).element else { return }
+        let available: CGFloat = width(parentID(of: id)!)
+        let elementZoom: CGFloat = zoom(id)
+        let usedWidth: CGFloat = imageUsedWidth(for: el, available: available, zoom: elementZoom)
+        setField(.width, usedWidth, for: id)
+        let usedHeight: CGFloat = imageUsedHeight(
+            for: el,
+            usedWidth: width(id),
+            zoom: zoom(id)
+        )
         var data: ImageData
-        if case .image(let current) = ref.embedData {
+        if case .image(let current) = embedData(id) {
             data = current
         } else {
             data = ImageData(imageHeight: 0)
         }
         data.imageHeight = usedHeight
-        ref.embedData = .image(data)
-        ref.height = max(usedHeight, ref.font.linespace)
-        embedSetAscentFromHeight(ref)
+        setKind(.embed(.image(data)), at: id)
+        setField(.height, max(usedHeight, font(id).linespace), for: id)
+        embedSetAscentFromHeight(id)
     }
-
-    
 
     // MARK: - Input
 
-    func layoutInput(_ ref: LayoutRef) {
-        let sizeDirty: Bool = ref.tree.isDirty(.width, at: ref.id)
-            || ref.tree.isDirty(.height, at: ref.id)
-            || ref.tree.isDirty(.zoom, at: ref.id)
-            || ref.tree.isDirty(.font, at: ref.id)
-        ref.hasDirtyDescendants = false
-        layoutEmbedCommon(ref)
+    func layoutInput(_ id: LayoutID) {
+        let sizeDirty: Bool = isDirty(.width, at: id)
+            || isDirty(.height, at: id)
+            || isDirty(.zoom, at: id)
+            || isDirty(.font, at: id)
+        setDirtyDescendants(false, at: id)
+        layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        let isCheckbox: Bool = ref.node.element?.attributes["type"] == "checkbox"
+        let isCheckbox: Bool = domRef(id).element?.attributes["type"] == "checkbox"
         if isCheckbox {
-            ref.width = ref.font.linespace
+            setField(.width, font(id).linespace, for: id)
         } else {
-            ref.width = inputWidthPx * ref.zoom
+            setField(.width, inputWidthPx * zoom(id), for: id)
         }
-        ref.height = ref.font.linespace
-        embedSetAscentFromHeight(ref)
+        setField(.height, font(id).linespace, for: id)
+        embedSetAscentFromHeight(id)
     }
-
-    
 
     // MARK: - Button
 
-    func layoutButton(_ ref: LayoutRef) {
-        guard embedLayoutNeeded(ref) else { return }
-        let descendantsDirty: Bool = ref.hasDirtyDescendants
-        defer { ref.hasDirtyDescendants = false }
+    func layoutButton(_ id: LayoutID) {
+        guard embedLayoutNeeded(id) else { return }
+        let descendantsDirty: Bool = hasDirtyDescendants(at: id)
+        defer { setDirtyDescendants(false, at: id) }
         // The containing line places this button after its children lay out.
         // Seed a known position so the inner line can lay out before that.
-        if ref.tree.isDirty(.x, at: ref.id) {
-            ref.x = 0
+        if isDirty(.x, at: id) {
+            setField(.x, 0, for: id)
         }
-        if ref.tree.isDirty(.y, at: ref.id) {
-            ref.y = 0
+        if isDirty(.y, at: id) {
+            setField(.y, 0, for: id)
         }
         let contentDirty: Bool = descendantsDirty
-            || ref.tree.isDirty(.width, at: ref.id)
-            || ref.tree.isDirty(.height, at: ref.id)
-            || ref.tree.isDirty(.zoom, at: ref.id)
-            || ref.tree.isDirty(.font, at: ref.id)
-        layoutEmbedCommon(ref)
+            || isDirty(.width, at: id)
+            || isDirty(.height, at: id)
+            || isDirty(.zoom, at: id)
+            || isDirty(.font, at: id)
+        layoutEmbedCommon(id)
         guard contentDirty else { return }
 
-        ref.width = inputWidthPx * ref.zoom
+        setField(.width, inputWidthPx * zoom(id), for: id)
 
-        ref.children = []
-        newButtonLine(ref)
-        for child in ref.node.children {
-            recurseButton(ref, child)
+        setChildrenField([], of: id)
+        newButtonLine(id)
+        for child in domRef(id).children {
+            recurseButton(id, child)
         }
-        for child in ref.children {
-            child.layout()
+        for child in childrenIDs(of: id) {
+            layout(child)
         }
 
-        let contentHeight: CGFloat = ref.children.reduce(0) { $0 + $1.height }
-        ref.height = contentHeight == 0 ? ref.font.linespace : contentHeight
+        let contentHeight: CGFloat = childrenIDs(of: id).reduce(0) { $0 + height($1) }
+        setField(.height, contentHeight == 0 ? font(id).linespace : contentHeight, for: id)
 
         // A button is an inline container: its baseline stays the font baseline.
-        ref.ascent = ref.font.ascent
-        ref.descent = ref.font.descent
+        setField(.ascent, font(id).ascent, for: id)
+        setField(.descent, font(id).descent, for: id)
     }
 
-    private func newButtonLine(_ ref: LayoutRef) {
+    private func newButtonLine(_ id: LayoutID) {
         var data: ButtonData
-        if case .button(let current) = ref.embedData {
+        if case .button(let current) = embedData(id) {
             data = current
         } else {
             data = ButtonData(cursorX: 0)
         }
         data.cursorX = 0
-        ref.embedData = .button(data)
-        let previous: LayoutID? = ref.children.last?.id
-        let line: LayoutID = makeLine(dom: ref.domNode, parent: ref.id, previous: previous)
-        var children: [LayoutID] = ref.children.map({ $0.id })
+        setKind(.embed(.button(data)), at: id)
+        let previous: LayoutID? = childrenIDs(of: id).last
+        let line: LayoutID = makeLine(dom: domID(of: id), parent: id, previous: previous)
+        var children: [LayoutID] = childrenIDs(of: id)
         children.append(line)
-        ref.children = children.map({ LayoutRef(id: $0, tree: self) })
+        setChildrenField(children, of: id)
     }
 
-    private func recurseButton(_ ref: LayoutRef, _ node: DOMRef) {
+    private func recurseButton(_ id: LayoutID, _ node: DOMRef) {
         if let textNode = node.text {
             for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
-                addButtonWord(ref, node: node, word: String(word))
+                addButtonWord(id, node: node, word: String(word))
             }
         } else if let el = node.element {
             if el.tag == "br" {
-                newButtonLine(ref)
+                newButtonLine(id)
             } else if el.tag == "input" {
-                addButtonInput(ref, el)
+                addButtonInput(id, el)
             } else {
-                for child in node.children { recurseButton(ref, child) }
+                for child in node.children { recurseButton(id, child) }
             }
         }
     }
 
-    private func addButtonWord(_ ref: LayoutRef, node: DOMRef, word: String) {
-        let font: BrowserFont = fontForElement(node, zoom: ref.zoom)
+    private func addButtonWord(_ id: LayoutID, node: DOMRef, word: String) {
+        let font: BrowserFont = fontForElement(node, zoom: zoom(id))
         let w: CGFloat = font.measure(word)
-        let cursorX: CGFloat = buttonCursorX(ref)
-        if cursorX + w > ref.width { newButtonLine(ref) }
-        guard let line: LayoutRef = ref.children.last else { return }
-        let prev: LayoutID? = line.children.last?.id
+        let cursorX: CGFloat = buttonCursorX(id)
+        if cursorX + w > width(id) { newButtonLine(id) }
+        guard let line: LayoutID = childrenIDs(of: id).last else { return }
+        let prev: LayoutID? = childrenIDs(of: line).last
         let text: LayoutID = makeText(
             TextData(
                 word: word,
@@ -217,68 +216,66 @@ extension LayoutTree {
                 metrics: TextMetrics(width: 0, whiteSpace: .normal)
             ),
             dom: node.id,
-            parent: line.id,
+            parent: line,
             previous: prev
         )
-        var lineChildren: [LayoutRef] = line.children
-        lineChildren.append(LayoutRef(id: text, tree: self))
-        line.children = lineChildren
-        setButtonCursorX(ref, buttonCursorX(ref) + w)
+        var lineChildren: [LayoutID] = childrenIDs(of: line)
+        lineChildren.append(text)
+        setChildrenField(lineChildren, of: line)
+        setButtonCursorX(id, buttonCursorX(id) + w)
     }
 
-    private func addButtonInput(_ ref: LayoutRef, _ node: ElementRef) {
-        let font: BrowserFont = fontForElement(node.ref, zoom: ref.zoom)
+    private func addButtonInput(_ id: LayoutID, _ node: ElementRef) {
+        let font: BrowserFont = fontForElement(node.ref, zoom: zoom(id))
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
-        let w: CGFloat = isCheckbox ? font.linespace : ref.scaled(inputWidthPx)
-        let cursorX: CGFloat = buttonCursorX(ref)
-        if cursorX + w > ref.width { newButtonLine(ref) }
-        guard let line: LayoutRef = ref.children.last else { return }
-        let prev: LayoutID? = line.children.last?.id
+        let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom(id)
+        let cursorX: CGFloat = buttonCursorX(id)
+        if cursorX + w > width(id) { newButtonLine(id) }
+        guard let line: LayoutID = childrenIDs(of: id).last else { return }
+        let prev: LayoutID? = childrenIDs(of: line).last
         let input: LayoutID = makeEmbed(
             dom: node.ref.id,
             data: .input,
-            parent: line.id,
+            parent: line,
             previous: prev
         )
-        var lineChildren: [LayoutRef] = line.children
-        lineChildren.append(LayoutRef(id: input, tree: self))
-        line.children = lineChildren
-        setButtonCursorX(ref, buttonCursorX(ref) + w)
+        var lineChildren: [LayoutID] = childrenIDs(of: line)
+        lineChildren.append(input)
+        setChildrenField(lineChildren, of: line)
+        setButtonCursorX(id, buttonCursorX(id) + w)
     }
 
-    private func buttonCursorX(_ ref: LayoutRef) -> CGFloat {
-        guard case .button(let data) = ref.embedData else { return 0 }
+    private func buttonCursorX(_ id: LayoutID) -> CGFloat {
+        guard case .button(let data) = embedData(id) else { return 0 }
         return data.cursorX
     }
 
-    private func setButtonCursorX(_ ref: LayoutRef, _ value: CGFloat) {
-        guard case .button(var data) = ref.embedData else { return }
+    private func setButtonCursorX(_ id: LayoutID, _ value: CGFloat) {
+        guard case .button(var data) = embedData(id) else { return }
         data.cursorX = value
-        ref.embedData = .button(data)
+        setKind(.embed(.button(data)), at: id)
     }
-
-    
 
     // MARK: - Iframe
 
-    func layoutIframe(_ ref: LayoutRef) {
-        let sizeDirty: Bool = ref.tree.isDirty(.width, at: ref.id)
-            || ref.tree.isDirty(.height, at: ref.id)
-            || ref.tree.isDirty(.zoom, at: ref.id)
-            || ref.tree.isDirty(.font, at: ref.id)
-        ref.hasDirtyDescendants = false
-        layoutEmbedCommon(ref)
+    func layoutIframe(_ id: LayoutID) {
+        let sizeDirty: Bool = isDirty(.width, at: id)
+            || isDirty(.height, at: id)
+            || isDirty(.zoom, at: id)
+            || isDirty(.font, at: id)
+        setDirtyDescendants(false, at: id)
+        layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        guard let el = ref.node.element else { return }
+        guard let el = domRef(id).element else { return }
 
         let size: (width: CGFloat, height: CGFloat) = iframeDisplaySize(for: el)
-        ref.width = size.width * ref.zoom
-        ref.height = size.height * ref.zoom
-        embedSetAscentFromHeight(ref)
+        setField(.width, size.width * zoom(id), for: id)
+        setField(.height, size.height * zoom(id), for: id)
+        embedSetAscentFromHeight(id)
 
         guard let frame: Frame = el.frame, frame.loaded else { return }
-        let innerWidth: CGFloat = ref.width - ref.scaled(2)
-        let innerHeight: CGFloat = ref.height - ref.scaled(2)
+        let innerWidth: CGFloat = width(id) - 2 * zoom(id)
+        let innerHeight: CGFloat = height(id) - 2 * zoom(id)
         if frame.frameWidth != innerWidth {
             frame.setViewport(width: innerWidth, height: innerHeight)
             frame.setNeedsRender()
@@ -288,31 +285,30 @@ extension LayoutTree {
         }
     }
 
-    
-
     // MARK: - Canvas
 
-    func layoutCanvas(_ ref: LayoutRef) {
-        let sizeDirty: Bool = ref.tree.isDirty(.width, at: ref.id)
-            || ref.tree.isDirty(.height, at: ref.id)
-            || ref.tree.isDirty(.zoom, at: ref.id)
-            || ref.tree.isDirty(.font, at: ref.id)
-        ref.hasDirtyDescendants = false
-        layoutEmbedCommon(ref)
-        guard sizeDirty else { return }
-        guard let el = ref.node.element else { return }
-        let size: (width: CGFloat, height: CGFloat) = canvasContentSize(for: el)
-
-        ref.width = size.width * ref.zoom
-        ref.height = size.height * ref.zoom
-        embedSetAscentFromHeight(ref)
-
-        el.canvasContext?.resize(width: size.width, height: size.height)
-        el.canvasContext?.setScale(canvasDisplayScale(ref) * ref.pageZoom * ref.zoom)
+    private func canvasDisplayScale(_ id: LayoutID) -> CGFloat {
+        return domRef(id).element?.frame?.tab?.browser?.displayScale ?? 1
     }
 
-    
+    func layoutCanvas(_ id: LayoutID) {
+        let sizeDirty: Bool = isDirty(.width, at: id)
+            || isDirty(.height, at: id)
+            || isDirty(.zoom, at: id)
+            || isDirty(.font, at: id)
+        setDirtyDescendants(false, at: id)
+        layoutEmbedCommon(id)
+        guard sizeDirty else { return }
+        guard let el = domRef(id).element else { return }
+        let size: (width: CGFloat, height: CGFloat) = canvasContentSize(for: el)
 
+        setField(.width, size.width * zoom(id), for: id)
+        setField(.height, size.height * zoom(id), for: id)
+        embedSetAscentFromHeight(id)
+
+        el.canvasContext?.resize(width: size.width, height: size.height)
+        el.canvasContext?.setScale(canvasDisplayScale(id) * pageZoom(id) * zoom(id))
+    }
 }
 
 // MARK: - Shared embed measurements
@@ -387,14 +383,8 @@ func canvasContentSize(for el: ElementRef) -> (width: CGFloat, height: CGFloat) 
     return (width, height)
 }
 
-@MainActor
-private func canvasDisplayScale(_ ref: LayoutRef) -> CGFloat {
-    return ref.node.element?.frame?.tab?.browser?.displayScale ?? 1
-}
-
-
 extension LayoutTree {
-    func attachEmbed(_ ref: LayoutRef, to line: LayoutID, previous: LayoutID?) {
-        setPrevious(previous, of: ref.id)
+    func attachEmbed(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
+        setPrevious(previous, of: id)
     }
 }
