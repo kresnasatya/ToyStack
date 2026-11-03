@@ -43,7 +43,7 @@ struct StyleInvalidationTests {
 
         p.style.mutate { $0.text.font.size = 32 }
 
-        let grown: BrowserFont = fontForElement(text.ref, zoom: 1, notify: textLayout.fontField)
+        let grown: BrowserFont = fontForElement(text.ref, zoom: 1)
         #expect(grown.linespace > normal.linespace)
     }
 
@@ -103,7 +103,7 @@ struct StyleInvalidationTests {
 
         p.style.mutate { $0.text.font.size = 32 }
 
-        #expect(text.fontField.dirty)
+        #expect(text.tree.isDirty(.font, at: text.id))
     }
 
     @Test func focusChangeRestylesOnlyTheFocusedNode() throws {

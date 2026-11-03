@@ -15,23 +15,14 @@ extension LayoutTree {
             previous: previous
         )
         let ref: LayoutRef = LayoutRef(id: id, tree: self)
-        ref.childrenField.setClean([])
-        ref.childrenField.setDependencies([])
-        ref.ascentField.setClean(0)
-        ref.descentField.setClean(0)
-        ref.markAncestorsDirty()
-        let parentRef: LayoutRef = LayoutRef(id: parent, tree: self)
-        ref.zoomField.setDependencies([parentRef.zoomField])
-        ref.widthField.setDependencies([parentRef.widthField])
-        ref.xField.setDependencies([parentRef.xField])
-        var yInputs: [any InvalidatableField] = [parentRef.yField]
-        if let previous {
-            let previousRef: LayoutRef = LayoutRef(id: previous, tree: self)
-            yInputs.append(previousRef.yField)
-            yInputs.append(previousRef.heightField)
+        setChildrenClean([], of: id)
+        setFieldClean(.ascent, 0, for: id)
+        setFieldClean(.descent, 0, for: id)
+        for field in [LayoutField.zoom, .width, .x, .y, .height] {
+            markUsed(field, at: id)
         }
-        ref.yField.setDependencies(yInputs)
-        ref.heightField.setDependencies([ref.ascentField, ref.descentField])
+        ref.markAncestorsDirty()
+        addDependencyEdges(for: id)
         return id
     }
 
@@ -66,23 +57,22 @@ extension LayoutTree {
             ref.lineData = data
         }
         let parent: LayoutRef = ref.parent!
-        ref.zoomField.copy(from: parent.zoomField)
-        ref.widthField.copy(from: parent.widthField)
-        ref.xField.copy(from: parent.xField)
+        ref.zoom = parent.zoom
+        ref.width = parent.width
+        ref.x = parent.x
         if let previous: LayoutRef = ref.previous {
-            ref.y = previous.yField.read(notify: ref.yField)
-                + previous.heightField.read(notify: ref.yField)
+            ref.y = previous.y + previous.height
         } else {
-            ref.yField.copy(from: parent.yField)
+            ref.y = parent.y
         }
 
         for child in children { child.layout() }
 
         if children.count != data.placement.declaredInlineChildCount {
-            setInlineInputs(ref, children: children)
             var updated: LineData = ref.lineData
             updated.placement.declaredInlineChildCount = children.count
             ref.lineData = updated
+            addDependencyEdges(for: ref.id)
         }
 
         let widthMovesChildren: Bool = ref.lineData.content.centered
@@ -122,26 +112,22 @@ extension LayoutTree {
         profiler.count("layout.line.place.placed")
         profiler.measure("layout.line.place", {
             guard !children.isEmpty else {
-                ref.ascentField.set(0)
-                ref.descentField.set(0)
-                ref.heightField.set(0)
+                ref.ascent = 0
+                ref.descent = 0
+                ref.height = 0
                 return
             }
 
             let inlineChildren: [LayoutRef] = children.filter({ $0.isText || $0.isEmbed })
             guard !inlineChildren.isEmpty else {
-                ref.heightField.set(0)
+                ref.height = 0
                 return
             }
 
-            let maxAscent: CGFloat = inlineChildren.map {
-                $0.ascentField.read(notify: ref.ascentField)
-            }.max() ?? 0
-            ref.ascentField.set(maxAscent)
-            let maxDescent: CGFloat = inlineChildren.map {
-                $0.descentField.read(notify: ref.descentField)
-            }.max() ?? 0
-            ref.descentField.set(maxDescent)
+            let maxAscent: CGFloat = inlineChildren.map({ $0.ascent }).max() ?? 0
+            ref.ascent = maxAscent
+            let maxDescent: CGFloat = inlineChildren.map({ $0.descent }).max() ?? 0
+            ref.descent = maxDescent
 
             var nextX: CGFloat = ref.x
             var previousFont: BrowserFont? = nil
@@ -149,18 +135,18 @@ extension LayoutTree {
                 if let previousFont, child.isEmbed {
                     nextX += previousFont.spaceWidth
                 }
-                child.xField.set(nextX)
-                nextX += child.widthField.get()
-                previousFont = child.fontField.get()
+                child.x = nextX
+                nextX += child.width
+                previousFont = child.font
             }
 
             let lineY: CGFloat = ref.y
             let baseline: CGFloat = lineY + ref.ascent
             for child in inlineChildren {
                 if let el = child.node.element, el.tag == "sup" {
-                    child.yField.set(baseline - maxAscent)
+                    child.y = baseline - maxAscent
                 } else {
-                    child.yField.set(baseline - child.ascentField.get())
+                    child.y = baseline - child.ascent
                 }
             }
 
@@ -178,24 +164,12 @@ extension LayoutTree {
                 shiftChildren(ref, by: (ref.width - usedWidth) / 2)
             }
 
-            ref.height = ref.ascentField.read(notify: ref.heightField)
-                + ref.descentField.read(notify: ref.heightField)
+            ref.height = ref.ascent + ref.descent
             var updated: LineData = ref.lineData
             updated.placement.childOriginY = ref.y
             updated.placement.inlineYOffset = 0
             ref.lineData = updated
         })
-    }
-
-    private func setInlineInputs(_ ref: LayoutRef, children: [LayoutRef]) {
-        var ascents: [any InvalidatableField] = []
-        var descents: [any InvalidatableField] = []
-        for child in children where child.isText || child.isEmbed {
-            ascents.append(child.ascentField)
-            descents.append(child.descentField)
-        }
-        ref.ascentField.setDependencies(ascents)
-        ref.descentField.setDependencies(descents)
     }
 
     private func shiftChildren(_ ref: LayoutRef, by offset: CGFloat) {

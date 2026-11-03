@@ -14,28 +14,18 @@ extension LayoutTree {
         setPrimary(id, for: dom)
         let ref: LayoutRef = LayoutRef(id: id, tree: self)
 
-        ref.childrenField.setClean([])
-        ref.childrenField.setDependencies([])
-        ref.fontField.setClean(inlineDefaultFont)
-        ref.ascentField.setClean(inlineDefaultFont.ascent)
-        ref.descentField.setClean(inlineDefaultFont.descent)
-        ref.markAncestorsDirty()
-
-        var zoomInputs: [any InvalidatableField] = [ref.node.style.field(.zoom)]
-        if let parent {
-            zoomInputs.append(LayoutRef(id: parent, tree: self).zoomField)
+        setChildrenClean([], of: id)
+        setFontClean(inlineDefaultFont, for: id)
+        setFieldClean(.ascent, inlineDefaultFont.ascent, for: id)
+        setFieldClean(.descent, inlineDefaultFont.descent, for: id)
+        for field in [
+            LayoutField.zoom, .width, .height, .font, .x, .y,
+        ] {
+            markUsed(field, at: id)
         }
-        ref.zoomField.setDependencies(zoomInputs)
-
-        ref.fontField.setDependencies([ref.zoomField] + fontInputs(for: ref.node))
-        ref.fontField.mark()
-        ref.widthField.setDependencies([ref.fontField])
-        ref.heightField.setDependencies([ref.fontField])
-        ref.ascentField.setDependencies([ref.fontField])
-        ref.descentField.setDependencies([ref.fontField])
-        // Position is assigned by the containing line; there are no inputs.
-        ref.xField.setDependencies([])
-        ref.yField.setDependencies([])
+        ref.markAncestorsDirty()
+        markField(.font, at: id)
+        addDependencyEdges(for: id)
         return id
     }
 
@@ -54,7 +44,7 @@ extension LayoutTree {
         defer { ref.hasDirtyDescendants = false }
         profiler.measure("layout.text", {
             if ref.tree.isDirty(.zoom, at: ref.id) {
-                ref.zoomField.set(ref.resolvedZoom())
+                ref.zoom = ref.resolvedZoom()
             }
 
             let fontChanged: Bool = ref.tree.isDirty(.font, at: ref.id)
@@ -64,18 +54,14 @@ extension LayoutTree {
                 if let override = data.fontOverride {
                     resolvedFont = override
                 } else {
-                    resolvedFont = fontForElement(
-                        ref.node,
-                        zoom: ref.zoomField.read(notify: ref.fontField),
-                        notify: ref.fontField
-                    )
+                    resolvedFont = fontForElement(ref.node, zoom: ref.zoom)
                 }
                 ref.font = resolvedFont
                 data = ref.textData
             }
 
             if fontChanged || ref.tree.isDirty(.width, at: ref.id) {
-                let measuredFont: BrowserFont = ref.fontField.read(notify: ref.widthField)
+                let measuredFont: BrowserFont = ref.font
                 let measured: CGFloat = measuredFont.measure(ref.textData.display ?? ref.textData.word)
                 var data: TextData = ref.textData
                 data.metrics.width = measured
@@ -84,13 +70,13 @@ extension LayoutTree {
             }
 
             if fontChanged || ref.tree.isDirty(.height, at: ref.id) {
-                ref.height = ref.fontField.read(notify: ref.heightField).linespace
+                ref.height = ref.font.linespace
             }
             if fontChanged || ref.tree.isDirty(.ascent, at: ref.id) {
-                ref.ascent = ref.fontField.read(notify: ref.ascentField).ascent
+                ref.ascent = ref.font.ascent
             }
             if fontChanged || ref.tree.isDirty(.descent, at: ref.id) {
-                ref.descent = ref.fontField.read(notify: ref.descentField).descent
+                ref.descent = ref.font.descent
             }
         })
     }
@@ -129,7 +115,5 @@ extension LayoutTree {
 
     func attachText(_ ref: LayoutRef, to line: LayoutID, previous: LayoutID?) {
         setPrevious(previous, of: ref.id)
-        let lineRef: LayoutRef = LayoutRef(id: line, tree: self)
-        ref.zoomField.setDependencies([ref.node.style.field(.zoom), lineRef.zoomField])
     }
 }

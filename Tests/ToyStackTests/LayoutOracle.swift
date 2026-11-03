@@ -56,10 +56,10 @@ func expectAllLayoutFieldsClean(
     sourceLocation: SourceLocation = #_sourceLocation
 ) {
     for object in treeToList(document.root) {
-        for (name, field) in layoutFields(of: object) {
+        for field in LayoutField.allCases where document.isUsed(field, at: object.id) {
             #expect(
-                !field.isDirty,
-                "\(layoutKindName(object.kind)).\(name) is still dirty",
+                !document.isDirty(field, at: object.id),
+                "\(layoutKindName(object.kind)).\(field.rawValue) is still dirty",
                 sourceLocation: sourceLocation
             )
         }

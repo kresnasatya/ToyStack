@@ -26,7 +26,7 @@ extension LayoutRef {
             return LayoutRef(id: previous, tree: tree)
         }
         nonmutating set {
-            tree.setPrevious(newValue?.id, of: id)
+            tree.setPreviousField(newValue?.id, of: id)
         }
     }
 
@@ -35,7 +35,7 @@ extension LayoutRef {
             return tree.node(id).links.children.map({ LayoutRef(id: $0, tree: tree) })
         }
         nonmutating set {
-            childrenField.set(newValue.map({ $0.id }))
+            tree.setChildrenField(newValue.map({ $0.id }), of: id)
         }
     }
 
@@ -124,43 +124,69 @@ extension LayoutRef {
     // MARK: - Geometry
 
     var x: CGFloat {
-        get { xField.get() }
-        nonmutating set { xField.set(newValue) }
+        get { readCGFloat(.x) }
+        nonmutating set { tree.setField(.x, newValue, for: id) }
     }
 
     var y: CGFloat {
-        get { yField.get() }
-        nonmutating set { yField.set(newValue) }
+        get { readCGFloat(.y) }
+        nonmutating set { tree.setField(.y, newValue, for: id) }
     }
 
     var width: CGFloat {
-        get { widthField.get() }
-        nonmutating set { widthField.set(newValue) }
+        get { readCGFloat(.width) }
+        nonmutating set { tree.setField(.width, newValue, for: id) }
     }
 
     var height: CGFloat {
-        get { heightField.get() }
-        nonmutating set { heightField.set(newValue) }
+        get { readCGFloat(.height) }
+        nonmutating set { tree.setField(.height, newValue, for: id) }
+    }
+
+    var heightIfUsed: CGFloat? {
+        guard tree.isUsed(.height, at: id) else { return nil }
+        return tree.storedCGFloat(.height, at: id)
     }
 
     var zoom: CGFloat {
-        get { zoomField.get() }
-        nonmutating set { zoomField.set(newValue) }
+        get { readCGFloat(.zoom) }
+        nonmutating set { tree.setField(.zoom, newValue, for: id) }
     }
 
     var font: BrowserFont {
-        get { fontField.get() }
-        nonmutating set { fontField.set(newValue) }
+        get {
+            if tree.isDirty(.font, at: id) {
+                assertionFailure("Read dirty field \(kind).font")
+            }
+            guard tree.isUsed(.font, at: id) else {
+                fatalError("Read unset field \(kind).font")
+            }
+            return tree.storedFont(id)
+        }
+        nonmutating set { tree.setFont(newValue, for: id) }
     }
 
     var ascent: CGFloat {
-        get { ascentField.get() }
-        nonmutating set { ascentField.set(newValue) }
+        get { readCGFloat(.ascent) }
+        nonmutating set { tree.setField(.ascent, newValue, for: id) }
     }
 
     var descent: CGFloat {
-        get { descentField.get() }
-        nonmutating set { descentField.set(newValue) }
+        get { readCGFloat(.descent) }
+        nonmutating set { tree.setField(.descent, newValue, for: id) }
+    }
+
+    var inlineContent: UInt64 {
+        get {
+            if tree.isDirty(.inlineContent, at: id) {
+                assertionFailure("Read dirty field \(kind).inlineContent")
+            }
+            guard tree.isUsed(.inlineContent, at: id) else {
+                fatalError("Read unset field \(kind).inlineContent")
+            }
+            return tree.storedInlineContent(id)
+        }
+        nonmutating set { tree.setInlineContent(newValue, for: id) }
     }
 
     func selfRect() -> Rect {
@@ -174,23 +200,7 @@ extension LayoutRef {
         }
     }
 
-    // MARK: - Field handles
-
-    var xField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.x) }
-    var yField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.y) }
-    var widthField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.width) }
-    var heightField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.height) }
-    var zoomField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.zoom) }
-    var ascentField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.ascent) }
-    var descentField: LayoutFieldHandle<CGFloatFieldAccess> { layoutField(.descent) }
-    var fontField: LayoutFieldHandle<FontFieldAccess> { layoutField(.font) }
-    var childrenField: LayoutFieldHandle<ChildrenFieldAccess> { layoutField(.children) }
-    var previousField: LayoutFieldHandle<PreviousFieldAccess> { layoutField(.previous) }
-    var inlineContentField: LayoutFieldHandle<InlineContentFieldAccess> { layoutField(.inlineContent) }
-
-    func layoutField<Access: LayoutFieldAccess>(_ field: LayoutField) -> LayoutFieldHandle<Access> {
-        return LayoutFieldHandle(owner: self, field: field)
-    }
+    // MARK: - Actions
 
     func markAncestorsDirty() {
         tree.markAncestorsDirty(from: id)
@@ -226,17 +236,15 @@ extension LayoutRef {
         }
     }
 
-    func fieldRef(_ field: LayoutField) -> FieldRef {
-        let tree: LayoutTree = self.tree
-        let id: LayoutID = self.id
-        return FieldRef(
-            key: .layout(id, field),
-            markBody: { [weak tree] in
-                tree?.markField(field, at: id)
-            },
-            isAlive: { [weak tree] in
-                tree?.contains(id) ?? false
-            }
-        )
+    // MARK: - Field reads
+
+    private func readCGFloat(_ field: LayoutField) -> CGFloat {
+        if tree.isDirty(field, at: id) {
+            assertionFailure("Read dirty field \(kind).\(field.rawValue)")
+        }
+        guard tree.isUsed(field, at: id) else {
+            fatalError("Read unset field \(kind).\(field.rawValue)")
+        }
+        return tree.storedCGFloat(field, at: id)
     }
 }

@@ -66,7 +66,7 @@ struct LayoutIdempotenceTests {
         let first: [Snapshot] = snapshot(of: button)
 
         profiler.reset()
-        button.widthField.mark()
+        document.markField(.width, at: button.id)
         button.layout()
 
         #expect((profiler.snapshot()["layout.line.place"]?.count ?? 0) > 0)
@@ -170,11 +170,11 @@ private func blockTextIDs(of object: LayoutRef) -> [LayoutID] {
 
 @MainActor
 private func markAllFields(_ object: LayoutRef) {
-    object.xField.mark()
-    object.yField.mark()
-    object.widthField.mark()
-    object.heightField.mark()
-    object.zoomField.mark()
+    object.tree.markField(.x, at: object.id)
+    object.tree.markField(.y, at: object.id)
+    object.tree.markField(.width, at: object.id)
+    object.tree.markField(.height, at: object.id)
+    object.tree.markField(.zoom, at: object.id)
     for child in object.children {
         markAllFields(child)
     }

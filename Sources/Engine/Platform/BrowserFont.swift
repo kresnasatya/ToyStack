@@ -85,23 +85,19 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
 }
 
 @MainActor
-func fontInputs(for node: DOMRef) -> [any InvalidatableField] {
+func fontInputs(for node: DOMRef) -> [FieldKey] {
     let owner: DOMRef = node.inheritedStyleOwner
     return [
-        owner.style.field(.fontWeight),
-        owner.style.field(.fontStyle),
-        owner.style.field(.fontSize),
-        owner.style.field(.fontFamily),
+        .style(owner.id, .fontWeight),
+        .style(owner.id, .fontStyle),
+        .style(owner.id, .fontSize),
+        .style(owner.id, .fontFamily),
     ]
 }
 
 @MainActor
-func fontForElement(_ node: DOMRef, zoom: CGFloat, notify: any InvalidatableField) -> BrowserFont {
+func fontForElement(_ node: DOMRef, zoom: CGFloat) -> BrowserFont {
     let owner: DOMRef = node.inheritedStyleOwner
-    owner.style.field(.fontWeight).touch(notify)
-    owner.style.field(.fontStyle).touch(notify)
-    owner.style.field(.fontSize).touch(notify)
-    owner.style.field(.fontFamily).touch(notify)
     let font: TextStyle.Font = owner.style.computed.text.font
     let sizeInt: Int = Int(font.size * zoom)
     return getFont(

@@ -27,12 +27,10 @@ final class LayoutTree {
         )
         assert(document.raw == 0)
         primaryByNode[dom.root] = document
-        let root: LayoutRef = LayoutRef(id: document, tree: self)
-        root.zoomField.setDependencies([])
-        root.widthField.setDependencies([root.zoomField])
-        root.xField.setDependencies([root.zoomField])
-        root.yField.setDependencies([root.zoomField])
-        root.childrenField.setDependencies([])
+        for field in [LayoutField.zoom, .width, .x, .y, .children] {
+            markUsed(field, at: document)
+        }
+        addDependencyEdges(for: document)
     }
 
     // MARK: - Identity
@@ -71,12 +69,12 @@ final class LayoutTree {
     }
 
     func markDocumentWidthDirty() {
-        root.widthField.mark()
+        markField(.width, at: root.id)
     }
 
     func markDocumentGeometryDirty() {
-        root.widthField.mark()
-        root.zoomField.mark()
+        markField(.width, at: root.id)
+        markField(.zoom, at: root.id)
     }
 
     func documentNeedsLayout() -> Bool {
@@ -149,6 +147,7 @@ final class LayoutTree {
             nodes[parent.raw] = node
         }
         removeRecursively(id)
+        dependencies.rebuild(from: self)
     }
 
     private func removeRecursively(_ id: LayoutID) {
@@ -180,6 +179,9 @@ final class LayoutTree {
             nodes[index] = nil
             removed.insert(id)
         }
+        if !removed.isEmpty {
+            dependencies.rebuild(from: self)
+        }
         return removed
     }
 
@@ -200,10 +202,6 @@ final class LayoutTree {
         return node(id).state.fields.isUsed(field)
     }
 
-    func isFrozen(_ field: LayoutField, at id: LayoutID) -> Bool {
-        return node(id).state.fields.isFrozen(field)
-    }
-
     func markUsed(_ field: LayoutField, at id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.markUsed(field)
@@ -216,12 +214,6 @@ final class LayoutTree {
         nodes[id.raw] = node
     }
 
-    func markFrozen(_ field: LayoutField, at id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        node.state.fields.markFrozen(field)
-        nodes[id.raw] = node
-    }
-
     func markField(_ field: LayoutField, at id: LayoutID) {
         guard !isDirty(field, at: id) else { return }
         profiler.count("layout.field.mark")
@@ -231,9 +223,16 @@ final class LayoutTree {
         markAncestorsDirty(from: id)
     }
 
-    func markDependents(_ key: FieldKey) {
-        for ref in dependencies.mark(key) {
-            ref.mark()
+    /// Adds the table edges owned by one node to the reverse index.
+    ///
+    /// `rebuild` is the authority; this only lets a node created mid-layout
+    /// propagate its first writes before the end-of-pass rebuild.
+    func addDependencyEdges(for id: LayoutID) {
+        for field in LayoutField.allCases where isUsed(field, at: id) {
+            let dependent: FieldKey = .layout(id, field)
+            for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
+                dependencies.add(dependent, for: input)
+            }
         }
     }
 
@@ -255,7 +254,37 @@ final class LayoutTree {
 
     // MARK: - Values
 
-    func writeCGFloat(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
+    func storedCGFloat(_ field: LayoutField, at id: LayoutID) -> CGFloat {
+        let fields: LayoutFieldStore = node(id).state.fields
+        switch field {
+        case .x:
+            return fields.geometry.origin.x
+        case .y:
+            return fields.geometry.origin.y
+        case .width:
+            return fields.geometry.size.width
+        case .height:
+            return fields.geometry.size.height
+        case .zoom:
+            return fields.geometry.zoom
+        case .ascent:
+            return fields.inlineText.ascent
+        case .descent:
+            return fields.inlineText.descent
+        default:
+            preconditionFailure("Field \(field.rawValue) is not a CGFloat value")
+        }
+    }
+
+    func storedFont(_ id: LayoutID) -> BrowserFont {
+        return node(id).state.fields.inlineText.font
+    }
+
+    func storedInlineContent(_ id: LayoutID) -> UInt64 {
+        return node(id).state.fields.inlineText.inlineContent
+    }
+
+    private func writeCGFloat(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         switch field {
         case .x:
@@ -278,27 +307,109 @@ final class LayoutTree {
         nodes[id.raw] = node
     }
 
-    func writeFont(_ font: BrowserFont, for id: LayoutID) {
+    private func writeFont(_ font: BrowserFont, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.inlineText.font = font
         nodes[id.raw] = node
     }
 
-    func writeInlineContent(_ value: UInt64, for id: LayoutID) {
+    private func writeInlineContent(_ value: UInt64, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.inlineText.inlineContent = value
         nodes[id.raw] = node
     }
 
+    /// Writes a computed value and dirties the fields that read it.
     func setField(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
+        let wasUsed: Bool = isUsed(field, at: id)
+        let changed: Bool = !wasUsed || storedCGFloat(field, at: id) != value
+        writeCGFloat(field, value, for: id)
+        markUsed(field, at: id)
+        markClean(field, at: id)
+        guard changed else { return }
+        profiler.count("layout.field.set")
+        dependencies.mark(.layout(id, field), in: self)
+    }
+
+    /// Writes a value without counting it as a computed change.
+    func setFieldClean(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         writeCGFloat(field, value, for: id)
         markUsed(field, at: id)
         markClean(field, at: id)
     }
 
     func setFont(_ font: BrowserFont, for id: LayoutID) {
+        let wasUsed: Bool = isUsed(.font, at: id)
+        let changed: Bool = !wasUsed || !CFEqual(storedFont(id).ctFont, font.ctFont)
         writeFont(font, for: id)
         markUsed(.font, at: id)
         markClean(.font, at: id)
+        guard changed else { return }
+        profiler.count("layout.field.set")
+        dependencies.mark(.layout(id, .font), in: self)
+    }
+
+    func setFontClean(_ font: BrowserFont, for id: LayoutID) {
+        writeFont(font, for: id)
+        markUsed(.font, at: id)
+        markClean(.font, at: id)
+    }
+
+    func setInlineContent(_ value: UInt64, for id: LayoutID) {
+        let wasUsed: Bool = isUsed(.inlineContent, at: id)
+        let changed: Bool = !wasUsed || storedInlineContent(id) != value
+        writeInlineContent(value, for: id)
+        markUsed(.inlineContent, at: id)
+        markClean(.inlineContent, at: id)
+        guard changed else { return }
+        profiler.count("layout.field.set")
+        dependencies.mark(.layout(id, .inlineContent), in: self)
+    }
+
+    func setInlineContentClean(_ value: UInt64, for id: LayoutID) {
+        writeInlineContent(value, for: id)
+        markUsed(.inlineContent, at: id)
+        markClean(.inlineContent, at: id)
+    }
+
+    func setChildrenField(_ children: [LayoutID], of id: LayoutID) {
+        let wasUsed: Bool = isUsed(.children, at: id)
+        let changed: Bool = !wasUsed || self.children(of: id) != children
+        let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
+        markUsed(.children, at: id)
+        setChildren(children, of: id)
+        markClean(.children, at: id)
+        for child in reparented {
+            addDependencyEdges(for: child)
+        }
+        if changed {
+            profiler.count("layout.field.set")
+            dependencies.mark(.layout(id, .children), in: self)
+        }
+        dependencies.noteStructureChanged()
+    }
+
+    func setChildrenClean(_ children: [LayoutID], of id: LayoutID) {
+        setChildren(children, of: id)
+        markUsed(.children, at: id)
+        markClean(.children, at: id)
+    }
+
+    func setPreviousField(_ previous: LayoutID?, of id: LayoutID) {
+        let wasUsed: Bool = isUsed(.previous, at: id)
+        let changed: Bool = !wasUsed || node(id).links.previous != previous
+        markUsed(.previous, at: id)
+        setPrevious(previous, of: id)
+        markClean(.previous, at: id)
+        addDependencyEdges(for: id)
+        guard changed else { return }
+        profiler.count("layout.field.set")
+        dependencies.mark(.layout(id, .previous), in: self)
+    }
+
+    func setPreviousClean(_ previous: LayoutID?, of id: LayoutID) {
+        setPrevious(previous, of: id)
+        markUsed(.previous, at: id)
+        markClean(.previous, at: id)
     }
 }

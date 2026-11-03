@@ -26,15 +26,20 @@ extension LayoutTree {
     ) {
         let root: LayoutRef = self.root
         guard documentLayoutNeeded(root) else { return }
-        defer { root.hasDirtyDescendants = false }
+        dependencies.beginLayout()
+        dependencies.rebuild(from: self)
+        defer {
+            root.hasDirtyDescendants = false
+            dependencies.endLayout(from: self)
+        }
 
-        root.zoomField.set(zoom)
+        root.zoom = zoom
         var data: DocumentData = root.documentData
         data.pageZoom = pageZoom
         root.documentData = data
 
         let child: LayoutRef
-        if let existing: LayoutRef = root.childrenField.peek()?.first.map({ LayoutRef(id: $0, tree: self) }),
+        if let existing: LayoutRef = root.children.first,
             existing.isBlock,
             existing.domNode == root.domNode
         {
@@ -47,18 +52,14 @@ extension LayoutTree {
         }
         root.children = [child]
 
-        let rootZoom: CGFloat = root.zoomField.read(notify: root.widthField)
+        let rootZoom: CGFloat = root.zoom
         root.width = availableWidth - 2 * HSTEP * rootZoom
-        root.x = HSTEP * root.zoomField.read(notify: root.xField)
-        root.y = VSTEP * root.zoomField.read(notify: root.yField)
+        root.x = HSTEP * root.zoom
+        root.y = VSTEP * root.zoom
 
         child.layout()
 
-        root.heightField.setDependencies([
-            child.heightField,
-            child.node.style.field(.paddingTop),
-            child.node.style.field(.paddingBottom),
-        ])
-        root.height = boxHeight(child, notify: root.heightField)
+        markUsed(.height, at: root.id)
+        root.height = boxHeight(child)
     }
 }

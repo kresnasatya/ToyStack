@@ -26,10 +26,6 @@ extension LayoutFieldStore {
         return state.dirtyBits & field.mask != 0
     }
 
-    func isFrozen(_ field: LayoutField) -> Bool {
-        return state.frozenBits & field.mask != 0
-    }
-
     mutating func markUsed(_ field: LayoutField) {
         state.usedBits |= field.mask
     }
@@ -40,10 +36,6 @@ extension LayoutFieldStore {
 
     mutating func markClean(_ field: LayoutField) {
         state.dirtyBits &= ~field.mask
-    }
-
-    mutating func markFrozen(_ field: LayoutField) {
-        state.frozenBits |= field.mask
     }
 }
 
@@ -82,11 +74,9 @@ struct InlineTextFields {
 struct FieldState {
     var usedBits: UInt16
     var dirtyBits: UInt16
-    var frozenBits: UInt16
 
     init() {
         self.usedBits = 0
         self.dirtyBits = LayoutField.allMask
-        self.frozenBits = 0
     }
 }

@@ -1,75 +1,31 @@
 import Foundation
 
-/// Reverse edges from an input field to the fields that read it.
+/// Reverse edges from an input field to the layout fields that read it.
 ///
-/// This is the single dependency graph for one `LayoutTree`. Handles add an
-/// edge when a read is not declared frozen; a write walks the index once.
+/// The graph is rebuilt from `LayoutInputTable`, which is the only place that
+/// declares an edge. A write walks the index once; reads never touch it.
 @MainActor
 struct DependencyIndex {
-    private var dependents: [FieldKey: [FieldRef]] = [:]
+    private var dependents: [FieldKey: [FieldKey]] = [:]
+    private var stale: Bool = false
+    private var layoutDepth: Int = 0
 
-    mutating func add(_ dependent: FieldRef, for key: FieldKey) {
-        guard dependent.isAlive else { return }
-        var list: [FieldRef] = (dependents[key] ?? []).filter({ $0.isAlive })
-        guard !list.contains(where: { $0.fieldKey == dependent.fieldKey }) else {
-            dependents[key] = list
-            return
+    mutating func beginLayout() {
+        layoutDepth += 1
+    }
+
+    mutating func endLayout(from tree: LayoutTree) {
+        layoutDepth -= 1
+        rebuild(from: tree)
+    }
+
+    /// Records a structural change for the next write outside a layout pass.
+    /// Inside a layout pass the pass rebuilds once at the end, so mutating the
+    /// index per child would only add quadratic work.
+    mutating func noteStructureChanged() {
+        if layoutDepth == 0 {
+            stale = true
         }
-        list.append(dependent)
-        dependents[key] = list
-    }
-
-    mutating func remove(_ dependent: FieldRef, for key: FieldKey) {
-        guard var list: [FieldRef] = dependents[key] else { return }
-        list.removeAll(where: { $0.fieldKey == dependent.fieldKey })
-        dependents[key] = list.isEmpty ? nil : list
-    }
-
-    mutating func mark(_ key: FieldKey) -> [FieldRef] {
-        let live: [FieldRef] = (dependents[key] ?? []).filter({ $0.isAlive })
-        if live.isEmpty {
-            dependents[key] = nil
-        } else {
-            dependents[key] = live
-        }
-        return live
-    }
-
-    func contains(_ key: FieldKey, _ dependent: FieldRef) -> Bool {
-        return dependents[key]?.contains(where: {
-            $0.fieldKey == dependent.fieldKey && $0.isAlive
-        }) ?? false
-    }
-
-    func names(of key: FieldKey) -> [String] {
-        return (dependents[key] ?? []).filter({ $0.isAlive }).map({ $0.fieldName }).sorted()
-    }
-
-    func count(of key: FieldKey) -> Int {
-        return dependents[key]?.filter({ $0.isAlive }).count ?? 0
-    }
-
-    /// Input keys that the given field depends on.
-    ///
-    /// The index is stored input-first, so this is the inverse lookup: scan for
-    /// every input whose dependent list contains `dependent`. Internal so tests
-    /// can compare the reverse index against `LayoutInputTable`; not public.
-    func fieldKeys(for dependent: FieldKey, in tree: LayoutTree) -> Set<FieldKey> {
-        var keys: Set<FieldKey> = []
-        for (input, refs) in dependents
-        where isLive(input, in: tree)
-            && refs.contains(where: { $0.isAlive && $0.fieldKey == dependent })
-        {
-            keys.insert(input)
-        }
-        return keys
-    }
-
-    private func isLive(_ key: FieldKey, in tree: LayoutTree) -> Bool {
-        if case .layout(let id, _) = key {
-            return tree.contains(id)
-        }
-        return true
     }
 
     /// Replaces the whole reverse index with the static input table.
@@ -78,13 +34,60 @@ struct DependencyIndex {
     /// `LayoutInputTable`; this method clears stale edges and rebuilds them.
     mutating func rebuild(from tree: LayoutTree) {
         dependents.removeAll(keepingCapacity: true)
+        stale = false
         for id in tree.liveIDs {
             for field in LayoutField.allCases where tree.isUsed(field, at: id) {
-                let dependent: FieldRef = LayoutRef(id: id, tree: tree).fieldRef(field)
-                for key in LayoutInputTable.inputs(for: id, field: field, in: tree) {
-                    add(dependent, for: key)
+                let dependent: FieldKey = .layout(id, field)
+                for input in LayoutInputTable.inputs(for: id, field: field, in: tree) {
+                    var list: [FieldKey] = dependents[input] ?? []
+                    guard !list.contains(dependent) else {
+                        dependents[input] = list
+                        continue
+                    }
+                    list.append(dependent)
+                    dependents[input] = list
                 }
             }
         }
+    }
+
+    /// Marks every layout field that reads `key`.
+    mutating func mark(_ key: FieldKey, in tree: LayoutTree) {
+        if stale {
+            rebuild(from: tree)
+        }
+        for dependent in dependents[key] ?? [] {
+            guard case .layout(let id, let field) = dependent else { continue }
+            tree.markField(field, at: id)
+        }
+    }
+
+    /// Adds one edge without rebuilding the whole graph. Used when a node is
+    /// created during a layout pass, so its first field writes still reach
+    /// the fields that read them.
+    mutating func add(_ dependent: FieldKey, for key: FieldKey) {
+        var list: [FieldKey] = dependents[key] ?? []
+        guard !list.contains(dependent) else {
+            dependents[key] = list
+            return
+        }
+        list.append(dependent)
+        dependents[key] = list
+    }
+
+    func count(of key: FieldKey) -> Int {
+        return dependents[key]?.count ?? 0
+    }
+
+    /// Input keys that the given field depends on.
+    ///
+    /// The index is stored input-first, so this is the inverse lookup. Internal
+    /// so tests can compare the reverse index against `LayoutInputTable`.
+    func fieldKeys(for dependent: FieldKey) -> Set<FieldKey> {
+        var keys: Set<FieldKey> = []
+        for (input, list) in dependents where list.contains(dependent) {
+            keys.insert(input)
+        }
+        return keys
     }
 }

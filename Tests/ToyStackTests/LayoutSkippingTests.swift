@@ -86,7 +86,7 @@ struct LayoutSkippingTests {
         )
         #expect(text.x + text.textData.metrics.width == block.x + block.width)
 
-        text.fontField.mark()
+        text.tree.markField(.font, at: text.id)
         profiler.reset()
         line.layout()
 

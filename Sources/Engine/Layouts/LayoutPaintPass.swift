@@ -4,8 +4,7 @@ import CoreGraphics
 
 extension LayoutRef {
     func resolvedZoom() -> CGFloat {
-        let parentZoom: CGFloat = parent?.zoomField.read(notify: zoomField) ?? 1.0
-        node.style.field(.zoom).touch(zoomField)
+        let parentZoom: CGFloat = parent?.zoom ?? 1.0
         guard let factor: CGFloat = node.style.computed.box.zoom else {
             return parentZoom
         }

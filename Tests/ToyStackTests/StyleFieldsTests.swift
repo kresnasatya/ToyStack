@@ -8,56 +8,70 @@ import Testing
 struct StyleFieldsTests {
 
     @Test func sameValueDoesNotMark() {
-        let (style, target) = makeStyleFixture()
+        let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
-        style.field(.width).touch(target.fontField)
+        tree.setFieldClean(.width, 10, for: block.id)
 
         style.set(.length(10), for: .width)
-        #expect(!target.fontField.isDirty)
+        #expect(!tree.isDirty(.width, at: block.id))
     }
 
     @Test func differentValueMarks() {
-        let (style, target) = makeStyleFixture()
+        let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
-        style.field(.width).touch(target.fontField)
+        tree.setFieldClean(.width, 10, for: block.id)
 
         style.set(.length(20), for: .width)
-        #expect(target.fontField.isDirty)
+        #expect(tree.isDirty(.width, at: block.id))
     }
 
-    @Test func absentPropertyGetsALiveEdge() {
-        let (style, target) = makeStyleFixture()
-
-        style.field(.width).touch(target.fontField)
+    @Test func absentPropertyStillMarks() {
+        let (style, tree, block) = makeStyleFixture()
+        tree.setFieldClean(.width, 0, for: block.id)
         #expect(style.computed.box.size.width == nil)
+
         style.set(.length(20), for: .width)
 
-        #expect(target.fontField.isDirty)
+        #expect(tree.isDirty(.width, at: block.id))
     }
 
-    @Test func removingAPropertyMarksAndKeepsTheEdge() {
-        let (style, target) = makeStyleFixture()
+    @Test func removingAPropertyMarksTheLayoutField() {
+        let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
-        style.field(.width).touch(target.fontField)
+        tree.setFieldClean(.width, 10, for: block.id)
 
         style.apply(["height": "5px"])
-        #expect(target.fontField.isDirty)
+        #expect(tree.isDirty(.width, at: block.id))
+    }
 
-        target.fontField.setClean(inlineDefaultFont)
-        style.set(.length(30), for: .width)
-        #expect(target.fontField.isDirty)
+    @Test func paintOnlyChangeDoesNotMark() {
+        let (style, tree, block) = makeStyleFixture()
+        tree.setFieldClean(.width, 10, for: block.id)
+
+        style.apply(["color": "red"])
+
+        #expect(!tree.isDirty(.width, at: block.id))
     }
 
     @Test func identicalApplyDoesNotMark() {
-        let (style, target) = makeStyleFixture()
+        let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
-        style.field(.width).touch(target.fontField)
+        tree.setFieldClean(.width, 10, for: block.id)
 
         profiler.reset()
         style.apply(["width": "10px"])
 
-        #expect(!target.fontField.isDirty)
+        #expect(!tree.isDirty(.width, at: block.id))
         #expect((profiler.snapshot()["style.fields.changed"]?.count ?? 0) == 0)
+    }
+
+    @Test func mutateMarksTheLayoutField() {
+        let (style, tree, block) = makeStyleFixture()
+        tree.setFieldClean(.width, 10, for: block.id)
+
+        style.mutate { $0.box.size.width = 30 }
+
+        #expect(tree.isDirty(.width, at: block.id))
     }
 
     @Test func applyStoresTypedValues() {
@@ -72,27 +86,16 @@ struct StyleFieldsTests {
         #expect(style.computed.box.size.height == nil)
     }
 
-    @Test func deadDependentsDoNotAccumulate() {
-        let (style, target) = makeStyleFixture()
-        style.apply(["width": "10px"])
+    @Test func rebuildDoesNotDuplicateDependents() {
+        let (_, tree, _) = makeStyleFixture()
+        let key: FieldKey = .style(tree.dom.root, .width)
 
-        for _ in 0..<50 {
-            style.field(.width).touch(target.fontField)
-        }
+        tree.dependencies.rebuild(from: tree)
+        let first: Int = tree.dependencies.count(of: key)
+        tree.dependencies.rebuild(from: tree)
 
-        #expect(style.dependentCount(for: .width) == 1)
-    }
-
-    @Test func removingAPropertyEdgeStopsMarking() {
-        let (style, target) = makeStyleFixture()
-        style.apply(["width": "10px"])
-        style.field(.width).touch(target.fontField)
-
-        style.removeDependency(.width, target.fontField.ref)
-        style.set(.length(20), for: .width)
-
-        #expect(!target.fontField.isDirty)
-        #expect(style.dependentCount(for: .width) == 0)
+        #expect(first == 1)
+        #expect(tree.dependencies.count(of: key) == 1)
     }
 
     @Test func applyBumpsRevisionOnceWhenValuesChange() {
@@ -141,10 +144,19 @@ struct StyleFieldsTests {
 }
 
 @MainActor
-private func makeStyleFixture() -> (StyleFields, LayoutRef) {
+private func makeStyleFixture() -> (StyleFields, LayoutTree, LayoutRef) {
     let dom: DOMTree = DOMTree()
     let tree: LayoutTree = LayoutTree(dom: dom)
-    let target: LayoutRef = tree.root
-    target.fontField.setClean(inlineDefaultFont)
-    return (dom.style(of: dom.root), target)
+    let blockID: LayoutID = tree.append(
+        kind: .block(BlockData()),
+        dom: dom.root,
+        parent: tree.root.id,
+        previous: nil
+    )
+    for field in [LayoutField.zoom, .x, .y, .width, .inlineContent, .children] {
+        tree.markUsed(field, at: blockID)
+    }
+    let block: LayoutRef = LayoutRef(id: blockID, tree: tree)
+    tree.dependencies.rebuild(from: tree)
+    return (dom.style(of: dom.root), tree, block)
 }

@@ -12,64 +12,27 @@ extension LayoutTree {
         let id: LayoutID = append(kind: .embed(data), dom: dom, parent: parent, previous: previous)
         setPrimary(id, for: dom)
         let ref: LayoutRef = LayoutRef(id: id, tree: self)
-        let parentRef: LayoutRef = LayoutRef(id: parent, tree: self)
 
-        ref.childrenField.setClean([])
-        ref.childrenField.setDependencies([])
-        ref.fontField.setClean(inlineDefaultFont)
-        ref.ascentField.setClean(inlineDefaultFont.ascent)
-        ref.descentField.setClean(inlineDefaultFont.descent)
+        setChildrenClean([], of: id)
+        setFontClean(inlineDefaultFont, for: id)
+        setFieldClean(.ascent, inlineDefaultFont.ascent, for: id)
+        setFieldClean(.descent, inlineDefaultFont.descent, for: id)
+        for field in [
+            LayoutField.zoom, .x, .y, .width, .height,
+        ] {
+            markUsed(field, at: id)
+        }
         ref.markAncestorsDirty()
+        markField(.font, at: id)
 
-        ref.zoomField.setDependencies([parentRef.zoomField, ref.node.style.field(.zoom)])
-        ref.fontField.setDependencies([ref.zoomField] + fontInputs(for: ref.node))
-        ref.fontField.mark()
-        ref.ascentField.setDependencies([ref.heightField])
-        ref.descentField.setDependencies([])
-        // Position is assigned by the containing line; there are no inputs.
-        ref.xField.setDependencies([])
-        ref.yField.setDependencies([])
-
-        switch data {
-        case .image:
-            ref.widthField.setDependencies([
-                parentRef.widthField,
-                ref.zoomField,
-                ref.node.style.field(.aspectRatio),
-                ref.node.style.field(.maxWidth),
-            ])
-            ref.heightField.setDependencies([
-                ref.widthField,
-                ref.zoomField,
-                ref.fontField,
-                ref.node.style.field(.aspectRatio),
-            ])
-        case .input:
-            ref.widthField.setDependencies([ref.fontField, ref.zoomField])
-            ref.heightField.setDependencies([ref.fontField])
-        case .button:
+        if case .button = data {
             // The first inner-line pass runs before the containing line can
             // place this button. Seed a known position so that pass does not
             // read a dirty field.
-            ref.xField.set(0)
-            ref.yField.set(0)
-            ref.widthField.setDependencies([ref.zoomField])
-            ref.heightField.setDependencies([ref.fontField])
-            ref.ascentField.setDependencies([ref.fontField])
-            ref.descentField.setDependencies([ref.fontField])
-        case .iframe:
-            ref.widthField.setDependencies([
-                ref.zoomField,
-                ref.node.style.field(.aspectRatio),
-            ])
-            ref.heightField.setDependencies([
-                ref.zoomField,
-                ref.node.style.field(.aspectRatio),
-            ])
-        case .canvas:
-            ref.widthField.setDependencies([ref.zoomField])
-            ref.heightField.setDependencies([ref.zoomField])
+            ref.x = 0
+            ref.y = 0
         }
+        addDependencyEdges(for: id)
         return id
     }
 
@@ -86,19 +49,15 @@ extension LayoutTree {
     /// Shared embed body: resolve zoom and baseline font.
     func layoutEmbedCommon(_ ref: LayoutRef) {
         if ref.tree.isDirty(.zoom, at: ref.id) {
-            ref.zoomField.set(ref.resolvedZoom())
+            ref.zoom = ref.resolvedZoom()
         }
         if ref.tree.isDirty(.font, at: ref.id) {
-            ref.font = fontForElement(
-                ref.node,
-                zoom: ref.zoomField.read(notify: ref.fontField),
-                notify: ref.fontField
-            )
+            ref.font = fontForElement(ref.node, zoom: ref.zoom)
         }
     }
 
     func embedSetAscentFromHeight(_ ref: LayoutRef) {
-        ref.ascent = ref.heightField.read(notify: ref.ascentField)
+        ref.ascent = ref.height
         ref.descent = 0
     }
 
@@ -129,21 +88,11 @@ extension LayoutTree {
         layoutEmbedCommon(ref)
         guard sizeDirty else { return }
         guard let el = ref.node.element else { return }
-        let available: CGFloat = ref.parent!.widthField.read(notify: ref.widthField)
-        let zoom: CGFloat = ref.zoomField.read(notify: ref.widthField)
-        let usedWidth: CGFloat = imageUsedWidth(
-            for: el,
-            available: available,
-            zoom: zoom,
-            notify: ref.widthField
-        )
+        let available: CGFloat = ref.parent!.width
+        let zoom: CGFloat = ref.zoom
+        let usedWidth: CGFloat = imageUsedWidth(for: el, available: available, zoom: zoom)
         ref.width = usedWidth
-        let usedHeight: CGFloat = imageUsedHeight(
-            for: el,
-            usedWidth: ref.widthField.read(notify: ref.heightField),
-            zoom: ref.zoomField.read(notify: ref.heightField),
-            notify: ref.heightField
-        )
+        let usedHeight: CGFloat = imageUsedHeight(for: el, usedWidth: ref.width, zoom: ref.zoom)
         var data: ImageData
         if case .image(let current) = ref.embedData {
             data = current
@@ -152,7 +101,7 @@ extension LayoutTree {
         }
         data.imageHeight = usedHeight
         ref.embedData = .image(data)
-        ref.height = max(usedHeight, ref.fontField.read(notify: ref.heightField).linespace)
+        ref.height = max(usedHeight, ref.font.linespace)
         embedSetAscentFromHeight(ref)
     }
 
@@ -180,22 +129,6 @@ extension LayoutTree {
         ))
     }
 
-    func attachImage(_ ref: LayoutRef, to line: LayoutID) {
-        let lineRef: LayoutRef = LayoutRef(id: line, tree: self)
-        ref.widthField.setDependencies([
-            lineRef.widthField,
-            ref.zoomField,
-            ref.node.style.field(.aspectRatio),
-            ref.node.style.field(.maxWidth),
-        ])
-        ref.heightField.setDependencies([
-            ref.widthField,
-            ref.zoomField,
-            ref.fontField,
-            ref.node.style.field(.aspectRatio),
-        ])
-    }
-
     // MARK: - Input
 
     func layoutInput(_ ref: LayoutRef) {
@@ -208,11 +141,11 @@ extension LayoutTree {
         guard sizeDirty else { return }
         let isCheckbox: Bool = ref.node.element?.attributes["type"] == "checkbox"
         if isCheckbox {
-            ref.width = ref.fontField.read(notify: ref.widthField).linespace
+            ref.width = ref.font.linespace
         } else {
-            ref.width = inputWidthPx * ref.zoomField.read(notify: ref.widthField)
+            ref.width = inputWidthPx * ref.zoom
         }
-        ref.height = ref.fontField.read(notify: ref.heightField).linespace
+        ref.height = ref.font.linespace
         embedSetAscentFromHeight(ref)
     }
 
@@ -291,10 +224,10 @@ extension LayoutTree {
         // The containing line places this button after its children lay out.
         // Seed a known position so the inner line can lay out before that.
         if ref.tree.isDirty(.x, at: ref.id) {
-            ref.xField.set(0)
+            ref.x = 0
         }
         if ref.tree.isDirty(.y, at: ref.id) {
-            ref.yField.set(0)
+            ref.y = 0
         }
         let contentDirty: Bool = descendantsDirty
             || ref.tree.isDirty(.width, at: ref.id)
@@ -304,7 +237,7 @@ extension LayoutTree {
         layoutEmbedCommon(ref)
         guard contentDirty else { return }
 
-        ref.width = inputWidthPx * ref.zoomField.read(notify: ref.widthField)
+        ref.width = inputWidthPx * ref.zoom
 
         ref.children = []
         newButtonLine(ref)
@@ -315,15 +248,12 @@ extension LayoutTree {
             child.layout()
         }
 
-        ref.heightField.setDependencies([ref.fontField] + ref.children.map({ $0.heightField }))
         let contentHeight: CGFloat = ref.children.reduce(0) { $0 + $1.height }
-        ref.height = contentHeight == 0
-            ? ref.fontField.read(notify: ref.heightField).linespace
-            : contentHeight
+        ref.height = contentHeight == 0 ? ref.font.linespace : contentHeight
 
         // A button is an inline container: its baseline stays the font baseline.
-        ref.ascent = ref.fontField.read(notify: ref.ascentField).ascent
-        ref.descent = ref.fontField.read(notify: ref.descentField).descent
+        ref.ascent = ref.font.ascent
+        ref.descent = ref.font.descent
     }
 
     private func newButtonLine(_ ref: LayoutRef) {
@@ -359,7 +289,7 @@ extension LayoutTree {
     }
 
     private func addButtonWord(_ ref: LayoutRef, node: DOMRef, word: String) {
-        let font: BrowserFont = fontForElement(node, zoom: ref.zoom, notify: ref.fontField)
+        let font: BrowserFont = fontForElement(node, zoom: ref.zoom)
         let w: CGFloat = font.measure(word)
         let cursorX: CGFloat = buttonCursorX(ref)
         if cursorX + w > ref.width { newButtonLine(ref) }
@@ -383,7 +313,7 @@ extension LayoutTree {
     }
 
     private func addButtonInput(_ ref: LayoutRef, _ node: ElementRef) {
-        let font: BrowserFont = fontForElement(node.ref, zoom: ref.zoom, notify: ref.fontField)
+        let font: BrowserFont = fontForElement(node.ref, zoom: ref.zoom)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : ref.scaled(inputWidthPx)
         let cursorX: CGFloat = buttonCursorX(ref)
@@ -441,14 +371,14 @@ extension LayoutTree {
         guard sizeDirty else { return }
         guard let el = ref.node.element else { return }
 
-        let size: (width: CGFloat, height: CGFloat) = iframeDisplaySize(for: el, notify: ref.widthField)
-        ref.width = size.width * ref.zoomField.read(notify: ref.widthField)
-        ref.height = size.height * ref.zoomField.read(notify: ref.heightField)
+        let size: (width: CGFloat, height: CGFloat) = iframeDisplaySize(for: el)
+        ref.width = size.width * ref.zoom
+        ref.height = size.height * ref.zoom
         embedSetAscentFromHeight(ref)
 
         guard let frame: Frame = el.frame, frame.loaded else { return }
-        let innerWidth: CGFloat = ref.widthField.get() - ref.scaled(2)
-        let innerHeight: CGFloat = ref.heightField.get() - ref.scaled(2)
+        let innerWidth: CGFloat = ref.width - ref.scaled(2)
+        let innerHeight: CGFloat = ref.height - ref.scaled(2)
         if frame.frameWidth != innerWidth {
             frame.frameWidth = innerWidth
             frame.frameHeight = innerHeight
@@ -479,12 +409,12 @@ extension LayoutTree {
         guard let el = ref.node.element else { return }
         let size: (width: CGFloat, height: CGFloat) = canvasContentSize(for: el)
 
-        ref.width = size.width * ref.zoomField.read(notify: ref.widthField)
-        ref.height = size.height * ref.zoomField.read(notify: ref.heightField)
+        ref.width = size.width * ref.zoom
+        ref.height = size.height * ref.zoom
         embedSetAscentFromHeight(ref)
 
         el.canvasContext?.resize(width: size.width, height: size.height)
-        el.canvasContext?.setScale(canvasDisplayScale(ref) * ref.pageZoom * ref.zoomField.get())
+        el.canvasContext?.setScale(canvasDisplayScale(ref) * ref.pageZoom * ref.zoom)
     }
 
     func paintCanvas(_ ref: LayoutRef, into items: inout [DisplayOp]) {
@@ -500,13 +430,9 @@ extension LayoutTree {
 let inputWidthPx: CGFloat = 200
 
 @MainActor
-func imageDisplaySize(
-    for el: ElementRef,
-    notify: any InvalidatableField
-) -> (width: Double, height: Double) {
+func imageDisplaySize(for el: ElementRef) -> (width: Double, height: Double) {
     let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
     let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0
-    el.style.field(.aspectRatio).touch(notify)
     let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
         ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
     let wAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
@@ -518,14 +444,8 @@ func imageDisplaySize(
 }
 
 @MainActor
-func imageUsedWidth(
-    for el: ElementRef,
-    available: CGFloat,
-    zoom: CGFloat,
-    notify: any InvalidatableField
-) -> CGFloat {
-    let intrinsic: CGFloat = CGFloat(imageDisplaySize(for: el, notify: notify).width) * zoom
-    el.style.field(.maxWidth).touch(notify)
+func imageUsedWidth(for el: ElementRef, available: CGFloat, zoom: CGFloat) -> CGFloat {
+    let intrinsic: CGFloat = CGFloat(imageDisplaySize(for: el).width) * zoom
     guard let maxWidth: Length = el.style.computed.box.size.maxWidth else {
         return intrinsic
     }
@@ -534,14 +454,8 @@ func imageUsedWidth(
 }
 
 @MainActor
-func imageUsedHeight(
-    for el: ElementRef,
-    usedWidth: CGFloat,
-    zoom: CGFloat,
-    notify: any InvalidatableField
-) -> CGFloat {
-    let size: (width: Double, height: Double) = imageDisplaySize(for: el, notify: notify)
-    el.style.field(.aspectRatio).touch(notify)
+func imageUsedHeight(for el: ElementRef, usedWidth: CGFloat, zoom: CGFloat) -> CGFloat {
+    let size: (width: Double, height: Double) = imageDisplaySize(for: el)
     let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
         ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
     guard let height = ratio?.height(forWidth: Double(usedWidth / zoom)) else {
@@ -554,11 +468,7 @@ let iframeDefaultWidthPx: CGFloat = 300
 let iframeDefaultHeightPx: CGFloat = 150
 
 @MainActor
-func iframeDisplaySize(
-    for el: ElementRef,
-    notify: any InvalidatableField
-) -> (width: CGFloat, height: CGFloat) {
-    el.style.field(.aspectRatio).touch(notify)
+func iframeDisplaySize(for el: ElementRef) -> (width: CGFloat, height: CGFloat) {
     let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
     let widthAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
     let heightAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
@@ -595,27 +505,6 @@ private func canvasDisplayScale(_ ref: LayoutRef) -> CGFloat {
 
 extension LayoutTree {
     func attachEmbed(_ ref: LayoutRef, to line: LayoutID, previous: LayoutID?) {
-        embedDetach(ref)
         setPrevious(previous, of: ref.id)
-        let lineRef: LayoutRef = LayoutRef(id: line, tree: self)
-        ref.zoomField.setDependencies([lineRef.zoomField, ref.node.style.field(.zoom)])
-    }
-
-    private func embedDetach(_ ref: LayoutRef) {
-        if let oldParent: LayoutRef = ref.parent {
-            oldParent.xField.removeInvalidation(ref.xField)
-            oldParent.yField.removeInvalidation(ref.yField)
-            oldParent.zoomField.removeInvalidation(ref.zoomField)
-            if oldParent.isLine {
-                oldParent.ascentField.removeInvalidation(ref.yField)
-            }
-        }
-        if let oldPrevious: LayoutRef = ref.previous {
-            oldPrevious.xField.removeInvalidation(ref.xField)
-            oldPrevious.widthField.removeInvalidation(ref.xField)
-            if oldPrevious.isText || oldPrevious.isEmbed {
-                oldPrevious.fontField.removeInvalidation(ref.xField)
-            }
-        }
     }
 }

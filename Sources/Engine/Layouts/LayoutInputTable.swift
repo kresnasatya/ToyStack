@@ -2,9 +2,8 @@ import Foundation
 
 /// The single static description of what every layout field reads.
 ///
-/// One entry per node kind and field. The layout passes still declare the same
-/// edges through `setDependencies` while D1 lands, but this table is the
-/// canonical graph: `DependencyIndex.rebuild(from:)` reconstructs the reverse
+/// One entry per node kind and field. This table is the only place that
+/// declares an edge: `DependencyIndex.rebuild(from:)` reconstructs the reverse
 /// index from it alone.
 @MainActor
 enum LayoutInputTable {
@@ -114,7 +113,7 @@ enum LayoutInputTable {
             return blockContentInputs(id, in: tree) + [.layout(id, .inlineContent)]
         case .height:
             let ref: LayoutRef = LayoutRef(id: id, tree: tree)
-            return tree.blockHeightInputs(ref).map({ $0.fieldKey })
+            return tree.blockHeightInputs(ref)
         case .font, .ascent, .descent:
             return []
         }
@@ -125,7 +124,7 @@ enum LayoutInputTable {
         in tree: LayoutTree
     ) -> [FieldKey] {
         let ref: LayoutRef = LayoutRef(id: id, tree: tree)
-        return tree.inlineContentInputs(ref).map({ $0.fieldKey })
+        return tree.inlineContentInputs(ref)
     }
 
     // MARK: - Line
@@ -190,7 +189,7 @@ enum LayoutInputTable {
             return keys
         case .font:
             let ref: DOMRef = DOMRef(id: dom, dom: tree.dom)
-            return [.layout(id, .zoom)] + fontInputKeys(for: ref)
+            return [.layout(id, .zoom)] + fontInputs(for: ref)
         case .width, .height, .ascent, .descent:
             return [.layout(id, .font)]
         case .x, .y, .children, .previous, .inlineContent:
@@ -221,7 +220,7 @@ enum LayoutInputTable {
             return keys
         case .font:
             let ref: DOMRef = DOMRef(id: dom, dom: tree.dom)
-            return [.layout(id, .zoom)] + fontInputKeys(for: ref)
+            return [.layout(id, .zoom)] + fontInputs(for: ref)
         case .children, .x, .y, .previous, .inlineContent:
             return []
         case .width:
@@ -299,7 +298,4 @@ enum LayoutInputTable {
 
     // MARK: - Shared
 
-    private static func fontInputKeys(for node: DOMRef) -> [FieldKey] {
-        return fontInputs(for: node).map({ $0.fieldKey })
-    }
 }

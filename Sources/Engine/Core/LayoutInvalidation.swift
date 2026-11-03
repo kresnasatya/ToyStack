@@ -54,8 +54,8 @@ enum LayoutInvalidation {
 
     static func imageChanged(_ node: DOMRef) {
         if let layout = node.layout, case .embed(.image) = layout.kind {
-            layout.widthField.mark()
-            layout.heightField.mark()
+            layout.tree.markField(.width, at: layout.id)
+            layout.tree.markField(.height, at: layout.id)
         }
         childrenChanged(node)
     }

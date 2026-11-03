@@ -7,15 +7,17 @@ import Testing
 @MainActor
 struct LayoutDependencyTests {
 
-    @Test func everyLayoutFieldFreezesItsInputs() throws {
+    @Test func unusedFieldsHaveNoEdges() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
 
         for object in treeToList(document.root) {
-            for (name, field) in layoutFields(of: object) {
+            for field in LayoutField.allCases where !document.isUsed(field, at: object.id) {
                 #expect(
-                    field.frozenDependencies,
-                    "\(object.kind).\(name) is not frozen"
+                    document.dependencies
+                        .fieldKeys(for: .layout(object.id, field))
+                        .isEmpty,
+                    "\(object.kind).\(field.rawValue) is unused but owns dependents"
                 )
             }
         }
@@ -30,12 +32,12 @@ struct LayoutDependencyTests {
         let paragraph: LayoutRef = try #require(box.children.first)
         let line: LayoutRef = try #require(paragraph.children.first)
 
-        #expect(document.root.widthField.containsInvalidation(root.widthField))
-        #expect(root.widthField.containsInvalidation(body.widthField))
-        #expect(box.zoomField.containsInvalidation(paragraph.zoomField))
-        #expect(paragraph.widthField.containsInvalidation(line.widthField))
-        #expect(line.heightField.containsInvalidation(paragraph.heightField))
-        #expect(root.heightField.containsInvalidation(document.root.heightField))
+        #expect(depends(root, on: .layout(document.root.id, .width), in: document))
+        #expect(depends(body, on: .layout(root.id, .width), in: document))
+        #expect(depends(paragraph, on: .layout(box.id, .zoom), in: document, field: .zoom))
+        #expect(depends(line, on: .layout(paragraph.id, .width), in: document))
+        #expect(depends(paragraph, on: .layout(line.id, .height), in: document, field: .height))
+        #expect(depends(document.root, on: .layout(root.id, .height), in: document, field: .height))
     }
 
     @Test func fontFieldOwnsTheParentStyleInputs() throws {
@@ -45,59 +47,83 @@ struct LayoutDependencyTests {
         let text: LayoutRef = try #require(
             treeToList(block).first(where: { $0.isText })
         )
+        let document: LayoutTree = try #require(page.frame.document)
+        let inputs: Set<FieldKey> = document.dependencies.fieldKeys(
+            for: .layout(text.id, .font)
+        )
 
-        #expect(paragraph.style.field(.fontSize).containsInvalidation(text.fontField))
-        #expect(paragraph.style.field(.fontStyle).containsInvalidation(text.fontField))
-        #expect(paragraph.style.field(.fontWeight).containsInvalidation(text.fontField))
-        #expect(paragraph.style.field(.fontFamily).containsInvalidation(text.fontField))
+        #expect(inputs.contains(.style(paragraph.id, .fontSize)))
+        #expect(inputs.contains(.style(paragraph.id, .fontStyle)))
+        #expect(inputs.contains(.style(paragraph.id, .fontWeight)))
+        #expect(inputs.contains(.style(paragraph.id, .fontFamily)))
     }
 
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
         let dom: DOMTree = DOMTree()
         let document: LayoutTree = LayoutTree(dom: dom)
+        document.dependencies.rebuild(from: document)
+        let root: LayoutID = document.root.id
 
-        let source = document.root.xField
-        let missing = document.root.yField
-        let declared = document.root.widthField
-
-        missing.setDependencies([])
-        declared.setDependencies([source])
-
-        #expect(!source.containsInvalidation(missing))
-        #expect(source.containsInvalidation(declared))
+        let widthInputs: Set<FieldKey> = document.dependencies
+            .fieldKeys(for: .layout(root, .width))
+        #expect(widthInputs == [.layout(root, .zoom)])
+        #expect(!widthInputs.contains(.layout(root, .x)))
+        #expect(!widthInputs.contains(.layout(root, .y)))
     }
 
-    @Test func removingALayoutEdgeRemovesTheDependent() throws {
+    @Test func fieldWriteMarksItsDependents() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
         let root: LayoutRef = try #require(document.root.children.first)
 
-        let key: FieldKey = .layout(root.id, .ascent)
-        root.tree.dependencies.add(root.widthField.ref, for: key)
-        #expect(root.tree.dependencies.count(of: key) == 1)
+        document.setFieldClean(.width, 600, for: document.root.id)
+        document.setFieldClean(.width, root.width, for: root.id)
+        document.setField(.width, 500, for: document.root.id)
 
-        root.tree.dependencies.remove(root.widthField.ref, for: key)
-        #expect(root.tree.dependencies.count(of: key) == 0)
+        #expect(document.isDirty(.width, at: root.id))
     }
 
     @Test func widthMarksLinesButNotInlineContent() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutRef = try #require(page.firstBlock(in: p))
+        let line: LayoutRef = try #require(page.firstLine(in: p))
+        let document: LayoutTree = try #require(page.frame.document)
 
-        #expect(!block.widthField.containsInvalidation(block.childrenField))
-        #expect(!block.widthField.containsInvalidation(block.inlineContentField))
-        #expect(block.inlineContentField.containsInvalidation(block.childrenField))
-        #expect(p.style.field(.fontSize).containsInvalidation(block.inlineContentField))
+        let widthInputs: Set<FieldKey> = document.dependencies.fieldKeys(
+            for: .layout(block.id, .width)
+        )
+        #expect(!widthInputs.contains(.layout(block.id, .children)))
+        #expect(!widthInputs.contains(.layout(block.id, .inlineContent)))
+
+        let childInputs: Set<FieldKey> = document.dependencies.fieldKeys(
+            for: .layout(block.id, .children)
+        )
+        #expect(childInputs.contains(.layout(block.id, .inlineContent)))
+
+        let heightInputs: Set<FieldKey> = document.dependencies.fieldKeys(
+            for: .layout(block.id, .height)
+        )
+        #expect(heightInputs.contains(.layout(line.id, .height)))
+
+        let contentInputs: Set<FieldKey> = document.dependencies.fieldKeys(
+            for: .layout(block.id, .inlineContent)
+        )
+        #expect(contentInputs.contains(.style(p.id, .fontSize)))
+
+        let lineWidthInputs: Set<FieldKey> = document.dependencies.fieldKeys(
+            for: .layout(line.id, .width)
+        )
+        #expect(lineWidthInputs.contains(.layout(block.id, .width)))
     }
 
     // MARK: - Static input table (D1)
 
-    @Test func staticTableMatchesTheFrozenGraph() throws {
+    @Test func staticTableMatchesTheIndex() throws {
         try expectTableMatchesIndex(makeDependencyPage())
     }
 
-    @Test func staticTableMatchesTheFrozenGraphForEmbeds() throws {
+    @Test func staticTableMatchesTheIndexForEmbeds() throws {
         try expectTableMatchesIndex(makeEmbedDependencyPage())
     }
 
@@ -124,15 +150,16 @@ struct LayoutDependencyTests {
 
         for field in LayoutField.allCases {
             #expect(
-                document.dependencies.fieldKeys(for: .layout(removed.id, field), in: document).isEmpty,
+                document.dependencies
+                    .fieldKeys(for: .layout(removed.id, field))
+                    .isEmpty,
                 "removed node still owns \(field.rawValue) dependents"
             )
         }
         for id in document.liveIDs {
             for field in LayoutField.allCases where document.isUsed(field, at: id) {
                 let inputs: Set<FieldKey> = document.dependencies.fieldKeys(
-                    for: .layout(id, field),
-                    in: document
+                    for: .layout(id, field)
                 )
                 #expect(
                     !inputs.contains(where: { isEdgeTo($0, removed.id) }),
@@ -154,12 +181,24 @@ struct LayoutDependencyTests {
                     in: document
                 )
                 if document.isUsed(field, at: ref.id) {
-                    #expect(document.isFrozen(field, at: ref.id))
-                    #expect(document.dependencies.fieldKeys(for: .layout(ref.id, field), in: document) == Set(keys))
+                    #expect(
+                        document.dependencies.fieldKeys(for: .layout(ref.id, field))
+                            == Set(keys)
+                    )
                 }
             }
         }
     }
+}
+
+@MainActor
+private func depends(
+    _ ref: LayoutRef,
+    on key: FieldKey,
+    in tree: LayoutTree,
+    field: LayoutField = .width
+) -> Bool {
+    return tree.dependencies.fieldKeys(for: .layout(ref.id, field)).contains(key)
 }
 
 @MainActor
@@ -176,8 +215,7 @@ private func expectTableMatchesIndex(_ document: LayoutTree) throws {
                 LayoutInputTable.inputs(for: ref.id, field: field, in: document)
             )
             let actual: Set<FieldKey> = document.dependencies.fieldKeys(
-                for: .layout(ref.id, field),
-                in: document
+                for: .layout(ref.id, field)
             )
             #expect(
                 actual == expected,
@@ -193,7 +231,7 @@ private func dependencySnapshot(_ tree: LayoutTree) -> [FieldKey: Set<FieldKey>]
     for id in tree.liveIDs {
         for field in LayoutField.allCases where tree.isUsed(field, at: id) {
             let key: FieldKey = .layout(id, field)
-            snapshot[key] = tree.dependencies.fieldKeys(for: key, in: tree)
+            snapshot[key] = tree.dependencies.fieldKeys(for: key)
         }
     }
     return snapshot

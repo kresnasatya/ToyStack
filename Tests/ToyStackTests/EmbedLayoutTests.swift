@@ -70,7 +70,7 @@ struct EmbedLayoutTests {
         let after: LayoutRef = try #require(page.firstEmbed(in: input))
         let expected: BrowserFont = getFont(size: 32, weight: "normal", style: "roman")
         #expect(after.height == expected.linespace)
-        #expect(after.ascentField.get() == expected.linespace)
+        #expect(after.ascent == expected.linespace)
         #expect(after.height > beforeHeight)
     }
 

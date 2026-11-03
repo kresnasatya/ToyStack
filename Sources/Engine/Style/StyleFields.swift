@@ -57,9 +57,7 @@ nonisolated final class StyleFields {
         if !changed.isEmpty || parsed.unknown != oldUnknown {
             revision += 1
         }
-        for property in changed {
-            notifyDependents(property)
-        }
+        notifyLayout(changed)
         profiler.count("style.fields.set", by: StyleProperty.allCases.count)
         profiler.count("style.fields.changed", by: changed.count)
     }
@@ -69,7 +67,7 @@ nonisolated final class StyleFields {
         guard storage.computed.set(value, for: property) else { return }
         invalidation.dirtyKeys.remove(property)
         revision += 1
-        notifyDependents(property)
+        notifyLayout([property])
     }
 
     @MainActor
@@ -80,9 +78,7 @@ nonisolated final class StyleFields {
         guard !changed.isEmpty else { return }
         invalidation.dirtyKeys.subtract(changed)
         revision += 1
-        for property in changed {
-            notifyDependents(property)
-        }
+        notifyLayout(changed)
     }
 
     @MainActor
@@ -92,63 +88,11 @@ nonisolated final class StyleFields {
     }
 
     @MainActor
-    func field(_ key: StyleProperty) -> StyleFieldRef {
-        return StyleFieldRef(owner: self, property: key)
-    }
-
-    @MainActor
-    private func styleKey(_ key: StyleProperty) -> FieldKey? {
-        guard let owner else { return nil }
-        return .style(owner, key)
-    }
-
-    @MainActor
-    private func notifyDependents(_ key: StyleProperty) {
-        guard let fieldKey = styleKey(key), let tree = layoutTree else { return }
-        for ref in tree.dependencies.mark(fieldKey) {
-            ref.mark()
+    private func notifyLayout(_ changed: Set<StyleProperty>) {
+        guard let owner, let tree = layoutTree else { return }
+        for property in changed where property.affectsLayout {
+            tree.dependencies.mark(.style(owner, property), in: tree)
         }
-    }
-
-    @MainActor
-    func markStyle(_ key: StyleProperty) {
-        invalidation.dirtyKeys.insert(key)
-        notifyDependents(key)
-    }
-
-    @MainActor
-    func addDependency(_ key: StyleProperty, _ dependent: FieldRef) {
-        guard let fieldKey = styleKey(key), let tree = layoutTree else { return }
-        tree.dependencies.add(dependent, for: fieldKey)
-    }
-
-    @MainActor
-    func removeDependency(_ key: StyleProperty, _ dependent: FieldRef) {
-        guard let fieldKey = styleKey(key), let tree = layoutTree else { return }
-        tree.dependencies.remove(dependent, for: fieldKey)
-    }
-
-    @MainActor
-    func dependentCount(for key: StyleProperty) -> Int {
-        guard let fieldKey = styleKey(key), let tree = layoutTree else { return 0 }
-        return tree.dependencies.count(of: fieldKey)
-    }
-
-    @MainActor
-    func containsDependency(_ key: StyleProperty, _ dependent: FieldRef) -> Bool {
-        guard let fieldKey = styleKey(key), let tree = layoutTree else { return false }
-        return tree.dependencies.contains(fieldKey, dependent)
-    }
-
-    @MainActor
-    func fieldIsDirty(_ key: StyleProperty) -> Bool {
-        return invalidation.dirtyKeys.contains(key)
-    }
-
-    @MainActor
-    func dependencyNames(_ key: StyleProperty) -> [String] {
-        guard let fieldKey = styleKey(key), let tree = layoutTree else { return [] }
-        return tree.dependencies.names(of: fieldKey)
     }
 }
 
