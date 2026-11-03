@@ -181,6 +181,7 @@ struct LayoutTree {
         nodes[id.raw] = parent
         for child in children {
             var node: LayoutNode = self.node(child)
+            guard node.links.parent != id else { continue }
             node.links.parent = id
             nodes[child.raw] = node
         }
@@ -188,6 +189,7 @@ struct LayoutTree {
 
     mutating func setPrevious(_ previous: LayoutID?, of id: LayoutID) {
         var node: LayoutNode = self.node(id)
+        guard node.links.previous != previous else { return }
         node.links.previous = previous
         node.links.versions.previous += 1
         nodes[id.raw] = node
@@ -327,12 +329,15 @@ struct LayoutTree {
         }
     }
 
-    mutating func reindexDependencies(_ id: LayoutID) {
+    mutating func reindexDependencies(
+        _ id: LayoutID,
+        fields: [LayoutField] = LayoutField.allCases
+    ) {
         var inputs: [LayoutField: [FieldKey]] = [:]
-        for field in LayoutField.allCases where isUsed(field, at: id) {
+        for field in fields where isUsed(field, at: id) {
             inputs[field] = LayoutInputTable.inputs(for: id, field: field, in: self)
         }
-        dependencies.reindex(id, inputs: inputs)
+        dependencies.reindex(id, fields: fields, inputs: inputs)
     }
 
     mutating func markClean(_ field: LayoutField, at id: LayoutID) {
@@ -486,6 +491,50 @@ struct LayoutTree {
         markClean(.inlineContent, at: id)
     }
 
+    mutating func setLineChildrenField(
+        _ children: [LayoutID],
+        of id: LayoutID,
+        previousChanged: Bool
+    ) {
+        let wasUsed: Bool = isUsed(.children, at: id)
+        let changed: Bool = !wasUsed || self.children(of: id) != children
+        let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
+        markUsed(.children, at: id)
+        setChildren(children, of: id)
+        markClean(.children, at: id)
+
+        if changed {
+            let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
+            let inputs: [(LayoutField, [FieldKey])] = [
+                (.ascent, inlineChildren.map({ .layout($0, .ascent) })),
+                (.descent, inlineChildren.map({ .layout($0, .descent) })),
+            ]
+            for (field, fieldInputs) in inputs where isUsed(field, at: id) {
+                dependencies.replaceDependent(.layout(id, field), with: fieldInputs)
+            }
+            dependencies.removeDependent(.layout(id, .children))
+        }
+
+        if previousChanged {
+            let parent: LayoutID? = parentID(of: id)
+            let previous: LayoutID? = previousID(of: id)
+            var yInputs: [FieldKey] = parent.map({ [.layout($0, .y)] }) ?? []
+            if let previous {
+                yInputs += [.layout(previous, .y), .layout(previous, .height)]
+            }
+            dependencies.replaceDependent(.layout(id, .y), with: yInputs)
+        }
+
+        for child in reparented {
+            let fields: [LayoutField] = isText(child) ? [.zoom] : LayoutField.allCases
+            reindexDependencies(child, fields: fields)
+        }
+        if changed {
+            profiler.count("layout.field.set")
+            markDependents(of: .layout(id, .children))
+        }
+    }
+
     mutating func setChildrenField(_ children: [LayoutID], of id: LayoutID) {
         let wasUsed: Bool = isUsed(.children, at: id)
         let changed: Bool = !wasUsed || self.children(of: id) != children
@@ -494,7 +543,10 @@ struct LayoutTree {
         setChildren(children, of: id)
         markClean(.children, at: id)
         if changed || !reparented.isEmpty {
-            reindexDependencies(id)
+            let fields: [LayoutField] = isLine(id)
+                ? [.y, .ascent, .descent, .height]
+                : LayoutField.allCases
+            reindexDependencies(id, fields: fields)
             for child in reparented {
                 reindexDependencies(child)
             }

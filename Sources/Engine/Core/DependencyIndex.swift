@@ -53,11 +53,26 @@ struct DependencyIndex {
         }
     }
 
+    mutating func replaceDependent(_ dependent: FieldKey, with inputs: [FieldKey]) {
+        removeDependent(dependent)
+        for input in inputs {
+            add(dependent, for: input)
+        }
+    }
+
     mutating func reindex(_ id: LayoutID, inputs: [LayoutField: [FieldKey]]) {
-        for field in LayoutField.allCases {
+        reindex(id, fields: LayoutField.allCases, inputs: inputs)
+    }
+
+    mutating func reindex(
+        _ id: LayoutID,
+        fields: [LayoutField],
+        inputs: [LayoutField: [FieldKey]]
+    ) {
+        for field in fields {
             removeDependent(.layout(id, field))
         }
-        for field in LayoutField.allCases {
+        for field in fields {
             guard let fieldInputs = inputs[field] else { continue }
             let dependent: FieldKey = .layout(id, field)
             for input in fieldInputs {

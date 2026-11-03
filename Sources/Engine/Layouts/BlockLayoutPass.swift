@@ -700,7 +700,11 @@ extension LayoutTree {
 
     mutating private func placeInlineItems(_ id: LayoutID) {
         let items: [InlineItem] = blockData(id).content.inlineItems
-        var placement: InlinePlacement = InlinePlacement(parent: id)
+        let reusable: [LayoutID] = childrenIDs(of: id).filter({ isLine($0) })
+        var placement: InlinePlacement = InlinePlacement(
+            parent: id,
+            reusableLines: reusable
+        )
         placement.start(in: &self)
         for (index, item) in items.enumerated() {
             switch item {
@@ -1315,12 +1319,31 @@ private struct InlinePlacementState {
     var cursorX: CGFloat = 0
 }
 
+private struct LinePool {
+    private let lines: [LayoutID]
+    private var next: Int = 0
+
+    init(_ lines: [LayoutID]) {
+        self.lines = lines
+    }
+
+    mutating func take() -> LayoutID? {
+        guard next < lines.count else { return nil }
+        let line: LayoutID = lines[next]
+        next += 1
+        return line
+    }
+}
+
 struct InlinePlacement {
     private let context: InlinePlacementContext
     private var state: InlinePlacementState = InlinePlacementState()
+    private var pool: LinePool
+    private var previousChanged: Bool = false
 
-    init(parent: LayoutID) {
+    init(parent: LayoutID, reusableLines: [LayoutID]) {
         self.context = InlinePlacementContext(parent: parent)
+        self.pool = LinePool(reusableLines)
     }
 
     var lines: [LayoutID] { state.lines }
@@ -1333,25 +1356,39 @@ struct InlinePlacement {
 
     mutating func start(in tree: inout LayoutTree) {
         let previous: LayoutID? = state.lines.last
-        state.currentLine = tree.makeLine(
-            dom: tree.node(context.parent).dom,
-            parent: context.parent,
-            previous: previous
-        )
+        if let line: LayoutID = pool.take() {
+            previousChanged = tree.resetLine(line, previous: previous)
+            state.currentLine = line
+        } else {
+            state.currentLine = tree.makeLine(
+                dom: tree.node(context.parent).dom,
+                parent: context.parent,
+                previous: previous
+            )
+            previousChanged = true
+        }
         state.children = []
         state.cursorX = 0
     }
 
     mutating func endLine(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        tree.setChildrenField(state.children, of: line)
+        tree.setLineChildrenField(
+            state.children,
+            of: line,
+            previousChanged: previousChanged
+        )
         state.lines.append(line)
         start(in: &tree)
     }
 
     mutating func finish(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        tree.setChildrenField(state.children, of: line)
+        tree.setLineChildrenField(
+            state.children,
+            of: line,
+            previousChanged: previousChanged
+        )
         state.lines.append(line)
         state.currentLine = nil
         state.children = []

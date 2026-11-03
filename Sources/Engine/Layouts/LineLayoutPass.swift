@@ -24,6 +24,30 @@ extension LayoutTree {
         return id
     }
 
+    @discardableResult
+    mutating func resetLine(_ id: LayoutID, previous: LayoutID?) -> Bool {
+        let oldPrevious: LayoutID? = previousID(of: id)
+        var data: LineData = LineData()
+        if case .line(let old) = node(id).kind {
+            // The line paint cache is keyed by this generation.
+            data.paint.generation = old.paint.generation + 1
+        }
+        setKind(.line(data), at: id)
+        setPrevious(previous, of: id)
+        for field in [
+            LayoutField.zoom,
+            .width,
+            .x,
+            .y,
+            .height,
+            .ascent,
+            .descent,
+        ] {
+            markField(field, at: id)
+        }
+        return oldPrevious != previous
+    }
+
     func lineLayoutNeeded(_ id: LayoutID) -> Bool {
         if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")

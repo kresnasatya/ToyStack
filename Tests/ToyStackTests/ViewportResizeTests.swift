@@ -179,6 +179,31 @@ struct ViewportResizeTests {
         expectIncrementalMatchesFull(page)
     }
 
+    @Test func widthResizeWithBreakChangeReusesLineObjects() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five six seven eight nine ten</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        let linesBefore: [LayoutID] = page.tree.childrenIDs(of: block)
+            .filter({ page.tree.isLine($0) })
+
+        page.frame.setViewport(width: 300, height: page.frame.frameHeight)
+        page.frame.setNeedsViewportResize()
+        page.frame.render()
+
+        let linesAfter: [LayoutID] = page.tree.childrenIDs(of: block)
+            .filter({ page.tree.isLine($0) })
+        let reused: Int = min(linesBefore.count, linesAfter.count)
+
+        #expect(Array(linesAfter.prefix(reused)) == Array(linesBefore.prefix(reused)))
+        expectIncrementalMatchesFull(page)
+    }
+
     @Test func widthOnlyResizeSkipsLinePlacementWhenPlanUnchanged() throws {
         // <br> keeps the line plan deterministic. The paragraph is
         // multi-line and left-aligned, so a width-only change must not
