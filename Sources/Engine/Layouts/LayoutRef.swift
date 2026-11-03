@@ -4,6 +4,9 @@ import Foundation
 // MARK: - LayoutRef
 
 /// Lightweight view over one layout node in a `LayoutTree`.
+///
+/// Delegates to the tree's value accessors, so the same code keeps working
+/// while call sites migrate to `tree.x(id)` and the ref is deleted.
 @MainActor
 struct LayoutRef {
     let id: LayoutID
@@ -12,17 +15,17 @@ struct LayoutRef {
 
 extension LayoutRef {
     var node: DOMRef {
-        return DOMRef(id: tree.node(id).dom, dom: tree.dom)
+        return DOMRef(id: tree.domID(of: id), dom: tree.dom)
     }
 
     var parent: LayoutRef? {
-        guard let parent: LayoutID = tree.node(id).links.parent else { return nil }
+        guard let parent: LayoutID = tree.parentID(of: id) else { return nil }
         return LayoutRef(id: parent, tree: tree)
     }
 
     var previous: LayoutRef? {
         get {
-            guard let previous: LayoutID = tree.node(id).links.previous else { return nil }
+            guard let previous: LayoutID = tree.previousID(of: id) else { return nil }
             return LayoutRef(id: previous, tree: tree)
         }
         nonmutating set {
@@ -32,7 +35,7 @@ extension LayoutRef {
 
     var children: [LayoutRef] {
         get {
-            return tree.node(id).links.children.map({ LayoutRef(id: $0, tree: tree) })
+            return tree.childrenIDs(of: id).map({ LayoutRef(id: $0, tree: tree) })
         }
         nonmutating set {
             tree.setChildrenField(newValue.map({ $0.id }), of: id)
@@ -40,164 +43,105 @@ extension LayoutRef {
     }
 
     var kind: LayoutKind {
-        return tree.node(id).kind
+        return tree.kind(id)
     }
 
     var domNode: NodeID {
-        return tree.node(id).dom
+        return tree.domID(of: id)
     }
 
     var hasDirtyDescendants: Bool {
-        get { tree.node(id).state.hasDirtyDescendants }
+        get { tree.hasDirtyDescendants(at: id) }
         nonmutating set { tree.setDirtyDescendants(newValue, at: id) }
     }
 
     // MARK: - Typed payloads
 
     var documentData: DocumentData {
-        get {
-            guard case .document(let data) = kind else {
-                preconditionFailure("Not a document node")
-            }
-            return data
-        }
-        nonmutating set {
-            tree.setKind(.document(newValue), at: id)
-        }
+        get { tree.documentData(id) }
+        nonmutating set { tree.setKind(.document(newValue), at: id) }
     }
 
     var blockData: BlockData {
-        get {
-            guard case .block(let data) = kind else {
-                preconditionFailure("Not a block node")
-            }
-            return data
-        }
-        nonmutating set {
-            tree.setKind(.block(newValue), at: id)
-        }
+        get { tree.blockData(id) }
+        nonmutating set { tree.setKind(.block(newValue), at: id) }
     }
 
     var lineData: LineData {
-        get {
-            guard case .line(let data) = kind else {
-                preconditionFailure("Not a line node")
-            }
-            return data
-        }
-        nonmutating set {
-            tree.setKind(.line(newValue), at: id)
-        }
+        get { tree.lineData(id) }
+        nonmutating set { tree.setKind(.line(newValue), at: id) }
     }
 
     var textData: TextData {
-        get {
-            guard case .text(let data) = kind else {
-                preconditionFailure("Not a text node")
-            }
-            return data
-        }
-        nonmutating set {
-            tree.setKind(.text(newValue), at: id)
-        }
+        get { tree.textData(id) }
+        nonmutating set { tree.setKind(.text(newValue), at: id) }
     }
 
     var embedData: EmbedData {
-        get {
-            guard case .embed(let data) = kind else {
-                preconditionFailure("Not an embed node")
-            }
-            return data
-        }
-        nonmutating set {
-            tree.setKind(.embed(newValue), at: id)
-        }
+        get { tree.embedData(id) }
+        nonmutating set { tree.setKind(.embed(newValue), at: id) }
     }
 
-    var isBlock: Bool { if case .block = kind { return true }; return false }
-    var isLine: Bool { if case .line = kind { return true }; return false }
-    var isText: Bool { if case .text = kind { return true }; return false }
-    var isEmbed: Bool { if case .embed = kind { return true }; return false }
-    var isDocument: Bool { if case .document = kind { return true }; return false }
-    var isIframe: Bool { if case .embed(.iframe) = kind { return true }; return false }
+    var isBlock: Bool { return tree.isBlock(id) }
+    var isLine: Bool { return tree.isLine(id) }
+    var isText: Bool { return tree.isText(id) }
+    var isEmbed: Bool { return tree.isEmbed(id) }
+    var isDocument: Bool { return tree.isDocument(id) }
+    var isIframe: Bool { return tree.isIframe(id) }
 
     // MARK: - Geometry
 
     var x: CGFloat {
-        get { readCGFloat(.x) }
+        get { tree.x(id) }
         nonmutating set { tree.setField(.x, newValue, for: id) }
     }
 
     var y: CGFloat {
-        get { readCGFloat(.y) }
+        get { tree.y(id) }
         nonmutating set { tree.setField(.y, newValue, for: id) }
     }
 
     var width: CGFloat {
-        get { readCGFloat(.width) }
+        get { tree.width(id) }
         nonmutating set { tree.setField(.width, newValue, for: id) }
     }
 
     var height: CGFloat {
-        get { readCGFloat(.height) }
+        get { tree.height(id) }
         nonmutating set { tree.setField(.height, newValue, for: id) }
     }
 
     var heightIfUsed: CGFloat? {
-        guard tree.isUsed(.height, at: id) else { return nil }
-        return tree.storedCGFloat(.height, at: id)
+        return tree.heightIfUsed(at: id)
     }
 
     var zoom: CGFloat {
-        get { readCGFloat(.zoom) }
+        get { tree.zoom(id) }
         nonmutating set { tree.setField(.zoom, newValue, for: id) }
     }
 
     var font: BrowserFont {
-        get {
-            if tree.isDirty(.font, at: id) {
-                assertionFailure("Read dirty field \(kind).font")
-            }
-            guard tree.isUsed(.font, at: id) else {
-                fatalError("Read unset field \(kind).font")
-            }
-            return tree.storedFont(id)
-        }
+        get { tree.font(id) }
         nonmutating set { tree.setFont(newValue, for: id) }
     }
 
     var ascent: CGFloat {
-        get { readCGFloat(.ascent) }
+        get { tree.ascent(id) }
         nonmutating set { tree.setField(.ascent, newValue, for: id) }
     }
 
     var descent: CGFloat {
-        get { readCGFloat(.descent) }
+        get { tree.descent(id) }
         nonmutating set { tree.setField(.descent, newValue, for: id) }
     }
 
     var inlineContent: UInt64 {
-        get {
-            if tree.isDirty(.inlineContent, at: id) {
-                assertionFailure("Read dirty field \(kind).inlineContent")
-            }
-            guard tree.isUsed(.inlineContent, at: id) else {
-                fatalError("Read unset field \(kind).inlineContent")
-            }
-            return tree.storedInlineContent(id)
-        }
+        get { tree.inlineContent(id) }
         nonmutating set { tree.setInlineContent(newValue, for: id) }
     }
 
     func selfRect() -> Rect {
-        switch kind {
-        case .block:
-            return tree.blockSelfRect(self)
-        case .text:
-            return tree.textSelfRect(self)
-        default:
-            return Rect(left: x, top: y, right: x + width, bottom: y + height)
-        }
+        return tree.selfRect(id)
     }
 
     // MARK: - Actions
@@ -207,18 +151,7 @@ extension LayoutRef {
     }
 
     func layoutNeeded() -> Bool {
-        switch kind {
-        case .document:
-            return tree.documentLayoutNeeded(self)
-        case .block:
-            return tree.blockLayoutNeeded(self)
-        case .line:
-            return tree.lineLayoutNeeded(self)
-        case .text:
-            return tree.textLayoutNeeded(self)
-        case .embed:
-            return tree.embedLayoutNeeded(self)
-        }
+        return tree.layoutNeeded(id)
     }
 
     func layout() {
@@ -234,17 +167,5 @@ extension LayoutRef {
         case .embed:
             tree.layoutEmbed(self)
         }
-    }
-
-    // MARK: - Field reads
-
-    private func readCGFloat(_ field: LayoutField) -> CGFloat {
-        if tree.isDirty(field, at: id) {
-            assertionFailure("Read dirty field \(kind).\(field.rawValue)")
-        }
-        guard tree.isUsed(field, at: id) else {
-            fatalError("Read unset field \(kind).\(field.rawValue)")
-        }
-        return tree.storedCGFloat(field, at: id)
     }
 }

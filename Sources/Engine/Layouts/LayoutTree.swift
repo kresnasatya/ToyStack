@@ -437,3 +437,134 @@ final class LayoutTree {
         markClean(.previous, at: id)
     }
 }
+
+// MARK: - Node accessors
+
+/// Value API for one node. `LayoutRef` delegates here; layout passes migrate
+/// to it, then the ref can go away and the tree can become a value.
+extension LayoutTree {
+    func readCGFloat(_ field: LayoutField, at id: LayoutID) -> CGFloat {
+        if isDirty(field, at: id) {
+            assertionFailure("Read dirty field \(kind(id)).\(field.rawValue)")
+        }
+        guard isUsed(field, at: id) else {
+            fatalError("Read unset field \(kind(id)).\(field.rawValue)")
+        }
+        return storedCGFloat(field, at: id)
+    }
+
+    func x(_ id: LayoutID) -> CGFloat { return readCGFloat(.x, at: id) }
+    func y(_ id: LayoutID) -> CGFloat { return readCGFloat(.y, at: id) }
+    func width(_ id: LayoutID) -> CGFloat { return readCGFloat(.width, at: id) }
+    func height(_ id: LayoutID) -> CGFloat { return readCGFloat(.height, at: id) }
+    func zoom(_ id: LayoutID) -> CGFloat { return readCGFloat(.zoom, at: id) }
+    func ascent(_ id: LayoutID) -> CGFloat { return readCGFloat(.ascent, at: id) }
+    func descent(_ id: LayoutID) -> CGFloat { return readCGFloat(.descent, at: id) }
+
+    func heightIfUsed(at id: LayoutID) -> CGFloat? {
+        guard isUsed(.height, at: id) else { return nil }
+        return storedCGFloat(.height, at: id)
+    }
+
+    func font(_ id: LayoutID) -> BrowserFont {
+        if isDirty(.font, at: id) {
+            assertionFailure("Read dirty field \(kind(id)).font")
+        }
+        guard isUsed(.font, at: id) else {
+            fatalError("Read unset field \(kind(id)).font")
+        }
+        return storedFont(id)
+    }
+
+    func inlineContent(_ id: LayoutID) -> UInt64 {
+        if isDirty(.inlineContent, at: id) {
+            assertionFailure("Read dirty field \(kind(id)).inlineContent")
+        }
+        guard isUsed(.inlineContent, at: id) else {
+            fatalError("Read unset field \(kind(id)).inlineContent")
+        }
+        return storedInlineContent(id)
+    }
+
+    // MARK: Payloads
+
+    func documentData(_ id: LayoutID) -> DocumentData {
+        guard case .document(let data) = kind(id) else {
+            preconditionFailure("Not a document node")
+        }
+        return data
+    }
+
+    func blockData(_ id: LayoutID) -> BlockData {
+        guard case .block(let data) = kind(id) else {
+            preconditionFailure("Not a block node")
+        }
+        return data
+    }
+
+    func lineData(_ id: LayoutID) -> LineData {
+        guard case .line(let data) = kind(id) else {
+            preconditionFailure("Not a line node")
+        }
+        return data
+    }
+
+    func textData(_ id: LayoutID) -> TextData {
+        guard case .text(let data) = kind(id) else {
+            preconditionFailure("Not a text node")
+        }
+        return data
+    }
+
+    func embedData(_ id: LayoutID) -> EmbedData {
+        guard case .embed(let data) = kind(id) else {
+            preconditionFailure("Not an embed node")
+        }
+        return data
+    }
+
+    // MARK: Structure
+
+    func domID(of id: LayoutID) -> NodeID { return node(id).dom }
+    func parentID(of id: LayoutID) -> LayoutID? { return node(id).links.parent }
+    func previousID(of id: LayoutID) -> LayoutID? { return node(id).links.previous }
+    func childrenIDs(of id: LayoutID) -> [LayoutID] { return node(id).links.children }
+    func hasDirtyDescendants(at id: LayoutID) -> Bool { return node(id).state.hasDirtyDescendants }
+
+    func isBlock(_ id: LayoutID) -> Bool { if case .block = kind(id) { return true }; return false }
+    func isLine(_ id: LayoutID) -> Bool { if case .line = kind(id) { return true }; return false }
+    func isText(_ id: LayoutID) -> Bool { if case .text = kind(id) { return true }; return false }
+    func isEmbed(_ id: LayoutID) -> Bool { if case .embed = kind(id) { return true }; return false }
+    func isDocument(_ id: LayoutID) -> Bool { if case .document = kind(id) { return true }; return false }
+    func isIframe(_ id: LayoutID) -> Bool { if case .embed(.iframe) = kind(id) { return true }; return false }
+
+    // MARK: Geometry and passes
+
+    func selfRect(_ id: LayoutID) -> Rect {
+        switch kind(id) {
+        case .block:
+            return blockSelfRect(LayoutRef(id: id, tree: self))
+        case .text:
+            return textSelfRect(LayoutRef(id: id, tree: self))
+        default:
+            let x: CGFloat = x(id)
+            let y: CGFloat = y(id)
+            return Rect(left: x, top: y, right: x + width(id), bottom: y + height(id))
+        }
+    }
+
+    func layoutNeeded(_ id: LayoutID) -> Bool {
+        switch kind(id) {
+        case .document:
+            return documentLayoutNeeded(LayoutRef(id: id, tree: self))
+        case .block:
+            return blockLayoutNeeded(LayoutRef(id: id, tree: self))
+        case .line:
+            return lineLayoutNeeded(LayoutRef(id: id, tree: self))
+        case .text:
+            return textLayoutNeeded(LayoutRef(id: id, tree: self))
+        case .embed:
+            return embedLayoutNeeded(LayoutRef(id: id, tree: self))
+        }
+    }
+}
