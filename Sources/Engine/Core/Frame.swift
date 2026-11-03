@@ -136,13 +136,19 @@ class Frame {
 
     private var browser: Browser? { tab?.browser }
 
-    init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
+    init(
+        tab: BrowserTab,
+        parentID: FrameID?,
+        element: NodeID?,
+        frameWidth: CGFloat,
+        frameHeight: CGFloat
+    ) {
         let id: FrameID = tab.reserveFrameID()
         self.links = FrameLinks(
             tab: tab,
             id: id,
-            parent: parent?.frame?.links.id,
-            element: parent?.element
+            parent: parentID,
+            element: element
         )
         self.state = FrameState(
             document: FrameDocumentState(dom: DOMTree()),
@@ -597,8 +603,13 @@ class Frame {
     private func loadIframe(_ iframe: ElementRef, documentURL: WebURL, source: String) {
         guard let tab else { return }
         markStructureChanged()
-        let parent: FrameParent = FrameParent(frame: self, element: iframe.id)
-        let child: Frame = Frame(tab: tab, parent: parent, frameWidth: 0, frameHeight: 0)
+        let child: Frame = Frame(
+            tab: tab,
+            parentID: links.id,
+            element: iframe.id,
+            frameWidth: 0,
+            frameHeight: 0
+        )
         child.pageZoom = pageZoom
         iframe.frame = child
         iframe.frameSource = source

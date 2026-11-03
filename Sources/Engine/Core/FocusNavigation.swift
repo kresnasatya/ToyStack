@@ -22,23 +22,25 @@ func isTabFocusable(_ node: DOMRef) -> Bool {
 }
 
 struct FocusTarget {
-    let frame: Frame
+    let frame: FrameID
     let element: NodeID
 }
 
 @MainActor
 func focusOder(of root: Frame) -> [FocusTarget] {
+    let tab: BrowserTab? = root.tab
     return inDocumentOrder(of: root)
         .enumerated()
-        .sorted { tabOrderKey($0.element, offset: $0.offset)  < tabOrderKey($1.element, offset: $1.offset) }
+        .sorted { tabOrderKey($0.element, tab: tab, offset: $0.offset)  < tabOrderKey($1.element, tab: tab, offset: $1.offset) }
         .map(\.element)
 }
 
 // Group 0: an explicit positive tabindex, ordered by value.
 // Group 1: tabindex="0" or no tabindex, in document order.
 @MainActor
-private func tabOrderKey(_ target: FocusTarget, offset: Int) -> (Int, Int, Int) {
-    let node: DOMRef = target.frame.dom.ref(target.element)
+private func tabOrderKey(_ target: FocusTarget, tab: BrowserTab?, offset: Int) -> (Int, Int, Int) {
+    guard let frame: Frame = tab?.frame(target.frame) else { return (1, 0, offset) }
+    let node: DOMRef = frame.dom.ref(target.element)
     if let idx = explicitTabIndex(node), idx > 0 {
         return (0, idx, offset)
     }
@@ -51,7 +53,7 @@ private func inDocumentOrder(of frame: Frame) -> [FocusTarget] {
     var targets: [FocusTarget] = []
     for node in treeToList(frame.nodes) {
         if isTabFocusable(node) {
-            targets.append(FocusTarget(frame: frame, element: node.id))
+            targets.append(FocusTarget(frame: frame.links.id, element: node.id))
         }
         if let element = node.element, element.tag == "iframe", let child = element.frame {
             targets.append(contentsOf: inDocumentOrder(of: child))

@@ -85,7 +85,8 @@ public class BrowserTab {
         self.tabWidth = tabWidth
         let frame: Frame = Frame(
             tab: self,
-            parent: nil,
+            parentID: nil,
+            element: nil,
             frameWidth: tabWidth,
             frameHeight: tabHeight
         )
@@ -373,9 +374,9 @@ public class BrowserTab {
         let targets: [FocusTarget] = focusOder(of: rootFrame)
         var start: Int = 0
         if let focused = focusedFrame.focus,
-            let idx = targets.firstIndex(where: { $0.frame === focusedFrame && $0.element == focused }) {
+            let idx = targets.firstIndex(where: { $0.frame == focusedFrameID && $0.element == focused }) {
             start = idx + 1
-        } else if let idx = targets.firstIndex(where: { $0.frame === focusedFrame }) {
+        } else if let idx = targets.firstIndex(where: { $0.frame == focusedFrameID }) {
             start = idx
         }
         guard start < targets.count else {
@@ -383,7 +384,12 @@ public class BrowserTab {
             return false
         }
         let target: FocusTarget = targets[start]
-        target.frame.focusElement(target.frame.dom.ref(target.element).element)
+        guard let frame: Frame = framesByID[target.frame],
+            let element: ElementRef = frame.dom.ref(target.element).element
+        else {
+            return false
+        }
+        frame.focusElement(element)
         return true
     }
 

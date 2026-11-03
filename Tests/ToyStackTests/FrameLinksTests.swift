@@ -13,7 +13,8 @@ struct FrameLinksTests {
 
         let child: Frame = Frame(
             tab: tab,
-            parent: FrameParent(frame: root, element: iframe),
+            parentID: root.links.id,
+            element: iframe,
             frameWidth: 100,
             frameHeight: 50
         )
