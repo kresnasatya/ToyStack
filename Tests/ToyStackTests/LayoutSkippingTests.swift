@@ -17,15 +17,15 @@ struct LayoutSkippingTests {
                 """
         )
         let bodyElement: ElementRef = try #require(page.firstElement(tag: "body"))
-        let bodyBefore: LayoutRef = try #require(page.firstBlock(in: bodyElement))
-        let childrenBefore: [LayoutID] = bodyBefore.children.map { $0.id }
+        let bodyBefore: LayoutID = try #require(page.firstBlockID(in: bodyElement))
+        let childrenBefore: [LayoutID] = page.tree.childrenIDs(of: bodyBefore)
 
         page.frame.setNeedsLayout()
         page.frame.render()
 
-        let bodyAfter: LayoutRef = try #require(page.firstBlock(in: bodyElement))
-        #expect(bodyAfter.id == bodyBefore.id)
-        #expect(bodyAfter.children.map { $0.id } == childrenBefore)
+        let bodyAfter: LayoutID = try #require(page.firstBlockID(in: bodyElement))
+        #expect(bodyAfter == bodyBefore)
+        #expect(page.tree.childrenIDs(of: bodyAfter) == childrenBefore)
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) == 0)
         #expect((profiler.snapshot()["layout.skipped"]?.count ?? 0) == 0)
     }
@@ -41,20 +41,20 @@ struct LayoutSkippingTests {
                 div { display: block; height: 10px; }
                 """
         )
-        let document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = page.tree
         let leaf: ElementRef = try #require(
             treeToList(page.frame.nodes)
                 .compactMap({ $0.element })
                 .first(where: { $0.attributes["id"] == "leaf" })
         )
         let bodyElement: ElementRef = try #require(page.firstElement(tag: "body"))
-        let body: LayoutRef = try #require(page.firstBlock(in: bodyElement))
-        let totalBlocks: Int = treeToList(document.root)
-            .filter({ $0.isBlock })
+        let body: LayoutID = try #require(page.firstBlockID(in: bodyElement))
+        let totalBlocks: Int = treeToList(document, document.rootID)
+            .filter({ document.isBlock($0) })
             .count
-        let cleanSiblingsBefore: [LayoutID] = body.children.dropFirst().map {
-            $0.id
-        }
+        let cleanSiblingsBefore: [LayoutID] = Array(
+            document.childrenIDs(of: body).dropFirst()
+        )
         #expect(totalBlocks == 13)
 
         InlineStyle.set(leaf, property: "width", value: "123px")
@@ -64,7 +64,7 @@ struct LayoutSkippingTests {
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) == 4)
         #expect((profiler.snapshot()["layout.skipped"]?.count ?? 0) == 9)
         #expect(
-            body.children.dropFirst().map { $0.id }
+            Array(page.tree.childrenIDs(of: body).dropFirst())
                 == cleanSiblingsBefore
         )
     }
@@ -79,23 +79,30 @@ struct LayoutSkippingTests {
                 """
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        let line: LayoutRef = try #require(page.firstLine(in: p))
-        let text: LayoutRef = try #require(
-            treeToList(line).last(where: { $0.isText })
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        let line: LayoutID = try #require(page.firstLineID(in: p))
+        let tree: LayoutTree = page.tree
+        let text: LayoutID = try #require(
+            treeToList(tree, line).last(where: { tree.isText($0) })
         )
-        #expect(text.x + text.textData.metrics.width == block.x + block.width)
+        #expect(
+            tree.x(text) + tree.textData(text).metrics.width
+                == tree.x(block) + tree.width(block)
+        )
 
-        text.tree.markField(.font, at: text.id)
+        tree.markField(.font, at: text)
         profiler.reset()
-        line.layout()
+        tree.layout(line)
 
         #expect((profiler.snapshot()["layout.line.place"]?.count ?? 0) > 0)
         #expect((profiler.snapshot()["layout.text"]?.count ?? 0) > 0)
-        #expect(text.x + text.textData.metrics.width == block.x + block.width)
+        #expect(
+            tree.x(text) + tree.textData(text).metrics.width
+                == tree.x(block) + tree.width(block)
+        )
 
         profiler.reset()
-        line.layout()
+        tree.layout(line)
         #expect((profiler.snapshot()["layout.line.place"]?.count ?? 0) == 0)
     }
 }

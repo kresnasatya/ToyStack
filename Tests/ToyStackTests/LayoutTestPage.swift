@@ -38,6 +38,69 @@ struct LayoutTestPage {
         return node.ref
     }
 
+
+    // MARK: - Layout ids
+
+    var tree: LayoutTree {
+        guard let tree: LayoutTree = frame.document else {
+            preconditionFailure("page has no layout tree")
+        }
+        return tree
+    }
+
+    func layoutID(of element: ElementRef) -> LayoutID? {
+        return element.ref.layoutID
+    }
+
+    func firstLayoutID(
+        in element: ElementRef,
+        where predicate: (LayoutID, LayoutTree) -> Bool
+    ) -> LayoutID? {
+        guard let tree: LayoutTree = frame.document,
+            let primary: LayoutID = element.ref.layoutID
+        else { return nil }
+        return treeToList(tree, primary).first(where: { predicate($0, tree) })
+    }
+
+    func firstBlockID(in element: ElementRef) -> LayoutID? {
+        return firstLayoutID(in: element, where: { id, tree in tree.isBlock(id) })
+    }
+
+    func firstTextID(in element: ElementRef) -> LayoutID? {
+        return firstLayoutID(in: element, where: { id, tree in tree.isText(id) })
+    }
+
+    func firstLineID(in element: ElementRef) -> LayoutID? {
+        return firstLayoutID(in: element, where: { id, tree in tree.isLine(id) })
+    }
+
+    func firstEmbedID(in element: ElementRef) -> LayoutID? {
+        return firstLayoutID(in: element, where: { id, tree in tree.isEmbed(id) })
+    }
+
+    func embedID(in element: ElementRef, _ match: EmbedMatch) -> LayoutID? {
+        return firstLayoutID(in: element, where: { id, tree in
+            guard tree.isEmbed(id) else { return false }
+            return match.matches(tree.embedData(id))
+        })
+    }
+
+    func lineIDs(in element: ElementRef) -> [LayoutID] {
+        guard let block: LayoutID = firstBlockID(in: element) else {
+            return []
+        }
+        return tree.childrenIDs(of: block).filter({ tree.isLine($0) })
+    }
+
+    func textWidthID(in element: ElementRef) -> CGFloat {
+        guard let tree: LayoutTree = frame.document,
+            let primary: LayoutID = element.ref.layoutID
+        else { return 0 }
+        return treeToList(tree, primary)
+            .filter({ tree.isText($0) })
+            .reduce(0, { $0 + tree.textData($1).metrics.width })
+    }
+
     func firstLayout(
         in element: ElementRef,
         where predicate: (LayoutRef) -> Bool

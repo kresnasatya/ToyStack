@@ -8,10 +8,9 @@ import Testing
 struct GeometryInvalidationTests {
     @Test func growingParagraphMovesFollowingParagraph() throws {
         let fixture: ParagraphFixture = makeParagraphFixture()
-        let before: LayoutRef = try #require(
-            fixture.second.ref.layout
-        )
-        let yBefore: CGFloat = before.y
+        let tree: LayoutTree = fixture.tree
+        let before: LayoutID = try #require(fixture.second.ref.layoutID)
+        let yBefore: CGFloat = tree.y(before)
 
         let text: TextRef = try #require(fixture.first.children.first?.text)
         text.append(String(repeating: " word", count: 80))
@@ -19,74 +18,70 @@ struct GeometryInvalidationTests {
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let after: LayoutRef = try #require(
-            fixture.second.ref.layout
-        )
-        #expect(after.y > yBefore)
+        let after: LayoutID = try #require(fixture.second.ref.layoutID)
+        #expect(fixture.tree.y(after) > yBefore)
     }
 
     @Test func movingParentDoesNotTranslateAbsoluteChild() throws {
         let fixture: AbsoluteFixture = makeAbsoluteFixture()
-        let before: LayoutRef = try #require(
-            fixture.absolute.ref.layout
-        )
-        let xBefore: CGFloat = before.x
-        let yBefore: CGFloat = before.y
+        let tree: LayoutTree = fixture.tree
+        let before: LayoutID = try #require(fixture.absolute.ref.layoutID)
+        let xBefore: CGFloat = tree.x(before)
+        let yBefore: CGFloat = tree.y(before)
 
         InlineStyle.set(fixture.header, property: "height", value: "80px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let after: LayoutRef = try #require(
-            fixture.absolute.ref.layout
-        )
-        #expect(after.x == xBefore)
-        #expect(after.y == yBefore)
+        let after: LayoutID = try #require(fixture.absolute.ref.layoutID)
+        #expect(fixture.tree.x(after) == xBefore)
+        #expect(fixture.tree.y(after) == yBefore)
     }
 
     @Test func growingNestedListItemMovesFollowingItem() throws {
         let fixture: NestedListFixture = makeNestedListFixture()
-        let before: LayoutRef = try #require(
-            fixture.secondItem.ref.layout
-        )
-        let yBefore: CGFloat = before.y
+        let tree: LayoutTree = fixture.tree
+        let before: LayoutID = try #require(fixture.secondItem.ref.layoutID)
+        let yBefore: CGFloat = tree.y(before)
 
         InlineStyle.set(fixture.firstItem, property: "height", value: "80px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let after: LayoutRef = try #require(
-            fixture.secondItem.ref.layout
-        )
-        #expect(after.y == yBefore + 60)
+        let after: LayoutID = try #require(fixture.secondItem.ref.layoutID)
+        #expect(fixture.tree.y(after) == yBefore + 60)
     }
 
     @Test func rtlLineStaysRightAlignedAfterPreviousSiblingGrows() throws {
         let fixture: RTLFixture = makeRTLFixture()
-        let blockBefore: LayoutRef = try #require(
-            fixture.rtl.ref.layout
+        let tree: LayoutTree = fixture.tree
+        let blockBefore: LayoutID = try #require(fixture.rtl.ref.layoutID)
+        let yBefore: CGFloat = tree.y(blockBefore)
+        let textBefore: LayoutID = try #require(
+            treeToList(tree, blockBefore).first(where: { tree.isText($0) })
         )
-        let yBefore: CGFloat = blockBefore.y
-        let textBefore: LayoutRef = try #require(
-            treeToList(blockBefore).first(where: { $0.isText })
+        #expect(
+            tree.x(textBefore) + tree.textData(textBefore).metrics.width
+                == tree.x(blockBefore) + tree.width(blockBefore)
         )
-        #expect(textBefore.x + textBefore.textData.metrics.width == blockBefore.x + blockBefore.width)
 
         InlineStyle.set(fixture.header, property: "height", value: "80px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let blockAfter: LayoutRef = try #require(
-            fixture.rtl.ref.layout
+        let treeAfter: LayoutTree = fixture.tree
+        let blockAfter: LayoutID = try #require(fixture.rtl.ref.layoutID)
+        let textAfter: LayoutID = try #require(
+            treeToList(treeAfter, blockAfter).first(where: { treeAfter.isText($0) })
         )
-        let textAfter: LayoutRef = try #require(
-            treeToList(blockAfter).first(where: { $0.isText })
+        #expect(treeAfter.y(blockAfter) == yBefore + 70)
+        #expect(
+            treeAfter.x(textAfter) + treeAfter.textData(textAfter).metrics.width
+                == treeAfter.x(blockAfter) + treeAfter.width(blockAfter)
         )
-        #expect(blockAfter.y == yBefore + 70)
-        #expect(textAfter.x + textAfter.textData.metrics.width == blockAfter.x + blockAfter.width)
     }
 }
 
@@ -123,6 +118,13 @@ private struct ParagraphFixture {
     let second: ElementRef
 
     var frame: Frame { tab.rootFrame }
+
+    var tree: LayoutTree {
+        guard let tree: LayoutTree = frame.document else {
+            preconditionFailure("fixture has no layout tree")
+        }
+        return tree
+    }
 }
 
 @MainActor
@@ -155,6 +157,13 @@ private struct AbsoluteFixture {
     let absolute: ElementRef
 
     var frame: Frame { tab.rootFrame }
+
+    var tree: LayoutTree {
+        guard let tree: LayoutTree = frame.document else {
+            preconditionFailure("fixture has no layout tree")
+        }
+        return tree
+    }
 }
 
 @MainActor
@@ -196,6 +205,13 @@ private struct NestedListFixture {
     let secondItem: ElementRef
 
     var frame: Frame { tab.rootFrame }
+
+    var tree: LayoutTree {
+        guard let tree: LayoutTree = frame.document else {
+            preconditionFailure("fixture has no layout tree")
+        }
+        return tree
+    }
 }
 
 @MainActor
@@ -229,6 +245,13 @@ private struct RTLFixture {
     let rtl: ElementRef
 
     var frame: Frame { tab.rootFrame }
+
+    var tree: LayoutTree {
+        guard let tree: LayoutTree = frame.document else {
+            preconditionFailure("fixture has no layout tree")
+        }
+        return tree
+    }
 }
 
 @MainActor
