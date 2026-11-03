@@ -57,7 +57,7 @@ private func applyNodeStyle(
 
     var newStyle: [String: String] = [:]
 
-    if let element = node.element {
+    if node.element != nil {
         profiler.count("style.elements")
         if let direction = TextDirectionResolver.resolve(snapshot, index) {
             newStyle["direction"] = direction.rawValue

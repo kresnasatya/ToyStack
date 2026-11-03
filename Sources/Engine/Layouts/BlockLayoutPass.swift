@@ -390,7 +390,7 @@ extension LayoutTree {
             setField(.height, height(id) + VSTEP, for: id)
         }
 
-        if style.flags.overflowScroll, let el = domView(id).element {
+        if style.flags.overflowScroll, domView(id).element != nil {
             let maxScroll: CGFloat = max(0, scroll.contentHeight - height(id))
             scroll.offset = min(inputs.scrollOffset(domID(of: id)), maxScroll)
         }
