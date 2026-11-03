@@ -2,7 +2,6 @@ import CoreGraphics
 
 // MARK: - PaintWindow
 
-@MainActor
 struct PaintWindow: Equatable {
     let top: CGFloat
     let bottom: CGFloat

@@ -196,7 +196,7 @@ public class BrowserTab {
         }
         rootFrame.paint()
         for frame in frames {
-            frame.needsPaint = false
+            frame.clearPaintRequest()
         }
         rootFrame.commitFrame()
     }

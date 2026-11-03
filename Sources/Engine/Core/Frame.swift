@@ -40,9 +40,9 @@ class Frame {
         state.layout.tree.isDirty = true
         state.layout.targets = ScrollTargetState()
         scrollFocusNode = nil
-        compositedUpdates.removeAll()
+        state.display.composite.updates.removeAll()
         needsRender = true
-        needsPaint = true
+        state.display.paint.isNeeded = true
     }
 
     /// Replacing a sheet invalidates the sorted index and the `:has` precompute.
@@ -61,6 +61,10 @@ class Frame {
         if oldWidth != width {
             state.layout.tree.value?.markDocumentWidthDirty()
         }
+    }
+
+    func clearPaintRequest() {
+        state.display.paint.isNeeded = false
     }
     private var documentValue: LayoutTree? {
         get { state.layout.tree.value }
@@ -81,11 +85,16 @@ class Frame {
             }
         }
     }
-    var displayList: [DisplayOp] = []
-    var paintRevision: UInt = 0
+    var displayList: [DisplayOp] {
+        get { state.display.paint.ops }
+        set { state.display.paint.ops = newValue }
+    }
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
-    var paintEpoch: UInt = 0
+    var paintEpoch: UInt {
+        get { state.display.paint.epoch }
+        set { state.display.paint.epoch = newValue }
+    }
     var title: String {
         get { state.document.meta.title }
         set { state.document.meta.title = newValue }
@@ -151,10 +160,7 @@ class Frame {
     }
     var js: JSRuntime!
 
-    private var compositedUpdates: [NodeID: EffectUpdate] = [:]
-
     var needsRender: Bool = false
-    var needsPaint: Bool = false
     private var styleInvalidatedByViewport: Bool {
         get { state.document.sheets.pending.byViewport }
         set { state.document.sheets.pending.byViewport = newValue }
@@ -191,8 +197,6 @@ class Frame {
         get { state.document.sheets.index.list.indexedRevision }
         set { state.document.sheets.index.list.indexedRevision = newValue }
     }
-    var needsCompositeForPaint: Bool = false
-    private var needsComposite: Bool = false
     var needsFocusScroll: Bool = false
 
     #if DEBUG
@@ -208,8 +212,6 @@ class Frame {
     private var scrollFocusNode: NodeID? = nil
     private var hoveredElements: [NodeID] = []
     private var scrollTween: ScrollTween? = nil
-    private var paintedBottom: CGFloat = 0
-    private var paintedWindow: PaintWindow = .full
     private(set) var pageZoom: CGFloat {
         get { state.layout.viewport.zoom }
         set { state.layout.viewport.zoom = newValue }
@@ -243,7 +245,7 @@ class Frame {
     var maxScroll: CGFloat {
         let documentHeight: CGFloat = document?.root.heightIfUsed ?? 0
         let padded: CGFloat = documentHeight + 2 * VSTEP
-        return max(max(padded, paintedBottom + VSTEP) - frameHeight, 0)
+        return max(max(padded, state.display.painted.bottom + VSTEP) - frameHeight, 0)
     }
 
     private var browser: Browser? { tab?.browser }
@@ -251,7 +253,8 @@ class Frame {
     init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
         self.state = FrameState(
             document: FrameDocumentState(dom: DOMTree()),
-            layout: FrameLayoutState(width: frameWidth, height: frameHeight)
+            layout: FrameLayoutState(width: frameWidth, height: frameHeight),
+            display: FrameDisplayState()
         )
         self.tab = tab
         self.parentFrame = parent?.frame
@@ -914,7 +917,7 @@ class Frame {
                 }
             }
             if paintedChanged {
-                paintEpoch += 1
+                state.display.paint.epoch += 1
             }
             browser?.measure.stop("BrowserTab.style.diff")
 
@@ -979,7 +982,8 @@ class Frame {
             )
             let removed: Set<LayoutID> = doc.sweepUnreachable()
             if !removed.isEmpty {
-                compositedUpdates = compositedUpdates.filter({ doc.primaryLayout(for: $0.key) != nil })
+                state.display.composite.updates = state.display.composite.updates
+                    .filter({ doc.primaryLayout(for: $0.key) != nil })
             }
             if iframeTargets.contains(where: { removed.contains($0.layout) })
                 || scrollBlockTargets.contains(where: { removed.contains($0.layout) })
@@ -1006,7 +1010,7 @@ class Frame {
             browser?.measure.stop("BrowserTab.rebuildScrollTargets")
 
             tab?.needsAccessibility = true
-            needsPaint = true
+            state.display.paint.isNeeded = true
         }
 
         resolveHover()
@@ -1032,11 +1036,12 @@ class Frame {
     }
 
     private func viewportFitsInPaintedWindow() -> Bool {
-        guard paintedWindow != .full else { return true }
+        let window: PaintWindow = state.display.painted.window
+        guard window != .full else { return true }
 
         let margin: CGFloat = frameHeight / 2
-        return scroll >= paintedWindow.top + margin
-            && scroll + frameHeight <= paintedWindow.bottom - margin
+        return scroll >= window.top + margin
+            && scroll + frameHeight <= window.bottom - margin
     }
 
     func paint() {
@@ -1044,9 +1049,9 @@ class Frame {
     }
 
     func paint(window: PaintWindow) {
-        guard needsPaint else { return }
+        guard state.display.paint.isNeeded else { return }
 
-        paintedWindow = window
+        state.display.painted.window = window
 
         browser?.measure.start("BrowserTab.paint")
         profiler.reset()
@@ -1057,14 +1062,18 @@ class Frame {
         guard let doc = document else { return }
 
         var list: [DisplayOp] = []
-        list.reserveCapacity(displayList.count)
-        var session: PaintSession = PaintSession(paint: paintRevision, epoch: paintEpoch, window: window)
+        list.reserveCapacity(state.display.paint.ops.count)
+        var session: PaintSession = PaintSession(
+            paint: state.display.paint.revision,
+            epoch: state.display.paint.epoch,
+            window: window
+        )
         paintTree(doc.root, into: &list, session: &session)
 
-        displayList = list
-        paintedBottom = contentBottom
-        paintRevision += 1
-        needsPaint = false
+        state.display.paint.ops = list
+        state.display.painted.bottom = contentBottom
+        state.display.paint.revision += 1
+        state.display.paint.isNeeded = false
     }
 
     private var contentBottom: CGFloat {
@@ -1079,7 +1088,7 @@ class Frame {
         js.run(script: "raf", code: "__runRAFHandlers()")
         browser?.measure.stop("BrowserTab.raf")
         var needsAnotherFrame: Bool = false
-        needsComposite = nodes.style.isDirty || documentDirty || needsPaint
+        state.display.composite.isNeeded = nodes.style.isDirty || documentDirty || state.display.paint.isNeeded
         var needsLayoutUpdate: Bool = false
         var animationFallbacks: Int = 0
         browser?.measure.start("BrowserTab.animScan")
@@ -1094,7 +1103,7 @@ class Frame {
                         if node.layout?.isBlock == true,
                             let style: PaintEffectStyle = paintEffectStyle(node: node)
                         {
-                            compositedUpdates[node.id] = EffectUpdate(
+                            state.display.composite.updates[node.id] = EffectUpdate(
                                 style: style,
                                 isAnimatedTransform: node.animations[.property(.transform)] != nil
                             )
@@ -1112,25 +1121,25 @@ class Frame {
                             animationFallbacks += 1
                         }
                     } else {
-                        needsCompositeForPaint = true
-                        needsPaint = true
+                        state.display.composite.isNeededForPaint = true
+                        state.display.paint.isNeeded = true
                     }
                 } else {
                     if dom.removeAnimation(key, from: node.id) != nil { activeAnimations -= 1 }
-                    needsCompositeForPaint = true
-                    needsPaint = true
+                    state.display.composite.isNeededForPaint = true
+                    state.display.paint.isNeeded = true
                 }
             }
         }
         browser?.measure.counter("layout.animation.fallback", ["nodes": animationFallbacks])
         browser?.measure.stop("BrowserTab.animScan")
 
-        if needsPaint {
+        if state.display.paint.isNeeded {
             setNeedsPaint()
         }
 
         if needsLayoutUpdate {
-            needsCompositeForPaint = true
+            state.display.composite.isNeededForPaint = true
             setNeedsLayout()
         }
 
@@ -1166,17 +1175,21 @@ class Frame {
     func commitFrame() {
         guard let tab else { return }
         scroll = min(scroll, maxScroll)
-        let updates: [NodeID: EffectUpdate]? = (needsComposite || needsCompositeForPaint) ? nil : compositedUpdates
+        let display: FrameDisplayState = state.display
+        let updates: [NodeID: EffectUpdate]? =
+            (display.composite.isNeeded || display.composite.isNeededForPaint)
+            ? nil
+            : display.composite.updates
         let data: FrameCommit = FrameCommit(
             scrollState: ScrollState(scroll: scroll, interestTop: interestTop, interestBottom: interestBottom, maxScroll: maxScroll),
-            display: FrameDisplayOutput(displayList: displayList, compositedUpdates: updates, paintRevision: paintRevision),
+            display: FrameDisplayOutput(displayList: display.paint.ops, compositedUpdates: updates, paintRevision: display.paint.revision),
             preferences: ColorPreferences(
                 prefersDark: tab.prefersDark,
                 usesForcedColors: tab.forcedColors
             )
         )
-        compositedUpdates = [:]
-        needsCompositeForPaint = false
+        state.display.composite.updates.removeAll()
+        state.display.composite.isNeededForPaint = false
         browser?.commit(tab: tab, data: data)
     }
 
@@ -1242,7 +1255,7 @@ class Frame {
     func repaintForScroll() -> Bool {
         guard !viewportFitsInPaintedWindow() else { return false }
 
-        needsPaint = true
+        state.display.paint.isNeeded = true
         paint(window: windowForScroll())
         commitFrame()
         return true
@@ -1811,8 +1824,8 @@ class Frame {
     }
 
     func setNeedsPaint() {
-        paintEpoch += 1
-        needsPaint = true
+        state.display.paint.epoch += 1
+        state.display.paint.isNeeded = true
         needsRender = true
         parentFrame?.setNeedsPaint()
         requestAnimationFrame()
