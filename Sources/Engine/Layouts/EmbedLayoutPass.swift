@@ -179,10 +179,10 @@ extension LayoutTree {
                     )
                 )
             }
-            let outline: DisplayOp? = DisplayOp.fromStyle(ref.node, rect: ref.selfRect())
+            let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: ref.selfRect())
             if element.isFocusVisible && outline == nil {
-                items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(ref.node).outer), width: 2))
-                items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(ref.node).inner), width: 4))
+                items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 2))
+                items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 4))
             }
             if let outline = outline { items.append(outline) }
         }
@@ -205,12 +205,16 @@ extension LayoutTree {
         items.append(.text(text: text, font: ref.font, color: computed.text.color, rect: Rect(left: ref.x, top: ref.y, right: ref.font.measure(text), bottom: ref.y + ref.font.linespace)))
 
         if element.isFocused {
-            items.append(drawCursor(ref, offset: ref.font.measure(text)))
+            items.append(drawCursor(
+                origin: Point(x: ref.x, y: ref.y),
+                height: ref.height,
+                offset: ref.font.measure(text)
+            ))
         }
-        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node, rect: ref.selfRect())
+        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: ref.selfRect())
         if element.isFocusVisible && outline == nil {
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(ref.node).outer), width: 4))
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(ref.node).inner), width: 2))
+            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 4))
+            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 2))
         }
         if let outline = outline { items.append(outline) }
     }
@@ -351,10 +355,10 @@ extension LayoutTree {
         items.append(.rect(rect: ref.selfRect(), color: displayColor))
         items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: usesForcedColors(ref.node) ? ForcedColor.buttonBorder : "black"), width: 1))
 
-        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node, rect: ref.selfRect())
+        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: ref.selfRect())
         if element.isFocusVisible && outline == nil {
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(ref.node).outer), width: 4))
-            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(ref.node).inner), width: 2))
+            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 4))
+            items.append(.outline(rect: ref.selfRect(), color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 2))
         }
         if let outline = outline { items.append(outline) }
     }

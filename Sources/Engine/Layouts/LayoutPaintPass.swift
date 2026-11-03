@@ -23,7 +23,11 @@ extension LayoutRef {
     func paintScopeKinds() -> [EffectKind] {
         if case .line = kind { return [] }
         let style: PaintEffectStyle? = profiler.measure("paint.effect.check", {
-            paintEffectStyle(node: node)
+            paintEffectStyle(
+                node.style.computed,
+                animated: node.animations[.property(.transform)] != nil
+                    || node.animations[.property(.opacity)] != nil
+            )
         })
         guard let style else { return [] }
         var kinds: [EffectKind] = [.transform(style.translation)]

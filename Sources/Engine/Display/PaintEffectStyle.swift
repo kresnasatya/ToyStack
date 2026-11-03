@@ -11,11 +11,8 @@ struct PaintEffectStyle: Sendable {
 
 // MARK: - Resolution
 
-@MainActor
-func paintEffectStyle(node: DOMRef) -> PaintEffectStyle? {
-    let effects: VisualStyle.Effects = node.style.computed.visual.effects
-    let animated: Bool = node.animations[.property(.transform)] != nil
-        || node.animations[.property(.opacity)] != nil
+func paintEffectStyle(_ style: ComputedStyle, animated: Bool) -> PaintEffectStyle? {
+    let effects: VisualStyle.Effects = style.visual.effects
 
     guard effects.blurRadius > 0 || effects.opacity < 1
         || (effects.blendMode != nil && effects.blendMode != .normal)

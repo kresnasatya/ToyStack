@@ -205,11 +205,11 @@ extension LayoutTree {
             outlineRect = outlineRect?.union(childRect) ?? childRect
         }
         if let rect = outlineRect, let focused {
-            if let outline: DisplayOp = DisplayOp.fromStyle(focused, rect: rect) {
+            if let outline: DisplayOp = DisplayOp.fromStyle(focused.style.computed, rect: rect) {
                 items.append(outline)
             } else {
-                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(ref.node).outer), width: 4))
-                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(ref.node).inner), width: 2))
+                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).outer), width: 4))
+                items.append(.outline(rect: rect, color: BrowserColor(cssName: focusRingColors(forcedColors: usesForcedColors(ref.node)).inner), width: 2))
             }
         }
     }

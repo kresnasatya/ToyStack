@@ -1019,7 +1019,11 @@ class Frame {
                     }
                     if property == .transform || property == .opacity {
                         if node.layout?.isBlock == true,
-                            let style: PaintEffectStyle = paintEffectStyle(node: node)
+                            let style: PaintEffectStyle = paintEffectStyle(
+                                node.style.computed,
+                                animated: node.animations[.property(.transform)] != nil
+                                    || node.animations[.property(.opacity)] != nil
+                            )
                         {
                             state.display.composite.updates[node.id] = EffectUpdate(
                                 style: style,

@@ -305,10 +305,10 @@ private func closeIframeScopes(
     }
     ops.append(.endEffect)
 
-    if let border: DisplayOp = DisplayOp.fromBorderStyle(iframe.node, rect: scopes.rect) {
+    if let border: DisplayOp = DisplayOp.fromBorderStyle(iframe.node.style.computed, rect: scopes.rect) {
         ops.append(border)
     }
-    if let outline: DisplayOp = DisplayOp.fromStyle(iframe.node, rect: scopes.rect) {
+    if let outline: DisplayOp = DisplayOp.fromStyle(iframe.node.style.computed, rect: scopes.rect) {
         ops.append(outline)
     }
 }

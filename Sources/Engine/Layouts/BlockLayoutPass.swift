@@ -1231,13 +1231,13 @@ extension LayoutTree {
             ))
         }
 
-        if let border: DisplayOp = DisplayOp.fromBorderStyle(ref.node, rect: borderPaintRect(ref)) {
+        if let border: DisplayOp = DisplayOp.fromBorderStyle(ref.node.style.computed, rect: borderPaintRect(ref)) {
             items.append(border)
         }
 
-        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node, rect: blockSelfRect(ref))
+        let outline: DisplayOp? = DisplayOp.fromStyle(ref.node.style.computed, rect: blockSelfRect(ref))
         if ref.node.isFocusVisible && outline == nil {
-            let ring: (outer: String, inner: String) = focusRingColors(ref.node)
+            let ring: (outer: String, inner: String) = focusRingColors(forcedColors: usesForcedColors(ref.node))
             items.append(.outline(rect: blockSelfRect(ref), color: BrowserColor(cssName: ring.outer), width: 4))
             items.append(.outline(rect: blockSelfRect(ref), color: BrowserColor(cssName: ring.inner), width: 2))
         }
@@ -1259,9 +1259,13 @@ extension LayoutTree {
             el.attributes["contenteditable"] != nil
         else { return }
         if let last: LayoutRef = lastTextLayout(ref) {
-            items.append(drawCursor(last, offset: textTextWidth(last)))
+            items.append(drawCursor(
+                origin: Point(x: last.x, y: last.y),
+                height: last.height,
+                offset: textTextWidth(last)
+            ))
         } else {
-            items.append(drawCursor(ref, offset: 0))
+            items.append(drawCursor(origin: Point(x: ref.x, y: ref.y), height: ref.height, offset: 0))
         }
     }
 

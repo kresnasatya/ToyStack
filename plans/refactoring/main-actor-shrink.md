@@ -170,19 +170,39 @@ None of these starts without one of these triggers being true:
 - the package adopts `.swiftLanguageMode(.v6)` and the warnings must become zero;
 - a pass must be unit-tested without a live `Browser`.
 
-### Stage 3 — paint from a value input (≈13 annotations)
+### Stage 3 — paint from a value input (5 of 13 done, rest blocked on payloads)
 
-Input becomes `PaintInput: Sendable` (per node: id, rect, kind, children order, paint-relevant
-`ComputedStyle`, scroll offset, line data) and `PaintTree` becomes
-`nonisolated func paint(_ input: PaintInput, into: inout [DisplayOp], caches: inout PaintCacheStore)`.
+**3a — paint leaf helpers take values (applied).** Five factories only needed one style read and
+were isolated because they took a `DOMRef`/`LayoutRef`:
 
-Removes: `PaintTree.swift` (8), `DrawCursor.swift:3`, `FocusRing.swift:1`,
-`PaintEffectStyle.swift:14`, `DisplayOp.fromStyle`/`fromBorderStyle` (2).
+| Function | New input | Removed |
+|---|---|---|
+| `DisplayOp.fromStyle` / `fromBorderStyle` | `ComputedStyle` | 2 |
+| `paintEffectStyle` | `ComputedStyle` + `animated` | 1 |
+| `focusRingColors` | `forcedColors: Bool` | 1 |
+| `drawCursor` | `Point`, `height`, `offset` | 1 |
 
-**Hard part:** paint recurses into other frames — `PaintTree.swift:58-64` reads
-`obj.node.element?.frame`, `childFrame.document`, `childFrame.paintEpoch`. A value input must
-snapshot the frame tree, not just one frame. Do this after Stage 2; it is the first real
-annotation cut, but it is not small.
+Callers already hold the style, so nothing new is computed. Engine annotations: 100 → 95.
+
+**3b — the walk itself (`PaintTree`, 8 annotations): not a copy, a payload rewrite.** Inventory of
+what a node's paint actually reads, measured from the painters:
+
+- `CanvasRenderingContext2D` is a `final class`; `paintCanvas` calls `ctx.image()` and
+  `ctx.revision` at draw time (`EmbedLayoutPass.swift:419-424`).
+- Images come from `DOMSideTables.images: [NodeID: CGImage]` (`DOMSideTables.swift:26`) and paint
+  reads them per node (`EmbedLayoutPass.swift:108`).
+- Iframes recurse into a live `Frame` (`PaintTree.swift:58-64`): `childFrame.document`,
+  `childFrame.paintEpoch`.
+- Caret and scrollbar read DOM flags and unknown style (`BlockLayoutPass.swift:1257-1281`).
+
+So a `PaintInput` is not a flat copy of the layout tree; it is a *frame-tree* paint contract with a
+canvas-image payload, an image table, and per-frame recursion. Rewriting the four per-kind painters
+(`BlockLayoutPass` 125 lines, `EmbedLayoutPass` 123, `LineLayoutPass` 40, `TextLayoutPass` 30) plus
+`PaintTree` (350) is the cost, and every line of it changes render output if it is wrong.
+
+**Recommendation:** defer 3b until the payloads are values — the canvas context and iframe `Frame`
+are exactly the class references item 6's value-state rewrite removes. Doing 3b first means writing
+the frame-tree paint contract twice.
 
 ### Stage 4 — style over a value document (≈30 annotations)
 
@@ -215,7 +235,8 @@ stop being isolated. 30 suites, mostly one annotation each.
 |---|---|---|
 | now (1 done) | 0 (structural) | 115 |
 | 2 (done) | 0 (structural) | 115 |
-| 3 | ~13 | ~102 |
+| 3a (done) | 5 | 110 |
+| 3b (deferred) | 8 | — |
 | 4 | ~30 | ~72 |
 | 5 | ~24 | ~48 |
 | roots and UI boundary | — | ~37 floor |
