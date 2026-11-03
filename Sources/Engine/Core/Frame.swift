@@ -14,12 +14,14 @@ struct ResourceLoads {
 class Frame {
     static let scrollStep: CGFloat = 100
 
-    weak var tab: BrowserTab?
-    weak var parentFrame: Frame?
-    var frameElement: NodeID?
-    let windowID: Int
+    let links: FrameLinks
 
     var state: FrameState
+
+    var tab: BrowserTab? { links.tab }
+    var parentFrame: Frame? { tab?.frame(links.parent) }
+    var frameElement: NodeID? { links.element }
+    var windowID: Int { links.id.raw }
 
     var url: WebURL! { state.document.meta.url }
     var dom: DOMTree { state.document.dom }
@@ -134,17 +136,20 @@ class Frame {
     private var browser: Browser? { tab?.browser }
 
     init(tab: BrowserTab, parent: FrameParent?, frameWidth: CGFloat, frameHeight: CGFloat) {
+        let id: FrameID = tab.reserveFrameID()
+        self.links = FrameLinks(
+            tab: tab,
+            id: id,
+            parent: parent?.frame?.links.id,
+            element: parent?.element
+        )
         self.state = FrameState(
             document: FrameDocumentState(dom: DOMTree()),
             layout: FrameLayoutState(width: frameWidth, height: frameHeight),
             display: FrameDisplayState(),
             runtime: FrameRuntimeState()
         )
-        self.tab = tab
-        self.parentFrame = parent?.frame
-        self.frameElement = parent?.element
-        self.windowID = tab.reserveWindowID()
-        tab.windowIDToFrame[self.windowID] = self
+        tab.windowIDToFrame[id.raw] = self
     }
 
     private func requestAnimationFrame() {

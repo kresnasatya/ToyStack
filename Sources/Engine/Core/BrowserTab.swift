@@ -102,6 +102,15 @@ public class BrowserTab {
         return id
     }
 
+    func reserveFrameID() -> FrameID {
+        return FrameID(raw: reserveWindowID())
+    }
+
+    func frame(_ id: FrameID?) -> Frame? {
+        guard let id else { return nil }
+        return windowIDToFrame[id.raw]
+    }
+
     public func load(_ url: WebURL, payload: String? = nil) {
         load(url, payload: payload, in: rootFrame)
     }
