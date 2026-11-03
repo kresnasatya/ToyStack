@@ -10,6 +10,7 @@ struct DOMBase {
 }
 
 extension DOMBase {
+    @MainActor
     init() {
         self.parent = nil
         self.children = []

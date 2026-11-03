@@ -1,6 +1,7 @@
 import Foundation
 
-nonisolated final class StyleFields {
+@MainActor
+final class StyleFields {
     private(set) var owner: NodeID?
     private var storage: StyleStorage = StyleStorage()
     private(set) var revision: UInt64 = 0
@@ -15,33 +16,27 @@ nonisolated final class StyleFields {
         owner = id
     }
 
-    @MainActor
     func unknownValue(_ key: String) -> String? {
         return storage.unknown[key]
     }
 
-    @MainActor
     func markAll() {
         invalidation.needsRestyle = true
         invalidation.dirtyKeys = Set(StyleProperty.allCases)
     }
 
-    @MainActor
     var hasDirtyDescendant: Bool {
         return invalidation.descendantsDirty
     }
 
-    @MainActor
     func markDirtyDescendants() {
         invalidation.descendantsDirty = true
     }
 
-    @MainActor
     func clearDirtyDescendants() {
         invalidation.descendantsDirty = false
     }
 
-    @MainActor
     func apply(_ newValues: [String: String], parent: ComputedStyle? = nil) {
         let old: ComputedStyle = storage.computed
         let oldUnknown: [String: String] = storage.unknown
@@ -62,7 +57,6 @@ nonisolated final class StyleFields {
         profiler.count("style.fields.changed", by: changed.count)
     }
 
-    @MainActor
     func set(_ value: AnimatedValue, for property: StyleProperty) {
         guard storage.computed.set(value, for: property) else { return }
         invalidation.dirtyKeys.remove(property)
@@ -70,7 +64,6 @@ nonisolated final class StyleFields {
         notifyLayout([property])
     }
 
-    @MainActor
     func mutate(_ body: (inout ComputedStyle) -> Void) {
         let old: ComputedStyle = storage.computed
         body(&storage.computed)
@@ -81,13 +74,11 @@ nonisolated final class StyleFields {
         notifyLayout(changed)
     }
 
-    @MainActor
     var isDirty: Bool {
         if invalidation.needsRestyle { return true }
         return !invalidation.dirtyKeys.isEmpty
     }
 
-    @MainActor
     private func notifyLayout(_ changed: Set<StyleProperty>) {
         guard let owner, let tree = layoutTree else { return }
         for property in changed where property.affectsLayout {

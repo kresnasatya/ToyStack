@@ -49,7 +49,6 @@ struct ToyStack: App {
     }
 }
 
-@MainActor
 public struct BrowserView: View {
     @StateObject private var app = Browser()
     @State private var chrome = Chrome()

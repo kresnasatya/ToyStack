@@ -2,13 +2,13 @@ import CoreGraphics
 
 // MARK: - BlockStyle
 
-@MainActor
 struct BlockStyle {
     let display: LayoutStyle.Display
     let position: LayoutStyle.Position
     let box: BlockBoxStyle
     let flags: BlockStyleFlags
 
+    @MainActor
     init(node: DOMRef) {
         let style: ComputedStyle = node.style.computed
         self.display = style.layout.display
@@ -35,7 +35,6 @@ struct BlockStyle {
 
 // MARK: - BlockBoxStyle
 
-@MainActor
 struct BlockBoxStyle {
     let width: CGFloat?
     let height: CGFloat?
@@ -45,7 +44,6 @@ struct BlockBoxStyle {
 
 // MARK: - BlockStyleFlags
 
-@MainActor
 struct BlockStyleFlags {
     let left: CGFloat?
     let top: CGFloat?
