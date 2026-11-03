@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct PaintCache {
+struct PaintCache: Sendable {
     private var items: [DisplayOp] = []
     private var key: PaintKey? = nil
     private var valid: Bool = false

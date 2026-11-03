@@ -48,12 +48,10 @@ struct BlockScroll {
 // MARK: - BlockPaint
 
 struct BlockPaint {
-    var cache: PaintCache
     var style: BlockStyle?
     var styleRevision: UInt64
 
     init() {
-        self.cache = PaintCache()
         self.style = nil
         self.styleRevision = 0
     }

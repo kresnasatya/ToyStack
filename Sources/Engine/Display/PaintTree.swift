@@ -1,7 +1,12 @@
 import CoreGraphics
 
 @MainActor
-func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout PaintSession) {
+func paintTree(
+    _ obj: LayoutRef,
+    into ops: inout [DisplayOp],
+    session: inout PaintSession,
+    caches: inout PaintCacheStore
+) {
     let window: PaintWindow = session.window
     let epoch: UInt = session.epoch
     if obj.isLine, !window.intersects(obj.selfRect()) {
@@ -16,12 +21,13 @@ func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout Pai
     let start: Int = ops.count
     profiler.count("paint.nodes", by: 1)
 
-    if obj.isLine, obj.tree.lineCanCachePaint(obj), obj.shouldPaint(),
-        obj.linePaintCache.canReuse(epoch: epoch, generation: obj.linePaintGeneration)
-    {
-        obj.linePaintCache.append(to: &ops, currentX: obj.x, currentY: obj.y)
-        profiler.count("paint.cache.hit.lines", by: 1)
-        return
+    if obj.isLine, obj.tree.lineCanCachePaint(obj), obj.shouldPaint() {
+        let cache: LinePaintCache = caches.line(obj.id)
+        if cache.canReuse(epoch: epoch, generation: obj.linePaintGeneration) {
+            cache.append(to: &ops, currentX: obj.x, currentY: obj.y)
+            profiler.count("paint.cache.hit.lines", by: 1)
+            return
+        }
     }
 
     let opened: [OpenScope] = openNodeScopes(obj, into: &ops, session: &session)
@@ -35,18 +41,19 @@ func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout Pai
                 height: obj.height,
                 epoch: epoch
             )
-            if obj.blockPaintCache.canReuse(key: key) {
-                obj.blockPaintCache.append(to: &ops, origin: origin)
+            let cache: PaintCache = caches.block(obj.id)
+            if cache.canReuse(key: key) {
+                cache.append(to: &ops, origin: origin)
                 profiler.count("paint.cache.hit.blocks", by: 1)
             } else {
                 obj.paint(into: &ops)
-                var cache: PaintCache = obj.blockPaintCache
-                cache.store(
+                var stored: PaintCache = cache
+                stored.store(
                     items: Array(ops[ownStart...]),
                     key: key,
                     origin: origin
                 )
-                obj.blockPaintCache = cache
+                caches.setBlock(stored, for: obj.id)
                 profiler.count("paint.cache.store.blocks", by: 1)
             }
         } else {
@@ -61,7 +68,12 @@ func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout Pai
             let childDoc = childFrame.document
         {
             var childSession: PaintSession = session.with(epoch: childFrame.paintEpoch, window: window)
-            paintTree(childDoc.root, into: &ops, session: &childSession)
+            paintTree(
+                childDoc.root,
+                into: &ops,
+                session: &childSession,
+                caches: &childFrame.paintCaches
+            )
         }
         closeIframeScopes(obj, scopes: scopes, into: &ops)
     } else if obj.isBlock,
@@ -88,7 +100,7 @@ func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout Pai
         ).placed(rect: shape.rect)
         ops.append(.beginEffect(scope))
         for child in inPaintOrder(visibleChildren) {
-            paintTree(child, into: &ops, session: &session)
+            paintTree(child, into: &ops, session: &session, caches: &caches)
         }
         ops.append(.endEffect)
         ops.append(contentsOf: obj.tree.blockPaintScrollbar(obj))
@@ -105,12 +117,12 @@ func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout Pai
         ).placed(rect: obj.selfRect())
         ops.append(.beginEffect(scope))
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &ops, session: &session)
+            paintTree(child, into: &ops, session: &session, caches: &caches)
         }
         ops.append(.endEffect)
     } else {
         for child in inPaintOrder(obj.children) {
-            paintTree(child, into: &ops, session: &session)
+            paintTree(child, into: &ops, session: &session, caches: &caches)
         }
     }
 
@@ -127,37 +139,19 @@ func paintTree(_ obj: LayoutRef, into ops: inout [DisplayOp], session: inout Pai
             epoch: epoch,
             generation: obj.linePaintGeneration
         )
-        var cache: LinePaintCache = obj.linePaintCache
+        var cache: LinePaintCache = caches.line(obj.id)
         cache.store(
             items: Array(ops[start...]),
             key: key
         )
-        obj.linePaintCache = cache
+        caches.setLine(cache, for: obj.id)
         profiler.count("paint.cache.store.lines", by: 1)
     }
 }
 
-// MARK: - Cache accessors
+// MARK: - Cache generation
 
 extension LayoutRef {
-    var blockPaintCache: PaintCache {
-        get { blockData.paint.cache }
-        nonmutating set {
-            var data: BlockData = blockData
-            data.paint.cache = newValue
-            blockData = data
-        }
-    }
-
-    var linePaintCache: LinePaintCache {
-        get { lineData.paint.cache }
-        nonmutating set {
-            var data: LineData = lineData
-            data.paint.cache = newValue
-            lineData = data
-        }
-    }
-
     var linePaintGeneration: UInt {
         return lineData.paint.generation
     }

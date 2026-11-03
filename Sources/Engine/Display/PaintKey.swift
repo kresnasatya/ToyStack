@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct PaintKey: Equatable {
+struct PaintKey: Equatable, Sendable {
     let width: CGFloat
     let height: CGFloat
     let epoch: UInt

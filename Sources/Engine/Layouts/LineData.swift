@@ -30,12 +30,10 @@ struct LineContent {
 // MARK: - LinePaint
 
 struct LinePaint {
-    var cache: LinePaintCache
     var generation: UInt
     var paintedChildCount: Int
 
     init() {
-        self.cache = LinePaintCache()
         self.generation = 0
         self.paintedChildCount = -1
     }

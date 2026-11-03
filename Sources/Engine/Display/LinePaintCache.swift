@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct LinePaintCache {
+struct LinePaintCache: Sendable {
     private var items: [DisplayOp] = []
     private var key: LinePaintKey? = nil
     private var valid: Bool = false

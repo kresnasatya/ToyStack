@@ -98,6 +98,10 @@ class Frame {
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
     var paintEpoch: UInt { state.display.paint.epoch }
+    var paintCaches: PaintCacheStore {
+        get { state.display.caches }
+        set { state.display.caches = newValue }
+    }
     var title: String { state.document.meta.title }
     var isSecure: Bool { state.document.meta.isSecure }
 
@@ -889,6 +893,7 @@ class Frame {
             if !removed.isEmpty {
                 state.display.composite.updates = state.display.composite.updates
                     .filter({ doc.primaryLayout(for: $0.key) != nil })
+                state.display.caches.prune(removing: removed)
             }
             if state.layout.targets.iframes.contains(where: { removed.contains($0.layout) })
                 || state.layout.targets.blocks.contains(where: { removed.contains($0.layout) })
@@ -973,7 +978,12 @@ class Frame {
             epoch: state.display.paint.epoch,
             window: window
         )
-        paintTree(doc.root, into: &list, session: &session)
+        paintTree(
+            doc.root,
+            into: &list,
+            session: &session,
+            caches: &state.display.caches
+        )
 
         state.display.paint.ops = list
         state.display.painted.bottom = contentBottom

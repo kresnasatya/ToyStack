@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct LinePaintKey: Equatable {
+struct LinePaintKey: Equatable, Sendable {
     let x: CGFloat
     let y: CGFloat
     let epoch: UInt

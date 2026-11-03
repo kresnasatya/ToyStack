@@ -125,40 +125,42 @@ frame (`layout.visited.count = 3`, 584 of 600 frames) with no animation fallback
 `StyleFields` a self-contained value later. Risk: a missed style write shows up as stale geometry,
 not a crash — hence the four suites and the screenshot diff.
 
-## Stage 2 — take paint caches out of the layout tree
+## Stage 2 — take paint caches out of the layout tree (done)
 
-**What is wrong.** `PaintTree` is written as a read pass, but it writes through a `nonmutating set`
-on `LayoutRef`, so it mutates `BlockData`/`LineData` while walking:
+**What was wrong.** `PaintTree` is written as a read pass, but it wrote through a `nonmutating set`
+on `LayoutRef`, so it mutated `BlockData`/`LineData` while walking — a "getter" changing node data.
 
-- `Sources/Engine/Display/PaintTree.swift:143-163` — `blockPaintCache` / `linePaintCache` accessors
-- `Sources/Engine/Display/PaintTree.swift:20-22,38-49,130-135` — read/write of those caches
-- `Sources/Engine/Layouts/BlockData.swift:9,50`, `LineData.swift:8,32` — the storage
+- `PaintTree.swift` defined `blockPaintCache` / `linePaintCache` with `nonmutating set`
+- `BlockData.paint.cache` and `LineData.paint.cache` held the storage
+- the cache is paint scratch, not a layout input: a hit changes nothing about geometry
 
-**What to change.** Move both caches into a side table owned by the paint session:
+**What changed (applied).** Both caches live in a store owned by the display state, one per frame:
 
-```diff
- // Sources/Engine/Display/PaintCache.swift
-+struct PaintCacheStore {
-+    var blocks: [LayoutID: PaintCache] = [:]
-+    var lines: [LayoutID: LinePaintCache] = [:]
-+}
+```swift
+// Sources/Engine/Display/PaintCacheStore.swift
+struct PaintCacheStore: Sendable {
+    private var blocks: [LayoutID: PaintCache] = [:]
+    private var lines: [LayoutID: LinePaintCache] = [:]
+}
 ```
 
-```diff
--    var blockPaintCache: PaintCache {
--        get { blockData.paint.cache }
--        nonmutating set { ... blockData = data }
--    }
-+    // paint takes `store: inout PaintCacheStore` and keys by `obj.id`
-```
+`paintTree` takes it as its fourth parameter (`obj`, `ops`, `session`, `caches`); the two mutating
+accessors are gone, `BlockPaint`/`LinePaint` keep only their layout-side fields (`style`,
+`styleRevision`, `generation`, `paintedChildCount`).
 
-`BlockPaint` keeps the `generation` counter (it is a layout input), drops `cache`.
+Per-frame scoping matters: `LayoutID` is only unique inside one tree, so an iframe paints with its
+own frame's store (`caches: &childFrame.paintCaches`). `Frame.render` prunes removed ids after
+`sweepUnreachable`, so the store cannot grow with dead nodes.
 
-**Deletes:** the two mutating accessors, the `BlockData`/`LineData` write path, and the
-`nonmutating set` trick. **No annotation changes yet.**
+`PaintCache`, `LinePaintCache`, `PaintKey`, `LinePaintKey` gained `Sendable` because the store lives
+in `FrameDisplayState`, which is `Sendable`.
 
-**Checkpoint:** `swift test` (paint caches are covered by `PaintCullingTests`,
-`RasterCompositorTests`), plus a screenshot at two scroll positions on `www/bench/large.html`.
+**Deletes:** the `nonmutating set` accessors, the cache fields in `BlockPaint`/`LinePaint`, and the
+node write path in paint. **No annotation changes yet.**
+
+**Checkpoint (passed):** `swift test` — 209 tests; `www/ch16/granular-style.html` pixel-identical to
+the pre-change render; a 10 s animation shows the same cache hits as before (`paint.cache.hit.blocks=3`
+on 584 frames, identical line-hit distribution) and the same 3 visited layout nodes per frame.
 
 ## Gate — the three phases that actually remove annotations
 
@@ -212,7 +214,7 @@ stop being isolated. 30 suites, mostly one annotation each.
 | Stage | Removes | Remaining in `Sources` |
 |---|---|---|
 | now (1 done) | 0 (structural) | 115 |
-| 2 | 0 (structural) | 115 |
+| 2 (done) | 0 (structural) | 115 |
 | 3 | ~13 | ~102 |
 | 4 | ~30 | ~72 |
 | 5 | ~24 | ~48 |
@@ -234,7 +236,7 @@ The floor is the roots in audit §4 plus the boundary that owns them: Engine roo
 ## Order if it is scheduled
 
 ```
-1 (done) → 2 ─┬─> 3 (paint)
+1 (done) → 2 (done) ─┬─> 3 (paint)
               └─> 4 (style) → 5 (layout)
 ```
 
