@@ -20,7 +20,7 @@ class AccessibilityNode {
     }
 
     private static func computeBounds(for node: DOMRef) -> Rect {
-        guard let tree: LayoutTree = node.dom.layoutTree,
+        guard let tree: LayoutTree = node.dom.layoutBox?.tree,
             let id: LayoutID = node.layoutID
         else {
             return Rect(left: 0, top: 0, right: 0, bottom: 0)

@@ -9,14 +9,14 @@ struct LayoutIdempotenceTests {
 
     @Test func secondLayoutIsIdentical() throws {
         let fixture: Fixture = makeFixture()
-        let document: LayoutTree = try #require(fixture.frame.document)
+        var document: LayoutTree = try #require(fixture.frame.document)
 
         let first: [Snapshot] = snapshot(of: document.rootID, in: document)
 
         let zoom: CGFloat = document.zoom(document.rootID)
         let pageZoom: CGFloat = document.documentData(document.rootID).pageZoom
         profiler.reset()
-        markAllFields(document.rootID, in: document)
+        markAllFields(document.rootID, in: &document)
         document.layoutDocument(
             availableWidth: fixture.frame.frameWidth,
             zoom: zoom,
@@ -29,7 +29,7 @@ struct LayoutIdempotenceTests {
 
     @Test func redundantLayoutKeepsBlockIdentity() throws {
         let fixture: Fixture = makeFixture()
-        let document: LayoutTree = try #require(fixture.frame.document)
+        var document: LayoutTree = try #require(fixture.frame.document)
 
         let objectsBefore: [LayoutID] = blockIDs(of: document.rootID, in: document)
         let textIDsBefore: [LayoutID] = blockTexts(in: document.rootID, in: document)
@@ -38,7 +38,7 @@ struct LayoutIdempotenceTests {
         let zoom: CGFloat = document.zoom(document.rootID)
         let pageZoom: CGFloat = document.documentData(document.rootID).pageZoom
         profiler.reset()
-        markAllFields(document.rootID, in: document)
+        markAllFields(document.rootID, in: &document)
         document.layoutDocument(
             availableWidth: fixture.frame.frameWidth,
             zoom: zoom,
@@ -53,7 +53,7 @@ struct LayoutIdempotenceTests {
 
     @Test func buttonKeepsOneLinePerLayout() throws {
         let fixture: Fixture = makeFixture()
-        let document: LayoutTree = try #require(fixture.frame.document)
+        var document: LayoutTree = try #require(fixture.frame.document)
         let button: LayoutID = try #require(
             treeToList(document, document.rootID).first(where: {
                 guard document.isEmbed($0) else { return false }
@@ -159,13 +159,13 @@ private func blockTexts(in id: LayoutID, in tree: LayoutTree) -> [LayoutID] {
 }
 
 @MainActor
-private func markAllFields(_ id: LayoutID, in tree: LayoutTree) {
+private func markAllFields(_ id: LayoutID, in tree: inout LayoutTree) {
     tree.markField(.x, at: id)
     tree.markField(.y, at: id)
     tree.markField(.width, at: id)
     tree.markField(.height, at: id)
     tree.markField(.zoom, at: id)
     for child in tree.childrenIDs(of: id) {
-        markAllFields(child, in: tree)
+        markAllFields(child, in: &tree)
     }
 }

@@ -8,12 +8,15 @@ import Foundation
 enum LayoutInputsBuilder {
     static func build(dom: DOMTree) -> LayoutInputs {
         var nodes: [LayoutInput?] = []
+        var styleChanges: [NodeID: Set<StyleProperty>] = [:]
         dom.forEachNode { id in
             guard let node: DOMNode = dom.node(id) else { return }
             while nodes.count <= Int(id.raw) { nodes.append(nil) }
             let element: ElementData? = node.element
             let ref: DOMRef = dom.ref(id)
             let elementRef: ElementRef? = ref.element
+            let changes: Set<StyleProperty> = node.base.style.takeLayoutChanges()
+            if !changes.isEmpty { styleChanges[id] = changes }
             nodes[Int(id.raw)] = LayoutInput(
                 node: LayoutInputNode(
                     parent: dom.parent(of: id),
@@ -40,6 +43,10 @@ enum LayoutInputsBuilder {
                 )
             )
         }
-        return LayoutInputs(nodes: nodes, scrollOffsets: dom.side.scrollOffsets)
+        return LayoutInputs(
+            nodes: nodes,
+            scrollOffsets: dom.side.scrollOffsets,
+            styleChanges: styleChanges
+        )
     }
 }

@@ -109,7 +109,10 @@ struct StyleInvalidationTests {
         )
 
         p.style.mutate { $0.text.font.size = 32 }
-        page.tree.consumeStyleChanges()
+        page.withTree { tree in
+            tree.refreshInputs(LayoutInputsBuilder.build(dom: tree.dom))
+            tree.consumeStyleChanges()
+        }
 
         #expect(page.tree.isDirty(.font, at: text))
     }

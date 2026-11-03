@@ -8,7 +8,7 @@ import Testing
 struct GeometryInvalidationTests {
     @Test func growingParagraphMovesFollowingParagraph() throws {
         let fixture: ParagraphFixture = makeParagraphFixture()
-        let tree: LayoutTree = fixture.tree
+        var tree: LayoutTree = fixture.tree
         let before: LayoutID = try #require(fixture.second.ref.layoutID)
         let yBefore: CGFloat = tree.y(before)
 
@@ -24,7 +24,7 @@ struct GeometryInvalidationTests {
 
     @Test func movingParentDoesNotTranslateAbsoluteChild() throws {
         let fixture: AbsoluteFixture = makeAbsoluteFixture()
-        let tree: LayoutTree = fixture.tree
+        var tree: LayoutTree = fixture.tree
         let before: LayoutID = try #require(fixture.absolute.ref.layoutID)
         let xBefore: CGFloat = tree.x(before)
         let yBefore: CGFloat = tree.y(before)
@@ -41,7 +41,7 @@ struct GeometryInvalidationTests {
 
     @Test func growingNestedListItemMovesFollowingItem() throws {
         let fixture: NestedListFixture = makeNestedListFixture()
-        let tree: LayoutTree = fixture.tree
+        var tree: LayoutTree = fixture.tree
         let before: LayoutID = try #require(fixture.secondItem.ref.layoutID)
         let yBefore: CGFloat = tree.y(before)
 
@@ -56,7 +56,7 @@ struct GeometryInvalidationTests {
 
     @Test func rtlLineStaysRightAlignedAfterPreviousSiblingGrows() throws {
         let fixture: RTLFixture = makeRTLFixture()
-        let tree: LayoutTree = fixture.tree
+        var tree: LayoutTree = fixture.tree
         let blockBefore: LayoutID = try #require(fixture.rtl.ref.layoutID)
         let yBefore: CGFloat = tree.y(blockBefore)
         let textBefore: LayoutID = try #require(
@@ -120,7 +120,7 @@ private struct ParagraphFixture {
     var frame: Frame { tab.rootFrame }
 
     var tree: LayoutTree {
-        guard let tree: LayoutTree = frame.document else {
+        guard var tree: LayoutTree = frame.document else {
             preconditionFailure("fixture has no layout tree")
         }
         return tree
@@ -159,7 +159,7 @@ private struct AbsoluteFixture {
     var frame: Frame { tab.rootFrame }
 
     var tree: LayoutTree {
-        guard let tree: LayoutTree = frame.document else {
+        guard var tree: LayoutTree = frame.document else {
             preconditionFailure("fixture has no layout tree")
         }
         return tree
@@ -207,7 +207,7 @@ private struct NestedListFixture {
     var frame: Frame { tab.rootFrame }
 
     var tree: LayoutTree {
-        guard let tree: LayoutTree = frame.document else {
+        guard var tree: LayoutTree = frame.document else {
             preconditionFailure("fixture has no layout tree")
         }
         return tree
@@ -247,7 +247,7 @@ private struct RTLFixture {
     var frame: Frame { tab.rootFrame }
 
     var tree: LayoutTree {
-        guard let tree: LayoutTree = frame.document else {
+        guard var tree: LayoutTree = frame.document else {
             preconditionFailure("fixture has no layout tree")
         }
         return tree

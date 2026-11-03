@@ -10,6 +10,7 @@ import Foundation
 struct LayoutInputs {
     var nodes: [LayoutInput?]
     var scrollOffsets: [NodeID: CGFloat] = [:]
+    var styleChanges: [NodeID: Set<StyleProperty>] = [:]
 
     func input(_ id: NodeID) -> LayoutInput? {
         guard id.raw < nodes.count else { return nil }
@@ -48,6 +49,10 @@ struct LayoutInputs {
 
     func parent(_ id: NodeID) -> NodeID? {
         return input(id)?.node.parent
+    }
+
+    func styleChanges(_ id: NodeID) -> Set<StyleProperty> {
+        return styleChanges[id] ?? []
     }
 
     func scrollOffset(_ id: NodeID) -> CGFloat {

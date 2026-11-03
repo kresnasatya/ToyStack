@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - TextLayoutPass
 
 extension LayoutTree {
-    func makeText(
+    mutating func makeText(
         _ text: TextData,
         dom: NodeID,
         parent: LayoutID?,
@@ -38,7 +38,7 @@ extension LayoutTree {
             || state.isDirty(.font) || state.isDirty(.ascent) || state.isDirty(.descent)
     }
 
-    func layoutText(_ id: LayoutID) {
+    mutating func layoutText(_ id: LayoutID) {
         guard textLayoutNeeded(id) else { return }
         defer { setDirtyDescendants(false, at: id) }
         profiler.measure("layout.text", {
@@ -96,7 +96,7 @@ extension LayoutTree {
         return textData(id).metrics.width
     }
 
-    func attachText(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
+    mutating func attachText(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
         setPrevious(previous, of: id)
     }
 }

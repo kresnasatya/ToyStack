@@ -5,7 +5,6 @@ import Foundation
 /// One entry per node kind and field. This table is the only place that
 /// declares an edge: `DependencyIndex.rebuild(from:)` reconstructs the reverse
 /// index from it alone.
-@MainActor
 enum LayoutInputTable {
     static func inputs(
         for id: LayoutID,

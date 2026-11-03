@@ -5,7 +5,7 @@ import CoreGraphics
 final class FrameAccessibilityNode: AccessibilityNode {
     private var frame: Frame? { node.element?.frame }
     private var border: CGFloat {
-        guard let tree: LayoutTree = node.dom.layoutTree,
+        guard let tree: LayoutTree = node.dom.layoutBox?.tree,
             let id: LayoutID = node.layoutID
         else { return 1 }
         return tree.zoom(id)

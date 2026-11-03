@@ -11,7 +11,7 @@ struct LayoutTreeTests {
     }
 
     @Test func appendGivesUniqueMonotonicIDs() {
-        let tree: LayoutTree = makeTree()
+        var tree: LayoutTree = makeTree()
         let first: LayoutID = tree.append(
             kind: .block(BlockData()),
             dom: tree.dom.root,
@@ -32,7 +32,7 @@ struct LayoutTreeTests {
     }
 
     @Test func removeSubtreeLeavesAHoleThatIsNeverReused() {
-        let tree: LayoutTree = makeTree()
+        var tree: LayoutTree = makeTree()
         let parent: LayoutID = tree.append(
             kind: .block(BlockData()),
             dom: tree.dom.root,
@@ -62,7 +62,7 @@ struct LayoutTreeTests {
     }
 
     @Test func setChildrenUpdatesParentsAndBumpsTheLinkVersion() {
-        let tree: LayoutTree = makeTree()
+        var tree: LayoutTree = makeTree()
         let parent: LayoutID = tree.append(
             kind: .block(BlockData()),
             dom: tree.dom.root,

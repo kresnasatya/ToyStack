@@ -7,7 +7,7 @@ extension LayoutTree {
         var x: CGFloat = x
         var y: CGFloat = y
 
-        if let t: CGPoint = domRef(id).style.computed.visual.effects.translation {
+        if let t: CGPoint = inputs.style(domID(of: id)).visual.effects.translation {
             x -= t.x
             y -= t.y
         }
@@ -25,13 +25,13 @@ extension LayoutTree {
         return nil
     }
 
-    func linkElement(_ id: LayoutID, x: CGFloat, y: CGFloat) -> ElementRef? {
-        var current: DOMRef? = hitTest(id, x: x, y: y).map({ domRef($0) })
-        while let dom = current {
-            if let el = dom.element, el.tag == "a", el.attributes["href"] != nil {
-                return el
+    func linkHref(_ id: LayoutID, x: CGFloat, y: CGFloat) -> String? {
+        var current: NodeID? = hitTest(id, x: x, y: y).map({ domID(of: $0) })
+        while let node = current {
+            if inputs.tag(node) == "a", let href = inputs.attributes(node)["href"] {
+                return href
             }
-            current = dom.parent
+            current = inputs.parent(node)
         }
         return nil
     }
@@ -39,7 +39,7 @@ extension LayoutTree {
     func paintOrder(_ children: [LayoutID]) -> [LayoutID] {
         guard
             children.contains(where: {
-                domRef($0).style.computed.layout.position.kind != .staticFlow
+                inputs.style(domID(of: $0)).layout.position.kind != .staticFlow
             })
         else { return children }
         return children.enumerated()
@@ -52,7 +52,7 @@ extension LayoutTree {
     }
 
     private func zIndex(_ id: LayoutID) -> Int {
-        let layout: LayoutStyle = domRef(id).style.computed.layout
+        let layout: LayoutStyle = inputs.style(domID(of: id)).layout
         guard layout.position.kind != .staticFlow else { return 0 }
         return layout.zIndex
     }

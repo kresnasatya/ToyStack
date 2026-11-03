@@ -9,7 +9,7 @@ struct LayoutDependencyTests {
 
     @Test func unusedFieldsHaveNoEdges() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
 
         for object in treeToList(document, document.rootID) {
             for field in LayoutField.allCases where !document.isUsed(field, at: object) {
@@ -25,7 +25,7 @@ struct LayoutDependencyTests {
 
     @Test func widthFlowsDownAndHeightFlowsBackUp() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         let root: LayoutID = try #require(document.childrenIDs(of: document.rootID).first)
         let body: LayoutID = try #require(document.childrenIDs(of: root).first)
         let box: LayoutID = try #require(document.childrenIDs(of: body).first)
@@ -42,7 +42,7 @@ struct LayoutDependencyTests {
 
     @Test func fontFieldOwnsTheParentStyleInputs() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutID = try #require(page.firstBlockID(in: paragraph))
         let text: LayoutID = try #require(
@@ -60,7 +60,7 @@ struct LayoutDependencyTests {
 
     @Test func anUndeclaredEdgeIsAbsentFromTheGraph() {
         let dom: DOMTree = DOMTree()
-        let document: LayoutTree = LayoutTree(dom: dom)
+        var document: LayoutTree = LayoutTree(dom: dom)
         document.dependencies.rebuild(from: document)
         let root: LayoutID = document.rootID
 
@@ -73,7 +73,7 @@ struct LayoutDependencyTests {
 
     @Test func fieldWriteMarksItsDependents() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         let root: LayoutID = try #require(document.childrenIDs(of: document.rootID).first)
 
         document.setFieldClean(.width, 600, for: document.rootID)
@@ -88,7 +88,7 @@ struct LayoutDependencyTests {
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutID = try #require(page.firstBlockID(in: p))
         let line: LayoutID = try #require(page.firstLineID(in: p))
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
 
         let widthInputs: Set<FieldKey> = document.dependencies.fieldKeys(
             for: .layout(block, .width)
@@ -129,7 +129,7 @@ struct LayoutDependencyTests {
 
     @Test func rebuildFromTableReproducesTheCleanGraph() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         let before: [FieldKey: Set<FieldKey>] = dependencySnapshot(document)
 
         document.dependencies.rebuild(from: document)
@@ -140,7 +140,7 @@ struct LayoutDependencyTests {
 
     @Test func removedChildContributesNoEdgesAfterRebuild() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         let p: ElementRef = try #require(page.firstElement(id: "p"))
         let line: LayoutID = try #require(page.firstLineID(in: p))
         let removed: LayoutID = try #require(document.childrenIDs(of: line).first)
@@ -171,7 +171,7 @@ struct LayoutDependencyTests {
 
     @Test func tableAnswersEveryFieldCase() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
 
         for ref in treeToList(document, document.rootID) {
             for field in LayoutField.allCases {
@@ -203,7 +203,7 @@ private func depends(
 
 @MainActor
 private func expectTableMatchesIndex(_ page: LayoutTestPage) throws {
-    let document: LayoutTree = try #require(page.frame.document)
+    var document: LayoutTree = try #require(page.frame.document)
     try expectTableMatchesIndex(document)
 }
 

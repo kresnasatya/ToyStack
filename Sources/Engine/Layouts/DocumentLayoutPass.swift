@@ -19,7 +19,7 @@ extension LayoutTree {
         return isDirty(.children, at: id)
     }
 
-    func layoutDocument(
+    mutating func layoutDocument(
         availableWidth: CGFloat,
         zoom: CGFloat,
         pageZoom: CGFloat

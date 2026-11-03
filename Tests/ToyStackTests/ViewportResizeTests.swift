@@ -217,10 +217,12 @@ struct ViewportResizeTests {
         let block: LayoutID = try #require(page.firstBlockID(in: p))
         let lines: [LayoutID] = page.tree.childrenIDs(of: block).filter({ page.tree.isLine($0) })
         #expect(lines.count == 2)
-        for line in lines {
-            var data: LineData = page.tree.lineData(line)
-            data.content.centered = true
-            page.tree.setKind(.line(data), at: line)
+        page.withTree { tree in
+            for line in lines {
+                var data: LineData = tree.lineData(line)
+                data.content.centered = true
+                tree.setKind(.line(data), at: line)
+            }
         }
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)

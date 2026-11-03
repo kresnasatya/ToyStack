@@ -37,7 +37,7 @@ class Frame {
         guard dom !== newDOM else { return }
         newDOM.links.tab = tab
         state.document.dom = newDOM
-        state.layout.tree.value = nil
+        state.layout.tree.box = nil
         state.layout.tree.isDirty = true
         state.layout.targets = ScrollTargetState()
         state.runtime.interaction.scrollFocus = nil
@@ -70,7 +70,7 @@ class Frame {
         state.layout.viewport.width = width
         state.layout.viewport.height = height
         if oldWidth != width {
-            state.layout.tree.value?.markDocumentWidthDirty()
+            state.layout.tree.box?.tree.markDocumentWidthDirty()
         }
     }
 
@@ -85,15 +85,43 @@ class Frame {
     func setJSRuntime(_ runtime: JSRuntime?) {
         state.runtime.script = runtime
     }
-    var document: LayoutTree? { state.layout.tree.value }
+    var document: LayoutTree? { state.layout.tree.box?.tree }
+
+    /// Borrows the layout tree for a direct mutation (tests, tools).
+    func withLayoutTree(_ body: (inout LayoutTree) -> Void) {
+        guard let box: LayoutBox = state.layout.tree.box else { return }
+        body(&box.tree)
+    }
 
     func setLayoutTree(_ tree: LayoutTree?) {
-        state.layout.tree.value = tree
+        state.layout.tree.box = tree.map({ LayoutBox($0) })
         state.layout.tree.isDirty = false
-        if let tree {
-            tree.dom.layoutTree = tree
+        dom.layoutBox = state.layout.tree.box
+    }
+    private func applyLayoutEffects(_ effects: [LayoutEffect]) {
+        for effect in effects {
+            switch effect {
+            case .iframeViewport(let node, let width, let height):
+                guard let frame: Frame = DOMRef(id: node, dom: dom).element?.frame,
+                    frame.loaded
+                else { continue }
+                if frame.frameWidth != width {
+                    frame.setViewport(width: width, height: height)
+                    frame.setNeedsRender()
+                } else if frame.frameHeight != height {
+                    frame.setViewport(width: width, height: height)
+                    frame.setNeedsLayout()
+                }
+            case .canvasSize(let node, let width, let height, let scale):
+                guard let context: CanvasRenderingContext2D = DOMRef(id: node, dom: dom)
+                    .element?.canvasContext
+                else { continue }
+                context.resize(width: width, height: height)
+                context.setScale(scale)
+            }
         }
     }
+
     var displayList: [DisplayOp] { state.display.paint.ops }
     // Bumped when anything that paint reads may have changed.
     // One epoch covers many paints; a cached item is valid only in its epoch.
@@ -496,7 +524,7 @@ class Frame {
         for id in state.document.resources.images.lazy {
             let ref: DOMRef = DOMRef(id: id, dom: dom)
             guard let el = ref.element, el.image == nil,
-                let tree: LayoutTree = ref.dom.layoutTree,
+                let tree: LayoutTree = ref.dom.layoutBox?.tree,
                 let layoutID: LayoutID = ref.layoutID,
                 region.contains(tree.absoluteBounds(layoutID))
             else {
@@ -878,23 +906,32 @@ class Frame {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
-            let doc: LayoutTree
-            if let existing = document, existing.dom === dom, browser?.forceFullLayout != true {
-                doc = existing
+            let box: LayoutBox
+            if let existing = state.layout.tree.box, existing.tree.dom === dom,
+                browser?.forceFullLayout != true
+            {
+                box = existing
             } else {
-                doc = LayoutTree(dom: dom)
+                box = LayoutBox(LayoutTree(
+                    dom: dom,
+                    root: dom.root,
+                    inputs: LayoutInputsBuilder.build(dom: dom)
+                ))
                 state.layout.targets.isValid = false
             }
-            doc.refreshInputs(LayoutInputsBuilder.build(dom: dom))
-            doc.layoutDocument(
+            state.layout.tree.box = box
+            dom.layoutBox = box
+            box.tree.refreshInputs(LayoutInputsBuilder.build(dom: dom))
+            box.tree.layoutDocument(
                 availableWidth: frameWidth,
                 zoom: 1.0,
                 pageZoom: pageZoom
             )
-            let removed: Set<LayoutID> = doc.sweepUnreachable()
+            applyLayoutEffects(box.tree.takeEffects())
+            let removed: Set<LayoutID> = box.tree.sweepUnreachable()
             if !removed.isEmpty {
                 state.display.composite.updates = state.display.composite.updates
-                    .filter({ doc.primaryLayout(for: $0.key) != nil })
+                    .filter({ box.tree.primaryLayout(for: $0.key) != nil })
                 state.display.caches.prune(removing: removed)
             }
             if state.layout.targets.iframes.contains(where: { removed.contains($0.layout) })
@@ -903,15 +940,15 @@ class Frame {
                 state.layout.targets.isValid = false
                 state.layout.targets.needsRebuild = true
             }
-            setLayoutTree(doc)
+            state.layout.tree.isDirty = false
             #if DEBUG
             if state.runtime.schedule.debugDumpDependencies {
-                dumpDependencies(doc, doc.rootID)
+                dumpDependencies(box.tree, box.tree.rootID)
             }
             #endif
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
             if state.layout.targets.needsRebuild || !state.layout.targets.isValid {
-                rebuildScrollTargets(doc)
+                rebuildScrollTargets(box.tree)
                 state.layout.targets.isValid = true
                 state.layout.targets.needsRebuild = false
                 profiler.count("scrollTargets.rebuilt")
@@ -1023,7 +1060,8 @@ class Frame {
                     needsAnotherFrame = true
                     node.style.set(value, for: property)
                     if property.affectsLayout {
-                        document?.consumeStyleChanges(for: node.id)
+                        state.layout.tree.box?.tree.noteStyleChange(node.id, property)
+                        state.layout.tree.box?.tree.consumeStyleChanges(for: node.id)
                     }
                     if property == .transform || property == .opacity {
                         if let doc = document, let layoutID = node.layoutID,
@@ -1258,7 +1296,7 @@ class Frame {
 
     func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {
         guard let doc = document,
-            let href = doc.linkElement(doc.rootID, x: x, y: y + scroll)?.attributes["href"]
+            let href = doc.linkHref(doc.rootID, x: x, y: y + scroll)
         else { return nil }
         return url?.resolve(href)
     }
@@ -1334,7 +1372,7 @@ class Frame {
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
             guard next != current else { return false }
             el.scrollOffsetY = next
-            doc.setBlockScrollOffset(target.layout, next)
+            state.layout.tree.box?.tree.setBlockScrollOffset(target.layout, next)
             state.runtime.interaction.scrollFocus = el.id
             setNeedsPaint()
             return true
@@ -1389,7 +1427,7 @@ class Frame {
         let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
         let next: CGFloat = min(current + Frame.scrollStep, maxScroll)
         dom.side.scrollOffsets[node] = next
-        doc.setBlockScrollOffset(block, next)
+        state.layout.tree.box?.tree.setBlockScrollOffset(block, next)
         setNeedsPaint()
     }
 
@@ -1401,7 +1439,7 @@ class Frame {
         let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
         let next: CGFloat = max(current - Frame.scrollStep, 0)
         dom.side.scrollOffsets[node] = next
-        doc.setBlockScrollOffset(block, next)
+        state.layout.tree.box?.tree.setBlockScrollOffset(block, next)
         setNeedsPaint()
     }
 
@@ -1562,7 +1600,7 @@ class Frame {
                 if node.text != nil {
 
                 } else if let el = node.element, el.tag == "iframe" {
-                    guard let tree: LayoutTree = node.dom.layoutTree,
+                    guard let tree: LayoutTree = node.dom.layoutBox?.tree,
                         let layoutID: LayoutID = node.layoutID,
                         let child = el.frame, child.loaded
                     else {
@@ -1784,7 +1822,7 @@ class Frame {
     }
 
     func setNeedsViewportResize() {
-        document?.markDocumentGeometryDirty()
+        state.layout.tree.box?.tree.markDocumentGeometryDirty()
         if !state.document.sheets.index.media.matches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
             invalidateStyle(fromViewport: true)
         } else {
@@ -1826,7 +1864,7 @@ class Frame {
     func setPageZoom(_ newZoom: CGFloat) {
         guard newZoom > 0, abs(newZoom - pageZoom) > 0.001 else { return }
         pageZoom = newZoom
-        document?.markDocumentGeometryDirty()
+        state.layout.tree.box?.tree.markDocumentGeometryDirty()
         if parentFrame == nil, let tab {
             setViewport(
                 width: tab.tabWidth / newZoom,

@@ -71,7 +71,7 @@ struct PaddingLayoutTests {
         #expect(page.tree.selfRect(boxLayout).right - page.tree.selfRect(boxLayout).left == 600)
         #expect(page.tree.selfRect(boxLayout).left == page.tree.x(boxLayout) - 20)
 
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         expectAllLayoutFieldsClean(document)
         expectIncrementalMatchesFull(page)
     }

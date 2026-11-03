@@ -39,7 +39,7 @@ extension DOMRef {
     }
 
     var layoutID: LayoutID? {
-        return dom.layoutTree?.primaryLayout(for: id)
+        return dom.layoutBox?.tree.primaryLayout(for: id)
     }
 
     var parent: DOMRef? {

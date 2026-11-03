@@ -41,8 +41,12 @@ struct LayoutTestPage {
 
     // MARK: - Layout ids
 
+    func withTree(_ body: (inout LayoutTree) -> Void) {
+        frame.withLayoutTree(body)
+    }
+
     var tree: LayoutTree {
-        guard let tree: LayoutTree = frame.document else {
+        guard var tree: LayoutTree = frame.document else {
             preconditionFailure("page has no layout tree")
         }
         return tree
@@ -56,7 +60,7 @@ struct LayoutTestPage {
         in element: ElementRef,
         where predicate: (LayoutID, LayoutTree) -> Bool
     ) -> LayoutID? {
-        guard let tree: LayoutTree = frame.document,
+        guard var tree: LayoutTree = frame.document,
             let primary: LayoutID = element.ref.layoutID
         else { return nil }
         return treeToList(tree, primary).first(where: { predicate($0, tree) })
@@ -93,7 +97,7 @@ struct LayoutTestPage {
     }
 
     func textWidthID(in element: ElementRef) -> CGFloat {
-        guard let tree: LayoutTree = frame.document,
+        guard var tree: LayoutTree = frame.document,
             let primary: LayoutID = element.ref.layoutID
         else { return 0 }
         return treeToList(tree, primary)

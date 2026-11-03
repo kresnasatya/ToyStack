@@ -7,7 +7,7 @@ extension LayoutTree {
 
     // MARK: - Construction
 
-    func makeBlock(
+    mutating func makeBlock(
         dom: NodeID,
         parent: LayoutID,
         previous: LayoutID?
@@ -24,7 +24,7 @@ extension LayoutTree {
         return id
     }
 
-    func makeAnonymousBlock(
+    mutating func makeAnonymousBlock(
         extraNodes: [NodeID],
         parent: LayoutID,
         previous: LayoutID?
@@ -41,7 +41,7 @@ extension LayoutTree {
         return id
     }
 
-    private func initializeBlock(
+    mutating private func initializeBlock(
         _ id: LayoutID,
         extraNodes: [NodeID],
         previous: LayoutID?
@@ -111,7 +111,7 @@ extension LayoutTree {
 
     // MARK: - Line plan
 
-    private func inlineTextLinePlan(_ id: LayoutID) -> [[Int]]? {
+    mutating private func inlineTextLinePlan(_ id: LayoutID) -> [[Int]]? {
         let items: [InlineItem] = blockData(id).content.inlineItems
         var plan: [[Int]] = []
         var current: [Int] = []
@@ -156,7 +156,7 @@ extension LayoutTree {
         return plan
     }
 
-    private func setHeightInputs(_ id: LayoutID) {
+    mutating private func setHeightInputs(_ id: LayoutID) {
         let children: [LayoutID] = childrenIDs(of: id)
         let declared: [LayoutID] = blockData(id).changes.declaredHeightChildren
         let unchanged: Bool = children == declared
@@ -189,7 +189,7 @@ extension LayoutTree {
         return inputs
     }
 
-    func blockMarkChildrenDirty(_ id: LayoutID) {
+    mutating func blockMarkChildrenDirty(_ id: LayoutID) {
         var data: BlockData = blockData(id)
         data.changes.childChanges.removeAll()
         setKind(.block(data), at: id)
@@ -197,21 +197,21 @@ extension LayoutTree {
         markField(.children, at: id)
     }
 
-    func blockNoteAppendedChildren(_ id: LayoutID, _ nodes: [NodeID]) {
+    mutating func blockNoteAppendedChildren(_ id: LayoutID, _ nodes: [NodeID]) {
         var data: BlockData = blockData(id)
         data.changes.childChanges.append(.append(nodes))
         setKind(.block(data), at: id)
         markAncestorsDirty(from: id)
     }
 
-    func blockNoteInsertedChildren(_ id: LayoutID, _ nodes: [NodeID], before reference: NodeID) {
+    mutating func blockNoteInsertedChildren(_ id: LayoutID, _ nodes: [NodeID], before reference: NodeID) {
         var data: BlockData = blockData(id)
         data.changes.childChanges.append(.insert(nodes, before: reference))
         setKind(.block(data), at: id)
         markAncestorsDirty(from: id)
     }
 
-    func setBlockPrevious(_ id: LayoutID, _ newValue: LayoutID?) {
+    mutating func setBlockPrevious(_ id: LayoutID, _ newValue: LayoutID?) {
         setPreviousField(newValue, of: id)
     }
 
@@ -235,7 +235,7 @@ extension LayoutTree {
             || !blockData(id).changes.childChanges.isEmpty
     }
 
-    func layoutBlock(_ id: LayoutID) {
+    mutating func layoutBlock(_ id: LayoutID) {
         guard blockLayoutNeeded(id) else {
             profiler.count("layout.skipped")
             return
@@ -412,7 +412,7 @@ extension LayoutTree {
         return "inline"
     }
 
-    private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
+    mutating private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
         profiler.count("layout.children.rebuilt")
         var data: BlockData = blockData(id)
         data.changes.childChanges.removeAll()
@@ -423,7 +423,7 @@ extension LayoutTree {
         return state.built
     }
 
-    private func appendBlockChildren(
+    mutating private func appendBlockChildren(
         _ id: LayoutID,
         _ nodes: [LayoutDOMView],
         to current: [LayoutID]
@@ -463,7 +463,7 @@ extension LayoutTree {
         return state.built
     }
 
-    private func applyBlockChanges(
+    mutating private func applyBlockChanges(
         _ id: LayoutID,
         _ changes: [BlockChildChange]
     ) -> [LayoutID]? {
@@ -503,7 +503,7 @@ extension LayoutTree {
         }
     }
 
-    private func insertBlockChildren(
+    mutating private func insertBlockChildren(
         _ id: LayoutID,
         _ nodes: [LayoutDOMView],
         before reference: LayoutDOMView,
@@ -599,7 +599,7 @@ extension LayoutTree {
         return nil
     }
 
-    private func consumeBlockChildren(
+    mutating private func consumeBlockChildren(
         _ id: LayoutID,
         _ nodes: [LayoutDOMView],
         state: inout BlockChildBuild
@@ -643,7 +643,7 @@ extension LayoutTree {
         }
     }
 
-    private func flushInlineRun(_ id: LayoutID, _ state: inout BlockChildBuild) {
+    mutating private func flushInlineRun(_ id: LayoutID, _ state: inout BlockChildBuild) {
         guard !state.inlineRun.isEmpty else { return }
         let run: [LayoutDOMView] = state.inlineRun
         let anon: LayoutID = makeAnonymousBlock(
@@ -656,7 +656,7 @@ extension LayoutTree {
         state.inlineRun = []
     }
 
-    private func finishBlockChildren(_ id: LayoutID, _ state: inout BlockChildBuild) {
+    mutating private func finishBlockChildren(_ id: LayoutID, _ state: inout BlockChildBuild) {
         flushInlineRun(id, &state)
         if let runIn: LayoutElementView = state.pendingRunIn {
             let next: LayoutID = makeBlock(
@@ -701,26 +701,26 @@ extension LayoutTree {
 
     // MARK: - Inline items
 
-    private func placeInlineItems(_ id: LayoutID) {
+    mutating private func placeInlineItems(_ id: LayoutID) {
         let items: [InlineItem] = blockData(id).content.inlineItems
-        var placement: InlinePlacement = InlinePlacement(tree: self, parent: id)
-        placement.start()
+        var placement: InlinePlacement = InlinePlacement(parent: id)
+        placement.start(in: &self)
         for (index, item) in items.enumerated() {
             switch item {
             case .lineBreak:
-                placement.endLine()
+                placement.endLine(in: &self)
             case .text(let text):
                 placeText(id, text, index: index, into: &placement)
             case .embed(let element):
                 placeEmbed(id, element, index: index, into: &placement)
             }
         }
-        placement.finish()
+        placement.finish(in: &self)
         setChildrenField(placement.lines, of: id)
         profiler.count("layout.lines.total", by: placement.lines.count)
     }
 
-    private func refreshInlineItems(_ id: LayoutID) {
+    mutating private func refreshInlineItems(_ id: LayoutID) {
         let leaves: [LayoutDOMView] = inlineLeaves(id)
         var items: [InlineItem] = []
         for leaf in leaves {
@@ -823,7 +823,7 @@ extension LayoutTree {
         items.append(.text(InlineTextItem(run: run, word: word, display: nil)))
     }
 
-    private func placeEmbed(
+    mutating private func placeEmbed(
         _ id: LayoutID,
         _ element: LayoutElementView,
         index: Int,
@@ -844,7 +844,7 @@ extension LayoutTree {
         }
     }
 
-    private func placeText(
+    mutating private func placeText(
         _ id: LayoutID,
         _ item: InlineTextItem,
         index: Int?,
@@ -867,7 +867,7 @@ extension LayoutTree {
                 }
                 if breakIdx >= 0 {
                     appendToLine(id, clone(item, word: chunk + "-"), index: nil, into: &placement)
-                    placement.endLine()
+                    placement.endLine(in: &self)
                     placeText(
                         id,
                         clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")),
@@ -877,14 +877,14 @@ extension LayoutTree {
                     return
                 }
             }
-            placement.endLine()
+            placement.endLine(in: &self)
         }
 
         appendToLine(id, item, index: index, into: &placement)
         placement.cursorX += w
     }
 
-    private func appendToLine(
+    mutating private func appendToLine(
         _ id: LayoutID,
         _ item: InlineTextItem,
         index: Int?,
@@ -930,7 +930,7 @@ extension LayoutTree {
         )
     }
 
-    private func addInput(
+    mutating private func addInput(
         _ id: LayoutID,
         _ node: LayoutElementView,
         index: Int,
@@ -943,7 +943,7 @@ extension LayoutTree {
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom
-        if placement.cursorX + w > available { placement.endLine() }
+        if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let input: LayoutID
@@ -961,7 +961,7 @@ extension LayoutTree {
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addButton(
+    mutating private func addButton(
         _ id: LayoutID,
         _ node: LayoutElementView,
         index: Int,
@@ -970,7 +970,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = inputWidthPx * zoom
-        if placement.cursorX + w > available { placement.endLine() }
+        if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let button: LayoutID
@@ -993,7 +993,7 @@ extension LayoutTree {
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addImage(
+    mutating private func addImage(
         _ id: LayoutID,
         _ node: LayoutElementView,
         index: Int,
@@ -1002,7 +1002,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = imageUsedWidth(EmbedMetrics(node), available: available, zoom: zoom)
-        if placement.cursorX + w > available { placement.endLine() }
+        if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let image: LayoutID
@@ -1026,7 +1026,7 @@ extension LayoutTree {
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addIframe(
+    mutating private func addIframe(
         _ id: LayoutID,
         _ node: LayoutElementView,
         index: Int,
@@ -1035,7 +1035,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = iframeDisplaySize(EmbedMetrics(node)).width * zoom
-        if placement.cursorX + w > available { placement.endLine() }
+        if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let iframe: LayoutID
@@ -1059,7 +1059,7 @@ extension LayoutTree {
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func addCanvas(
+    mutating private func addCanvas(
         _ id: LayoutID,
         _ node: LayoutElementView,
         index: Int,
@@ -1068,7 +1068,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = canvasContentSize(attributes: node.attributes).width * zoom
-        if placement.cursorX + w > available { placement.endLine() }
+        if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let canvas: LayoutID
@@ -1232,7 +1232,7 @@ extension LayoutTree {
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
     }
 
-    func blockStyle(_ id: LayoutID) -> BlockStyle {
+    mutating func blockStyle(_ id: LayoutID) -> BlockStyle {
         let revision: UInt64 = domView(id).style.revision
         let paint: BlockPaint = blockData(id).paint
         if let cachedStyle = paint.style, paint.styleRevision == revision {
@@ -1264,7 +1264,7 @@ extension LayoutTree {
         return blockData(id).scroll.offset
     }
 
-    func setBlockScrollOffset(_ id: LayoutID, _ value: CGFloat) {
+    mutating func setBlockScrollOffset(_ id: LayoutID, _ value: CGFloat) {
         var data: BlockData = blockData(id)
         data.scroll.offset = value
         setKind(.block(data), at: id)
@@ -1307,9 +1307,7 @@ private struct BlockChildBuild {
 
 // MARK: - Inline placement
 
-@MainActor
 private struct InlinePlacementContext {
-    let tree: LayoutTree
     let parent: LayoutID
 }
 
@@ -1320,13 +1318,12 @@ private struct InlinePlacementState {
     var cursorX: CGFloat = 0
 }
 
-@MainActor
 struct InlinePlacement {
     private let context: InlinePlacementContext
     private var state: InlinePlacementState = InlinePlacementState()
 
-    init(tree: LayoutTree, parent: LayoutID) {
-        self.context = InlinePlacementContext(tree: tree, parent: parent)
+    init(parent: LayoutID) {
+        self.context = InlinePlacementContext(parent: parent)
     }
 
     var lines: [LayoutID] { state.lines }
@@ -1337,10 +1334,10 @@ struct InlinePlacement {
         set { state.cursorX = newValue }
     }
 
-    mutating func start() {
+    mutating func start(in tree: inout LayoutTree) {
         let previous: LayoutID? = state.lines.last
-        state.currentLine = context.tree.makeLine(
-            dom: context.tree.node(context.parent).dom,
+        state.currentLine = tree.makeLine(
+            dom: tree.node(context.parent).dom,
             parent: context.parent,
             previous: previous
         )
@@ -1348,16 +1345,16 @@ struct InlinePlacement {
         state.cursorX = 0
     }
 
-    mutating func endLine() {
+    mutating func endLine(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        context.tree.setChildrenField(state.children, of: line)
+        tree.setChildrenField(state.children, of: line)
         state.lines.append(line)
-        start()
+        start(in: &tree)
     }
 
-    mutating func finish() {
+    mutating func finish(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        context.tree.setChildrenField(state.children, of: line)
+        tree.setChildrenField(state.children, of: line)
         state.lines.append(line)
         state.currentLine = nil
         state.children = []

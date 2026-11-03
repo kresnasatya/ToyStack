@@ -23,7 +23,7 @@ struct FrameReloadTests {
         page.frame.setNeedsLayout()
         page.frame.render()
 
-        let document: LayoutTree = page.frame.document!
+        var document: LayoutTree = page.frame.document!
         let words: [String] = treeToList(document, document.rootID)
             .filter({ document.isText($0) })
             .map({ document.textData($0).word })

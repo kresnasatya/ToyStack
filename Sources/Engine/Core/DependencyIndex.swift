@@ -4,7 +4,6 @@ import Foundation
 ///
 /// The graph is rebuilt from `LayoutInputTable`, which is the only place that
 /// declares an edge. A write walks the index once; reads never touch it.
-@MainActor
 struct DependencyIndex {
     private var dependents: [FieldKey: [FieldKey]] = [:]
     private var stale: Bool = false
@@ -51,15 +50,12 @@ struct DependencyIndex {
         }
     }
 
-    /// Marks every layout field that reads `key`.
-    mutating func mark(_ key: FieldKey, in tree: LayoutTree) {
-        if stale {
-            rebuild(from: tree)
-        }
-        for dependent in dependents[key] ?? [] {
-            guard case .layout(let id, let field) = dependent else { continue }
-            tree.markField(field, at: id)
-        }
+    /// Layout fields that read `key`.
+    ///
+    /// The index is kept fresh by the layout pass (`rebuild` at its start) and
+    /// by structural changes, so a read does not rebuild or copy it.
+    func fields(for key: FieldKey) -> [FieldKey] {
+        return dependents[key] ?? []
     }
 
     /// Adds one edge without rebuilding the whole graph. Used when a node is

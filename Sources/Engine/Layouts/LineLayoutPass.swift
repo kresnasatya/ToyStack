@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - LineLayoutPass
 
 extension LayoutTree {
-    func makeLine(
+    mutating func makeLine(
         dom: NodeID,
         parent: LayoutID,
         previous: LayoutID?
@@ -36,7 +36,7 @@ extension LayoutTree {
             || state.isDirty(.ascent) || state.isDirty(.descent)
     }
 
-    func layoutLine(_ id: LayoutID) {
+    mutating func layoutLine(_ id: LayoutID) {
         guard lineLayoutNeeded(id) else { return }
         defer { setDirtyDescendants(false, at: id) }
         let xWasDirty: Bool = isDirty(.x, at: id)
@@ -171,7 +171,7 @@ extension LayoutTree {
         })
     }
 
-    private func shiftChildren(_ id: LayoutID, by offset: CGFloat) {
+    mutating private func shiftChildren(_ id: LayoutID, by offset: CGFloat) {
         guard offset != 0 else { return }
         var data: LineData = lineData(id)
         data.paint.generation += 1

@@ -7,13 +7,19 @@ import Foundation
 ///
 /// Nodes are append-only: removing a subtree writes `nil` into the hole and
 /// never reuses the ID, so a stale `LayoutID` cannot point at another node.
-@MainActor
-final class LayoutTree {
-    private(set) var nodes: [LayoutNode?] = []
-    let dom: DOMTree
-    private(set) var primaryByNode: [NodeID: LayoutID] = [:]
-    var dependencies: DependencyIndex = DependencyIndex()
-    private(set) var inputs: LayoutInputs = LayoutInputs(nodes: [])
+struct LayoutTree {
+    private(set) var nodes: [LayoutNode?]
+    private(set) var primaryByNode: [NodeID: LayoutID]
+    var dependencies: DependencyIndex
+    private var source: LayoutTreeSource
+
+    private var storageEffects: [LayoutEffect] {
+        get { source.effects }
+        set { source.effects = newValue }
+    }
+
+    var dom: DOMTree { return source.dom }
+    var inputs: LayoutInputs { return source.inputs }
 
     func domView(_ id: LayoutID) -> LayoutDOMView {
         return LayoutDOMView(inputs: inputs, id: domID(of: id))
@@ -37,31 +43,56 @@ final class LayoutTree {
         return fontFor(domID(of: id), zoom: zoom)
     }
 
-    func refreshInputs(_ inputs: LayoutInputs) {
-        self.inputs = inputs
+    mutating func refreshInputs(_ inputs: LayoutInputs) {
+        source.inputs = inputs
     }
 
-    init(dom: DOMTree) {
-        self.dom = dom
-        dom.layoutTree = self
+    mutating func noteStyleChange(_ node: NodeID, _ property: StyleProperty) {
+        source.inputs.styleChanges[node, default: []].insert(property)
+    }
+
+    mutating func note(_ effect: LayoutEffect) {
+        storageEffects.append(effect)
+    }
+
+    mutating func takeEffects() -> [LayoutEffect] {
+        let effects: [LayoutEffect] = storageEffects
+        storageEffects.removeAll(keepingCapacity: true)
+        return effects
+    }
+
+    init(dom: DOMTree, root: NodeID, inputs: LayoutInputs) {
+        self.nodes = []
+        self.primaryByNode = [:]
+        self.dependencies = DependencyIndex()
+        self.source = LayoutTreeSource(inputs: inputs, dom: dom)
         self.nodes.reserveCapacity(1024)
         let document: LayoutID = append(
             kind: .document(DocumentData(pageZoom: 1)),
-            dom: dom.root,
+            dom: root,
             parent: nil,
             previous: nil
         )
         assert(document.raw == 0)
-        primaryByNode[dom.root] = document
+        primaryByNode[root] = document
         for field in [LayoutField.zoom, .width, .x, .y, .children] {
             markUsed(field, at: document)
         }
         addDependencyEdges(for: document)
     }
 
+    @MainActor
+    init(dom: DOMTree) {
+        self.init(
+            dom: dom,
+            root: dom.root,
+            inputs: LayoutInputsBuilder.build(dom: dom)
+        )
+    }
+
     // MARK: - Identity
 
-    func append(
+    mutating func append(
         kind: LayoutKind,
         dom: NodeID,
         parent: LayoutID?,
@@ -79,12 +110,10 @@ final class LayoutTree {
             hasDirtyDescendants: false
         )
         nodes.append(LayoutNode(kind: kind, dom: dom, links: links, state: state))
-        // The node is built from the current style, so those changes are already applied.
-        _ = self.dom.style(of: dom).takeLayoutChanges()
         return id
     }
 
-    func setPrimary(_ id: LayoutID, for node: NodeID) {
+    mutating func setPrimary(_ id: LayoutID, for node: NodeID) {
         primaryByNode[node] = id
     }
 
@@ -96,11 +125,11 @@ final class LayoutTree {
         return LayoutID(raw: 0)
     }
 
-    func markDocumentWidthDirty() {
+    mutating func markDocumentWidthDirty() {
         markField(.width, at: rootID)
     }
 
-    func markDocumentGeometryDirty() {
+    mutating func markDocumentGeometryDirty() {
         markField(.width, at: rootID)
         markField(.zoom, at: rootID)
     }
@@ -134,7 +163,7 @@ final class LayoutTree {
         return nodes[id.raw] != nil
     }
 
-    func setKind(_ kind: LayoutKind, at id: LayoutID) {
+    mutating func setKind(_ kind: LayoutKind, at id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.kind = kind
         nodes[id.raw] = node
@@ -146,7 +175,7 @@ final class LayoutTree {
         return node(id).links.children
     }
 
-    func setChildren(_ children: [LayoutID], of id: LayoutID) {
+    mutating func setChildren(_ children: [LayoutID], of id: LayoutID) {
         var parent: LayoutNode = node(id)
         parent.links.children = children
         parent.links.versions.children += 1
@@ -158,14 +187,14 @@ final class LayoutTree {
         }
     }
 
-    func setPrevious(_ previous: LayoutID?, of id: LayoutID) {
+    mutating func setPrevious(_ previous: LayoutID?, of id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.links.previous = previous
         node.links.versions.previous += 1
         nodes[id.raw] = node
     }
 
-    func removeSubtree(_ id: LayoutID) {
+    mutating func removeSubtree(_ id: LayoutID) {
         guard nodes[id.raw] != nil else { return }
         let links: LayoutLinks = node(id).links
         if let parent: LayoutID = links.parent {
@@ -178,7 +207,7 @@ final class LayoutTree {
         dependencies.rebuild(from: self)
     }
 
-    private func removeRecursively(_ id: LayoutID) {
+    mutating private func removeRecursively(_ id: LayoutID) {
         guard let node: LayoutNode = nodes[id.raw] else { return }
         for child in node.links.children {
             removeRecursively(child)
@@ -193,7 +222,7 @@ final class LayoutTree {
     /// Returns the dropped IDs, so callers can invalidate caches that may
     /// still hold them.
     @discardableResult
-    func sweepUnreachable() -> Set<LayoutID> {
+    mutating func sweepUnreachable() -> Set<LayoutID> {
         var reachable: Set<LayoutID> = []
         collectReachable(rootID, into: &reachable)
         var removed: Set<LayoutID> = []
@@ -231,16 +260,16 @@ final class LayoutTree {
     ///
     /// Every DOM node is visited, not every layout node: an inline child has no
     /// node of its own, yet its `display` decides the parent's children.
-    func consumeStyleChanges() {
-        dom.forEachNode { node in
-            consumeStyleChanges(for: node)
+    mutating func consumeStyleChanges() {
+        for index in inputs.nodes.indices where inputs.nodes[index] != nil {
+            consumeStyleChanges(for: NodeID(raw: UInt32(index)))
         }
     }
 
     /// Marks the layout fields that read one DOM node's changed style properties.
-    func consumeStyleChanges(for node: NodeID) {
-        for property in dom.style(of: node).takeLayoutChanges() {
-            dependencies.mark(.style(node, property), in: self)
+    mutating func consumeStyleChanges(for node: NodeID) {
+        for property in inputs.styleChanges(node) {
+            markDependents(of: .style(node, property))
         }
     }
 
@@ -253,19 +282,19 @@ final class LayoutTree {
         return node(id).state.fields.isUsed(field)
     }
 
-    func markUsed(_ field: LayoutField, at id: LayoutID) {
+    mutating func markUsed(_ field: LayoutField, at id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.markUsed(field)
         nodes[id.raw] = node
     }
 
-    func markClean(_ field: LayoutField, at id: LayoutID) {
+    mutating func markClean(_ field: LayoutField, at id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.markClean(field)
         nodes[id.raw] = node
     }
 
-    func markField(_ field: LayoutField, at id: LayoutID) {
+    mutating func markField(_ field: LayoutField, at id: LayoutID) {
         guard !isDirty(field, at: id) else { return }
         profiler.count("layout.field.mark")
         var node: LayoutNode = self.node(id)
@@ -278,7 +307,7 @@ final class LayoutTree {
     ///
     /// `rebuild` is the authority; this only lets a node created mid-layout
     /// propagate its first writes before the end-of-pass rebuild.
-    func addDependencyEdges(for id: LayoutID) {
+    mutating func addDependencyEdges(for id: LayoutID) {
         for field in LayoutField.allCases where isUsed(field, at: id) {
             let dependent: FieldKey = .layout(id, field)
             for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
@@ -287,7 +316,7 @@ final class LayoutTree {
         }
     }
 
-    func markAncestorsDirty(from id: LayoutID) {
+    mutating func markAncestorsDirty(from id: LayoutID) {
         var current: LayoutID? = node(id).links.parent
         while let ancestor = current, !node(ancestor).state.hasDirtyDescendants {
             var node: LayoutNode = self.node(ancestor)
@@ -297,7 +326,7 @@ final class LayoutTree {
         }
     }
 
-    func setDirtyDescendants(_ value: Bool, at id: LayoutID) {
+    mutating func setDirtyDescendants(_ value: Bool, at id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.hasDirtyDescendants = value
         nodes[id.raw] = node
@@ -335,7 +364,7 @@ final class LayoutTree {
         return node(id).state.fields.inlineText.inlineContent
     }
 
-    private func writeCGFloat(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
+    mutating private func writeCGFloat(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         switch field {
         case .x:
@@ -358,20 +387,20 @@ final class LayoutTree {
         nodes[id.raw] = node
     }
 
-    private func writeFont(_ font: BrowserFont, for id: LayoutID) {
+    mutating private func writeFont(_ font: BrowserFont, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.inlineText.font = font
         nodes[id.raw] = node
     }
 
-    private func writeInlineContent(_ value: UInt64, for id: LayoutID) {
+    mutating private func writeInlineContent(_ value: UInt64, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         node.state.fields.inlineText.inlineContent = value
         nodes[id.raw] = node
     }
 
     /// Writes a computed value and dirties the fields that read it.
-    func setField(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
+    mutating func setField(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         let wasUsed: Bool = isUsed(field, at: id)
         let changed: Bool = !wasUsed || storedCGFloat(field, at: id) != value
         writeCGFloat(field, value, for: id)
@@ -379,17 +408,17 @@ final class LayoutTree {
         markClean(field, at: id)
         guard changed else { return }
         profiler.count("layout.field.set")
-        dependencies.mark(.layout(id, field), in: self)
+        markDependents(of: .layout(id, field))
     }
 
     /// Writes a value without counting it as a computed change.
-    func setFieldClean(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
+    mutating func setFieldClean(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         writeCGFloat(field, value, for: id)
         markUsed(field, at: id)
         markClean(field, at: id)
     }
 
-    func setFont(_ font: BrowserFont, for id: LayoutID) {
+    mutating func setFont(_ font: BrowserFont, for id: LayoutID) {
         let wasUsed: Bool = isUsed(.font, at: id)
         let changed: Bool = !wasUsed || !CFEqual(storedFont(id).ctFont, font.ctFont)
         writeFont(font, for: id)
@@ -397,16 +426,16 @@ final class LayoutTree {
         markClean(.font, at: id)
         guard changed else { return }
         profiler.count("layout.field.set")
-        dependencies.mark(.layout(id, .font), in: self)
+        markDependents(of: .layout(id, .font))
     }
 
-    func setFontClean(_ font: BrowserFont, for id: LayoutID) {
+    mutating func setFontClean(_ font: BrowserFont, for id: LayoutID) {
         writeFont(font, for: id)
         markUsed(.font, at: id)
         markClean(.font, at: id)
     }
 
-    func setInlineContent(_ value: UInt64, for id: LayoutID) {
+    mutating func setInlineContent(_ value: UInt64, for id: LayoutID) {
         let wasUsed: Bool = isUsed(.inlineContent, at: id)
         let changed: Bool = !wasUsed || storedInlineContent(id) != value
         writeInlineContent(value, for: id)
@@ -414,16 +443,16 @@ final class LayoutTree {
         markClean(.inlineContent, at: id)
         guard changed else { return }
         profiler.count("layout.field.set")
-        dependencies.mark(.layout(id, .inlineContent), in: self)
+        markDependents(of: .layout(id, .inlineContent))
     }
 
-    func setInlineContentClean(_ value: UInt64, for id: LayoutID) {
+    mutating func setInlineContentClean(_ value: UInt64, for id: LayoutID) {
         writeInlineContent(value, for: id)
         markUsed(.inlineContent, at: id)
         markClean(.inlineContent, at: id)
     }
 
-    func setChildrenField(_ children: [LayoutID], of id: LayoutID) {
+    mutating func setChildrenField(_ children: [LayoutID], of id: LayoutID) {
         let wasUsed: Bool = isUsed(.children, at: id)
         let changed: Bool = !wasUsed || self.children(of: id) != children
         let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
@@ -435,18 +464,18 @@ final class LayoutTree {
         }
         if changed {
             profiler.count("layout.field.set")
-            dependencies.mark(.layout(id, .children), in: self)
+            markDependents(of: .layout(id, .children))
         }
         dependencies.noteStructureChanged()
     }
 
-    func setChildrenClean(_ children: [LayoutID], of id: LayoutID) {
+    mutating func setChildrenClean(_ children: [LayoutID], of id: LayoutID) {
         setChildren(children, of: id)
         markUsed(.children, at: id)
         markClean(.children, at: id)
     }
 
-    func setPreviousField(_ previous: LayoutID?, of id: LayoutID) {
+    mutating func setPreviousField(_ previous: LayoutID?, of id: LayoutID) {
         let wasUsed: Bool = isUsed(.previous, at: id)
         let changed: Bool = !wasUsed || node(id).links.previous != previous
         markUsed(.previous, at: id)
@@ -455,10 +484,10 @@ final class LayoutTree {
         addDependencyEdges(for: id)
         guard changed else { return }
         profiler.count("layout.field.set")
-        dependencies.mark(.layout(id, .previous), in: self)
+        markDependents(of: .layout(id, .previous))
     }
 
-    func setPreviousClean(_ previous: LayoutID?, of id: LayoutID) {
+    mutating func setPreviousClean(_ previous: LayoutID?, of id: LayoutID) {
         setPrevious(previous, of: id)
         markUsed(.previous, at: id)
         markClean(.previous, at: id)
@@ -469,15 +498,23 @@ final class LayoutTree {
 
 /// Value API for one layout node, keyed by id.
 extension LayoutTree {
+    mutating func markDependents(of key: FieldKey) {
+        for dependent in dependencies.fields(for: key) {
+            guard case .layout(let id, let field) = dependent else { continue }
+            markField(field, at: id)
+        }
+    }
+
+    @MainActor
     func domRef(_ id: LayoutID) -> DOMRef {
         return DOMRef(id: domID(of: id), dom: dom)
     }
 
     func absoluteBounds(_ id: LayoutID) -> Rect {
         var rect: Rect = selfRect(id)
-        var current: DOMRef? = domRef(id)
-        while let dom = current {
-            if let t: CGPoint = dom.style.computed.visual.effects.translation {
+        var current: NodeID? = domID(of: id)
+        while let node = current {
+            if let t: CGPoint = inputs.style(node).visual.effects.translation {
                 rect = Rect(
                     left: rect.left + t.x,
                     top: rect.top + t.y,
@@ -485,7 +522,7 @@ extension LayoutTree {
                     bottom: rect.bottom + t.y
                 )
             }
-            current = dom.parent
+            current = inputs.parent(node)
         }
         return rect
     }
@@ -499,7 +536,7 @@ extension LayoutTree {
 
     func resolvedZoom(_ id: LayoutID) -> CGFloat {
         let parentZoom: CGFloat = parentID(of: id).map({ zoom($0) }) ?? 1.0
-        guard let factor: CGFloat = domRef(id).style.computed.box.zoom else {
+        guard let factor: CGFloat = inputs.style(domID(of: id)).box.zoom else {
             return parentZoom
         }
         return parentZoom * factor
@@ -616,7 +653,7 @@ extension LayoutTree {
     }
 
     /// Transitional dispatch: block and embed passes still take a ref.
-    func layout(_ id: LayoutID) {
+    mutating func layout(_ id: LayoutID) {
         switch kind(id) {
         case .document:
             break
@@ -645,4 +682,12 @@ extension LayoutTree {
             return embedLayoutNeeded(id)
         }
     }
+}
+
+// MARK: - Storage
+
+struct LayoutTreeSource {
+    var inputs: LayoutInputs
+    let dom: DOMTree
+    var effects: [LayoutEffect] = []
 }

@@ -41,7 +41,7 @@ struct LayoutSkippingTests {
                 div { display: block; height: 10px; }
                 """
         )
-        let document: LayoutTree = page.tree
+        var document: LayoutTree = page.tree
         let leaf: ElementRef = try #require(
             treeToList(page.frame.nodes)
                 .compactMap({ $0.element })
@@ -81,7 +81,7 @@ struct LayoutSkippingTests {
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutID = try #require(page.firstBlockID(in: p))
         let line: LayoutID = try #require(page.firstLineID(in: p))
-        let tree: LayoutTree = page.tree
+        var tree: LayoutTree = page.tree
         let text: LayoutID = try #require(
             treeToList(tree, line).last(where: { tree.isText($0) })
         )

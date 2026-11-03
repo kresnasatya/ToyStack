@@ -130,7 +130,7 @@ struct LayoutOracleTests {
                 div { display: block; }
                 """
         )
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         #expect(document.width(document.rootID) == page.frame.frameWidth - 2 * HSTEP)
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
@@ -139,6 +139,7 @@ struct LayoutOracleTests {
 
         let body: ElementRef = try #require(page.firstElement(tag: "body"))
         let bodyBlock: LayoutID = try #require(page.ref(of: body).layoutID)
+        document = page.tree
         #expect(document.width(document.rootID) == CGFloat(400) - 2 * HSTEP)
         #expect(page.tree.width(bodyBlock) == document.width(document.rootID))
         expectIncrementalMatchesFull(page)
@@ -163,7 +164,7 @@ struct LayoutOracleTests {
         page.frame.setPageZoom(2)
         page.frame.render()
 
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         let paragraphAfter: LayoutID = try #require(
             page.ref(of: paragraph).layoutID
         )
@@ -330,7 +331,7 @@ struct LayoutOracleTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let document: LayoutTree = try #require(page.frame.document)
+        var document: LayoutTree = try #require(page.frame.document)
         expectAllLayoutFieldsClean(document)
         for node in treeToList(page.frame.nodes) {
             #expect(!node.style.isDirty)

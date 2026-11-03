@@ -11,9 +11,9 @@ final class DOMTree {
     private(set) var root: NodeID
     var side: DOMSideTables
     var links: DOMLinks
-    weak var layoutTree: LayoutTree? {
-        get { links.layoutTree }
-        set { links.layoutTree = newValue }
+    weak var layoutBox: LayoutBox? {
+        get { links.layoutBox }
+        set { links.layoutBox = newValue }
     }
 
     init() {

@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - EmbedLayoutPass
 
 extension LayoutTree {
-    func makeEmbed(
+    mutating func makeEmbed(
         dom: NodeID,
         data: EmbedData,
         parent: LayoutID,
@@ -46,7 +46,7 @@ extension LayoutTree {
     }
 
     /// Shared embed body: resolve zoom and baseline font.
-    func layoutEmbedCommon(_ id: LayoutID) {
+    mutating func layoutEmbedCommon(_ id: LayoutID) {
         if isDirty(.zoom, at: id) {
             setField(.zoom, resolvedZoom(id), for: id)
         }
@@ -55,12 +55,12 @@ extension LayoutTree {
         }
     }
 
-    func embedSetAscentFromHeight(_ id: LayoutID) {
+    mutating func embedSetAscentFromHeight(_ id: LayoutID) {
         setField(.ascent, height(id), for: id)
         setField(.descent, 0, for: id)
     }
 
-    func layoutEmbed(_ id: LayoutID) {
+    mutating func layoutEmbed(_ id: LayoutID) {
         guard embedLayoutNeeded(id) else { return }
         switch embedData(id) {
         case .image:
@@ -78,7 +78,7 @@ extension LayoutTree {
 
     // MARK: - Image
 
-    func layoutImage(_ id: LayoutID) {
+    mutating func layoutImage(_ id: LayoutID) {
         let sizeDirty: Bool = isDirty(.width, at: id)
             || isDirty(.height, at: id)
             || isDirty(.zoom, at: id)
@@ -111,7 +111,7 @@ extension LayoutTree {
 
     // MARK: - Input
 
-    func layoutInput(_ id: LayoutID) {
+    mutating func layoutInput(_ id: LayoutID) {
         let sizeDirty: Bool = isDirty(.width, at: id)
             || isDirty(.height, at: id)
             || isDirty(.zoom, at: id)
@@ -131,7 +131,7 @@ extension LayoutTree {
 
     // MARK: - Button
 
-    func layoutButton(_ id: LayoutID) {
+    mutating func layoutButton(_ id: LayoutID) {
         guard embedLayoutNeeded(id) else { return }
         let descendantsDirty: Bool = hasDirtyDescendants(at: id)
         defer { setDirtyDescendants(false, at: id) }
@@ -170,7 +170,7 @@ extension LayoutTree {
         setField(.descent, font(id).descent, for: id)
     }
 
-    private func newButtonLine(_ id: LayoutID) {
+    mutating private func newButtonLine(_ id: LayoutID) {
         var data: ButtonData
         if case .button(let current) = embedData(id) {
             data = current
@@ -186,7 +186,7 @@ extension LayoutTree {
         setChildrenField(children, of: id)
     }
 
-    private func recurseButton(_ id: LayoutID, _ node: LayoutDOMView) {
+    mutating private func recurseButton(_ id: LayoutID, _ node: LayoutDOMView) {
         if let textNode = node.text {
             for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
                 addButtonWord(id, node: node, word: String(word))
@@ -202,7 +202,7 @@ extension LayoutTree {
         }
     }
 
-    private func addButtonWord(_ id: LayoutID, node: LayoutDOMView, word: String) {
+    mutating private func addButtonWord(_ id: LayoutID, node: LayoutDOMView, word: String) {
         let font: BrowserFont = fontFor(node.id, zoom: zoom(id))
         let w: CGFloat = font.measure(word)
         let cursorX: CGFloat = buttonCursorX(id)
@@ -226,7 +226,7 @@ extension LayoutTree {
         setButtonCursorX(id, buttonCursorX(id) + w)
     }
 
-    private func addButtonInput(_ id: LayoutID, _ node: LayoutElementView) {
+    mutating private func addButtonInput(_ id: LayoutID, _ node: LayoutElementView) {
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom(id))
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom(id)
@@ -251,7 +251,7 @@ extension LayoutTree {
         return data.cursorX
     }
 
-    private func setButtonCursorX(_ id: LayoutID, _ value: CGFloat) {
+    mutating private func setButtonCursorX(_ id: LayoutID, _ value: CGFloat) {
         guard case .button(var data) = embedData(id) else { return }
         data.cursorX = value
         setKind(.embed(.button(data)), at: id)
@@ -259,7 +259,7 @@ extension LayoutTree {
 
     // MARK: - Iframe
 
-    func layoutIframe(_ id: LayoutID) {
+    mutating func layoutIframe(_ id: LayoutID) {
         let sizeDirty: Bool = isDirty(.width, at: id)
             || isDirty(.height, at: id)
             || isDirty(.zoom, at: id)
@@ -277,42 +277,12 @@ extension LayoutTree {
 
         let innerWidth: CGFloat = width(id) - 2 * zoom(id)
         let innerHeight: CGFloat = height(id) - 2 * zoom(id)
-        applyIframeViewport(domID(of: id), width: innerWidth, height: innerHeight)
-    }
-
-    /// DOM side effect kept out of the layout math.
-    @MainActor
-    private func applyIframeViewport(_ node: NodeID, width: CGFloat, height: CGFloat) {
-        guard let frame: Frame = DOMRef(id: node, dom: dom).element?.frame,
-            frame.loaded
-        else { return }
-        if frame.frameWidth != width {
-            frame.setViewport(width: width, height: height)
-            frame.setNeedsRender()
-        } else if frame.frameHeight != height {
-            frame.setViewport(width: width, height: height)
-            frame.setNeedsLayout()
-        }
+        note(.iframeViewport(node: domID(of: id), width: innerWidth, height: innerHeight))
     }
 
     // MARK: - Canvas
 
-    /// DOM side effect kept out of the layout math.
-    @MainActor
-    private func applyCanvasSize(_ node: NodeID, width: CGFloat, height: CGFloat, scale: CGFloat) {
-        guard let context: CanvasRenderingContext2D = DOMRef(id: node, dom: dom)
-            .element?.canvasContext
-        else { return }
-        context.resize(width: width, height: height)
-        context.setScale(scale)
-    }
-
-    @MainActor
-    private func canvasDisplayScale(_ node: NodeID) -> CGFloat {
-        return DOMRef(id: node, dom: dom).element?.frame?.tab?.browser?.displayScale ?? 1
-    }
-
-    func layoutCanvas(_ id: LayoutID) {
+    mutating func layoutCanvas(_ id: LayoutID) {
         let sizeDirty: Bool = isDirty(.width, at: id)
             || isDirty(.height, at: id)
             || isDirty(.zoom, at: id)
@@ -327,12 +297,12 @@ extension LayoutTree {
         setField(.height, size.height * zoom(id), for: id)
         embedSetAscentFromHeight(id)
 
-        applyCanvasSize(
-            domID(of: id),
+        note(.canvasSize(
+            node: domID(of: id),
             width: size.width,
             height: size.height,
-            scale: canvasDisplayScale(domID(of: id)) * pageZoom(id) * zoom(id)
-        )
+            scale: pageZoom(id) * zoom(id)
+        ))
     }
 }
 
@@ -418,7 +388,7 @@ func canvasContentSize(attributes: [String: String]) -> (width: CGFloat, height:
 }
 
 extension LayoutTree {
-    func attachEmbed(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
+    mutating func attachEmbed(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
         setPrevious(previous, of: id)
     }
 }

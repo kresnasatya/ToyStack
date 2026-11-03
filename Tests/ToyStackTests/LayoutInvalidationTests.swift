@@ -243,7 +243,7 @@ private struct Fixture {
     let wide: ElementRef
 
     var tree: LayoutTree {
-        guard let tree: LayoutTree = frame.document else {
+        guard var tree: LayoutTree = frame.document else {
             preconditionFailure("fixture has no layout tree")
         }
         return tree
