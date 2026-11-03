@@ -20,7 +20,6 @@ extension LayoutTree {
         )
         setPrimary(id, for: dom)
         initializeBlock(id, extraNodes: [], previous: previous)
-        addDependencyEdges(for: id)
         return id
     }
 
@@ -37,7 +36,6 @@ extension LayoutTree {
             previous: previous
         )
         initializeBlock(id, extraNodes: extraNodes, previous: previous)
-        addDependencyEdges(for: id)
         return id
     }
 
@@ -165,7 +163,6 @@ extension LayoutTree {
         data.changes.declaredHeightChildren = children
         setKind(.block(data), at: id)
         markUsed(.height, at: id)
-        addDependencyEdges(for: id)
     }
 
     func blockHeightInputs(_ id: LayoutID) -> [FieldKey] {

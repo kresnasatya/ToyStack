@@ -31,7 +31,6 @@ extension LayoutTree {
             setField(.x, 0, for: id)
             setField(.y, 0, for: id)
         }
-        addDependencyEdges(for: id)
         return id
     }
 

@@ -25,12 +25,12 @@ extension LayoutTree {
         pageZoom: CGFloat
     ) {
         let root: LayoutID = rootID
-        consumeStyleChanges()
+        profiler.measure("layout.dependencies.consumeStyleChanges", {
+            consumeStyleChanges()
+        })
         guard documentLayoutNeeded(root) else { return }
-        dependencies.beginLayout()
         defer {
             setDirtyDescendants(false, at: root)
-            dependencies.endLayout(from: self)
         }
 
         setField(.zoom, zoom, for: root)

@@ -78,7 +78,6 @@ struct LayoutTree {
         for field in [LayoutField.zoom, .width, .x, .y, .children] {
             markUsed(field, at: document)
         }
-        addDependencyEdges(for: document)
     }
 
     @MainActor
@@ -197,14 +196,30 @@ struct LayoutTree {
     mutating func removeSubtree(_ id: LayoutID) {
         guard nodes[id.raw] != nil else { return }
         let links: LayoutLinks = node(id).links
-        if let parent: LayoutID = links.parent {
+        let parent: LayoutID? = links.parent
+        if let parent {
             var node: LayoutNode = self.node(parent)
             node.links.children.removeAll(where: { $0 == id })
             node.links.versions.children += 1
             nodes[parent.raw] = node
         }
+        var removed: [LayoutID] = []
+        collectSubtreeIDs(id, into: &removed)
         removeRecursively(id)
-        dependencies.rebuild(from: self)
+        if let parent {
+            reindexDependencies(parent)
+        }
+        for removedID in removed {
+            dependencies.removeLayoutEdges(for: removedID)
+        }
+    }
+
+    private func collectSubtreeIDs(_ id: LayoutID, into ids: inout [LayoutID]) {
+        guard let node: LayoutNode = nodes[id.raw] else { return }
+        ids.append(id)
+        for child in node.links.children {
+            collectSubtreeIDs(child, into: &ids)
+        }
     }
 
     mutating private func removeRecursively(_ id: LayoutID) {
@@ -237,7 +252,9 @@ struct LayoutTree {
             removed.insert(id)
         }
         if !removed.isEmpty {
-            dependencies.rebuild(from: self)
+            for removedID in removed {
+                dependencies.removeLayoutEdges(for: removedID)
+            }
         }
         return removed
     }
@@ -252,17 +269,33 @@ struct LayoutTree {
 
     // MARK: - Style changes
 
-    /// Marks the layout fields whose style inputs changed since the last pass.
-    ///
-    /// Style writes do not reach into layout. Each style store keeps the
-    /// properties that changed since layout last asked, and `LayoutInputTable`
-    /// already states which layout fields read them.
-    ///
-    /// Every DOM node is visited, not every layout node: an inline child has no
-    /// node of its own, yet its `display` decides the parent's children.
     mutating func consumeStyleChanges() {
+        var changed: [NodeID] = []
         for index in inputs.nodes.indices where inputs.nodes[index] != nil {
-            consumeStyleChanges(for: NodeID(raw: UInt32(index)))
+            let node: NodeID = NodeID(raw: UInt32(index))
+            if !inputs.styleChanges(node).isEmpty {
+                changed.append(node)
+            }
+        }
+
+        var affected: Set<LayoutID> = []
+        for node in changed {
+            for property in inputs.styleChanges(node) {
+                for dependent in dependencies.fields(for: .style(node, property)) {
+                    guard case .layout(let id, _) = dependent else { continue }
+                    affected.insert(id)
+                }
+            }
+        }
+
+        for id in affected {
+            reindexDependencies(id)
+        }
+
+        for node in changed {
+            for property in inputs.styleChanges(node) {
+                markDependents(of: .style(node, property))
+            }
         }
     }
 
@@ -284,8 +317,22 @@ struct LayoutTree {
 
     mutating func markUsed(_ field: LayoutField, at id: LayoutID) {
         var node: LayoutNode = self.node(id)
+        let wasUsed: Bool = node.state.fields.isUsed(field)
         node.state.fields.markUsed(field)
         nodes[id.raw] = node
+        guard !wasUsed else { return }
+        let dependent: FieldKey = .layout(id, field)
+        for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
+            dependencies.add(dependent, for: input)
+        }
+    }
+
+    mutating func reindexDependencies(_ id: LayoutID) {
+        var inputs: [LayoutField: [FieldKey]] = [:]
+        for field in LayoutField.allCases where isUsed(field, at: id) {
+            inputs[field] = LayoutInputTable.inputs(for: id, field: field, in: self)
+        }
+        dependencies.reindex(id, inputs: inputs)
     }
 
     mutating func markClean(_ field: LayoutField, at id: LayoutID) {
@@ -301,19 +348,6 @@ struct LayoutTree {
         node.state.fields.markDirty(field)
         nodes[id.raw] = node
         markAncestorsDirty(from: id)
-    }
-
-    /// Adds the table edges owned by one node to the reverse index.
-    ///
-    /// `rebuild` is the authority; this only lets a node created mid-layout
-    /// propagate its first writes before the end-of-pass rebuild.
-    mutating func addDependencyEdges(for id: LayoutID) {
-        for field in LayoutField.allCases where isUsed(field, at: id) {
-            let dependent: FieldKey = .layout(id, field)
-            for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
-                dependencies.add(dependent, for: input)
-            }
-        }
     }
 
     mutating func markAncestorsDirty(from id: LayoutID) {
@@ -459,14 +493,16 @@ struct LayoutTree {
         markUsed(.children, at: id)
         setChildren(children, of: id)
         markClean(.children, at: id)
-        for child in reparented {
-            addDependencyEdges(for: child)
+        if changed || !reparented.isEmpty {
+            reindexDependencies(id)
+            for child in reparented {
+                reindexDependencies(child)
+            }
         }
         if changed {
             profiler.count("layout.field.set")
             markDependents(of: .layout(id, .children))
         }
-        dependencies.noteStructureChanged()
     }
 
     mutating func setChildrenClean(_ children: [LayoutID], of id: LayoutID) {
@@ -481,8 +517,8 @@ struct LayoutTree {
         markUsed(.previous, at: id)
         setPrevious(previous, of: id)
         markClean(.previous, at: id)
-        addDependencyEdges(for: id)
         guard changed else { return }
+        reindexDependencies(id)
         profiler.count("layout.field.set")
         markDependents(of: .layout(id, .previous))
     }

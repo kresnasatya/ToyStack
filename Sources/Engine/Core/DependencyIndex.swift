@@ -5,27 +5,8 @@ import Foundation
 /// The graph is rebuilt from `LayoutInputTable`, which is the only place that
 /// declares an edge. A write walks the index once; reads never touch it.
 struct DependencyIndex {
-    private var dependents: [FieldKey: [FieldKey]] = [:]
-    private var stale: Bool = false
-    private var layoutDepth: Int = 0
-
-    mutating func beginLayout() {
-        layoutDepth += 1
-    }
-
-    mutating func endLayout(from tree: LayoutTree) {
-        layoutDepth -= 1
-        rebuild(from: tree)
-    }
-
-    /// Records a structural change for the next write outside a layout pass.
-    /// Inside a layout pass the pass rebuilds once at the end, so mutating the
-    /// index per child would only add quadratic work.
-    mutating func noteStructureChanged() {
-        if layoutDepth == 0 {
-            stale = true
-        }
-    }
+    private var dependents: [FieldKey: Set<FieldKey>] = [:]
+    private var inputsByDependent: [FieldKey: Set<FieldKey>] = [:]
 
     /// Replaces the whole reverse index with the static input table.
     ///
@@ -33,18 +14,12 @@ struct DependencyIndex {
     /// `LayoutInputTable`; this method clears stale edges and rebuilds them.
     mutating func rebuild(from tree: LayoutTree) {
         dependents.removeAll(keepingCapacity: true)
-        stale = false
+        inputsByDependent.removeAll(keepingCapacity: true)
         for id in tree.liveIDs {
             for field in LayoutField.allCases where tree.isUsed(field, at: id) {
                 let dependent: FieldKey = .layout(id, field)
                 for input in LayoutInputTable.inputs(for: id, field: field, in: tree) {
-                    var list: [FieldKey] = dependents[input] ?? []
-                    guard !list.contains(dependent) else {
-                        dependents[input] = list
-                        continue
-                    }
-                    list.append(dependent)
-                    dependents[input] = list
+                    add(dependent, for: input)
                 }
             }
         }
@@ -52,9 +27,9 @@ struct DependencyIndex {
 
     /// Layout fields that read `key`.
     ///
-    /// The index is kept fresh by the layout pass (`rebuild` at its start) and
-    /// by structural changes, so a read does not rebuild or copy it.
-    func fields(for key: FieldKey) -> [FieldKey] {
+    /// The index is kept fresh by `reindex` at the structural and style
+    /// mutation sites, so a read does not rebuild or copy it.
+    func fields(for key: FieldKey) -> Set<FieldKey> {
         return dependents[key] ?? []
     }
 
@@ -62,13 +37,41 @@ struct DependencyIndex {
     /// created during a layout pass, so its first field writes still reach
     /// the fields that read them.
     mutating func add(_ dependent: FieldKey, for key: FieldKey) {
-        var list: [FieldKey] = dependents[key] ?? []
-        guard !list.contains(dependent) else {
-            dependents[key] = list
+        dependents[key, default: []].insert(dependent)
+        inputsByDependent[dependent, default: []].insert(key)
+    }
+
+    mutating func removeDependent(_ dependent: FieldKey) {
+        guard let inputs: Set<FieldKey> = inputsByDependent.removeValue(forKey: dependent) else {
             return
         }
-        list.append(dependent)
-        dependents[key] = list
+        for key in inputs {
+            dependents[key]?.remove(dependent)
+            if dependents[key]?.isEmpty == true {
+                dependents.removeValue(forKey: key)
+            }
+        }
+    }
+
+    mutating func reindex(_ id: LayoutID, inputs: [LayoutField: [FieldKey]]) {
+        for field in LayoutField.allCases {
+            removeDependent(.layout(id, field))
+        }
+        for field in LayoutField.allCases {
+            guard let fieldInputs = inputs[field] else { continue }
+            let dependent: FieldKey = .layout(id, field)
+            for input in fieldInputs {
+                add(dependent, for: input)
+            }
+        }
+    }
+
+    mutating func removeLayoutEdges(for id: LayoutID) {
+        for field in LayoutField.allCases {
+            let key: FieldKey = .layout(id, field)
+            removeDependent(key)
+            dependents.removeValue(forKey: key)
+        }
     }
 
     func count(of key: FieldKey) -> Int {

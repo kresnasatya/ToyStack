@@ -189,6 +189,184 @@ struct LayoutDependencyTests {
             }
         }
     }
+
+    @Test func removeDependentLeavesNoDanglingEdge() throws {
+        let page: LayoutTestPage = makeDependencyPage()
+        var document: LayoutTree = try #require(page.frame.document)
+
+        let root: LayoutID = document.rootID
+        let dependent: FieldKey = .layout(root, .width)
+        let input: FieldKey = .layout(root, .zoom)
+
+        #expect(document.dependencies.fieldKeys(for: dependent).contains(input))
+
+        let before: [FieldKey: Set<FieldKey>] = dependencySnapshot(document)
+        document.dependencies.removeDependent(dependent)
+        let after: [FieldKey: Set<FieldKey>] = dependencySnapshot(document)
+
+        #expect(document.dependencies.fieldKeys(for: dependent).isEmpty)
+
+        for (key, inputs) in before where key != dependent {
+            #expect(after[key] == inputs)
+        }
+    }
+
+    @Test func childrenChangeReindexesParentAndReparentedChild() throws {
+        let page: LayoutTestPage = makeSiblingPage()
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let other: ElementRef = try #require(page.firstElement(id: "other"))
+        let one: ElementRef = try #require(page.firstElement(id: "one"))
+        let two: ElementRef = try #require(page.firstElement(id: "two"))
+        let three: ElementRef = try #require(page.firstElement(id: "three"))
+        var document: LayoutTree = try #require(page.frame.document)
+
+        let boxID: LayoutID = try #require(page.firstBlockID(in: box))
+        let otherID: LayoutID = try #require(page.firstBlockID(in: other))
+        let oneID: LayoutID = try #require(page.firstBlockID(in: one))
+        let twoID: LayoutID = try #require(page.firstBlockID(in: two))
+        let threeID: LayoutID = try #require(page.firstBlockID(in: three))
+
+        document.setChildrenField([oneID, threeID], of: boxID)
+        document.setChildrenField([twoID], of: otherID)
+
+        try expectTableMatchesIndex(document)
+        #expect(document.parentID(of: twoID) == otherID)
+        #expect(depends(twoID, on: .layout(otherID, .x), in: document, field: .x))
+        #expect(!depends(twoID, on: .layout(boxID, .x), in: document, field: .x))
+    }
+
+    @Test func previousChangeReindexesYInputs() throws {
+        let page: LayoutTestPage = makeSiblingPage()
+        let one: ElementRef = try #require(page.firstElement(id: "one"))
+        let two: ElementRef = try #require(page.firstElement(id: "two"))
+        let three: ElementRef = try #require(page.firstElement(id: "three"))
+        var document: LayoutTree = try #require(page.frame.document)
+
+        let oneID: LayoutID = try #require(page.firstBlockID(in: one))
+        let twoID: LayoutID = try #require(page.firstBlockID(in: two))
+        let threeID: LayoutID = try #require(page.firstBlockID(in: three))
+
+        document.setPreviousField(oneID, of: threeID)
+
+        try expectTableMatchesIndex(document)
+        #expect(document.previousID(of: threeID) == oneID)
+        #expect(depends(threeID, on: .layout(oneID, .y), in: document, field: .y))
+        #expect(!depends(threeID, on: .layout(twoID, .y), in: document, field: .y))
+    }
+
+    @Test func sweepRemovesEdgesWithoutRebuild() throws {
+        let page: LayoutTestPage = makeSiblingPage()
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let one: ElementRef = try #require(page.firstElement(id: "one"))
+        let two: ElementRef = try #require(page.firstElement(id: "two"))
+        let three: ElementRef = try #require(page.firstElement(id: "three"))
+        var document: LayoutTree = try #require(page.frame.document)
+
+        let boxID: LayoutID = try #require(page.firstBlockID(in: box))
+        let oneID: LayoutID = try #require(page.firstBlockID(in: one))
+        let twoID: LayoutID = try #require(page.firstBlockID(in: two))
+        let threeID: LayoutID = try #require(page.firstBlockID(in: three))
+
+        document.setChildrenField([oneID, threeID], of: boxID)
+        document.setPreviousField(oneID, of: threeID)
+        let removed: Set<LayoutID> = document.sweepUnreachable()
+
+        #expect(removed.contains(twoID))
+        try expectTableMatchesIndex(document)
+
+        for id: LayoutID in removed {
+            for field: LayoutField in LayoutField.allCases {
+                #expect(document.dependencies.fieldKeys(for: .layout(id, field)).isEmpty)
+            }
+        }
+
+        for id: LayoutID in document.liveIDs {
+            for field: LayoutField in LayoutField.allCases where document.isUsed(field, at: id) {
+                let inputs: Set<FieldKey> = document.dependencies.fieldKeys(for: .layout(id, field))
+                for input: FieldKey in inputs {
+                    #expect(!removed.contains(where: { removedID in isEdgeTo(input, removedID) }))
+                }
+            }
+        }
+    }
+
+    @Test func displayChangeReindexesAncestorInlineInputs() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><span id="leaf">hello</span></div>"#,
+            rules: """
+                body { display: block; }
+                div { display: block; }
+                span { display: block; }
+            """
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let leaf: ElementRef = try #require(page.firstElement(id: "leaf"))
+        let boxID: LayoutID = try #require(page.firstBlockID(in: box))
+
+        leaf.style.mutate({ $0.layout.display = .inline })
+        consumeStyles(page)
+
+        try expectTableMatchesIndex(page.tree)
+        let inlineInputs: Set<FieldKey> = page.tree.dependencies.fieldKeys(for: .layout(boxID, .inlineContent))
+        #expect(inlineInputs.contains(.style(leaf.id, .fontSize)))
+        #expect(inlineInputs.contains(.style(leaf.id, .whiteSpace)))
+
+        leaf.style.mutate({ $0.layout.display = .block })
+        consumeStyles(page)
+
+        try expectTableMatchesIndex(page.tree)
+        let restoredInputs: Set<FieldKey> = page.tree.dependencies.fieldKeys(for: .layout(boxID, .inlineContent))
+        #expect(!restoredInputs.contains(.style(leaf.id, .fontSize)))
+    }
+
+    @Test func leafFontChangeAfterDisplayChangeKeepsAncestorFontInputs() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><span id="leaf">hello</span></div>"#,
+            rules: """
+                body { display: block; }
+                div { display: block; }
+                span { display: block; }
+            """
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let leaf: ElementRef = try #require(page.firstElement(id: "leaf"))
+        let boxID: LayoutID = try #require(page.firstBlockID(in: box))
+
+        let beforeInputs: Set<FieldKey> = page.tree.dependencies.fieldKeys(for: .layout(boxID, .inlineContent))
+        #expect(!beforeInputs.contains(.style(leaf.id, .fontSize)))
+
+        leaf.style.mutate({ $0.layout.display = .inline })
+        consumeStyles(page)
+
+        leaf.style.mutate({ $0.text.font.size = 32 })
+        consumeStyles(page)
+
+        try expectTableMatchesIndex(page.tree)
+        let inputs: Set<FieldKey> = page.tree.dependencies.fieldKeys(for: .layout(boxID, .inlineContent))
+        #expect(inputs.contains(.style(leaf.id, .fontSize)))
+        #expect(inputs.contains(.style(leaf.id, .fontFamily)))
+    }
+
+    @Test func whiteSpaceChangeReindexesOwningBlock() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box">one two three</div>"#,
+            rules: """
+                body { display: block; }
+                div { display: block; }
+            """
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let boxID: LayoutID = try #require(page.firstBlockID(in: box))
+
+        box.style.mutate({ $0.text.whiteSpace = .nowrap })
+        consumeStyles(page)
+
+        try expectTableMatchesIndex(page.tree)
+        #expect(page.tree.isDirty(.inlineContent, at: boxID))
+
+        let inputs: Set<FieldKey> = page.tree.dependencies.fieldKeys(for: .layout(boxID, .inlineContent))
+        #expect(inputs.contains(.style(box.id, .whiteSpace)))
+    }
 }
 
 @MainActor
@@ -237,6 +415,14 @@ private func dependencySnapshot(_ tree: LayoutTree) -> [FieldKey: Set<FieldKey>]
     return snapshot
 }
 
+@MainActor
+private func consumeStyles(_ page: LayoutTestPage) {
+    page.withTree({ tree in
+        tree.refreshInputs(LayoutInputsBuilder.build(dom: tree.dom))
+        tree.consumeStyleChanges()
+    })
+}
+
 private func isEdgeTo(_ key: FieldKey, _ id: LayoutID) -> Bool {
     if case .layout(let owner, _) = key, owner == id { return true }
     return false
@@ -255,6 +441,21 @@ private func makeDependencyPage() -> LayoutTestPage {
             div { display: block; }
             p { display: block; }
             """
+    )
+}
+
+@MainActor
+private func makeSiblingPage() -> LayoutTestPage {
+    return LayoutTestPage(
+        html: """
+            <div id="box"><p id="one">one</p><p id="two">two</p><p id="three">three</p></div>
+            <div id="other"></div>
+        """,
+        rules: """
+            body { display: block; }
+            div { display: block; }
+            p { display: block; }
+        """
     )
 }
 

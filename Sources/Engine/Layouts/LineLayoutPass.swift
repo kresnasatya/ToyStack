@@ -21,7 +21,6 @@ extension LayoutTree {
             markUsed(field, at: id)
         }
         markAncestorsDirty(from: id)
-        addDependencyEdges(for: id)
         return id
     }
 
@@ -71,7 +70,6 @@ extension LayoutTree {
             var updated: LineData = lineData(id)
             updated.placement.declaredInlineChildCount = children.count
             setKind(.line(updated), at: id)
-            addDependencyEdges(for: id)
         }
 
         let widthMovesChildren: Bool = lineData(id).content.centered

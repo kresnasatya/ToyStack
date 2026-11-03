@@ -921,14 +921,21 @@ class Frame {
             }
             state.layout.tree.box = box
             dom.layoutBox = box
-            box.tree.refreshInputs(LayoutInputsBuilder.build(dom: dom))
+            let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
+                LayoutInputsBuilder.build(dom: dom)
+            })
+            box.tree.refreshInputs(inputs)
             box.tree.layoutDocument(
                 availableWidth: frameWidth,
                 zoom: 1.0,
                 pageZoom: pageZoom
             )
-            applyLayoutEffects(box.tree.takeEffects())
-            let removed: Set<LayoutID> = box.tree.sweepUnreachable()
+            profiler.measure("layout.effects", {
+                applyLayoutEffects(box.tree.takeEffects())
+            })
+            let removed: Set<LayoutID> = profiler.measure("layout.sweep", {
+                box.tree.sweepUnreachable()
+            })
             if !removed.isEmpty {
                 state.display.composite.updates = state.display.composite.updates
                     .filter({ box.tree.primaryLayout(for: $0.key) != nil })

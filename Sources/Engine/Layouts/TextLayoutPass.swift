@@ -24,7 +24,6 @@ extension LayoutTree {
         }
         markAncestorsDirty(from: id)
         markField(.font, at: id)
-        addDependencyEdges(for: id)
         return id
     }
 
