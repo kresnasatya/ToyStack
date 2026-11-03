@@ -27,23 +27,17 @@ public class Browser: ObservableObject {
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [NodeID: String] = [:]
 
-    private struct TabFrame {
-        var display: FrameDisplay = FrameDisplay()
-        var scroll: ScrollState = ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
-        var render: FrameRender = FrameRender()
-        var preferences: ColorPreferences = ColorPreferences(prefersDark: false, usesForcedColors: false)
+    private var activePresentation: TabPresentation {
+        get { activeTab?.presentation ?? TabPresentation.empty }
+        set { activeTab?.presentation = newValue }
     }
-
-    private var frames: [ObjectIdentifier: TabFrame] = [:]
-    private var activeFrameID: ObjectIdentifier?
-    private var activeFrame: TabFrame = TabFrame()
     private var presentRevision: Int = 0
 
-    public var drawList: [DisplayOp] { activeFrame.render.drawList }
-    public var activeTabScroll: CGFloat { activeFrame.scroll.scroll }
+    public var drawList: [DisplayOp] { activePresentation.render.drawList }
+    public var activeTabScroll: CGFloat { activePresentation.scroll.scroll }
     public var pageZoom: CGFloat { activeTab?.pageZoom ?? 1.0 }
-    public var contentImage: CGImage? { activeFrame.render.content.image }
-    public var usesSublayers: Bool { activeFrame.render.content.usesSublayers }
+    public var contentImage: CGImage? { activePresentation.render.content.image }
+    public var usesSublayers: Bool { activePresentation.render.content.usesSublayers }
 
     func beginFrame() {
         currentFrameID += 1
@@ -58,9 +52,9 @@ public class Browser: ObservableObject {
         PresentedFrame(
             revision: presentRevision,
             frameID: frameID,
-            content: activeFrame.render.content,
+            content: activePresentation.render.content,
             viewport: PresentedViewport(
-                contentOffset: topInset - activeFrame.scroll.scroll * pageZoom,
+                contentOffset: topInset - activePresentation.scroll.scroll * pageZoom,
                 scale: ContentScale(display: displayScale, page: pageZoom),
                 canvasColor: canvasColor,
                 scrollbar: activeSidebar
@@ -72,7 +66,7 @@ public class Browser: ObservableObject {
     private var lastTileScroll: CGFloat = .nan
 
     public var canvasColor: CGColor {
-        let name: String = activeFrame.preferences.usesForcedColors ? ForcedColor.canvas : (activeFrame.preferences.prefersDark ? "black" : "white")
+        let name: String = activePresentation.preferences.usesForcedColors ? ForcedColor.canvas : (activePresentation.preferences.prefersDark ? "black" : "white")
         return BrowserColor(cssName: name).cgColor
     }
 
@@ -81,12 +75,12 @@ public class Browser: ObservableObject {
         guard contentHeight > 0,
             let bar = scrollbarBarRect(
                 ScrollbarGeometry(
-                    docHeight: activeFrame.scroll.maxScroll * pageZoom + contentHeight,
+                    docHeight: activePresentation.scroll.maxScroll * pageZoom + contentHeight,
                     contentHeight: contentHeight,
                     contentWidth: windowSize.width,
-                    scroll: activeFrame.scroll.scroll * pageZoom
+                    scroll: activePresentation.scroll.scroll * pageZoom
                 ),
-                forcedColors: activeFrame.preferences.usesForcedColors,
+                forcedColors: activePresentation.preferences.usesForcedColors,
                 topInset: topInset
             ),
             case .rrect(let rect, _, let color) = bar
@@ -142,10 +136,6 @@ public class Browser: ObservableObject {
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
-        let id: ObjectIdentifier = ObjectIdentifier(tab)
-        activeFrameID = id
-        activeFrame = TabFrame()
-        frames[id] = activeFrame
         dispatchPresent(frameID: currentFrameID)
         startAnimationTimer()
     }
@@ -208,19 +198,19 @@ public class Browser: ObservableObject {
 
     func commit(tab: BrowserTab, data: FrameCommit) {
         guard tab === activeTab else { return }
-        let paintChanged: Bool = data.display.paintRevision != activeFrame.display.paintRevision
-        activeFrame.display.displayList = data.display.displayList
-        activeFrame.scroll.scroll = data.scrollState.scroll
-        activeFrame.scroll.interestTop = data.scrollState.interestTop
-        activeFrame.scroll.interestBottom = data.scrollState.interestBottom
-        activeFrame.scroll.maxScroll = data.scrollState.maxScroll
-        activeFrame.preferences.prefersDark = data.preferences.prefersDark
-        activeFrame.preferences.usesForcedColors = data.preferences.usesForcedColors
-        activeFrame.display.paintRevision = data.display.paintRevision
-        activeFrame.display.compositedUpdates = data.display.compositedUpdates ?? [:]
+        let paintChanged: Bool = data.display.paintRevision != activePresentation.display.paintRevision
+        activePresentation.display.displayList = data.display.displayList
+        activePresentation.scroll.scroll = data.scrollState.scroll
+        activePresentation.scroll.interestTop = data.scrollState.interestTop
+        activePresentation.scroll.interestBottom = data.scrollState.interestBottom
+        activePresentation.scroll.maxScroll = data.scrollState.maxScroll
+        activePresentation.preferences.prefersDark = data.preferences.prefersDark
+        activePresentation.preferences.usesForcedColors = data.preferences.usesForcedColors
+        activePresentation.display.paintRevision = data.display.paintRevision
+        activePresentation.display.compositedUpdates = data.display.compositedUpdates ?? [:]
 
         if let updates = data.display.compositedUpdates, !updates.isEmpty {
-            activeFrame.display.effectRevision += 1
+            activePresentation.display.effectRevision += 1
         }
 
         if paintChanged {
@@ -228,12 +218,11 @@ public class Browser: ObservableObject {
         }
 
         if let updates = data.display.compositedUpdates, !updates.isEmpty,
-            activeFrame.render.content.usesSublayers,
+            activePresentation.render.content.usesSublayers,
             !needsComposite, !needsRaster, !needsDraw, !compositeInFlight,
             Browser.updatesAreCA(updates),
             applyEffectFastPath(updates)
         {
-            frames[ObjectIdentifier(tab)] = activeFrame
             return
         }
 
@@ -243,19 +232,18 @@ public class Browser: ObservableObject {
             setNeedsDrawOnly()
         }
 
-        frames[ObjectIdentifier(tab)] = activeFrame
         scheduleRasterAndDraw()
     }
 
     private func applyEffectFastPath(_ updates: [NodeID: EffectUpdate]) -> Bool {
-        let layers: [CompositedLayer] = activeFrame.render.layers
+        let layers: [CompositedLayer] = activePresentation.render.layers
         let effectStrategies: [LayerEffectStrategy] = layers.map({ Browser.layerEffectStrategy($0, updates: updates) })
         let keys: Set<NodeID> = Set(effectStrategies.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
         for (index, info) in effectStrategies.enumerated() where info.kind == .ca {
             if layers[index].effectImage == nil { return false }
         }
-        activeFrame.render.content.placements = Browser.layerPlacements(layers, effectStrategies: effectStrategies)
+        activePresentation.render.content.placements = Browser.layerPlacements(layers, effectStrategies: effectStrategies)
         dispatchPresent(frameID: currentFrameID)
         return true
     }
@@ -291,21 +279,21 @@ public class Browser: ObservableObject {
         let wantsComposite: Bool = needsComposite
 
         let scrollState: ScrollState = ScrollState(
-            scroll: activeFrame.scroll.scroll,
-            interestTop: activeFrame.scroll.interestTop,
-            interestBottom: activeFrame.scroll.interestBottom,
-            maxScroll: activeFrame.scroll.maxScroll
+            scroll: activePresentation.scroll.scroll,
+            interestTop: activePresentation.scroll.interestTop,
+            interestBottom: activePresentation.scroll.interestBottom,
+            maxScroll: activePresentation.scroll.maxScroll
         )
 
         let inputs: RasterInput = RasterInput(
             scene: RasterScene(
-                displayList: activeFrame.display.displayList,
-                compositedUpdates: activeFrame.display.compositedUpdates,
-                previousLayers: activeFrame.render.layers,
+                displayList: activePresentation.display.displayList,
+                compositedUpdates: activePresentation.display.compositedUpdates,
+                previousLayers: activePresentation.render.layers,
             ),
             settings: RasterSettings(
                 viewport: Viewport(windowSize: windowSize, topInset: topInset, scale: ContentScale(display: displayScale, page: pageZoom)),
-                preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
+                preferences: ColorPreferences(prefersDark: activePresentation.preferences.prefersDark, usesForcedColors: activePresentation.preferences.usesForcedColors),
                 flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
             ),
@@ -314,18 +302,18 @@ public class Browser: ObservableObject {
 
         let signature: FrameSignature = FrameSignature(
             viewport: FrameViewport(
-                scroll: activeFrame.scroll.scroll,
+                scroll: activePresentation.scroll.scroll,
                 size: windowSize,
                 scale: ContentScale(display: displayScale, page: pageZoom)
             ),
             revisions: FrameRevisions(
-                paint: activeFrame.display.paintRevision,
-                effects: activeFrame.display.effectRevision
+                paint: activePresentation.display.paintRevision,
+                effects: activePresentation.display.effectRevision
             ),
-            preferences: ColorPreferences(prefersDark: activeFrame.preferences.prefersDark, usesForcedColors: activeFrame.preferences.usesForcedColors),
+            preferences: ColorPreferences(prefersDark: activePresentation.preferences.prefersDark, usesForcedColors: activePresentation.preferences.usesForcedColors),
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
         )
-        if signature == activeFrame.render.signature && !needsTileContinuation {
+        if signature == activePresentation.render.signature && !needsTileContinuation {
             needsDraw = false
             frameStartTime = .distantPast
             return
@@ -346,7 +334,7 @@ public class Browser: ObservableObject {
 
         let frameStart: Date = frameStartTime
         frameStartTime = .distantPast
-        let ownerID: ObjectIdentifier? = activeFrameID
+        let owner: BrowserTab? = activeTab
 
         let measure: MeasureTime = self.measure
         let installWait: RasterInstallWait = RasterInstallWait()
@@ -532,22 +520,28 @@ public class Browser: ObservableObject {
                         needsMoreTiles: store.needsMoreTiles
                     )
                 },
-                then: { [weak self] (output: RasterOutput) in
+                then: { [weak self, weak owner] (output: RasterOutput) in
                     guard let self = self else { return }
                     let mainHopStart: UInt64 = self.measure.timestamp()
                     if let wait: (start: UInt64, end: UInt64) = installWait.takeWait(endedAt: mainHopStart) {
                         self.measure.interval("raster.installWait", MeasureTime.SpanInterval(start: wait.start, end: wait.end, category: .raster, frame: frameID))
                     }
-                    if let ownerID {
-                        if ownerID == self.activeFrameID {
-                            self.activeFrame.render.layers = output.compositedLayers ?? self.activeFrame.render.layers
-                            if let drawList: [DisplayOp] = output.drawList { self.activeFrame.render.drawList = drawList }
+                    if let owner {
+                        var presentation: TabPresentation = owner.presentation
+                        presentation.render.layers = output.compositedLayers ?? presentation.render.layers
+                        if let drawList: [DisplayOp] = output.drawList {
+                            presentation.render.drawList = drawList
+                        }
+                        if inputs.settings.flags.needsDraw || output.content.usesSublayers {
+                            presentation.render.content = output.content
+                        }
+                        presentation.render.signature = signature
+                        owner.presentation = presentation
+
+                        if owner === self.activeTab {
                             if inputs.settings.flags.needsDraw || output.content.usesSublayers {
-                                self.activeFrame.render.content = output.content
                                 self.dispatchPresent(frameID: frameID)
                             }
-                            self.activeFrame.render.signature = signature
-                            self.frames[ownerID] = self.activeFrame
                             if output.content.usesSublayers, output.needsMoreTiles, self.tileContinuationPasses < 8 {
                                 self.tileContinuationPasses += 1
                                 self.needsTileContinuation = true
@@ -559,12 +553,6 @@ public class Browser: ObservableObject {
                             if self.commitedForcedColors != inputs.settings.preferences.usesForcedColors {
                                 self.commitedForcedColors = inputs.settings.preferences.usesForcedColors
                             }
-                        } else if var stale = self.frames[ownerID] {
-                            stale.render.layers = output.compositedLayers ?? stale.render.layers
-                            if let drawList = output.drawList { stale.render.drawList = drawList }
-                            if inputs.settings.flags.needsDraw { stale.render.content = output.content }
-                            stale.render.signature = signature
-                            self.frames[ownerID] = stale
                         }
                     }
 
@@ -577,7 +565,7 @@ public class Browser: ObservableObject {
                             category: .frame,
                             frame: frameID
                         ),
-                        args: ["owner": ownerID == nil ? 0 : 1]
+                        args: ["owner": owner == nil ? 0 : 1]
                     )
                     self.compositeInFlight = false
                     if frameStart != .distantPast {
@@ -914,14 +902,11 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
-        activeFrame.scroll.scroll = scroll
-        if let id = activeFrameID {
-            frames[id]?.scroll.scroll = scroll
-        }
+        activePresentation.scroll.scroll = scroll
 
         let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
 
-        if activeFrame.render.content.usesSublayers {
+        if activePresentation.render.content.usesSublayers {
             if didRepaint {
                 setNeedsComposite()
             }
@@ -939,16 +924,11 @@ public class Browser: ObservableObject {
     }
 
     public func applyScrollAndUpdateInterest(scroll: CGFloat, interestTop: CGFloat, interestBottom: CGFloat) {
-        activeFrame.scroll.scroll = scroll
-        activeFrame.scroll.interestTop = interestTop
-        activeFrame.scroll.interestBottom = interestBottom
-        if let id = activeFrameID {
-            frames[id]?.scroll.scroll = scroll
-            frames[id]?.scroll.interestTop = interestTop
-            frames[id]?.scroll.interestBottom = interestBottom
-        }
+        activePresentation.scroll.scroll = scroll
+        activePresentation.scroll.interestTop = interestTop
+        activePresentation.scroll.interestBottom = interestBottom
         let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
-        if didRepaint && activeFrame.render.content.usesSublayers {
+        if didRepaint && activePresentation.render.content.usesSublayers {
             setNeedsComposite()
         }
         setNeedsDrawOnly()
@@ -992,12 +972,6 @@ public class Browser: ObservableObject {
     public func selectTab(_ tab: BrowserTab) {
         guard tab !== activeTab else { return }
         activeTab?.clearHover()
-        if let oldID = activeFrameID {
-            frames[oldID] = activeFrame
-        }
-        let id: ObjectIdentifier = ObjectIdentifier(tab)
-        activeFrameID = id
-        activeFrame = frames[id] ?? TabFrame()
         activeTab = tab
         hoveredA11yNode = nil
         hasSpokenDocument = false
@@ -1007,9 +981,9 @@ public class Browser: ObservableObject {
         needsComposite = false
         needsRaster = false
         needsDraw = false
-        if activeFrame.render.content.image == nil && !activeFrame.render.content.usesSublayers {
+        if activePresentation.render.content.image == nil && !activePresentation.render.content.usesSublayers {
             setNeedsComposite()
-        } else if let sig = activeFrame.render.signature,
+        } else if let sig = activePresentation.render.signature,
             sig.viewport.size != windowSize || sig.viewport.scale.display != displayScale || sig.viewport.scale.page != pageZoom {
             setNeedsComposite()
         }

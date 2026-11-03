@@ -1,4 +1,4 @@
-struct FrameRender {
+struct TabRenderState {
     var layers: [CompositedLayer] = []
     var drawList: [DisplayOp] = []
     var content: RenderedContent = RenderedContent()

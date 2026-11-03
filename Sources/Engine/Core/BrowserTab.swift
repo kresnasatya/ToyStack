@@ -75,6 +75,7 @@ public class BrowserTab {
         return focusedFrame.dom.ref(focused).element
     }
     var pendingHover: CGPoint? = nil
+    var presentation: TabPresentation = .empty
     private(set) var accessibilityTree: AccessibilityNode? = nil
     var needsAccessibility: Bool = false
     public var hasScrollElement: Bool { focusedFrame.hasScrollElement }
