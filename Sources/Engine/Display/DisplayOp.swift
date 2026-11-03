@@ -8,7 +8,7 @@ public enum DisplayOp {
     case text(text: String, font: BrowserFont, color: BrowserColor, rect: Rect)
     case image(image: CGImage, rendering: ImageRendering, rect: Rect, version: UInt64)
     case clippedImage(image: CGImage, rendering: ImageRendering, rect: Rect, clip: Rect)
-    case compositedLayer(layer: CompositedLayer, rect: Rect, visibleTop: CGFloat, visibleBottom: CGFloat)
+    indirect case compositedLayer(layer: RasterLayer, rect: Rect, visibleTop: CGFloat, visibleBottom: CGFloat)
     case beginEffect(EffectScope)
     case endEffect
 }
@@ -160,14 +160,14 @@ extension DisplayOp {
 }
 
 private func executeCompositedLayer(
-    _ layer: CompositedLayer,
+    _ layer: RasterLayer,
     visibleTop: CGFloat,
     visibleBottom: CGFloat,
     renderer: any Renderer
 ) {
     let bounds: Rect = layer.compositedBounds()
     if !layer.tiles.isEmpty {
-        let t: CGFloat = CompositedLayer.tileSize
+        let t: CGFloat = RasterLayer.tileSize
         for index in layer.orderedTileIndices {
             guard let image: CGImage = layer.tiles[index] else { continue }
             let tileLeft: CGFloat = CGFloat(index.col) * t

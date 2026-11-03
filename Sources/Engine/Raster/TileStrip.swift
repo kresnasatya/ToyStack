@@ -1,13 +1,13 @@
 import CoreGraphics
 
 struct TileStrip: @unchecked Sendable {
-    let layer: CompositedLayer
+    let layerIndex: Int
     let bounds: Rect
     let items: [DisplayOp]
     let tiles: [TileKey]
 
-    init(layer: CompositedLayer, bounds: Rect, items: [DisplayOp], tiles: [TileKey]) {
-        self.layer = layer
+    init(layerIndex: Int, bounds: Rect, items: [DisplayOp], tiles: [TileKey]) {
+        self.layerIndex = layerIndex
         self.bounds = bounds
         self.items = items
         self.tiles = tiles
@@ -16,7 +16,7 @@ struct TileStrip: @unchecked Sendable {
 
 extension TileStrip {
     static func sliceRect(for key: TileKey, in bounds: Rect, scale: CGFloat) -> CGRect {
-        let t: CGFloat = CompositedLayer.tileSize
+        let t: CGFloat = RasterLayer.tileSize
         return CGRect(
             x: (CGFloat(key.index.col) * t - bounds.left) * scale,
             y: (CGFloat(key.index.row) * t - bounds.top) * scale,

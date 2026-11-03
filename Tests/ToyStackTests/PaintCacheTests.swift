@@ -119,7 +119,7 @@ struct PaintCacheTests {
     }
 
     @Test func compositedLayerIsRejected() {
-        let layer = CompositedLayer(
+        let layer = RasterLayer(
             displayItem: .rect(
                 rect: Rect(left: 0, top: 0, right: 100, bottom: 20),
                 color: BrowserColor(cssName: "black")

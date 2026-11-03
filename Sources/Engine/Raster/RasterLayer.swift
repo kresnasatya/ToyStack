@@ -1,68 +1,49 @@
 import CoreGraphics
 
-public class CompositedLayer {
-    struct EffectImageKey: Equatable {
-        let scale: CGFloat
-        let blur: CGFloat
-        let bounds: Rect
-    }
+/// One rasterizable slice of the display list.
+public struct RasterLayer {
+    var identity: LayerIdentity
+    var content: LayerContent
+    var effect: LayerEffectImage
+    var tiles: [TileIndex: CGImage]
 
-    var id: LayerID = LayerID(effect: nil, ordinal: 0)
-    var firstCommandIndex: Int = -1
-    var displayItems: [DisplayOp] = []
-    var tiles: [TileIndex: CGImage] = [:]
-    var effectImage: CGImage?
-    var effectImageKey: EffectImageKey?
-    private var keyCache: [TileIndex: TileKey] = [:]
-    private var keyCacheScale: Int = -1
     static let tileSize: CGFloat = 128
     static let rasterCapPerComposite: UInt = 300
-    var ancestorChain: [EffectScope] = []
-
-    // Draw and placement order for tiles. Dictionary iteration order is
-    // randomized per process; at a fractional scroll offset adjacent tiles
-    // share a partly covered device pixel row, so order changes the blend.
-    var orderedTileIndices: [TileIndex] {
-        return tiles.keys.sorted(by: { ($0.row, $0.col) < ($1.row, $1.col) })
-    }
-
-    func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
-        let t: CGFloat = Self.tileSize
-        tiles = tiles.filter{ index, _ in
-            let top: CGFloat = CGFloat(index.row) * t
-            return top + t > keepTop && top < keepBottom
-        }
-    }
 
     init(
         displayItem: DisplayOp,
         firstCommandIndex: Int = -1,
         id: LayerID = LayerID(effect: nil, ordinal: 0)
     ) {
-        self.displayItems = [displayItem]
-        self.firstCommandIndex = firstCommandIndex
-        self.id = id
+        self.identity = LayerIdentity(
+            id: id,
+            firstCommandIndex: firstCommandIndex,
+            ancestorChain: []
+        )
+        self.content = LayerContent(
+            items: [displayItem],
+            bounds: displayItem.rect,
+            tileCache: LayerTileCache()
+        )
+        self.effect = LayerEffectImage()
+        self.tiles = [:]
     }
 
-    func add(_ displayItem: DisplayOp) {
-        displayItems.append(displayItem)
+    mutating func add(_ displayItem: DisplayOp) {
+        content.items.append(displayItem)
+        content.bounds = content.bounds.union(displayItem.rect)
+        content.tileCache = LayerTileCache()
+        effect = LayerEffectImage()
         tiles = [:]
-        effectImage = nil
-        effectImageKey = nil
-        keyCache = [:]
-        keyCacheScale = -1
     }
 
     func compositedBounds() -> Rect {
-        guard let first = displayItems.first else {
-            return Rect(left: 0, top: 0, right: 0, bottom: 0)
-        }
-        return displayItems.dropFirst().reduce(first.rect) { $0.union($1.rect) }
+        return content.bounds
     }
 
     func absoluteBounds() -> Rect {
-        var rect: Rect = compositedBounds()
-        for scope in ancestorChain {
+        var rect: Rect = content.bounds
+        for scope in identity.ancestorChain {
             if case .transform(let translation) = scope.kind, let translation {
                 rect = rect.translated(dx: translation.x, dy: translation.y)
             }
@@ -71,36 +52,49 @@ public class CompositedLayer {
     }
 
     func raster(renderer: any Renderer) {
-        let bounds: Rect = compositedBounds()
+        let bounds: Rect = content.bounds
         guard bounds.right > bounds.left && bounds.bottom > bounds.top else { return }
         renderer.saveState()
         renderer.translateBy(x: -bounds.left, y: -bounds.top)
-        for item in displayItems {
+        for item in content.items {
             item.execute(renderer: renderer)
         }
         renderer.restoreState()
     }
 
-    func rasterIfNeeded(scale: CGFloat, store: TileStore, region: RasterRegion, budget: RasterBudget) -> [TileStrip] {
-        guard !displayItems.isEmpty else { return [] }
+    mutating func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
+        let t: CGFloat = Self.tileSize
+        tiles = tiles.filter { index, _ in
+            let top: CGFloat = CGFloat(index.row) * t
+            return top + t > keepTop && top < keepBottom
+        }
+    }
+
+    mutating func rasterIfNeeded(
+        index layerIndex: Int,
+        scale: CGFloat,
+        store: TileStore,
+        region: RasterRegion,
+        budget: RasterBudget
+    ) -> [TileStrip] {
+        guard !content.items.isEmpty else { return [] }
         tiles.removeAll(keepingCapacity: true)
-        let bounds: Rect = compositedBounds()
+        let bounds: Rect = content.bounds
         let width: CGFloat = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return [] }
 
-        let items: [DisplayOp] = displayItems
+        let items: [DisplayOp] = content.items
         let left: CGFloat = bounds.left
         let t: CGFloat = Self.tileSize
         let firstCol: Int = max(0, Int(left / t), Int(region.hint.left / t))
         let lastCol: Int = min(Int((bounds.right - 1) / t), Int(region.hint.right / t))
         let firstRow: Int = max(0, Int(bounds.top / t), Int(region.hint.top / t))
-        let lastRow: Int = min(Int((bounds.bottom - 1) / t) , Int(region.hint.bottom / t))
+        let lastRow: Int = min(Int((bounds.bottom - 1) / t), Int(region.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
         let scaleInt: Int = Int((scale * 1000).rounded())
-        if keyCacheScale != scaleInt {
-            keyCache = [:]
-            keyCacheScale = scaleInt
+        if content.tileCache.scale != scaleInt {
+            content.tileCache = LayerTileCache(scale: scaleInt)
         }
 
         var rowItems: [Int: [DisplayOp]] = [:]
@@ -130,25 +124,25 @@ public class CompositedLayer {
             for col in firstCol...lastCol {
                 let colLeft: CGFloat = CGFloat(col) * t
                 let colRight: CGFloat = colLeft + t
-                let inside: [DisplayOp] = strip.filter { $0.rect.left < colRight  && $0.rect.right > colLeft }
+                let inside: [DisplayOp] = strip.filter { $0.rect.left < colRight && $0.rect.right > colLeft }
                 let index: TileIndex = TileIndex(row: row, col: col)
                 let key: TileKey
-                if let cached = keyCache[index] {
+                if let cached = content.tileCache.keys[index] {
                     key = cached
                 } else {
                     let tileRect: Rect = Rect(
                         left: colLeft,
-                        top: rowTop, right:
-                        colRight,
+                        top: rowTop,
+                        right: colRight,
                         bottom: rowTop + t
                     )
                     key = TileKey(
-                        layer: id,
+                        layer: identity.id,
                         index: index,
                         contentHash: tileHash(inside, tileRect: tileRect),
                         scale: scaleInt
                     )
-                    keyCache[index] = key
+                    content.tileCache.keys[index] = key
                 }
                 switch store.lookup(key) {
                 case .hit(let reused):
@@ -165,7 +159,7 @@ public class CompositedLayer {
             if !missing.isEmpty {
                 strips.append(
                     TileStrip(
-                        layer: self,
+                        layerIndex: layerIndex,
                         bounds: Rect(
                             left: CGFloat(firstCol) * t,
                             top: rowTop,
@@ -180,6 +174,10 @@ public class CompositedLayer {
         }
 
         return strips
+    }
+
+    var orderedTileIndices: [TileIndex] {
+        return tiles.keys.sorted(by: { ($0.row, $0.col) < ($1.row, $1.col) })
     }
 
     private func tileHash(_ inside: [DisplayOp], tileRect: Rect) -> Int {

@@ -11,7 +11,7 @@ class RasterScheduler: @unchecked Sendable {
 
     private let queue: DispatchQueue = DispatchQueue(label: "browser.compositor", qos: .userInitiated)
     private let workers: RasterWorkerPool = RasterWorkerPool()
-    let tileStore: TileStore = TileStore(tileSize: CompositedLayer.tileSize)
+    let tileStore: TileStore = TileStore(tileSize: RasterLayer.tileSize)
     var measure: MeasureTime?
     private let lock: NSLock = NSLock()
     private var pending: Job?
