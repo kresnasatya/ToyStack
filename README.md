@@ -34,7 +34,7 @@ The process divided into 4 chapters:
 - **Parsing**: Turns text into trees.
 - **Style**: `ComputedStyle` parsing and cascade, media features, inline style, text direction, whitespace, forced colors.
 - **Style/Selectors**: It holds the matching machinery (tag/class/id/descendant/has/RuleIndex).
-- **Layouts**: Geometry/layout: block, inline, line, text, input, button layout + LayoutObject/LayoutMetrics.
+- **Layouts**: Geometry/layout: block, inline, line, text, input, button layout + arena storage (`LayoutTree`, `LayoutRef`) + `LayoutMetrics`.
 - **Display**: `DisplayOp` construction, typed colors, effect scopes, PaintTree, scrollbar, focus ring.
 - **Raster**: Turning display list into pixels: compositing layers, tiles/tile store, raster scheduler + worker pool, budgets, invalidation.
 - **Presentation**: The public hand-off of a finished frame to the UI.

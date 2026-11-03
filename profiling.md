@@ -288,15 +288,15 @@ a test that runs the style phase without `render()`.
 
 | Metric | Kind | Meaning |
 |---|---|---|
-| `layout.visit` | duration | one `BlockLayout.layout` body; the skip gate is outside |
-| `layout.visited` | count | `BlockLayout.layout` bodies entered |
-| `layout.skipped` | count | `BlockLayout` visits returned by the `layoutNeeded()` gate |
+| `layout.visit` | duration | one block pass body (`layoutBlock`); the skip gate is outside |
+| `layout.visited` | count | block pass bodies entered |
+| `layout.skipped` | count | block visits returned by the `layoutNeeded()` gate |
 | `layout.height` | duration | height accumulation |
 | `layout.mode` | duration | `layoutMode()` |
 | `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
 | `layout.line.place` | duration | line layout |
 | `layout.text` | duration | text layout |
-| `layout.rebuilt` | count | `BlockLayout` bodies that ran; equals `layout.visited` |
+| `layout.rebuilt` | count | block pass bodies that ran; equals `layout.visited` |
 | `layout.children.rebuilt` | count | block-mode child lists rebuilt (inline reflow is not counted) |
 | `layout.dirtyDescendants` | count | gate checks that returned because a descendant field was dirty |
 | `layout.field.set` | count | layout field writes that changed the value |
@@ -315,7 +315,7 @@ Rules:
 - **Use `layout.rebuilt` for "boxes laid out".** `layout.visited` counts entries;
   `layout.skipped` counts block gate returns. `visited` and `rebuilt` stay equal:
   both count a body that ran, while a gate return increments only `skipped`. A fully
-  clean pass returns in `DocumentLayout` and emits no block counters at all; assert
+  clean pass returns in `documentLayout` and emits no block counters at all; assert
   `layout.visited` is absent or `0`, not `layout.skipped == 1`.
 - `layout.dirtyDescendants` is the coarse path: a block entered because an ancestor
   flag was set, not because its own fields were dirty. It costs one gate per clean
