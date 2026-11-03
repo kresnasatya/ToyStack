@@ -121,7 +121,10 @@ class Frame {
         set { state.document.meta.loaded = newValue }
     }
 
-    private(set) var focus: NodeID?
+    private(set) var focus: NodeID? {
+        get { state.runtime.interaction.focus }
+        set { state.runtime.interaction.focus = newValue }
+    }
     private var rulesRevision: Int {
         get { state.document.sheets.index.list.rulesRevision }
         set { state.document.sheets.index.list.rulesRevision = newValue }
@@ -158,9 +161,15 @@ class Frame {
         get { state.document.resources.images.lazy }
         set { state.document.resources.images.lazy = newValue }
     }
-    var js: JSRuntime!
+    var js: JSRuntime! {
+        get { state.runtime.script }
+        set { state.runtime.script = newValue }
+    }
 
-    var needsRender: Bool = false
+    var needsRender: Bool {
+        get { state.runtime.schedule.needsRender }
+        set { state.runtime.schedule.needsRender = newValue }
+    }
     private var styleInvalidatedByViewport: Bool {
         get { state.document.sheets.pending.byViewport }
         set { state.document.sheets.pending.byViewport = newValue }
@@ -197,11 +206,17 @@ class Frame {
         get { state.document.sheets.index.list.indexedRevision }
         set { state.document.sheets.index.list.indexedRevision = newValue }
     }
-    var needsFocusScroll: Bool = false
+    var needsFocusScroll: Bool {
+        get { state.runtime.interaction.needsFocusScroll }
+        set { state.runtime.interaction.needsFocusScroll = newValue }
+    }
 
     #if DEBUG
     // Print the frozen field graph after a layout pass. Test-only escape hatch.
-    var debugDumpDependencies: Bool = false
+    var debugDumpDependencies: Bool {
+        get { state.runtime.schedule.debugDumpDependencies }
+        set { state.runtime.schedule.debugDumpDependencies = newValue }
+    }
     #endif
 
     private(set) var interestTop: CGFloat {
@@ -209,15 +224,27 @@ class Frame {
         set { state.layout.scroll.interestTop = newValue }
     }
     private var interestBottom: CGFloat { interestTop + 4 * frameHeight }
-    private var scrollFocusNode: NodeID? = nil
-    private var hoveredElements: [NodeID] = []
-    private var scrollTween: ScrollTween? = nil
+    private var scrollFocusNode: NodeID? {
+        get { state.runtime.interaction.scrollFocus }
+        set { state.runtime.interaction.scrollFocus = newValue }
+    }
+    private var hoveredElements: [NodeID] {
+        get { state.runtime.interaction.hovered }
+        set { state.runtime.interaction.hovered = newValue }
+    }
+    private var scrollTween: ScrollTween? {
+        get { state.runtime.animation.tween }
+        set { state.runtime.animation.tween = newValue }
+    }
     private(set) var pageZoom: CGFloat {
         get { state.layout.viewport.zoom }
         set { state.layout.viewport.zoom = newValue }
     }
 
-    private var activeAnimations: Int = 0
+    private var activeAnimations: Int {
+        get { state.runtime.animation.activeCount }
+        set { state.runtime.animation.activeCount = newValue }
+    }
 
     private var iframeTargets: [IframeTarget] {
         get { state.layout.targets.iframes }
@@ -254,7 +281,8 @@ class Frame {
         self.state = FrameState(
             document: FrameDocumentState(dom: DOMTree()),
             layout: FrameLayoutState(width: frameWidth, height: frameHeight),
-            display: FrameDisplayState()
+            display: FrameDisplayState(),
+            runtime: FrameRuntimeState()
         )
         self.tab = tab
         self.parentFrame = parent?.frame
