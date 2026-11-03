@@ -75,7 +75,7 @@ extension LayoutTree {
         }
 
         let widthMovesChildren: Bool = lineData(id).content.centered
-            || domRef(id).style.computed.text.direction == .rtl
+            || inputs.style(domID(of: id)).text.direction == .rtl
         let needsPlacement: Bool = xWasDirty || yWasDirty || childCountChanged
             || childWidthChanged
             || isDirty(.ascent, at: id)
@@ -142,7 +142,7 @@ extension LayoutTree {
             let lineY: CGFloat = y(id)
             let baseline: CGFloat = lineY + ascent(id)
             for child in inlineChildren {
-                if let el = domRef(child).element, el.tag == "sup" {
+                if inputs.tag(domID(of: child)) == "sup" {
                     setField(.y, baseline - maxAscent, for: child)
                 } else {
                     setField(.y, baseline - ascent(child), for: child)
@@ -153,7 +153,7 @@ extension LayoutTree {
                 layout(child)
             }
 
-            if domRef(id).style.computed.text.direction == .rtl {
+            if inputs.style(domID(of: id)).text.direction == .rtl {
                 let usedWidth: CGFloat = contentWidth(id)
                 shiftChildren(id, by: width(id) - usedWidth)
             }

@@ -15,6 +15,28 @@ final class LayoutTree {
     var dependencies: DependencyIndex = DependencyIndex()
     private(set) var inputs: LayoutInputs = LayoutInputs(nodes: [])
 
+    func domView(_ id: LayoutID) -> LayoutDOMView {
+        return LayoutDOMView(inputs: inputs, id: domID(of: id))
+    }
+
+    func domView(_ node: NodeID) -> LayoutDOMView {
+        return LayoutDOMView(inputs: inputs, id: node)
+    }
+
+    func fontFor(_ dom: NodeID, zoom: CGFloat) -> BrowserFont {
+        let style: TextStyle.Font = inputs.font(dom)
+        return getFont(
+            size: Int(style.size * zoom),
+            weight: style.weight.cssValue,
+            style: style.style.browserFontStyle,
+            family: style.family
+        )
+    }
+
+    func fontFor(_ id: LayoutID, zoom: CGFloat) -> BrowserFont {
+        return fontFor(domID(of: id), zoom: zoom)
+    }
+
     func refreshInputs(_ inputs: LayoutInputs) {
         self.inputs = inputs
     }

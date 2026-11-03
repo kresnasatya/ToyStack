@@ -43,7 +43,14 @@ struct StyleInvalidationTests {
 
         p.style.mutate { $0.text.font.size = 32 }
 
-        let grown: BrowserFont = fontForElement(text.ref, zoom: 1)
+        let inputs: LayoutInputs = LayoutInputsBuilder.build(dom: page.frame.dom)
+        let style: TextStyle.Font = inputs.font(text.ref.id)
+        let grown: BrowserFont = getFont(
+            size: Int(style.size),
+            weight: style.weight.cssValue,
+            style: style.style.browserFontStyle,
+            family: style.family
+        )
         #expect(grown.linespace > normal.linespace)
     }
 

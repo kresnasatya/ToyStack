@@ -51,7 +51,7 @@ extension LayoutTree {
             setField(.zoom, resolvedZoom(id), for: id)
         }
         if isDirty(.font, at: id) {
-            setFont(fontForElement(domRef(id), zoom: zoom(id)), for: id)
+            setFont(fontFor(domID(of: id), zoom: zoom(id)), for: id)
         }
     }
 
@@ -86,13 +86,14 @@ extension LayoutTree {
         setDirtyDescendants(false, at: id)
         layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        guard let el = domRef(id).element else { return }
+        guard let el = domView(id).element else { return }
         let available: CGFloat = width(parentID(of: id)!)
+        let metrics: EmbedMetrics = EmbedMetrics(el)
         let elementZoom: CGFloat = zoom(id)
-        let usedWidth: CGFloat = imageUsedWidth(for: el, available: available, zoom: elementZoom)
+        let usedWidth: CGFloat = imageUsedWidth(metrics, available: available, zoom: elementZoom)
         setField(.width, usedWidth, for: id)
         let usedHeight: CGFloat = imageUsedHeight(
-            for: el,
+            metrics,
             usedWidth: width(id),
             zoom: zoom(id)
         )
@@ -118,7 +119,7 @@ extension LayoutTree {
         setDirtyDescendants(false, at: id)
         layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        let isCheckbox: Bool = domRef(id).element?.attributes["type"] == "checkbox"
+        let isCheckbox: Bool = domView(id).element?.attributes["type"] == "checkbox"
         if isCheckbox {
             setField(.width, font(id).linespace, for: id)
         } else {
@@ -154,7 +155,7 @@ extension LayoutTree {
 
         setChildrenField([], of: id)
         newButtonLine(id)
-        for child in domRef(id).children {
+        for child in domView(id).children {
             recurseButton(id, child)
         }
         for child in childrenIDs(of: id) {
@@ -185,7 +186,7 @@ extension LayoutTree {
         setChildrenField(children, of: id)
     }
 
-    private func recurseButton(_ id: LayoutID, _ node: DOMRef) {
+    private func recurseButton(_ id: LayoutID, _ node: LayoutDOMView) {
         if let textNode = node.text {
             for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
                 addButtonWord(id, node: node, word: String(word))
@@ -201,8 +202,8 @@ extension LayoutTree {
         }
     }
 
-    private func addButtonWord(_ id: LayoutID, node: DOMRef, word: String) {
-        let font: BrowserFont = fontForElement(node, zoom: zoom(id))
+    private func addButtonWord(_ id: LayoutID, node: LayoutDOMView, word: String) {
+        let font: BrowserFont = fontFor(node.id, zoom: zoom(id))
         let w: CGFloat = font.measure(word)
         let cursorX: CGFloat = buttonCursorX(id)
         if cursorX + w > width(id) { newButtonLine(id) }
@@ -225,8 +226,8 @@ extension LayoutTree {
         setButtonCursorX(id, buttonCursorX(id) + w)
     }
 
-    private func addButtonInput(_ id: LayoutID, _ node: ElementRef) {
-        let font: BrowserFont = fontForElement(node.ref, zoom: zoom(id))
+    private func addButtonInput(_ id: LayoutID, _ node: LayoutElementView) {
+        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom(id))
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom(id)
         let cursorX: CGFloat = buttonCursorX(id)
@@ -266,29 +267,49 @@ extension LayoutTree {
         setDirtyDescendants(false, at: id)
         layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        guard let el = domRef(id).element else { return }
+        guard let el = domView(id).element else { return }
 
-        let size: (width: CGFloat, height: CGFloat) = iframeDisplaySize(for: el)
+        let metrics: EmbedMetrics = EmbedMetrics(el)
+        let size: (width: CGFloat, height: CGFloat) = iframeDisplaySize(metrics)
         setField(.width, size.width * zoom(id), for: id)
         setField(.height, size.height * zoom(id), for: id)
         embedSetAscentFromHeight(id)
 
-        guard let frame: Frame = el.frame, frame.loaded else { return }
         let innerWidth: CGFloat = width(id) - 2 * zoom(id)
         let innerHeight: CGFloat = height(id) - 2 * zoom(id)
-        if frame.frameWidth != innerWidth {
-            frame.setViewport(width: innerWidth, height: innerHeight)
+        applyIframeViewport(domID(of: id), width: innerWidth, height: innerHeight)
+    }
+
+    /// DOM side effect kept out of the layout math.
+    @MainActor
+    private func applyIframeViewport(_ node: NodeID, width: CGFloat, height: CGFloat) {
+        guard let frame: Frame = DOMRef(id: node, dom: dom).element?.frame,
+            frame.loaded
+        else { return }
+        if frame.frameWidth != width {
+            frame.setViewport(width: width, height: height)
             frame.setNeedsRender()
-        } else if frame.frameHeight != innerHeight {
-            frame.setViewport(width: innerWidth, height: innerHeight)
+        } else if frame.frameHeight != height {
+            frame.setViewport(width: width, height: height)
             frame.setNeedsLayout()
         }
     }
 
     // MARK: - Canvas
 
-    private func canvasDisplayScale(_ id: LayoutID) -> CGFloat {
-        return domRef(id).element?.frame?.tab?.browser?.displayScale ?? 1
+    /// DOM side effect kept out of the layout math.
+    @MainActor
+    private func applyCanvasSize(_ node: NodeID, width: CGFloat, height: CGFloat, scale: CGFloat) {
+        guard let context: CanvasRenderingContext2D = DOMRef(id: node, dom: dom)
+            .element?.canvasContext
+        else { return }
+        context.resize(width: width, height: height)
+        context.setScale(scale)
+    }
+
+    @MainActor
+    private func canvasDisplayScale(_ node: NodeID) -> CGFloat {
+        return DOMRef(id: node, dom: dom).element?.frame?.tab?.browser?.displayScale ?? 1
     }
 
     func layoutCanvas(_ id: LayoutID) {
@@ -299,15 +320,33 @@ extension LayoutTree {
         setDirtyDescendants(false, at: id)
         layoutEmbedCommon(id)
         guard sizeDirty else { return }
-        guard let el = domRef(id).element else { return }
-        let size: (width: CGFloat, height: CGFloat) = canvasContentSize(for: el)
+        guard let el = domView(id).element else { return }
+        let size: (width: CGFloat, height: CGFloat) = canvasContentSize(attributes: el.attributes)
 
         setField(.width, size.width * zoom(id), for: id)
         setField(.height, size.height * zoom(id), for: id)
         embedSetAscentFromHeight(id)
 
-        el.canvasContext?.resize(width: size.width, height: size.height)
-        el.canvasContext?.setScale(canvasDisplayScale(id) * pageZoom(id) * zoom(id))
+        applyCanvasSize(
+            domID(of: id),
+            width: size.width,
+            height: size.height,
+            scale: canvasDisplayScale(domID(of: id)) * pageZoom(id) * zoom(id)
+        )
+    }
+}
+
+// MARK: - Embed metrics
+
+struct EmbedMetrics {
+    let image: CGImage?
+    let style: ComputedStyle
+    let attributes: [String: String]
+}
+
+extension EmbedMetrics {
+    init(_ el: LayoutElementView) {
+        self.init(image: el.image, style: el.style.computed, attributes: el.attributes)
     }
 }
 
@@ -315,34 +354,31 @@ extension LayoutTree {
 
 let inputWidthPx: CGFloat = 200
 
-@MainActor
-func imageDisplaySize(for el: ElementRef) -> (width: Double, height: Double) {
-    let intrinsicW: Double = el.image.map { Double($0.width) } ?? 0
-    let intrinsicH: Double = el.image.map { Double($0.height) } ?? 0
-    let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
+func imageDisplaySize(_ metrics: EmbedMetrics) -> (width: Double, height: Double) {
+    let intrinsicW: Double = metrics.image.map { Double($0.width) } ?? 0
+    let intrinsicH: Double = metrics.image.map { Double($0.height) } ?? 0
+    let ratio: AspectRatio? = metrics.style.box.size.aspectRatio
         ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
-    let wAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
-    let hAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
+    let wAttr: Double? = metrics.attributes["width"].flatMap({ Double($0) })
+    let hAttr: Double? = metrics.attributes["height"].flatMap({ Double($0) })
     if let w = wAttr, let h = hAttr { return (w, h) }
     else if let w = wAttr { return (w, ratio?.height(forWidth: w) ?? w) }
     else if let h = hAttr { return (ratio?.width(forHeight: h) ?? h, h) }
     return (intrinsicW, intrinsicH)
 }
 
-@MainActor
-func imageUsedWidth(for el: ElementRef, available: CGFloat, zoom: CGFloat) -> CGFloat {
-    let intrinsic: CGFloat = CGFloat(imageDisplaySize(for: el).width) * zoom
-    guard let maxWidth: Length = el.style.computed.box.size.maxWidth else {
+func imageUsedWidth(_ metrics: EmbedMetrics, available: CGFloat, zoom: CGFloat) -> CGFloat {
+    let intrinsic: CGFloat = CGFloat(imageDisplaySize(metrics).width) * zoom
+    guard let maxWidth: Length = metrics.style.box.size.maxWidth else {
         return intrinsic
     }
     let limit: CGFloat = maxWidth.resolved(available: available, zoom: zoom)
     return min(intrinsic, limit)
 }
 
-@MainActor
-func imageUsedHeight(for el: ElementRef, usedWidth: CGFloat, zoom: CGFloat) -> CGFloat {
-    let size: (width: Double, height: Double) = imageDisplaySize(for: el)
-    let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
+func imageUsedHeight(_ metrics: EmbedMetrics, usedWidth: CGFloat, zoom: CGFloat) -> CGFloat {
+    let size: (width: Double, height: Double) = imageDisplaySize(metrics)
+    let ratio: AspectRatio? = metrics.style.box.size.aspectRatio
         ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
     guard let height = ratio?.height(forWidth: Double(usedWidth / zoom)) else {
         return CGFloat(size.height) * zoom
@@ -353,11 +389,10 @@ func imageUsedHeight(for el: ElementRef, usedWidth: CGFloat, zoom: CGFloat) -> C
 let iframeDefaultWidthPx: CGFloat = 300
 let iframeDefaultHeightPx: CGFloat = 150
 
-@MainActor
-func iframeDisplaySize(for el: ElementRef) -> (width: CGFloat, height: CGFloat) {
-    let ratio: AspectRatio? = el.style.computed.box.size.aspectRatio
-    let widthAttr: Double? = el.attributes["width"].flatMap({ Double($0) })
-    let heightAttr: Double? = el.attributes["height"].flatMap({ Double($0) })
+func iframeDisplaySize(_ metrics: EmbedMetrics) -> (width: CGFloat, height: CGFloat) {
+    let ratio: AspectRatio? = metrics.style.box.size.aspectRatio
+    let widthAttr: Double? = metrics.attributes["width"].flatMap({ Double($0) })
+    let heightAttr: Double? = metrics.attributes["height"].flatMap({ Double($0) })
     let content: (width: Double, height: Double)
     if let w = widthAttr, let h = heightAttr {
         content = (w, h)
@@ -376,10 +411,9 @@ func iframeDisplaySize(for el: ElementRef) -> (width: CGFloat, height: CGFloat) 
 let canvasDefaultWidthPx: CGFloat = 300
 let canvasDefaultHeightPx: CGFloat = 150
 
-@MainActor
-func canvasContentSize(for el: ElementRef) -> (width: CGFloat, height: CGFloat) {
-    let width: CGFloat = el.attributes["width"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? canvasDefaultWidthPx
-    let height: CGFloat = el.attributes["height"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? canvasDefaultHeightPx
+func canvasContentSize(attributes: [String: String]) -> (width: CGFloat, height: CGFloat) {
+    let width: CGFloat = attributes["width"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? canvasDefaultWidthPx
+    let height: CGFloat = attributes["height"].flatMap({ Double($0) }).map({ CGFloat($0) }) ?? canvasDefaultHeightPx
     return (width, height)
 }
 

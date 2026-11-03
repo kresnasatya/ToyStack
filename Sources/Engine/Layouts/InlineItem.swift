@@ -1,6 +1,5 @@
-@MainActor
 enum InlineItem {
     case text(InlineTextItem)
-    case embed(ElementRef)
+    case embed(LayoutElementView)
     case lineBreak
 }

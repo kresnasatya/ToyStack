@@ -185,8 +185,7 @@ enum LayoutInputTable {
             }
             return keys
         case .font:
-            let ref: DOMRef = DOMRef(id: dom, dom: tree.dom)
-            return [.layout(id, .zoom)] + fontInputs(for: ref)
+            return [.layout(id, .zoom)] + fontInputs(for: dom, in: tree.inputs)
         case .width, .height, .ascent, .descent:
             return [.layout(id, .font)]
         case .x, .y, .children, .previous, .inlineContent:
@@ -216,8 +215,7 @@ enum LayoutInputTable {
             if let parent { keys.insert(.layout(parent, .zoom), at: 0) }
             return keys
         case .font:
-            let ref: DOMRef = DOMRef(id: dom, dom: tree.dom)
-            return [.layout(id, .zoom)] + fontInputs(for: ref)
+            return [.layout(id, .zoom)] + fontInputs(for: dom, in: tree.inputs)
         case .children, .x, .y, .previous, .inlineContent:
             return []
         case .width:

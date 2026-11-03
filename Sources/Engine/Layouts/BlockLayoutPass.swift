@@ -58,12 +58,12 @@ extension LayoutTree {
         markAncestorsDirty(from: id)
     }
 
-    func blockExtraNodes(_ id: LayoutID) -> [DOMRef] {
-        return blockData(id).content.extraNodes.map({ DOMRef(id: $0, dom: dom) })
+    func blockExtraNodes(_ id: LayoutID) -> [LayoutDOMView] {
+        return blockData(id).content.extraNodes.map({ domView($0) })
     }
 
     func inlineContentInputs(_ id: LayoutID) -> [FieldKey] {
-        let extraNodes: [DOMRef] = blockExtraNodes(id)
+        let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
         var inputs: [FieldKey] = [
             .layout(id, .zoom),
             .style(domID(of: id), .display),
@@ -71,15 +71,15 @@ extension LayoutTree {
             .style(domID(of: id), .direction),
         ]
         if extraNodes.isEmpty {
-            for child in domRef(id).children {
+            for child in domView(id).children {
                 inputs.append(.style(child.id, .display))
                 inputs.append(.style(child.id, .position))
             }
         }
         for leaf in inlineLeaves(id) {
-            let owner: DOMRef = leaf.inheritedStyleOwner
+            let owner: LayoutDOMView = leaf.inheritedStyleOwner
             inputs.append(.style(owner.id, .whiteSpace))
-            inputs.append(contentsOf: fontInputs(for: leaf))
+            inputs.append(contentsOf: fontInputs(for: leaf.id, in: self.inputs))
             if let el = leaf.element {
                 inputs.append(.style(el.ref.id, .aspectRatio))
                 inputs.append(.style(el.ref.id, .maxWidth))
@@ -89,21 +89,21 @@ extension LayoutTree {
     }
 
     // Only leaves this block lays out inline. Nested blocks own their own inputs.
-    private func inlineLeaves(_ id: LayoutID) -> [DOMRef] {
-        var leaves: [DOMRef] = []
-        let extraNodes: [DOMRef] = blockExtraNodes(id)
+    private func inlineLeaves(_ id: LayoutID) -> [LayoutDOMView] {
+        var leaves: [LayoutDOMView] = []
+        let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
         if !extraNodes.isEmpty {
             for node in extraNodes { collectLeaves(node, into: &leaves) }
             return leaves
         }
-        let hasBlockChild: Bool = domRef(id).children.contains(where: {
+        let hasBlockChild: Bool = domView(id).children.contains(where: {
             $0.style.computed.layout.display == .block
         })
         if !hasBlockChild {
-            collectLeaves(domRef(id), into: &leaves)
+            collectLeaves(domView(id), into: &leaves)
             return leaves
         }
-        for child in domRef(id).children where child.style.computed.layout.display != .block {
+        for child in domView(id).children where child.style.computed.layout.display != .block {
             collectLeaves(child, into: &leaves)
         }
         return leaves
@@ -197,14 +197,14 @@ extension LayoutTree {
         markField(.children, at: id)
     }
 
-    func blockNoteAppendedChildren(_ id: LayoutID, _ nodes: [DOMRef]) {
+    func blockNoteAppendedChildren(_ id: LayoutID, _ nodes: [NodeID]) {
         var data: BlockData = blockData(id)
         data.changes.childChanges.append(.append(nodes))
         setKind(.block(data), at: id)
         markAncestorsDirty(from: id)
     }
 
-    func blockNoteInsertedChildren(_ id: LayoutID, _ nodes: [DOMRef], before reference: DOMRef) {
+    func blockNoteInsertedChildren(_ id: LayoutID, _ nodes: [NodeID], before reference: NodeID) {
         var data: BlockData = blockData(id)
         data.changes.childChanges.append(.insert(nodes, before: reference))
         setKind(.block(data), at: id)
@@ -268,7 +268,7 @@ extension LayoutTree {
                 setField(.width, max(0, parentWidth - padHorizontal), for: id)
             }
 
-            if let el = domRef(id).element, el.tag == "li" {
+            if let el = domView(id).element, el.tag == "li" {
                 setField(.x, x(id) + liIndent, for: id)
                 setField(.width, width(id) - liIndent, for: id)
             }
@@ -300,7 +300,7 @@ extension LayoutTree {
                 }
             }
 
-            if let el = domRef(id).element, el.attributes["id"] == "toc" {
+            if let el = domView(id).element, el.attributes["id"] == "toc" {
                 setField(.y, y(id) + VSTEP, for: id)
             }
 
@@ -363,7 +363,7 @@ extension LayoutTree {
         let heightChildren: [LayoutID] = childrenIDs(of: id)
         let sumHeight: Double = profiler.measure("layout.height", {
             heightChildren.reduce(0) { total, childID in
-                let position: LayoutStyle.Position = domRef(childID).style.computed.layout.position.kind
+                let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
                 if position == .absolute { return total }
                 var h: CGFloat = height(childID)
                 if isBlock(childID) {
@@ -377,7 +377,7 @@ extension LayoutTree {
         })
 
         var scroll: BlockScroll = blockData(id).scroll
-        if let h: CGFloat = domRef(id).style.computed.box.size.height {
+        if let h: CGFloat = domView(id).style.computed.box.size.height {
             scroll.contentHeight = sumHeight
             let styleHeightZoom: CGFloat = zoom(id)
             setField(.height, h * styleHeightZoom, for: id)
@@ -386,13 +386,13 @@ extension LayoutTree {
             setField(.height, sumHeight, for: id)
         }
 
-        if let el = domRef(id).element, el.attributes["id"] == "toc" {
+        if let el = domView(id).element, el.attributes["id"] == "toc" {
             setField(.height, height(id) + VSTEP, for: id)
         }
 
-        if style.flags.overflowScroll, let el = domRef(id).element {
+        if style.flags.overflowScroll, let el = domView(id).element {
             let maxScroll: CGFloat = max(0, scroll.contentHeight - height(id))
-            scroll.offset = min(el.scrollOffsetY, maxScroll)
+            scroll.offset = min(inputs.scrollOffset(domID(of: id)), maxScroll)
         }
         var data: BlockData = blockData(id)
         data.scroll = scroll
@@ -401,12 +401,12 @@ extension LayoutTree {
 
     private func layoutMode(_ id: LayoutID) -> String {
         if !blockExtraNodes(id).isEmpty { return "inline" }
-        if domRef(id).text != nil { return "inline" }
-        let hasBlockChild: Bool = domRef(id).children.contains(where: {
+        if domView(id).text != nil { return "inline" }
+        let hasBlockChild: Bool = domView(id).children.contains(where: {
             $0.style.computed.layout.display == .block
         })
         if hasBlockChild { return "block" }
-        if let el = domRef(id).element {
+        if let el = domView(id).element {
             return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
         }
         return "inline"
@@ -418,14 +418,14 @@ extension LayoutTree {
         data.changes.childChanges.removeAll()
         setKind(.block(data), at: id)
         var state: BlockChildBuild = BlockChildBuild()
-        consumeBlockChildren(id, domRef(id).children, state: &state)
+        consumeBlockChildren(id, domView(id).children, state: &state)
         finishBlockChildren(id, &state)
         return state.built
     }
 
     private func appendBlockChildren(
         _ id: LayoutID,
-        _ nodes: [DOMRef],
+        _ nodes: [LayoutDOMView],
         to current: [LayoutID]
     ) -> [LayoutID]? {
         guard blockExtraNodes(id).isEmpty,
@@ -434,11 +434,11 @@ extension LayoutTree {
             return nil
         }
         if let lastID: LayoutID = current.last {
-            if blockExtraNodes(lastID).isEmpty, domRef(lastID).element?.tag == "h6" {
+            if blockExtraNodes(lastID).isEmpty, domView(lastID).element?.tag == "h6" {
                 return nil
             }
         }
-        guard let first: DOMRef = firstVisibleChild(in: nodes) else {
+        guard let first: LayoutDOMView = firstVisibleChild(in: nodes) else {
             return nil
         }
 
@@ -448,7 +448,7 @@ extension LayoutTree {
         )
         let startsInline: Bool = first.style.computed.layout.display != .block
         if startsInline, let lastID: LayoutID = state.built.last {
-            let extras: [DOMRef] = blockExtraNodes(lastID)
+            let extras: [LayoutDOMView] = blockExtraNodes(lastID)
             if !extras.isEmpty,
                 extras.allSatisfy({ $0.style.computed.layout.display != .block })
             {
@@ -471,15 +471,17 @@ extension LayoutTree {
         for change in changes {
             switch change {
             case .append(let nodes):
-                guard let next: [LayoutID] = appendBlockChildren(id, nodes, to: current) else {
+                let views: [LayoutDOMView] = nodes.map({ domView($0) })
+                guard let next: [LayoutID] = appendBlockChildren(id, views, to: current) else {
                     return nil
                 }
                 current = next
             case .insert(let nodes, let reference):
+                let views: [LayoutDOMView] = nodes.map({ domView($0) })
                 guard let next: [LayoutID] = insertBlockChildren(
                     id,
-                    nodes,
-                    before: reference,
+                    views,
+                    before: domView(reference),
                     in: current
                 ) else {
                     return nil
@@ -503,8 +505,8 @@ extension LayoutTree {
 
     private func insertBlockChildren(
         _ id: LayoutID,
-        _ nodes: [DOMRef],
-        before reference: DOMRef,
+        _ nodes: [LayoutDOMView],
+        before reference: LayoutDOMView,
         in current: [LayoutID]
     ) -> [LayoutID]? {
         guard blockExtraNodes(id).isEmpty,
@@ -524,7 +526,7 @@ extension LayoutTree {
         if isRunIn(current[index]) {
             return nil
         }
-        guard let first: DOMRef = firstVisibleChild(in: nodes) else {
+        guard let first: LayoutDOMView = firstVisibleChild(in: nodes) else {
             return current
         }
 
@@ -548,7 +550,7 @@ extension LayoutTree {
         for id in current[index...] {
             setBlockPrevious(id, previous)
             let isFlow: Bool = !blockExtraNodes(id).isEmpty
-                || domRef(id).style.computed.layout.position.kind != .absolute
+                || domView(id).style.computed.layout.position.kind != .absolute
             if isFlow { previous = id }
         }
 
@@ -558,11 +560,11 @@ extension LayoutTree {
     }
 
     private func blockChildIndex(
-        of reference: DOMRef,
+        of reference: LayoutDOMView,
         in current: [LayoutID]
     ) -> Int? {
         for (index, id) in current.enumerated() {
-            let extras: [DOMRef] = blockExtraNodes(id)
+            let extras: [LayoutDOMView] = blockExtraNodes(id)
             if domID(of: id) == reference.id, extras.isEmpty {
                 return index
             }
@@ -574,11 +576,11 @@ extension LayoutTree {
     }
 
     private func isRunIn(_ id: LayoutID) -> Bool {
-        let first: DOMRef = blockExtraNodes(id).first ?? domRef(id)
+        let first: LayoutDOMView = blockExtraNodes(id).first ?? domView(id)
         return first.element?.tag == "h6"
     }
 
-    private func firstVisibleChild(in nodes: [DOMRef]) -> DOMRef? {
+    private func firstVisibleChild(in nodes: [LayoutDOMView]) -> LayoutDOMView? {
         return nodes.first(where: { child in
             guard let el = child.element else { return true }
             return !LayoutTree.hiddenElements.contains(el.tag)
@@ -590,7 +592,7 @@ extension LayoutTree {
             if isBlock(id), !blockExtraNodes(id).isEmpty {
                 return id
             }
-            if domRef(id).style.computed.layout.position.kind != .absolute {
+            if domView(id).style.computed.layout.position.kind != .absolute {
                 return id
             }
         }
@@ -599,7 +601,7 @@ extension LayoutTree {
 
     private func consumeBlockChildren(
         _ id: LayoutID,
-        _ nodes: [DOMRef],
+        _ nodes: [LayoutDOMView],
         state: inout BlockChildBuild
     ) {
         for child in nodes {
@@ -613,7 +615,7 @@ extension LayoutTree {
                     state.pendingRunIn = el
                 } else {
                     flushInlineRun(id, &state)
-                    if let runIn: ElementRef = state.pendingRunIn {
+                    if let runIn: LayoutElementView = state.pendingRunIn {
                         let run: [NodeID] = [runIn.ref.id, child.id]
                         let next: LayoutID = makeAnonymousBlock(
                             extraNodes: run,
@@ -643,7 +645,7 @@ extension LayoutTree {
 
     private func flushInlineRun(_ id: LayoutID, _ state: inout BlockChildBuild) {
         guard !state.inlineRun.isEmpty else { return }
-        let run: [DOMRef] = state.inlineRun
+        let run: [LayoutDOMView] = state.inlineRun
         let anon: LayoutID = makeAnonymousBlock(
             extraNodes: run.map({ $0.id }),
             parent: id,
@@ -656,7 +658,7 @@ extension LayoutTree {
 
     private func finishBlockChildren(_ id: LayoutID, _ state: inout BlockChildBuild) {
         flushInlineRun(id, &state)
-        if let runIn: ElementRef = state.pendingRunIn {
+        if let runIn: LayoutElementView = state.pendingRunIn {
             let next: LayoutID = makeBlock(
                 dom: runIn.ref.id,
                 parent: id,
@@ -669,7 +671,7 @@ extension LayoutTree {
     // MARK: - Padding
 
     private func paddingValue(_ id: LayoutID, _ side: StyleProperty) -> CGFloat {
-        let insets: EdgeInsets = domRef(id).style.computed.box.spacing.padding
+        let insets: EdgeInsets = domView(id).style.computed.box.spacing.padding
         switch side {
         case .paddingTop: return insets.top
         case .paddingRight: return insets.right
@@ -719,7 +721,7 @@ extension LayoutTree {
     }
 
     private func refreshInlineItems(_ id: LayoutID) {
-        let leaves: [DOMRef] = inlineLeaves(id)
+        let leaves: [LayoutDOMView] = inlineLeaves(id)
         var items: [InlineItem] = []
         for leaf in leaves {
             items.append(contentsOf: makeItems(id, for: leaf))
@@ -733,7 +735,7 @@ extension LayoutTree {
         setInlineContent(revision, for: id)
     }
 
-    private func collectLeaves(_ n: DOMRef, into leaves: inout [DOMRef]) {
+    private func collectLeaves(_ n: LayoutDOMView, into leaves: inout [LayoutDOMView]) {
         if n.text != nil {
             leaves.append(n)
             return
@@ -746,12 +748,12 @@ extension LayoutTree {
         for child in n.children { collectLeaves(child, into: &leaves) }
     }
 
-    private func isEmbed(_ el: ElementRef) -> Bool {
+    private func isEmbed(_ el: LayoutElementView) -> Bool {
         el.tag == "input" || el.tag == "button" || el.tag == "img"
         || el.tag == "iframe" || el.tag == "canvas"
     }
 
-    private func makeItems(_ id: LayoutID, for leaf: DOMRef) -> [InlineItem] {
+    private func makeItems(_ id: LayoutID, for leaf: LayoutDOMView) -> [InlineItem] {
         var items: [InlineItem] = []
         if let text = leaf.text {
             addTextNode(id, text, into: &items)
@@ -767,12 +769,13 @@ extension LayoutTree {
 
     private func addTextNode(
         _ id: LayoutID,
-        _ textNode: TextRef,
+        _ textNode: LayoutTextView,
         into items: inout [InlineItem]
     ) {
-        let mode: WhiteSpaceMode = textNode.ref.inheritedStyleOwner.style.computed.text.whiteSpace
+        let owner: NodeID = inputs.inheritedStyleOwner(textNode.ref.id)
+        let mode: WhiteSpaceMode = inputs.style(owner).text.whiteSpace
         let zoom: CGFloat = zoom(id)
-        let font: BrowserFont = fontForElement(textNode.ref, zoom: zoom)
+        let font: BrowserFont = fontFor(textNode.ref.id, zoom: zoom)
         let run: InlineTextRun = InlineTextRun(
             node: textNode.ref,
             font: font,
@@ -822,7 +825,7 @@ extension LayoutTree {
 
     private func placeEmbed(
         _ id: LayoutID,
-        _ element: ElementRef,
+        _ element: LayoutElementView,
         index: Int,
         into placement: inout InlinePlacement
     ) {
@@ -929,7 +932,7 @@ extension LayoutTree {
 
     private func addInput(
         _ id: LayoutID,
-        _ node: ElementRef,
+        _ node: LayoutElementView,
         index: Int,
         into placement: inout InlinePlacement
     ) {
@@ -937,7 +940,7 @@ extension LayoutTree {
 
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
+        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom
         if placement.cursorX + w > available { placement.endLine() }
@@ -960,7 +963,7 @@ extension LayoutTree {
 
     private func addButton(
         _ id: LayoutID,
-        _ node: ElementRef,
+        _ node: LayoutElementView,
         index: Int,
         into placement: inout InlinePlacement
     ) {
@@ -986,19 +989,19 @@ extension LayoutTree {
             setKind(.block(data), at: id)
         }
         placement.append(button)
-        let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
+        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
     }
 
     private func addImage(
         _ id: LayoutID,
-        _ node: ElementRef,
+        _ node: LayoutElementView,
         index: Int,
         into placement: inout InlinePlacement
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = imageUsedWidth(for: node, available: available, zoom: zoom)
+        let w: CGFloat = imageUsedWidth(EmbedMetrics(node), available: available, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1019,19 +1022,19 @@ extension LayoutTree {
         }
         placement.append(image)
 
-        let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
+        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
     }
 
     private func addIframe(
         _ id: LayoutID,
-        _ node: ElementRef,
+        _ node: LayoutElementView,
         index: Int,
         into placement: inout InlinePlacement
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = iframeDisplaySize(for: node).width * zoom
+        let w: CGFloat = iframeDisplaySize(EmbedMetrics(node)).width * zoom
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1052,19 +1055,19 @@ extension LayoutTree {
         }
         placement.append(iframe)
 
-        let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
+        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
     }
 
     private func addCanvas(
         _ id: LayoutID,
-        _ node: ElementRef,
+        _ node: LayoutElementView,
         index: Int,
         into placement: inout InlinePlacement
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = canvasContentSize(for: node).width * zoom
+        let w: CGFloat = canvasContentSize(attributes: node.attributes).width * zoom
         if placement.cursorX + w > available { placement.endLine() }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1085,12 +1088,12 @@ extension LayoutTree {
         }
         placement.append(canvas)
 
-        let font: BrowserFont = fontForElement(node.ref, zoom: zoom)
+        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
     }
 
-    private func isInsideAbbr(_ node: DOMRef) -> Bool {
-        var current: DOMRef? = node.parent
+    private func isInsideAbbr(_ node: LayoutDOMView) -> Bool {
+        var current: LayoutDOMView? = node.parent
         while let c = current {
             if let el = c.element, el.tag == "abbr" { return true }
             current = c.parent
@@ -1114,8 +1117,8 @@ extension LayoutTree {
             }
         }
 
-        let node: DOMRef = run.node
-        let owner: DOMRef = node.inheritedStyleOwner
+        let node: LayoutDOMView = run.node
+        let owner: LayoutDOMView = node.inheritedStyleOwner
         let fontSpec: TextStyle.Font = owner.style.computed.text.font
         let weight: String = fontSpec.weight.cssValue
         let styleStr: String = fontSpec.style.browserFontStyle
@@ -1136,7 +1139,7 @@ extension LayoutTree {
     private func cachedText(
         _ id: LayoutID,
         at index: Int,
-        node: DOMRef,
+        node: LayoutDOMView,
         word: String
     ) -> LayoutID? {
         guard let id: LayoutID = blockData(id).content.inlineObjects[index] else { return nil }
@@ -1152,7 +1155,7 @@ extension LayoutTree {
         _ id: LayoutID,
         _ kind: EmbedMatch,
         at index: Int,
-        node: ElementRef
+        node: LayoutElementView
     ) -> LayoutID? {
         guard let id: LayoutID = blockData(id).content.inlineObjects[index] else { return nil }
         guard contains(id) else { return nil }
@@ -1180,7 +1183,7 @@ extension LayoutTree {
 
     private func borderPaintRect(_ id: LayoutID) -> Rect {
         let rect: Rect = blockSelfRect(id)
-        let width: CGFloat = domRef(id).style.computed.box.decoration.border.width
+        let width: CGFloat = domView(id).style.computed.box.decoration.border.width
         guard width > 0 else { return rect }
         let half: CGFloat = width / 2
         return Rect(
@@ -1194,7 +1197,7 @@ extension LayoutTree {
     
 
     func blockPaintCaret(_ id: LayoutID, into items: inout [DisplayOp]) {
-        guard let el = domRef(id).element, el.isFocused,
+        guard let el = domView(id).element, el.isFocused,
             el.attributes["contenteditable"] != nil
         else { return }
         if let last: LayoutID = lastTextLayout(id) {
@@ -1210,7 +1213,7 @@ extension LayoutTree {
 
     func blockPaintScrollbar(_ id: LayoutID) -> [DisplayOp] {
         let scroll: BlockScroll = blockData(id).scroll
-        guard domRef(id).style.computed.layout.overflow == .scroll,
+        guard domView(id).style.computed.layout.overflow == .scroll,
             scroll.contentHeight > height(id)
         else { return [] }
         let barWidth: CGFloat = 8
@@ -1220,24 +1223,24 @@ extension LayoutTree {
         let barRect: Rect = Rect(
             left: x(id) + width(id) - barWidth, top: barTop,
             right: x(id) + width(id), bottom: barTop + barHeight)
-        return [.rect(rect: barRect, color: BrowserColor(cssName: usesForcedColors(domRef(id)) ? ForcedColor.canvasText : "gray"))]
+        return [.rect(rect: barRect, color: BrowserColor(cssName: inputs.forcedColors(domID(of: id)) ? ForcedColor.canvasText : "gray"))]
     }
 
     func blockShouldPaint(_ id: LayoutID) -> Bool {
-        if domRef(id).text != nil { return true }
-        guard let el = domRef(id).element else { return true }
+        if domView(id).text != nil { return true }
+        guard let el = domView(id).element else { return true }
         return el.tag != "input" && el.tag != "button" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas"
     }
 
     func blockStyle(_ id: LayoutID) -> BlockStyle {
-        let revision: UInt64 = domRef(id).style.revision
+        let revision: UInt64 = domView(id).style.revision
         let paint: BlockPaint = blockData(id).paint
         if let cachedStyle = paint.style, paint.styleRevision == revision {
             profiler.count("layout.block.style.cache.hit")
             return cachedStyle
         }
         profiler.count("layout.block.style.cache.miss")
-        let style: BlockStyle = BlockStyle(node: domRef(id))
+        let style: BlockStyle = BlockStyle(style: domView(id).style.computed)
         var data: BlockData = blockData(id)
         data.paint.style = style
         data.paint.styleRevision = revision
@@ -1298,8 +1301,8 @@ enum EmbedMatch {
 private struct BlockChildBuild {
     var built: [LayoutID] = []
     var previous: LayoutID?
-    var inlineRun: [DOMRef] = []
-    var pendingRunIn: ElementRef?
+    var inlineRun: [LayoutDOMView] = []
+    var pendingRunIn: LayoutElementView?
 }
 
 // MARK: - Inline placement

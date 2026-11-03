@@ -13,21 +13,33 @@ enum LayoutInputsBuilder {
             while nodes.count <= Int(id.raw) { nodes.append(nil) }
             let element: ElementData? = node.element
             let ref: DOMRef = dom.ref(id)
+            let elementRef: ElementRef? = ref.element
             nodes[Int(id.raw)] = LayoutInput(
-                identity: LayoutInputIdentity(
+                node: LayoutInputNode(
                     parent: dom.parent(of: id),
-                    children: dom.children(of: id)
+                    children: dom.children(of: id),
+                    isFocused: ref.isFocused,
+                    isFocusVisible: ref.isFocusVisible
                 ),
                 content: LayoutInputContent(
                     tag: element?.tag,
                     attributes: element?.attributes ?? [:],
-                    text: node.text?.text
+                    text: node.text?.text,
+                    isChecked: element?.isChecked ?? false
                 ),
-                style: node.base.style.computed,
-                font: ref.inheritedStyleOwner.style.computed.text.font,
-                isChecked: element?.isChecked ?? false
+                style: LayoutInputStyle(
+                    computed: node.base.style.computed,
+                    font: ref.inheritedStyleOwner.style.computed.text.font,
+                    revision: node.base.style.revision
+                ),
+                media: LayoutInputMedia(
+                    image: elementRef?.image,
+                    isIframe: element?.tag == "iframe",
+                    isCanvas: element?.tag == "canvas",
+                    forcedColors: usesForcedColors(ref)
+                )
             )
         }
-        return LayoutInputs(nodes: nodes)
+        return LayoutInputs(nodes: nodes, scrollOffsets: dom.side.scrollOffsets)
     }
 }

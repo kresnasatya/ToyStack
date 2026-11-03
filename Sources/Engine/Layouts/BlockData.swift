@@ -72,6 +72,6 @@ struct BlockChanges {
 // MARK: - BlockChildChange
 
 enum BlockChildChange {
-    case append([DOMRef])
-    case insert([DOMRef], before: DOMRef)
+    case append([NodeID])
+    case insert([NodeID], before: NodeID)
 }

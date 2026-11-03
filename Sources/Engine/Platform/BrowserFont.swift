@@ -102,26 +102,12 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
     })
 }
 
-@MainActor
-func fontInputs(for node: DOMRef) -> [FieldKey] {
-    let owner: DOMRef = node.inheritedStyleOwner
+func fontInputs(for id: NodeID, in inputs: LayoutInputs) -> [FieldKey] {
+    let owner: NodeID = inputs.inheritedStyleOwner(id)
     return [
-        .style(owner.id, .fontWeight),
-        .style(owner.id, .fontStyle),
-        .style(owner.id, .fontSize),
-        .style(owner.id, .fontFamily),
+        .style(owner, .fontWeight),
+        .style(owner, .fontStyle),
+        .style(owner, .fontSize),
+        .style(owner, .fontFamily),
     ]
-}
-
-@MainActor
-func fontForElement(_ node: DOMRef, zoom: CGFloat) -> BrowserFont {
-    let owner: DOMRef = node.inheritedStyleOwner
-    let font: TextStyle.Font = owner.style.computed.text.font
-    let sizeInt: Int = Int(font.size * zoom)
-    return getFont(
-        size: sizeInt,
-        weight: font.weight.cssValue,
-        style: font.style.browserFontStyle,
-        family: font.family
-    )
 }

@@ -13,7 +13,7 @@ enum LayoutInvalidation {
             childrenChanged(parent)
             return
         }
-        block.tree.blockNoteAppendedChildren(block.id, [child])
+        block.tree.blockNoteAppendedChildren(block.id, [child.id])
     }
 
     static func childrenInsert(
@@ -25,7 +25,7 @@ enum LayoutInvalidation {
             childrenChanged(parent)
             return
         }
-        block.tree.blockNoteInsertedChildren(block.id, [child], before: reference)
+        block.tree.blockNoteInsertedChildren(block.id, [child.id], before: reference.id)
     }
 
     static func textChanged(_ node: DOMRef) {
