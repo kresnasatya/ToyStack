@@ -22,11 +22,11 @@ struct InsertBeforeTests {
         let one: ElementRef = try #require(page.firstElement(id: "one"))
         let two: ElementRef = try #require(page.firstElement(id: "two"))
         let three: ElementRef = try #require(page.firstElement(id: "three"))
-        let boxLayout: LayoutRef = try #require(page.firstBlock(in: box))
-        let oneLayout: LayoutRef = try #require(page.firstBlock(in: one))
-        let twoLayout: LayoutRef = try #require(page.firstBlock(in: two))
-        let threeLayout: LayoutRef = try #require(page.firstBlock(in: three))
-        let twoYBefore: CGFloat = twoLayout.y
+        let boxLayout: LayoutID = try #require(page.firstBlockID(in: box))
+        let oneLayout: LayoutID = try #require(page.firstBlockID(in: one))
+        let twoLayout: LayoutID = try #require(page.firstBlockID(in: two))
+        let threeLayout: LayoutID = try #require(page.firstBlockID(in: three))
+        let twoYBefore: CGFloat = page.tree.y(twoLayout)
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         page.frame.js.run(
@@ -44,17 +44,18 @@ struct InsertBeforeTests {
         page.frame.render()
 
         #expect(box.children.count == 4)
-        #expect(boxLayout.children.count == 4)
-        #expect(boxLayout.children[0].id == oneLayout.id)
-        #expect(boxLayout.children[2].id == twoLayout.id)
-        #expect(boxLayout.children[3].id == threeLayout.id)
+        let children: [LayoutID] = page.tree.childrenIDs(of: boxLayout)
+        #expect(children.count == 4)
+        #expect(children[0] == oneLayout)
+        #expect(children[2] == twoLayout)
+        #expect(children[3] == threeLayout)
 
-        let inserted: LayoutRef = boxLayout.children[1]
-        #expect(inserted.node.element?.tag == "p")
-        #expect(inserted.previous?.id == oneLayout.id)
-        #expect(twoLayout.previous?.id == inserted.id)
-        #expect(threeLayout.previous?.id == twoLayout.id)
-        #expect(twoLayout.y > twoYBefore)
+        let inserted: LayoutID = children[1]
+        #expect(page.tree.domRef(inserted).element?.tag == "p")
+        #expect(page.tree.previousID(of: inserted) == oneLayout)
+        #expect(page.tree.previousID(of: twoLayout) == inserted)
+        #expect(page.tree.previousID(of: threeLayout) == twoLayout)
+        #expect(page.tree.y(twoLayout) > twoYBefore)
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         #expect((profiler.snapshot()["layout.children.inserted"]?.count ?? 0) == 1)
         expectIncrementalMatchesFull(page)

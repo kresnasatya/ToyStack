@@ -66,8 +66,8 @@ struct ViewportResizeTests {
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        #expect(block.width == CGFloat(400) - 2 * HSTEP)
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        #expect(page.tree.width(block) == CGFloat(400) - 2 * HSTEP)
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
         #expect((profiler.snapshot()["layout.inline.place"]?.count ?? 0) > 0)
         expectIncrementalMatchesFull(page)
@@ -84,16 +84,16 @@ struct ViewportResizeTests {
             """
         )
         let cardElement: ElementRef = try #require(page.firstElement(id: "card"))
-        let card: LayoutRef = try #require(page.firstBlock(in: cardElement))
-        let childrenBefore: [LayoutID] = card.children.map { $0.id }
+        let card: LayoutID = try #require(page.firstBlockID(in: cardElement))
+        let childrenBefore: [LayoutID] = page.tree.childrenIDs(of: card)
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        let cardAfter: LayoutRef = try #require(page.firstBlock(in: cardElement))
-        #expect(cardAfter.id == card.id)
-        #expect(card.children.map { $0.id } == childrenBefore)
+        let cardAfter: LayoutID = try #require(page.firstBlockID(in: cardElement))
+        #expect(cardAfter == card)
+        #expect(page.tree.childrenIDs(of: card) == childrenBefore)
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) < 10)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
         expectIncrementalMatchesFull(page)
@@ -143,19 +143,17 @@ struct ViewportResizeTests {
             """
         )
         let p: ElementRef = try #require(page.firstElement(id: "para"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
 
-        let linesBefore: [LayoutID] = block.children.map { $0.id }
-        let textsBefore: [LayoutID] = treeToList(block)
-            .filter({ $0.isText })
-            .map({ $0.id })
+        let linesBefore: [LayoutID] = page.tree.childrenIDs(of: block)
+        let textsBefore: [LayoutID] = treeToList(page.tree, block).filter({ page.tree.isText($0) })
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        #expect(block.children.map { $0.id } == linesBefore)
-        #expect(treeToList(block).filter({ $0.isText }).map { $0.id } == textsBefore)
+        #expect(page.tree.childrenIDs(of: block) == linesBefore)
+        #expect(treeToList(page.tree, block).filter({ page.tree.isText($0) }) == textsBefore)
         #expect((profiler.snapshot()["layout.inline.place"]?.count ?? 0) == 0)
         expectIncrementalMatchesFull(page)
     }
@@ -169,17 +167,15 @@ struct ViewportResizeTests {
             """
         )
         let p: ElementRef = try #require(page.firstElement(id: "para"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
 
-        let textsBefore: [LayoutID] = treeToList(block)
-            .filter({ $0.isText })
-            .map { $0.id }
+        let textsBefore: [LayoutID] = treeToList(page.tree, block).filter({ page.tree.isText($0) })
 
         page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        #expect(treeToList(block).filter({ $0.isText }).map { $0.id } == textsBefore)
+        #expect(treeToList(page.tree, block).filter({ page.tree.isText($0) }) == textsBefore)
         expectIncrementalMatchesFull(page)
     }
 
@@ -195,8 +191,8 @@ struct ViewportResizeTests {
             """
         )
         let p: ElementRef = try #require(page.firstElement(id: "para"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        #expect(block.children.count == 2)
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        #expect(page.tree.childrenIDs(of: block).count == 2)
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
@@ -218,13 +214,13 @@ struct ViewportResizeTests {
             """
         )
         let p: ElementRef = try #require(page.firstElement(id: "para"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        let lines: [LayoutRef] = block.children.filter({ $0.isLine })
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        let lines: [LayoutID] = page.tree.childrenIDs(of: block).filter({ page.tree.isLine($0) })
         #expect(lines.count == 2)
         for line in lines {
-            var data: LineData = line.lineData
+            var data: LineData = page.tree.lineData(line)
             data.content.centered = true
-            line.lineData = data
+            page.tree.setKind(.line(data), at: line)
         }
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
@@ -245,8 +241,8 @@ struct ViewportResizeTests {
             """
         )
         let p: ElementRef = try #require(page.firstElement(id: "para"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        #expect(block.children.count == 2)
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        #expect(page.tree.childrenIDs(of: block).count == 2)
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
@@ -273,16 +269,16 @@ struct ViewportResizeTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let before: LayoutRef = try #require(page.firstEmbed(in: image))
-        let beforeWidth: CGFloat = before.width
+        let before: LayoutID = try #require(page.firstEmbedID(in: image))
+        let beforeWidth: CGFloat = page.tree.width(before)
 
         page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
 
-        let after: LayoutRef = try #require(page.firstEmbed(in: image))
-        #expect(after.width < beforeWidth)
+        let after: LayoutID = try #require(page.firstEmbedID(in: image))
+        #expect(page.tree.width(after) < beforeWidth)
         #expect((profiler.snapshot()["layout.line.place.placed"]?.count ?? 0) > 0)
         expectIncrementalMatchesFull(page)
     }

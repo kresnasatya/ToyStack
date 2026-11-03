@@ -20,15 +20,15 @@ struct LayoutOracleTests {
         let first: ElementRef = try element("first", in: page)
         let second: ElementRef = try element("second", in: page)
         let text: TextRef = try #require(first.children.first?.text)
-        let secondBefore: LayoutRef = try #require(page.ref(of: second).layout)
+        let secondBefore: LayoutID = try #require(page.ref(of: second).layoutID)
 
         text.append(" more words that wrap")
         page.frame.setNeedsRender()
         profiler.reset()
         page.frame.render()
 
-        let secondAfter: LayoutRef = try #require(page.ref(of: second).layout)
-        #expect(secondAfter.id == secondBefore.id)
+        let secondAfter: LayoutID = try #require(page.ref(of: second).layoutID)
+        #expect(secondAfter == secondBefore)
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)
         expectIncrementalMatchesFull(page)
     }
@@ -67,23 +67,23 @@ struct LayoutOracleTests {
         )
         let parent: ElementRef = try element("parent", in: page)
         let child: ElementRef = try element("child", in: page)
-        let block: LayoutRef = try #require(page.ref(of: parent).layout)
-        #expect(!block.children.contains(where: { $0.isLine }))
+        let block: LayoutID = try #require(page.ref(of: parent).layoutID)
+        #expect(!page.tree.childrenIDs(of: block).contains(where: { page.tree.isLine($0) }))
 
         InlineStyle.set(child, property: "display", value: "inline")
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: LayoutRef = try #require(page.ref(of: parent).layout)
-        #expect(after.id == block.id)
-        #expect(after.children.contains(where: { $0.isLine }))
+        let after: LayoutID = try #require(page.ref(of: parent).layoutID)
+        #expect(after == block)
+        #expect(page.tree.childrenIDs(of: after).contains(where: { page.tree.isLine($0) }))
 
         InlineStyle.set(child, property: "display", value: "block")
         page.frame.setNeedsRender()
         page.frame.render()
 
-        #expect(!after.children.contains(where: { $0.isLine }))
-        #expect(after.children.contains(where: { $0.isBlock }))
+        #expect(!page.tree.childrenIDs(of: after).contains(where: { page.tree.isLine($0) }))
+        #expect(page.tree.childrenIDs(of: after).contains(where: { page.tree.isBlock($0) }))
         expectIncrementalMatchesFull(page)
     }
 
@@ -98,25 +98,25 @@ struct LayoutOracleTests {
         )
         let box: ElementRef = try element("box", in: page)
         let paragraph: ElementRef = try element("para", in: page)
-        let boxBlock: LayoutRef = try #require(page.ref(of: box).layout)
-        let paragraphBlock: LayoutRef = try #require(
-            page.ref(of: paragraph).layout
+        let boxBlock: LayoutID = try #require(page.ref(of: box).layoutID)
+        let paragraphBlock: LayoutID = try #require(
+            page.ref(of: paragraph).layoutID
         )
-        #expect(paragraphBlock.width == boxBlock.width)
+        #expect(page.tree.width(paragraphBlock) == page.tree.width(boxBlock))
 
         InlineStyle.set(box, property: "width", value: "240px")
         page.frame.setNeedsRender()
         page.frame.render()
 
-        #expect(boxBlock.width == CGFloat(240))
-        let paragraphAfter: LayoutRef = try #require(
-            page.ref(of: paragraph).layout
+        #expect(page.tree.width(boxBlock) == CGFloat(240))
+        let paragraphAfter: LayoutID = try #require(
+            page.ref(of: paragraph).layoutID
         )
-        #expect(paragraphAfter.width == CGFloat(240))
-        let line: LayoutRef = try #require(
-            paragraphAfter.children.first(where: { $0.isLine })
+        #expect(page.tree.width(paragraphAfter) == CGFloat(240))
+        let line: LayoutID = try #require(
+            page.tree.childrenIDs(of: paragraphAfter).first(where: { page.tree.isLine($0) })
         )
-        #expect(line.width == CGFloat(240))
+        #expect(page.tree.width(line) == CGFloat(240))
         expectIncrementalMatchesFull(page)
     }
 
@@ -131,16 +131,16 @@ struct LayoutOracleTests {
                 """
         )
         let document: LayoutTree = try #require(page.frame.document)
-        #expect(document.root.width == page.frame.frameWidth - 2 * HSTEP)
+        #expect(document.width(document.rootID) == page.frame.frameWidth - 2 * HSTEP)
 
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
         let body: ElementRef = try #require(page.firstElement(tag: "body"))
-        let bodyBlock: LayoutRef = try #require(page.ref(of: body).layout)
-        #expect(document.root.width == CGFloat(400) - 2 * HSTEP)
-        #expect(bodyBlock.width == document.root.width)
+        let bodyBlock: LayoutID = try #require(page.ref(of: body).layoutID)
+        #expect(document.width(document.rootID) == CGFloat(400) - 2 * HSTEP)
+        #expect(page.tree.width(bodyBlock) == document.width(document.rootID))
         expectIncrementalMatchesFull(page)
     }
 
@@ -153,31 +153,31 @@ struct LayoutOracleTests {
                 """
         )
         let paragraph: ElementRef = try element("para", in: page)
-        let block: LayoutRef = try #require(page.ref(of: paragraph).layout)
-        let text: LayoutRef = try #require(
-            treeToList(block).first(where: { $0.isText })
+        let block: LayoutID = try #require(page.ref(of: paragraph).layoutID)
+        let text: LayoutID = try #require(
+            treeToList(page.tree, block).first(where: { page.tree.isText($0) })
         )
-        let heightBefore: CGFloat = text.height
-        let textWidthBefore: CGFloat = text.textData.metrics.width
+        let heightBefore: CGFloat = page.tree.height(text)
+        let textWidthBefore: CGFloat = page.tree.textData(text).metrics.width
 
         page.frame.setPageZoom(2)
         page.frame.render()
 
         let document: LayoutTree = try #require(page.frame.document)
-        let paragraphAfter: LayoutRef = try #require(
-            page.ref(of: paragraph).layout
+        let paragraphAfter: LayoutID = try #require(
+            page.ref(of: paragraph).layoutID
         )
-        let zoomed: LayoutRef = try #require(
-            treeToList(paragraphAfter).first(where: { $0.isText })
+        let zoomed: LayoutID = try #require(
+            treeToList(page.tree, paragraphAfter).first(where: { page.tree.isText($0) })
         )
         // Page zoom shrinks the layout viewport and is applied at paint time;
         // it is not a layout `zoom` field.
-        #expect(document.root.zoom == CGFloat(1))
-        #expect(document.root.documentData.pageZoom == CGFloat(2))
-        #expect(document.root.width == page.frame.frameWidth - 2 * HSTEP)
-        #expect(paragraphAfter.width == document.root.width)
-        #expect(zoomed.height == heightBefore)
-        #expect(zoomed.textData.metrics.width == textWidthBefore)
+        #expect(document.zoom(document.rootID) == CGFloat(1))
+        #expect(document.documentData(document.rootID).pageZoom == CGFloat(2))
+        #expect(document.width(document.rootID) == page.frame.frameWidth - 2 * HSTEP)
+        #expect(page.tree.width(paragraphAfter) == document.width(document.rootID))
+        #expect(page.tree.height(zoomed) == heightBefore)
+        #expect(page.tree.textData(zoomed).metrics.width == textWidthBefore)
         expectIncrementalMatchesFull(page)
     }
 
@@ -192,21 +192,21 @@ struct LayoutOracleTests {
                 """
         )
         let image: ElementRef = try element("photo", in: page)
-        let layout: LayoutRef = try #require(
-            page.firstEmbed(in: image)
+        let layout: LayoutID = try #require(
+            page.firstEmbedID(in: image)
         )
-        #expect(layout.width == 0)
+        #expect(page.tree.width(layout) == 0)
 
         image.image = makeImage(width: 40, height: 30)
         LayoutInvalidation.imageChanged(page.ref(of: image))
         page.frame.setNeedsLayout()
         page.frame.render()
 
-        let after: LayoutRef = try #require(
-            page.firstEmbed(in: image)
+        let after: LayoutID = try #require(
+            page.firstEmbedID(in: image)
         )
-        #expect(after.width == CGFloat(40))
-        #expect(after.height >= CGFloat(30))
+        #expect(page.tree.width(after) == CGFloat(40))
+        #expect(page.tree.height(after) >= CGFloat(30))
         expectIncrementalMatchesFull(page)
     }
 
@@ -227,8 +227,8 @@ struct LayoutOracleTests {
         )
         let left: ElementRef = try element("left", in: page)
         let right: ElementRef = try element("right", in: page)
-        let leftBefore: LayoutRef = try #require(page.ref(of: left).layout)
-        let rightBefore: LayoutRef = try #require(page.ref(of: right).layout)
+        let leftBefore: LayoutID = try #require(page.ref(of: left).layoutID)
+        let rightBefore: LayoutID = try #require(page.ref(of: right).layoutID)
 
         let js: JSRuntime = JSRuntime(frame: page.frame)
         page.frame.setJSRuntime(js)
@@ -242,10 +242,10 @@ struct LayoutOracleTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        #expect(page.ref(of: left).layout?.id == leftBefore.id)
-        #expect(page.ref(of: right).layout?.id == rightBefore.id)
+        #expect(page.ref(of: left).layoutID == leftBefore)
+        #expect(page.ref(of: right).layoutID == rightBefore)
         let rebuilt: ElementRef = try element("new", in: page)
-        #expect(page.ref(of: rebuilt).layout != nil)
+        #expect(page.ref(of: rebuilt).layoutID != nil)
         expectIncrementalMatchesFull(page)
     }
 
@@ -264,9 +264,9 @@ struct LayoutOracleTests {
         )
         let target: ElementRef = try element("target", in: page)
         let sibling: ElementRef = try element("sibling", in: page)
-        let targetBlock: LayoutRef = try #require(page.ref(of: target).layout)
-        let siblingBefore: LayoutRef = try #require(page.ref(of: sibling).layout)
-        #expect(targetBlock.children.count == 1)
+        let targetBlock: LayoutID = try #require(page.ref(of: target).layoutID)
+        let siblingBefore: LayoutID = try #require(page.ref(of: sibling).layoutID)
+        #expect(page.tree.childrenIDs(of: targetBlock).count == 1)
 
         let js: JSRuntime = JSRuntime(frame: page.frame)
         page.frame.setJSRuntime(js)
@@ -283,8 +283,8 @@ struct LayoutOracleTests {
         page.frame.render()
 
         #expect(target.children.count == 2)
-        #expect(targetBlock.children.count == 2)
-        #expect(page.ref(of: sibling).layout?.id == siblingBefore.id)
+        #expect(page.tree.childrenIDs(of: targetBlock).count == 2)
+        #expect(page.ref(of: sibling).layoutID == siblingBefore)
         expectIncrementalMatchesFull(page)
     }
 

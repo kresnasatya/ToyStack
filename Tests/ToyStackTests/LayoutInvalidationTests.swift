@@ -22,65 +22,65 @@ struct LayoutInvalidationTests {
     @Test func cleanSecondLayoutKeepsBlockChildren() throws {
         let fixture = makeFixture()
 
-        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
-        let childrenBefore: [LayoutID] = bodyBefore.children.map({ $0.id })
+        let bodyBefore: LayoutID = try #require(fixture.body.ref.layoutID)
+        let childrenBefore: [LayoutID] = fixture.tree.childrenIDs(of: bodyBefore)
 
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let bodyAfter: LayoutRef = try #require(fixture.body.ref.layout)
-        #expect(bodyAfter.id == bodyBefore.id)
-        #expect(bodyAfter.children.map({ $0.id }) == childrenBefore)
+        let bodyAfter: LayoutID = try #require(fixture.body.ref.layoutID)
+        #expect(bodyAfter == bodyBefore)
+        #expect(fixture.tree.childrenIDs(of: bodyAfter) == childrenBefore)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
     @Test func mediaRuleChangeUpdatesWidth() throws {
         let fixture = makeFixture(mediaBody: "width: 200px;")
-        let narrowBefore: LayoutRef = try #require(fixture.narrow.ref.layout)
-        #expect(narrowBefore.width == CGFloat(200))
+        let narrowBefore: LayoutID = try #require(fixture.narrow.ref.layoutID)
+        #expect(fixture.tree.width(narrowBefore) == CGFloat(200))
 
         fixture.frame.setViewport(width: 400, height: fixture.frame.frameHeight)
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let narrowAfter: LayoutRef = try #require(fixture.narrow.ref.layout)
-        #expect(narrowAfter.width == CGFloat(100))
+        let narrowAfter: LayoutID = try #require(fixture.narrow.ref.layoutID)
+        #expect(fixture.tree.width(narrowAfter) == CGFloat(100))
     }
 
     @Test func removingMarginBottomRebuildsHeight() throws {
         let fixture = makeFixture(mediaBody: "margin-bottom: 50px;")
-        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
-        #expect(bodyBefore.height == CGFloat(50))
-        let wideBefore: LayoutRef = try #require(fixture.wide.ref.layout)
-        let wideYBefore: CGFloat = wideBefore.y
+        let bodyBefore: LayoutID = try #require(fixture.body.ref.layoutID)
+        #expect(fixture.tree.height(bodyBefore) == CGFloat(50))
+        let wideBefore: LayoutID = try #require(fixture.wide.ref.layoutID)
+        let wideYBefore: CGFloat = fixture.tree.y(wideBefore)
 
         fixture.frame.setViewport(width: 400, height: fixture.frame.frameHeight)
         fixture.frame.setNeedsViewportResize()
         fixture.frame.render()
 
-        let bodyAfter: LayoutRef = try #require(fixture.body.ref.layout)
-        #expect(bodyAfter.height == 0)
-        let wideAfter: LayoutRef = try #require(fixture.wide.ref.layout)
-        #expect(wideAfter.y == wideYBefore - 50)
+        let bodyAfter: LayoutID = try #require(fixture.body.ref.layoutID)
+        #expect(fixture.tree.height(bodyAfter) == 0)
+        let wideAfter: LayoutID = try #require(fixture.wide.ref.layoutID)
+        #expect(fixture.tree.y(wideAfter) == wideYBefore - 50)
     }
 
     @Test func widthChangeOnOneBlockKeepsSiblings() throws {
         let fixture = makeFixture()
-        let narrowBefore: LayoutRef = try #require(fixture.narrow.ref.layout)
-        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
-        let wideBefore: LayoutRef = try #require(fixture.wide.ref.layout)
+        let narrowBefore: LayoutID = try #require(fixture.narrow.ref.layoutID)
+        let bodyBefore: LayoutID = try #require(fixture.body.ref.layoutID)
+        let wideBefore: LayoutID = try #require(fixture.wide.ref.layoutID)
 
         InlineStyle.set(fixture.narrow, property: "width", value: "200px")
         fixture.frame.setNeedsRender()
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        let narrow: LayoutRef = try #require(fixture.narrow.ref.layout)
-        #expect(narrow.width == CGFloat(200))
+        let narrow: LayoutID = try #require(fixture.narrow.ref.layoutID)
+        #expect(fixture.tree.width(narrow) == CGFloat(200))
 
-        #expect(narrow.id == narrowBefore.id)
-        #expect(fixture.body.ref.layout?.id == bodyBefore.id)
-        #expect(fixture.wide.ref.layout?.id == wideBefore.id)
+        #expect(narrow == narrowBefore)
+        #expect(fixture.body.ref.layoutID == bodyBefore)
+        #expect(fixture.wide.ref.layoutID == wideBefore)
     }
 
     @Test func nonReusableStylePassKeepsLayoutObjects() throws {
@@ -93,11 +93,11 @@ struct LayoutInvalidationTests {
         fixture.frame.setNeedsRender()
         fixture.frame.render()
 
-        let bodyBefore: LayoutRef = try #require(fixture.body.ref.layout)
+        let bodyBefore: LayoutID = try #require(fixture.body.ref.layoutID)
         fixture.frame.setNeedsLayout()
         fixture.frame.render()
 
-        #expect(fixture.body.ref.layout?.id == bodyBefore.id)
+        #expect(fixture.body.ref.layoutID == bodyBefore)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
@@ -157,7 +157,8 @@ struct LayoutInvalidationTests {
                 """
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let before: CGFloat = try #require(page.lines(in: p).first).height
+        let beforeID: LayoutID = try #require(page.lineIDs(in: p).first)
+        let before: CGFloat = page.tree.height(beforeID)
 
         page.frame.addAnimation(PixelAnimation(
             animatedProperty: .fontSize,
@@ -175,7 +176,8 @@ struct LayoutInvalidationTests {
             page.frame.runAnimationFrame()
         }
 
-        let after: CGFloat = try #require(page.lines(in: p).first).height
+        let afterID: LayoutID = try #require(page.lineIDs(in: p).first)
+        let after: CGFloat = page.tree.height(afterID)
         #expect(after > before)
         #expect((profiler.snapshot()["layout.rebuilt"]?.count ?? 0) > 0)
         #expect((profiler.snapshot()["layout.animation.fallback"]?.count ?? 0) == 0)
@@ -239,6 +241,13 @@ private struct Fixture {
     let body: ElementRef
     let narrow: ElementRef
     let wide: ElementRef
+
+    var tree: LayoutTree {
+        guard let tree: LayoutTree = frame.document else {
+            preconditionFailure("fixture has no layout tree")
+        }
+        return tree
+    }
 }
 
 @MainActor

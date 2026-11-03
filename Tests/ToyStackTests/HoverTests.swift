@@ -8,20 +8,20 @@ import Testing
 struct HoverTests {
 
     private func bounds(_ element: ElementRef, in page: LayoutTestPage) throws -> Rect {
-        let object: LayoutRef = try #require(element.ref.layout)
-        return object.absoluteBounds()
+        let id: LayoutID = try #require(element.ref.layoutID)
+        return page.tree.absoluteBounds(id)
     }
 
     private func center(_ rect: Rect) -> CGPoint {
         return CGPoint(x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2)
     }
 
-    private func textLayout(of element: ElementRef, in page: LayoutTestPage) throws -> LayoutRef {
+    private func textLayout(of element: ElementRef, in page: LayoutTestPage) throws -> LayoutID {
         let doc: LayoutTree = try #require(page.frame.document)
         let target: NodeID = element.id
         return try #require(
-            treeToList(doc.root).filter({ $0.isText })
-                .first(where: { $0.node.parent?.id == target })
+            treeToList(doc, doc.rootID).filter({ doc.isText($0) })
+                .first(where: { doc.domRef($0).parent?.id == target })
         )
     }
 
@@ -111,7 +111,8 @@ struct HoverTests {
         let card: ElementRef = try #require(page.firstElement(id: "card"))
         let label: ElementRef = try #require(page.firstElement(id: "label"))
         let body: ElementRef = try #require(page.firstElement(tag: "body"))
-        let point: CGPoint = center(try textLayout(of: label, in: page).absoluteBounds())
+        let labelLayout: LayoutID = try textLayout(of: label, in: page)
+        let point: CGPoint = center(page.tree.absoluteBounds(labelLayout))
 
         page.tab.hover(x: point.x, y: point.y)
         page.frame.render()
@@ -140,7 +141,8 @@ struct HoverTests {
         let card: ElementRef = try #require(page.firstElement(id: "card"))
         let label: ElementRef = try #require(page.firstElement(id: "label"))
         let after: ElementRef = try #require(page.firstElement(id: "after"))
-        let labelPoint: CGPoint = center(try textLayout(of: label, in: page).absoluteBounds())
+        let labelLayout: LayoutID = try textLayout(of: label, in: page)
+        let labelPoint: CGPoint = center(page.tree.absoluteBounds(labelLayout))
         let cardPoint: CGPoint = center(try bounds(card, in: page))
         let afterPoint: CGPoint = center(try bounds(after, in: page))
 

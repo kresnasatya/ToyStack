@@ -29,9 +29,9 @@ struct PaintNode {
 }
 
 struct PaintGeometry {
-    /// `LayoutRef.selfRect()` — padded box for blocks, absolute box for text.
+    /// `LayoutTree.selfRect` — padded box for blocks, absolute box for text.
     var rect: Rect
-    /// `LayoutRef` x/y/width/height, before padding.
+    /// `LayoutTree` x/y/width/height, before padding.
     var frame: Rect
     var zoom: CGFloat
 }

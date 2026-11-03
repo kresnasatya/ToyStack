@@ -22,17 +22,19 @@ struct BlockLayoutTests {
         let p: ElementRef = try #require(
             treeToList(frame.nodes).compactMap({ $0.element }).first(where: { $0.tag == "p" })
         )
-        let block: LayoutRef = try #require(p.ref.layout)
-        let parentWidth: CGFloat = try #require(block.parent?.width)
-        #expect(block.width == parentWidth)
-        #expect(block.width == CGFloat(400))
+        let document: LayoutTree = try #require(frame.document)
+        let block: LayoutID = try #require(p.ref.layoutID)
+        let parentID: LayoutID = try #require(document.parentID(of: block))
+        let parentWidth: CGFloat = document.width(parentID)
+        #expect(document.width(block) == parentWidth)
+        #expect(document.width(block) == CGFloat(400))
 
-        let layoutInput: LayoutRef = try #require(
-            treeToList(block).first(where: { ref in
-                if case .embed(.input) = ref.kind { return true }
+        let layoutInput: LayoutID = try #require(
+            treeToList(document, block).first(where: { id in
+                if case .embed(.input) = document.kind(id) { return true }
                 return false
             })
         )
-        #expect(layoutInput.width == inputWidthPx)
+        #expect(document.width(layoutInput) == inputWidthPx)
     }
 }

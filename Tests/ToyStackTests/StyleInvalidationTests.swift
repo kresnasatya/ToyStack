@@ -37,8 +37,8 @@ struct StyleInvalidationTests {
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let text: TextRef = try #require(p.children.first?.text)
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        let textLayout: LayoutRef = try #require(treeToList(block).first(where: { $0.isText }))
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        _ = block
         let normal: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
 
         p.style.mutate { $0.text.font.size = 32 }
@@ -64,25 +64,25 @@ struct StyleInvalidationTests {
                 .first(where: { $0.attributes["id"] == "second" })
         )
 
-        let firstBefore: LayoutRef = try #require(page.ref(of: first).layout)
-        let secondBefore: LayoutRef = try #require(page.ref(of: second).layout)
-        let bodyBefore: LayoutRef = try #require(page.ref(of: body).layout)
-        let secondYBefore: CGFloat = secondBefore.y
-        let bodyHeightBefore: CGFloat = bodyBefore.height
+        let firstBefore: LayoutID = try #require(page.ref(of: first).layoutID)
+        let secondBefore: LayoutID = try #require(page.ref(of: second).layoutID)
+        let bodyBefore: LayoutID = try #require(page.ref(of: body).layoutID)
+        let secondYBefore: CGFloat = page.tree.y(secondBefore)
+        let bodyHeightBefore: CGFloat = page.tree.height(bodyBefore)
 
         InlineStyle.set(first, property: "margin-bottom", value: "0px")
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let firstAfter: LayoutRef = try #require(page.ref(of: first).layout)
-        let secondAfter: LayoutRef = try #require(page.ref(of: second).layout)
-        let bodyAfter: LayoutRef = try #require(page.ref(of: body).layout)
+        let firstAfter: LayoutID = try #require(page.ref(of: first).layoutID)
+        let secondAfter: LayoutID = try #require(page.ref(of: second).layoutID)
+        let bodyAfter: LayoutID = try #require(page.ref(of: body).layoutID)
 
-        #expect(firstAfter.id == firstBefore.id)
-        #expect(secondAfter.id == secondBefore.id)
-        #expect(bodyAfter.id == bodyBefore.id)
-        #expect(secondAfter.y == secondYBefore - 50)
-        #expect(bodyAfter.height == bodyHeightBefore - 50)
+        #expect(firstAfter == firstBefore)
+        #expect(secondAfter == secondBefore)
+        #expect(bodyAfter == bodyBefore)
+        #expect(page.tree.y(secondAfter) == secondYBefore - 50)
+        #expect(page.tree.height(bodyAfter) == bodyHeightBefore - 50)
         #expect((profiler.snapshot()["layout.children.rebuilt"]?.count ?? 0) == 0)
     }
 
@@ -96,15 +96,15 @@ struct StyleInvalidationTests {
                 """
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        let text: LayoutRef = try #require(
-            treeToList(block).first(where: { $0.isText })
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        let text: LayoutID = try #require(
+            treeToList(page.tree, block).first(where: { page.tree.isText($0) })
         )
 
         p.style.mutate { $0.text.font.size = 32 }
-        block.tree.consumeStyleChanges()
+        page.tree.consumeStyleChanges()
 
-        #expect(text.tree.isDirty(.font, at: text.id))
+        #expect(page.tree.isDirty(.font, at: text))
     }
 
     @Test func focusChangeRestylesOnlyTheFocusedNode() throws {
@@ -122,20 +122,20 @@ struct StyleInvalidationTests {
         )
         let a: ElementRef = try #require(treeToList(page.frame.nodes).compactMap({ $0.element }).first(where: { $0.attributes["id"] == "a" }))
         let b: ElementRef = try #require(treeToList(page.frame.nodes).compactMap({ $0.element }).first(where: { $0.attributes["id"] == "b" }))
-        let aBefore: LayoutRef = try #require(page.firstEmbed(in: a))
-        let bBefore: LayoutRef = try #require(page.firstEmbed(in: b))
-        let aHeightBefore: CGFloat = aBefore.height
-        let bHeightBefore: CGFloat = bBefore.height
+        let aBefore: LayoutID = try #require(page.firstEmbedID(in: a))
+        let bBefore: LayoutID = try #require(page.firstEmbedID(in: b))
+        let aHeightBefore: CGFloat = page.tree.height(aBefore)
+        let bHeightBefore: CGFloat = page.tree.height(bBefore)
 
         page.frame.focusElement(a)
         page.frame.render()
 
-        let aAfter: LayoutRef = try #require(page.firstEmbed(in: a))
-        let bAfter: LayoutRef = try #require(page.firstEmbed(in: b))
+        let aAfter: LayoutID = try #require(page.firstEmbedID(in: a))
+        let bAfter: LayoutID = try #require(page.firstEmbedID(in: b))
 
-        #expect(aAfter.height > aHeightBefore)
-        #expect(bAfter.height == bHeightBefore)
-        #expect(bAfter.id == bBefore.id)
+        #expect(page.tree.height(aAfter) > aHeightBefore)
+        #expect(page.tree.height(bAfter) == bHeightBefore)
+        #expect(bAfter == bBefore)
         #expect(!a.style.isDirty)
         #expect(!b.style.isDirty)
     }

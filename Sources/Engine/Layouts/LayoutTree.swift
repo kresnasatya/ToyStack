@@ -69,10 +69,6 @@ final class LayoutTree {
         return LayoutID(raw: 0)
     }
 
-    var root: LayoutRef {
-        return LayoutRef(id: rootID, tree: self)
-    }
-
     func markDocumentWidthDirty() {
         markField(.width, at: rootID)
     }
@@ -172,7 +168,7 @@ final class LayoutTree {
     @discardableResult
     func sweepUnreachable() -> Set<LayoutID> {
         var reachable: Set<LayoutID> = []
-        collectReachable(root.id, into: &reachable)
+        collectReachable(rootID, into: &reachable)
         var removed: Set<LayoutID> = []
         for index in nodes.indices {
             guard let node: LayoutNode = nodes[index] else { continue }
@@ -444,8 +440,7 @@ final class LayoutTree {
 
 // MARK: - Node accessors
 
-/// Value API for one node. `LayoutRef` delegates here; layout passes migrate
-/// to it, then the ref can go away and the tree can become a value.
+/// Value API for one layout node, keyed by id.
 extension LayoutTree {
     func domRef(_ id: LayoutID) -> DOMRef {
         return DOMRef(id: domID(of: id), dom: dom)

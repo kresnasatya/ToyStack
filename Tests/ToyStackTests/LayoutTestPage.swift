@@ -101,50 +101,6 @@ struct LayoutTestPage {
             .reduce(0, { $0 + tree.textData($1).metrics.width })
     }
 
-    func firstLayout(
-        in element: ElementRef,
-        where predicate: (LayoutRef) -> Bool
-    ) -> LayoutRef? {
-        guard let primary: LayoutRef = element.ref.layout else { return nil }
-        return treeToList(primary).first(where: predicate)
-    }
-
-    func firstBlock(in element: ElementRef) -> LayoutRef? {
-        return firstLayout(in: element, where: { $0.isBlock })
-    }
-
-    func firstText(in element: ElementRef) -> LayoutRef? {
-        return firstLayout(in: element, where: { $0.isText })
-    }
-
-    func firstLine(in element: ElementRef) -> LayoutRef? {
-        return firstLayout(in: element, where: { $0.isLine })
-    }
-
-    func firstEmbed(in element: ElementRef) -> LayoutRef? {
-        return firstLayout(in: element, where: { $0.isEmbed })
-    }
-
-    func embed(in element: ElementRef, _ match: EmbedMatch) -> LayoutRef? {
-        return firstLayout(in: element, where: {
-            guard $0.isEmbed else { return false }
-            return match.matches($0.embedData)
-        })
-    }
-
-    func lines(in element: ElementRef) -> [LayoutRef] {
-        guard let block: LayoutRef = firstBlock(in: element) else {
-            return []
-        }
-        return block.children.filter({ $0.isLine })
-    }
-
-    func textWidth(in element: ElementRef) -> CGFloat {
-        guard let primary: LayoutRef = element.ref.layout else { return 0 }
-        return treeToList(primary)
-            .filter({ $0.isText })
-            .reduce(0, { $0 + $1.textData.metrics.width })
-    }
 }
 
 // MARK: - DOMBuilder

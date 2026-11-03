@@ -42,7 +42,7 @@ func renderSignature(_ frame: Frame) -> String {
         .split(separator: "|")
         .map({ "display \($0)" })
     if let document = frame.document {
-        appendLayoutSignature(document.root, path: "0", into: &parts)
+        appendLayoutSignature(document, document.rootID, path: "0", into: &parts)
     }
     return parts.joined(separator: "\n")
 }
@@ -55,11 +55,11 @@ func expectAllLayoutFieldsClean(
     _ document: LayoutTree,
     sourceLocation: SourceLocation = #_sourceLocation
 ) {
-    for object in treeToList(document.root) {
-        for field in LayoutField.allCases where document.isUsed(field, at: object.id) {
+    for id in treeToList(document, document.rootID) {
+        for field in LayoutField.allCases where document.isUsed(field, at: id) {
             #expect(
-                !document.isDirty(field, at: object.id),
-                "\(layoutKindName(object.kind)).\(field.rawValue) is still dirty",
+                !document.isDirty(field, at: id),
+                "\(layoutKindName(document.kind(id))).\(field.rawValue) is still dirty",
                 sourceLocation: sourceLocation
             )
         }
@@ -68,19 +68,22 @@ func expectAllLayoutFieldsClean(
 
 @MainActor
 private func appendLayoutSignature(
-    _ object: LayoutRef,
+    _ tree: LayoutTree,
+    _ id: LayoutID,
     path: String,
     into parts: inout [String]
 ) {
-    var line: String = "\(path) \(layoutKindName(object.kind)) \(object.selfRect()) children=\(object.children.count)"
-    if object.isText {
-        let data: TextData = object.textData
+    let children: [LayoutID] = tree.childrenIDs(of: id)
+    var line: String =
+        "\(path) \(layoutKindName(tree.kind(id))) \(tree.selfRect(id)) children=\(children.count)"
+    if tree.isText(id) {
+        let data: TextData = tree.textData(id)
         line += " word=\(data.word) display=\(data.display ?? "") width=\(data.metrics.width)"
     }
     parts.append(line)
 
-    for (index, child) in object.children.enumerated() {
-        appendLayoutSignature(child, path: "\(path).\(index)", into: &parts)
+    for (index, child) in children.enumerated() {
+        appendLayoutSignature(tree, child, path: "\(path).\(index)", into: &parts)
     }
 }
 

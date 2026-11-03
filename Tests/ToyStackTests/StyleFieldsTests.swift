@@ -11,89 +11,89 @@ struct StyleFieldsTests {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
         tree.consumeStyleChanges()
-        tree.setFieldClean(.width, 10, for: block.id)
+        tree.setFieldClean(.width, 10, for: block)
 
         style.set(.length(10), for: .width)
         tree.consumeStyleChanges()
-        #expect(!tree.isDirty(.width, at: block.id))
+        #expect(!tree.isDirty(.width, at: block))
     }
 
     @Test func differentValueMarks() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
         tree.consumeStyleChanges()
-        tree.setFieldClean(.width, 10, for: block.id)
+        tree.setFieldClean(.width, 10, for: block)
 
         style.set(.length(20), for: .width)
         tree.consumeStyleChanges()
-        #expect(tree.isDirty(.width, at: block.id))
+        #expect(tree.isDirty(.width, at: block))
     }
 
     @Test func absentPropertyStillMarks() {
         let (style, tree, block) = makeStyleFixture()
-        tree.setFieldClean(.width, 0, for: block.id)
+        tree.setFieldClean(.width, 0, for: block)
         #expect(style.computed.box.size.width == nil)
 
         style.set(.length(20), for: .width)
         tree.consumeStyleChanges()
 
-        #expect(tree.isDirty(.width, at: block.id))
+        #expect(tree.isDirty(.width, at: block))
     }
 
     @Test func removingAPropertyMarksTheLayoutField() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
         tree.consumeStyleChanges()
-        tree.setFieldClean(.width, 10, for: block.id)
+        tree.setFieldClean(.width, 10, for: block)
 
         style.apply(["height": "5px"])
         tree.consumeStyleChanges()
-        #expect(tree.isDirty(.width, at: block.id))
+        #expect(tree.isDirty(.width, at: block))
     }
 
     @Test func paintOnlyChangeDoesNotMark() {
         let (style, tree, block) = makeStyleFixture()
-        tree.setFieldClean(.width, 10, for: block.id)
+        tree.setFieldClean(.width, 10, for: block)
 
         style.apply(["color": "red"])
         tree.consumeStyleChanges()
 
-        #expect(!tree.isDirty(.width, at: block.id))
+        #expect(!tree.isDirty(.width, at: block))
     }
 
     @Test func identicalApplyDoesNotMark() {
         let (style, tree, block) = makeStyleFixture()
         style.apply(["width": "10px"])
         tree.consumeStyleChanges()
-        tree.setFieldClean(.width, 10, for: block.id)
+        tree.setFieldClean(.width, 10, for: block)
 
         profiler.reset()
         style.apply(["width": "10px"])
         tree.consumeStyleChanges()
 
-        #expect(!tree.isDirty(.width, at: block.id))
+        #expect(!tree.isDirty(.width, at: block))
         #expect((profiler.snapshot()["style.fields.changed"]?.count ?? 0) == 0)
     }
 
     @Test func mutateMarksTheLayoutField() {
         let (style, tree, block) = makeStyleFixture()
-        tree.setFieldClean(.width, 10, for: block.id)
+        tree.setFieldClean(.width, 10, for: block)
 
         style.mutate { $0.box.size.width = 30 }
         tree.consumeStyleChanges()
 
-        #expect(tree.isDirty(.width, at: block.id))
+        #expect(tree.isDirty(.width, at: block))
     }
 
     @Test func aRevisionIsAppliedOnce() {
         let (style, tree, block) = makeStyleFixture()
         style.set(.length(20), for: .width)
         tree.consumeStyleChanges()
-        tree.setFieldClean(.width, 20, for: block.id)
+        tree.setFieldClean(.width, 20, for: block)
 
         tree.consumeStyleChanges()
 
-        #expect(!tree.isDirty(.width, at: block.id))
+        #expect(!tree.isDirty(.width, at: block))
     }
 
     @Test func applyStoresTypedValues() {
@@ -166,19 +166,18 @@ struct StyleFieldsTests {
 }
 
 @MainActor
-private func makeStyleFixture() -> (StyleFields, LayoutTree, LayoutRef) {
+private func makeStyleFixture() -> (StyleFields, LayoutTree, LayoutID) {
     let dom: DOMTree = DOMTree()
     let tree: LayoutTree = LayoutTree(dom: dom)
     let blockID: LayoutID = tree.append(
         kind: .block(BlockData()),
         dom: dom.root,
-        parent: tree.root.id,
+        parent: tree.rootID,
         previous: nil
     )
     for field in [LayoutField.zoom, .x, .y, .width, .inlineContent, .children] {
         tree.markUsed(field, at: blockID)
     }
-    let block: LayoutRef = LayoutRef(id: blockID, tree: tree)
     tree.dependencies.rebuild(from: tree)
-    return (dom.style(of: dom.root), tree, block)
+    return (dom.style(of: dom.root), tree, blockID)
 }

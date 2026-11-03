@@ -19,15 +19,17 @@ struct InlineTextLayoutTests {
             rules: textPageRules
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let beforeWidth: CGFloat = page.textWidth(in: p)
-        let beforeHeight: CGFloat = try #require(page.lines(in: p).first).height
+        let beforeWidth: CGFloat = page.textWidthID(in: p)
+        let beforeLine: LayoutID = try #require(page.lineIDs(in: p).first)
+        let beforeHeight: CGFloat = page.tree.height(beforeLine)
 
         p.attributes["style"] = "font-size: 32px;"
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let afterWidth: CGFloat = page.textWidth(in: p)
-        let afterHeight: CGFloat = try #require(page.lines(in: p).first).height
+        let afterWidth: CGFloat = page.textWidthID(in: p)
+        let afterLine: LayoutID = try #require(page.lineIDs(in: p).first)
+        let afterHeight: CGFloat = page.tree.height(afterLine)
         #expect(afterWidth > beforeWidth)
         #expect(afterHeight > beforeHeight)
     }
@@ -38,14 +40,14 @@ struct InlineTextLayoutTests {
             rules: textPageRules
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let linesBefore: Int = page.lines(in: p).count
+        let linesBefore: Int = page.lineIDs(in: p).count
         #expect(linesBefore > 1)
 
         p.attributes["style"] = "white-space: nowrap"
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let linesAfter: Int = page.lines(in: p).count
+        let linesAfter: Int = page.lineIDs(in: p).count
         #expect(linesAfter == 1)
     }
 
@@ -69,17 +71,16 @@ struct InlineTextLayoutTests {
             rules: textPageRules
         )
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
 
-        let before: [LayoutID] = treeToList(block)
-            .filter({ $0.isText })
-            .map { $0.id }
+        let before: [LayoutID] = treeToList(page.tree, block)
+            .filter({ page.tree.isText($0) })
 
         page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        #expect(treeToList(block).filter { $0.isText }.map { $0.id } == before)
+        #expect(treeToList(page.tree, block).filter { page.tree.isText($0) } == before)
 
         let text: TextRef = try #require(p.children.first?.text)
         text.append(" six")

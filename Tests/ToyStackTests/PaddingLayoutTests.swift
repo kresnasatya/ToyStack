@@ -18,15 +18,15 @@ struct PaddingLayoutTests {
         )
         let outer: ElementRef = try #require(page.firstElement(tag: "div"))
         let inner: ElementRef = try #require(outer.children.first?.element)
-        let outerBox: LayoutRef = try #require(page.ref(of: outer).layout)
-        let innerBox: LayoutRef = try #require(page.ref(of: inner).layout)
+        let outerBox: LayoutID = try #require(page.ref(of: outer).layoutID)
+        let innerBox: LayoutID = try #require(page.ref(of: inner).layoutID)
 
-        #expect(outerBox.width == 580)
-        #expect(outerBox.selfRect().right - outerBox.selfRect().left == 600)
-        #expect(innerBox.x == outerBox.x)
-        #expect(innerBox.y == outerBox.y)
-        #expect(outerBox.selfRect().left == outerBox.x - 10)
-        #expect(outerBox.selfRect().top == outerBox.y - 10)
+        #expect(page.tree.width(outerBox) == 580)
+        #expect(page.tree.selfRect(outerBox).right - page.tree.selfRect(outerBox).left == 600)
+        #expect(page.tree.x(innerBox) == page.tree.x(outerBox))
+        #expect(page.tree.y(innerBox) == page.tree.y(outerBox))
+        #expect(page.tree.selfRect(outerBox).left == page.tree.x(outerBox) - 10)
+        #expect(page.tree.selfRect(outerBox).top == page.tree.y(outerBox) - 10)
     }
 
     @Test func paddingBottomSeparatesSiblings() throws {
@@ -44,11 +44,11 @@ struct PaddingLayoutTests {
         }
         let a: ElementRef = try #require(elements.first { $0.attributes["id"] == "a" })
         let b: ElementRef = try #require(elements.first { $0.attributes["id"] == "b" })
-        let aBox: LayoutRef = try #require(page.ref(of: a).layout)
-        let bBox: LayoutRef = try #require(page.ref(of: b).layout)
+        let aBox: LayoutID = try #require(page.ref(of: a).layoutID)
+        let bBox: LayoutID = try #require(page.ref(of: b).layoutID)
 
-        #expect(aBox.selfRect().bottom - aBox.selfRect().top == 22)
-        #expect(bBox.y == aBox.y + aBox.height + 12)
+        #expect(page.tree.selfRect(aBox).bottom - page.tree.selfRect(aBox).top == 22)
+        #expect(page.tree.y(bBox) == page.tree.y(aBox) + page.tree.height(aBox) + 12)
     }
 
     @Test func paddingChangeRelayoutsIncrementally() throws {
@@ -66,10 +66,10 @@ struct PaddingLayoutTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let boxLayout: LayoutRef = try #require(page.ref(of: box).layout)
-        #expect(boxLayout.width == 560)
-        #expect(boxLayout.selfRect().right - boxLayout.selfRect().left == 600)
-        #expect(boxLayout.selfRect().left == boxLayout.x - 20)
+        let boxLayout: LayoutID = try #require(page.ref(of: box).layoutID)
+        #expect(page.tree.width(boxLayout) == 560)
+        #expect(page.tree.selfRect(boxLayout).right - page.tree.selfRect(boxLayout).left == 600)
+        #expect(page.tree.selfRect(boxLayout).left == page.tree.x(boxLayout) - 20)
 
         let document: LayoutTree = try #require(page.frame.document)
         expectAllLayoutFieldsClean(document)
@@ -87,9 +87,9 @@ struct PaddingLayoutTests {
                 """
         )
         let box: ElementRef = try #require(page.firstElement(tag: "div"))
-        let layout: LayoutRef = try #require(page.ref(of: box).layout)
+        let layout: LayoutID = try #require(page.ref(of: box).layoutID)
 
-        #expect(layout.hitTest(x: layout.x - 5, y: layout.y + 5)?.domNode == box.id)
+        #expect(page.tree.hitTest(layout, x: page.tree.x(layout) - 5, y: page.tree.y(layout) + 5).map({ page.tree.domID(of: $0) }) == box.id)
     }
 
     @Test func backgroundCoversPadding() throws {
@@ -106,11 +106,11 @@ struct PaddingLayoutTests {
         page.frame.setNeedsPaint()
         page.frame.paint()
 
-        let layout: LayoutRef = try #require(page.ref(of: box).layout)
+        let layout: LayoutID = try #require(page.ref(of: box).layoutID)
         let rects: [Rect] = page.frame.displayList.compactMap { op -> Rect? in
             guard case .rect(let rect, _) = op else { return nil }
             return rect
         }
-        #expect(rects.contains(layout.selfRect()))
+        #expect(rects.contains(page.tree.selfRect(layout)))
     }
 }

@@ -19,18 +19,18 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let image: ElementRef = try #require(page.firstElement(tag: "img"))
-        let before: LayoutRef = try #require(page.firstEmbed(in: image))
-        #expect(before.width == 40)
-        let beforeWidth: CGFloat = before.width
+        let before: LayoutID = try #require(page.firstEmbedID(in: image))
+        #expect(page.tree.width(before) == 40)
+        let beforeWidth: CGFloat = page.tree.width(before)
 
         image.attributes["width"] = "80"
         LayoutInvalidation.attributesChanged(page.ref(of: image))
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: LayoutRef = try #require(page.firstEmbed(in: image))
-        #expect(after.width == 80)
-        #expect(after.width - beforeWidth == 40)
+        let after: LayoutID = try #require(page.firstEmbedID(in: image))
+        #expect(page.tree.width(after) == 80)
+        #expect(page.tree.width(after) - beforeWidth == 40)
     }
 
     @Test func iframeHeightAttributeChangesLayoutHeight() throws {
@@ -39,18 +39,18 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let iframe: ElementRef = try #require(page.firstElement(tag: "iframe"))
-        let before: LayoutRef = try #require(page.firstEmbed(in: iframe))
-        #expect(before.height == 82)
-        let beforeHeight: CGFloat = before.height
+        let before: LayoutID = try #require(page.firstEmbedID(in: iframe))
+        #expect(page.tree.height(before) == 82)
+        let beforeHeight: CGFloat = page.tree.height(before)
 
         iframe.attributes["height"] = "120"
         LayoutInvalidation.attributesChanged(page.ref(of: iframe))
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: LayoutRef = try #require(page.firstEmbed(in: iframe))
-        #expect(after.height == 122)
-        #expect(after.height - beforeHeight == 40)
+        let after: LayoutID = try #require(page.firstEmbedID(in: iframe))
+        #expect(page.tree.height(after) == 122)
+        #expect(page.tree.height(after) - beforeHeight == 40)
     }
 
     @Test func inputFontSizeChangesHeightAndAscent() throws {
@@ -59,19 +59,19 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let input: ElementRef = try #require(page.firstElement(tag: "input"))
-        let before: LayoutRef = try #require(page.firstEmbed(in: input))
-        #expect(before.height == inlineDefaultFont.linespace)
-        let beforeHeight: CGFloat = before.height
+        let before: LayoutID = try #require(page.firstEmbedID(in: input))
+        #expect(page.tree.height(before) == inlineDefaultFont.linespace)
+        let beforeHeight: CGFloat = page.tree.height(before)
 
         input.attributes["style"] = "font-size: 32px"
         page.frame.setNeedsRender()
         page.frame.render()
 
-        let after: LayoutRef = try #require(page.firstEmbed(in: input))
+        let after: LayoutID = try #require(page.firstEmbedID(in: input))
         let expected: BrowserFont = getFont(size: 32, weight: "normal", style: "roman")
-        #expect(after.height == expected.linespace)
-        #expect(after.ascent == expected.linespace)
-        #expect(after.height > beforeHeight)
+        #expect(page.tree.height(after) == expected.linespace)
+        #expect(page.tree.ascent(after) == expected.linespace)
+        #expect(page.tree.height(after) > beforeHeight)
     }
 
     @Test func checkboxWidthMatchesFontLineSpace() throws {
@@ -80,9 +80,9 @@ struct EmbedLayoutTests {
             rules: embedPageRules
         )
         let checkbox: ElementRef = try #require(page.firstElement(tag: "input"))
-        let layout: LayoutRef = try #require(page.firstEmbed(in: checkbox))
+        let layout: LayoutID = try #require(page.firstEmbedID(in: checkbox))
         let expected: BrowserFont = getFont(size: 32, weight: "normal", style: "roman")
-        #expect(layout.width == expected.linespace)
-        #expect(layout.height == expected.linespace)
+        #expect(page.tree.width(layout) == expected.linespace)
+        #expect(page.tree.height(layout) == expected.linespace)
     }
 }

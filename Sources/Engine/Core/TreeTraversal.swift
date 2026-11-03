@@ -11,20 +11,6 @@ func treeToList(_ node: DOMRef) -> [DOMRef] {
     return result
 }
 
-/// Transitional: tests still walk layout refs.
-@MainActor
-func treeToList(_ ref: LayoutRef, into list: inout [LayoutRef]) {
-    list.append(ref)
-    for child in ref.children { treeToList(child, into: &list) }
-}
-
-@MainActor
-func treeToList(_ ref: LayoutRef) -> [LayoutRef] {
-    var list: [LayoutRef] = []
-    treeToList(ref, into: &list)
-    return list
-}
-
 @MainActor
 func treeToList(_ tree: LayoutTree, _ root: LayoutID) -> [LayoutID] {
     var list: [LayoutID] = []

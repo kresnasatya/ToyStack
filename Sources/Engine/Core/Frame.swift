@@ -132,7 +132,7 @@ class Frame {
     var hasScrollElement: Bool { state.runtime.interaction.scrollFocus != nil }
 
     var maxScroll: CGFloat {
-        let documentHeight: CGFloat = document?.root.heightIfUsed ?? 0
+        let documentHeight: CGFloat = document.map({ $0.heightIfUsed(at: $0.rootID) ?? 0 }) ?? 0
         let padded: CGFloat = documentHeight + 2 * VSTEP
         return max(max(padded, state.display.painted.bottom + VSTEP) - frameHeight, 0)
     }
@@ -999,7 +999,7 @@ class Frame {
     }
 
     private var contentBottom: CGFloat {
-        return document?.root.selfRect().bottom ?? 0
+        return document.map({ $0.selfRect($0.rootID).bottom }) ?? 0
     }
 
     func runAnimationFrame() {
@@ -1266,7 +1266,7 @@ class Frame {
         guard let doc = document else { return [] }
         guard let bar = scrollbarBarRect(
             ScrollbarGeometry(
-                docHeight: doc.root.height + 2 * VSTEP,
+                docHeight: doc.height(doc.rootID) + 2 * VSTEP,
                 contentHeight: frameHeight,
                 contentWidth: frameWidth,
                 scroll: scroll

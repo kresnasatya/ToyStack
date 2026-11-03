@@ -11,13 +11,13 @@ struct LayoutDependencyTests {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
 
-        for object in treeToList(document.root) {
-            for field in LayoutField.allCases where !document.isUsed(field, at: object.id) {
+        for object in treeToList(document, document.rootID) {
+            for field in LayoutField.allCases where !document.isUsed(field, at: object) {
                 #expect(
                     document.dependencies
-                        .fieldKeys(for: .layout(object.id, field))
+                        .fieldKeys(for: .layout(object, field))
                         .isEmpty,
-                    "\(object.kind).\(field.rawValue) is unused but owns dependents"
+                    "\(document.kind(object)).\(field.rawValue) is unused but owns dependents"
                 )
             }
         }
@@ -26,30 +26,30 @@ struct LayoutDependencyTests {
     @Test func widthFlowsDownAndHeightFlowsBackUp() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
-        let root: LayoutRef = try #require(document.root.children.first)
-        let body: LayoutRef = try #require(root.children.first)
-        let box: LayoutRef = try #require(body.children.first)
-        let paragraph: LayoutRef = try #require(box.children.first)
-        let line: LayoutRef = try #require(paragraph.children.first)
+        let root: LayoutID = try #require(document.childrenIDs(of: document.rootID).first)
+        let body: LayoutID = try #require(document.childrenIDs(of: root).first)
+        let box: LayoutID = try #require(document.childrenIDs(of: body).first)
+        let paragraph: LayoutID = try #require(document.childrenIDs(of: box).first)
+        let line: LayoutID = try #require(document.childrenIDs(of: paragraph).first)
 
-        #expect(depends(root, on: .layout(document.root.id, .width), in: document))
-        #expect(depends(body, on: .layout(root.id, .width), in: document))
-        #expect(depends(paragraph, on: .layout(box.id, .zoom), in: document, field: .zoom))
-        #expect(depends(line, on: .layout(paragraph.id, .width), in: document))
-        #expect(depends(paragraph, on: .layout(line.id, .height), in: document, field: .height))
-        #expect(depends(document.root, on: .layout(root.id, .height), in: document, field: .height))
+        #expect(depends(root, on: .layout(document.rootID, .width), in: document))
+        #expect(depends(body, on: .layout(root, .width), in: document))
+        #expect(depends(paragraph, on: .layout(box, .zoom), in: document, field: .zoom))
+        #expect(depends(line, on: .layout(paragraph, .width), in: document))
+        #expect(depends(paragraph, on: .layout(line, .height), in: document, field: .height))
+        #expect(depends(document.rootID, on: .layout(root, .height), in: document, field: .height))
     }
 
     @Test func fontFieldOwnsTheParentStyleInputs() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
-        let block: LayoutRef = try #require(page.firstBlock(in: paragraph))
-        let text: LayoutRef = try #require(
-            treeToList(block).first(where: { $0.isText })
-        )
         let document: LayoutTree = try #require(page.frame.document)
+        let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
+        let block: LayoutID = try #require(page.firstBlockID(in: paragraph))
+        let text: LayoutID = try #require(
+            treeToList(document, block).first(where: { document.isText($0) })
+        )
         let inputs: Set<FieldKey> = document.dependencies.fieldKeys(
-            for: .layout(text.id, .font)
+            for: .layout(text, .font)
         )
 
         #expect(inputs.contains(.style(paragraph.id, .fontSize)))
@@ -62,7 +62,7 @@ struct LayoutDependencyTests {
         let dom: DOMTree = DOMTree()
         let document: LayoutTree = LayoutTree(dom: dom)
         document.dependencies.rebuild(from: document)
-        let root: LayoutID = document.root.id
+        let root: LayoutID = document.rootID
 
         let widthInputs: Set<FieldKey> = document.dependencies
             .fieldKeys(for: .layout(root, .width))
@@ -74,47 +74,47 @@ struct LayoutDependencyTests {
     @Test func fieldWriteMarksItsDependents() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
-        let root: LayoutRef = try #require(document.root.children.first)
+        let root: LayoutID = try #require(document.childrenIDs(of: document.rootID).first)
 
-        document.setFieldClean(.width, 600, for: document.root.id)
-        document.setFieldClean(.width, root.width, for: root.id)
-        document.setField(.width, 500, for: document.root.id)
+        document.setFieldClean(.width, 600, for: document.rootID)
+        document.setFieldClean(.width, document.width(root), for: root)
+        document.setField(.width, 500, for: document.rootID)
 
-        #expect(document.isDirty(.width, at: root.id))
+        #expect(document.isDirty(.width, at: root))
     }
 
     @Test func widthMarksLinesButNotInlineContent() throws {
         let page: LayoutTestPage = makeDependencyPage()
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
-        let block: LayoutRef = try #require(page.firstBlock(in: p))
-        let line: LayoutRef = try #require(page.firstLine(in: p))
+        let block: LayoutID = try #require(page.firstBlockID(in: p))
+        let line: LayoutID = try #require(page.firstLineID(in: p))
         let document: LayoutTree = try #require(page.frame.document)
 
         let widthInputs: Set<FieldKey> = document.dependencies.fieldKeys(
-            for: .layout(block.id, .width)
+            for: .layout(block, .width)
         )
-        #expect(!widthInputs.contains(.layout(block.id, .children)))
-        #expect(!widthInputs.contains(.layout(block.id, .inlineContent)))
+        #expect(!widthInputs.contains(.layout(block, .children)))
+        #expect(!widthInputs.contains(.layout(block, .inlineContent)))
 
         let childInputs: Set<FieldKey> = document.dependencies.fieldKeys(
-            for: .layout(block.id, .children)
+            for: .layout(block, .children)
         )
-        #expect(childInputs.contains(.layout(block.id, .inlineContent)))
+        #expect(childInputs.contains(.layout(block, .inlineContent)))
 
         let heightInputs: Set<FieldKey> = document.dependencies.fieldKeys(
-            for: .layout(block.id, .height)
+            for: .layout(block, .height)
         )
-        #expect(heightInputs.contains(.layout(line.id, .height)))
+        #expect(heightInputs.contains(.layout(line, .height)))
 
         let contentInputs: Set<FieldKey> = document.dependencies.fieldKeys(
-            for: .layout(block.id, .inlineContent)
+            for: .layout(block, .inlineContent)
         )
         #expect(contentInputs.contains(.style(p.id, .fontSize)))
 
         let lineWidthInputs: Set<FieldKey> = document.dependencies.fieldKeys(
-            for: .layout(line.id, .width)
+            for: .layout(line, .width)
         )
-        #expect(lineWidthInputs.contains(.layout(block.id, .width)))
+        #expect(lineWidthInputs.contains(.layout(block, .width)))
     }
 
     // MARK: - Static input table (D1)
@@ -142,16 +142,16 @@ struct LayoutDependencyTests {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
         let p: ElementRef = try #require(page.firstElement(id: "p"))
-        let line: LayoutRef = try #require(page.firstLine(in: p))
-        let removed: LayoutRef = try #require(line.children.first)
+        let line: LayoutID = try #require(page.firstLineID(in: p))
+        let removed: LayoutID = try #require(document.childrenIDs(of: line).first)
 
-        document.removeSubtree(removed.id)
+        document.removeSubtree(removed)
         document.dependencies.rebuild(from: document)
 
         for field in LayoutField.allCases {
             #expect(
                 document.dependencies
-                    .fieldKeys(for: .layout(removed.id, field))
+                    .fieldKeys(for: .layout(removed, field))
                     .isEmpty,
                 "removed node still owns \(field.rawValue) dependents"
             )
@@ -162,7 +162,7 @@ struct LayoutDependencyTests {
                     for: .layout(id, field)
                 )
                 #expect(
-                    !inputs.contains(where: { isEdgeTo($0, removed.id) }),
+                    !inputs.contains(where: { isEdgeTo($0, removed) }),
                     "\(field.rawValue) still reads removed node"
                 )
             }
@@ -173,16 +173,16 @@ struct LayoutDependencyTests {
         let page: LayoutTestPage = makeDependencyPage()
         let document: LayoutTree = try #require(page.frame.document)
 
-        for ref in treeToList(document.root) {
+        for ref in treeToList(document, document.rootID) {
             for field in LayoutField.allCases {
                 let keys: [FieldKey] = LayoutInputTable.inputs(
-                    for: ref.id,
+                    for: ref,
                     field: field,
                     in: document
                 )
-                if document.isUsed(field, at: ref.id) {
+                if document.isUsed(field, at: ref) {
                     #expect(
-                        document.dependencies.fieldKeys(for: .layout(ref.id, field))
+                        document.dependencies.fieldKeys(for: .layout(ref, field))
                             == Set(keys)
                     )
                 }
@@ -193,12 +193,12 @@ struct LayoutDependencyTests {
 
 @MainActor
 private func depends(
-    _ ref: LayoutRef,
+    _ id: LayoutID,
     on key: FieldKey,
     in tree: LayoutTree,
     field: LayoutField = .width
 ) -> Bool {
-    return tree.dependencies.fieldKeys(for: .layout(ref.id, field)).contains(key)
+    return tree.dependencies.fieldKeys(for: .layout(id, field)).contains(key)
 }
 
 @MainActor
@@ -209,17 +209,17 @@ private func expectTableMatchesIndex(_ page: LayoutTestPage) throws {
 
 @MainActor
 private func expectTableMatchesIndex(_ document: LayoutTree) throws {
-    for ref in treeToList(document.root) {
-        for field in LayoutField.allCases where document.isUsed(field, at: ref.id) {
+    for ref in treeToList(document, document.rootID) {
+        for field in LayoutField.allCases where document.isUsed(field, at: ref) {
             let expected: Set<FieldKey> = Set(
-                LayoutInputTable.inputs(for: ref.id, field: field, in: document)
+                LayoutInputTable.inputs(for: ref, field: field, in: document)
             )
             let actual: Set<FieldKey> = document.dependencies.fieldKeys(
-                for: .layout(ref.id, field)
+                for: .layout(ref, field)
             )
             #expect(
                 actual == expected,
-                "\(ref.kind).\(field.rawValue) #\(ref.id.raw) differs from input table"
+                "\(document.kind(ref)).\(field.rawValue) #\(ref.raw) differs from input table"
             )
         }
     }
