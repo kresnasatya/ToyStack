@@ -203,7 +203,9 @@ public class BrowserTab {
         browser?.beginFrame()
         let frames: [Frame] = allFrames.sorted(by: { $0.windowID < $1.windowID })
         for frame in frames where frame.loaded {
+            inlineCacheProbe(frame, "tab-before-frame-\(frame.links.id)")
             frame.runAnimationFrame()
+            inlineCacheProbe(frame, "tab-after-frame-\(frame.links.id)")
         }
         if needsAccessibility, browser?.accessibilityIsOn == true {
             browser?.measure.start("BrowserTab.a11y")
@@ -213,11 +215,15 @@ public class BrowserTab {
             browser?.measure.stop("BrowserTab.a11y")
             needsAccessibility = false
         }
+        inlineCacheProbe(rootFrame, "tab-before-paint")
         rootFrame.paint()
+        inlineCacheProbe(rootFrame, "tab-after-paint")
         for frame in frames {
             frame.clearPaintRequest()
         }
+        inlineCacheProbe(rootFrame, "tab-before-commit")
         rootFrame.commitFrame()
+        inlineCacheProbe(rootFrame, "tab-after-commit")
     }
 
     public func linkURL(at x: CGFloat, y: CGFloat) -> WebURL? {

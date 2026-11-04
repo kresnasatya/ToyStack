@@ -1121,7 +1121,9 @@ class Frame {
 
         if state.runtime.schedule.needsRender {
             state.runtime.schedule.needsRender = false
+            inlineCacheProbe(self, "frame-before-render")
             render()
+            inlineCacheProbe(self, "frame-after-render")
 
             if state.runtime.interaction.needsFocusScroll, let f = focus {
                 scrollTo(dom.ref(f))
