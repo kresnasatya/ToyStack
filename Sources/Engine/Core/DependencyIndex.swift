@@ -94,14 +94,7 @@ struct DependencyIndex {
         inputs: [LayoutField: [FieldKey]]
     ) {
         for field in fields {
-            removeDependent(.layout(id, field))
-        }
-        for field in fields {
-            guard let fieldInputs = inputs[field] else { continue }
-            let dependent: FieldKey = .layout(id, field)
-            for input in fieldInputs {
-                add(dependent, for: input)
-            }
+            replaceDependent(.layout(id, field), with: inputs[field] ?? [])
         }
     }
 
