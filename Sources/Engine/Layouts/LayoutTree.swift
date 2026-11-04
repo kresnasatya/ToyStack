@@ -523,20 +523,32 @@ struct LayoutTree {
 
     mutating func setInlineChildrenField(_ children: [LayoutID], of id: LayoutID) {
         let wasUsed: Bool = isUsed(.children, at: id)
-        let changed: Bool = !wasUsed || self.children(of: id) != children
-        let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
-        markUsed(.children, at: id)
-        setChildren(children, of: id)
-        markClean(.children, at: id)
+        let changed: Bool = profiler.measure("layout.inline.children.compare", {
+            !wasUsed || self.children(of: id) != children
+        })
+        let reparented: [LayoutID] = profiler.measure("layout.inline.children.reparent", {
+            children.filter({ node($0).links.parent != id })
+        })
+        profiler.measure("layout.inline.children.write", {
+            markUsed(.children, at: id)
+            setChildren(children, of: id)
+            markClean(.children, at: id)
+        })
         if changed || !reparented.isEmpty {
-            if isUsed(.height, at: id) {
-                dependencies.replaceDependent(
-                    .layout(id, .height),
-                    with: blockHeightInputs(id)
-                )
-            }
-            for child in reparented {
-                reindexDependencies(child)
+            profiler.measure("layout.inline.children.deps", {
+                if isUsed(.height, at: id) {
+                    dependencies.replaceDependent(
+                        .layout(id, .height),
+                        with: blockHeightInputs(id)
+                    )
+                }
+            })
+            if !reparented.isEmpty {
+                profiler.measure("layout.inline.children.reindex", {
+                    for child in reparented {
+                        reindexDependencies(child)
+                    }
+                })
             }
         }
         if changed {
@@ -551,37 +563,51 @@ struct LayoutTree {
         previousChanged: Bool
     ) {
         let wasUsed: Bool = isUsed(.children, at: id)
-        let changed: Bool = !wasUsed || self.children(of: id) != children
-        let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
-        markUsed(.children, at: id)
-        setChildren(children, of: id)
-        markClean(.children, at: id)
+        let changed: Bool = profiler.measure("layout.line.children.compare", {
+            !wasUsed || self.children(of: id) != children
+        })
+        let reparented: [LayoutID] = profiler.measure("layout.line.children.reparent", {
+            children.filter({ node($0).links.parent != id })
+        })
+        profiler.measure("layout.line.children.write", {
+            markUsed(.children, at: id)
+            setChildren(children, of: id)
+            markClean(.children, at: id)
+        })
 
         if changed {
-            let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
-            let inputs: [(LayoutField, [FieldKey])] = [
-                (.ascent, inlineChildren.map({ .layout($0, .ascent) })),
-                (.descent, inlineChildren.map({ .layout($0, .descent) })),
-            ]
-            for (field, fieldInputs) in inputs where isUsed(field, at: id) {
-                dependencies.replaceDependent(.layout(id, field), with: fieldInputs)
-            }
-            dependencies.removeDependent(.layout(id, .children))
+            profiler.measure("layout.line.children.deps", {
+                let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
+                let inputs: [(LayoutField, [FieldKey])] = [
+                    (.ascent, inlineChildren.map({ .layout($0, .ascent) })),
+                    (.descent, inlineChildren.map({ .layout($0, .descent) })),
+                ]
+                for (field, fieldInputs) in inputs where isUsed(field, at: id) {
+                    dependencies.replaceDependent(.layout(id, field), with: fieldInputs)
+                }
+                dependencies.removeDependent(.layout(id, .children))
+            })
         }
 
         if previousChanged {
-            let parent: LayoutID? = parentID(of: id)
-            let previous: LayoutID? = previousID(of: id)
-            var yInputs: [FieldKey] = parent.map({ [.layout($0, .y)] }) ?? []
-            if let previous {
-                yInputs += [.layout(previous, .y), .layout(previous, .height)]
-            }
-            dependencies.replaceDependent(.layout(id, .y), with: yInputs)
+            profiler.measure("layout.line.children.previous", {
+                let parent: LayoutID? = parentID(of: id)
+                let previous: LayoutID? = previousID(of: id)
+                var yInputs: [FieldKey] = parent.map({ [.layout($0, .y)] }) ?? []
+                if let previous {
+                    yInputs += [.layout(previous, .y), .layout(previous, .height)]
+                }
+                dependencies.replaceDependent(.layout(id, .y), with: yInputs)
+            })
         }
 
-        for child in reparented {
-            let fields: [LayoutField] = isText(child) ? [.zoom] : LayoutField.allCases
-            reindexDependencies(child, fields: fields)
+        if !reparented.isEmpty {
+            profiler.measure("layout.line.children.reindex", {
+                for child in reparented {
+                    let fields: [LayoutField] = isText(child) ? [.zoom] : LayoutField.allCases
+                    reindexDependencies(child, fields: fields)
+                }
+            })
         }
         if changed {
             profiler.count("layout.field.set")
