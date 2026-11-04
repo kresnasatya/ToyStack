@@ -58,24 +58,24 @@ extension LayoutTree {
                 data = textData(id)
             }
 
-            if fontChanged || isDirty(.width, at: id) {
+            if fontChanged || isDirty(.width, at: id) || isDirty(.height, at: id)
+                || isDirty(.ascent, at: id) || isDirty(.descent, at: id)
+            {
                 let measuredFont: BrowserFont = font(id)
                 let data: TextData = textData(id)
                 let measured: CGFloat = measuredFont.measure(data.display ?? data.word)
                 var updated: TextData = data
                 updated.metrics.width = measured
                 setKind(.text(updated), at: id)
-                setField(.width, measured + measuredFont.spaceWidth, for: id)
-            }
-
-            if fontChanged || isDirty(.height, at: id) {
-                setField(.height, font(id).linespace, for: id)
-            }
-            if fontChanged || isDirty(.ascent, at: id) {
-                setField(.ascent, font(id).ascent, for: id)
-            }
-            if fontChanged || isDirty(.descent, at: id) {
-                setField(.descent, font(id).descent, for: id)
+                setTextMetrics(
+                    id,
+                    width: measured + measuredFont.spaceWidth,
+                    vertical: (
+                        height: measuredFont.linespace,
+                        ascent: measuredFont.ascent,
+                        descent: measuredFont.descent
+                    )
+                )
             }
         })
     }

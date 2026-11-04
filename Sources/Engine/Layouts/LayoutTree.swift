@@ -504,6 +504,45 @@ struct LayoutTree {
         markClean(.font, at: id)
     }
 
+    mutating func setTextMetrics(
+        _ id: LayoutID,
+        width: CGFloat,
+        vertical: (height: CGFloat, ascent: CGFloat, descent: CGFloat)
+    ) {
+        var node: LayoutNode = self.node(id)
+        let used: UInt16 = node.state.fields.state.usedBits
+        let fields: [LayoutField] = [.width, .height, .ascent, .descent]
+        for field in fields where used & field.mask == 0 {
+            markUsed(field, at: id)
+        }
+        node = self.node(id)
+        let oldWidth: CGFloat = node.state.fields.geometry.size.width
+        let oldHeight: CGFloat = node.state.fields.geometry.size.height
+        let oldAscent: CGFloat = node.state.fields.inlineText.ascent
+        let oldDescent: CGFloat = node.state.fields.inlineText.descent
+
+        node.state.fields.geometry.size.width = width
+        node.state.fields.geometry.size.height = vertical.height
+        node.state.fields.inlineText.ascent = vertical.ascent
+        node.state.fields.inlineText.descent = vertical.descent
+        for field in fields {
+            node.state.fields.markUsed(field)
+            node.state.fields.markClean(field)
+        }
+        nodes[id.raw] = node
+
+        let changes: [(LayoutField, Bool)] = [
+            (.width, used & LayoutField.width.mask == 0 || oldWidth != width),
+            (.height, used & LayoutField.height.mask == 0 || oldHeight != vertical.height),
+            (.ascent, used & LayoutField.ascent.mask == 0 || oldAscent != vertical.ascent),
+            (.descent, used & LayoutField.descent.mask == 0 || oldDescent != vertical.descent),
+        ]
+        for (field, changed) in changes where changed {
+            profiler.count("layout.field.set")
+            markDependents(of: .layout(id, field))
+        }
+    }
+
     mutating func setInlineContent(_ value: UInt64, for id: LayoutID) {
         let wasUsed: Bool = isUsed(.inlineContent, at: id)
         let changed: Bool = !wasUsed || storedInlineContent(id) != value
