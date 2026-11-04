@@ -161,12 +161,10 @@ extension LayoutTree {
                 if let previousFont, isEmbed(child) {
                     nextX += previousFont.spaceWidth
                 }
-                setField(.x, nextX, for: child)
-                if inputs.tag(domID(of: child)) == "sup" {
-                    setField(.y, baseline - maxAscent, for: child)
-                } else {
-                    setField(.y, baseline - ascent(child), for: child)
-                }
+                let childY: CGFloat = inputs.tag(domID(of: child)) == "sup"
+                    ? baseline - maxAscent
+                    : baseline - ascent(child)
+                setPosition(x: nextX, y: childY, for: child)
                 nextX += width(child)
                 previousFont = font(child)
             }

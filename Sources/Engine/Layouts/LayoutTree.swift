@@ -480,6 +480,28 @@ struct LayoutTree {
         markDependents(of: .layout(id, field))
     }
 
+    mutating func setPosition(x: CGFloat, y: CGFloat, for id: LayoutID) {
+        var node: LayoutNode = self.node(id)
+        let used: UInt16 = node.state.fields.state.usedBits
+        let oldX: CGFloat = node.state.fields.geometry.origin.x
+        let oldY: CGFloat = node.state.fields.geometry.origin.y
+        node.state.fields.geometry.origin.x = x
+        node.state.fields.geometry.origin.y = y
+        node.state.fields.markUsed(.x)
+        node.state.fields.markUsed(.y)
+        node.state.fields.markClean(.x)
+        node.state.fields.markClean(.y)
+        nodes[id.raw] = node
+
+        for (field, old, value) in [
+            (LayoutField.x, oldX, x),
+            (.y, oldY, y),
+        ] where used & field.mask == 0 || old != value {
+            profiler.count("layout.field.set")
+            markDependents(of: .layout(id, field))
+        }
+    }
+
     /// Writes a value without counting it as a computed change.
     mutating func setFieldClean(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         writeCGFloat(field, value, for: id)
