@@ -705,19 +705,27 @@ extension LayoutTree {
             parent: id,
             reusableLines: reusable
         )
-        placement.start(in: &self)
-        for (index, item) in items.enumerated() {
-            switch item {
-            case .lineBreak:
-                placement.endLine(in: &self)
-            case .text(let text):
-                placeText(id, text, index: index, into: &placement)
-            case .embed(let element):
-                placeEmbed(id, element, index: index, into: &placement)
+        profiler.measure("layout.inline.place.setup", {
+            placement.start(in: &self)
+        })
+        profiler.measure("layout.inline.place.items", {
+            for (index, item) in items.enumerated() {
+                switch item {
+                case .lineBreak:
+                    placement.endLine(in: &self)
+                case .text(let text):
+                    placeText(id, text, index: index, into: &placement)
+                case .embed(let element):
+                    placeEmbed(id, element, index: index, into: &placement)
+                }
             }
-        }
-        placement.finish(in: &self)
-        setChildrenField(placement.lines, of: id)
+        })
+        profiler.measure("layout.inline.place.finish", {
+            placement.finish(in: &self)
+        })
+        profiler.measure("layout.inline.place.parentChildren", {
+            setInlineChildrenField(placement.lines, of: id)
+        })
         profiler.count("layout.lines.total", by: placement.lines.count)
     }
 
@@ -1373,22 +1381,26 @@ struct InlinePlacement {
 
     mutating func endLine(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        tree.setLineChildrenField(
-            state.children,
-            of: line,
-            previousChanged: previousChanged
-        )
+        profiler.measure("layout.inline.place.lineChildren", {
+            tree.setLineChildrenField(
+                state.children,
+                of: line,
+                previousChanged: previousChanged
+            )
+        })
         state.lines.append(line)
         start(in: &tree)
     }
 
     mutating func finish(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        tree.setLineChildrenField(
-            state.children,
-            of: line,
-            previousChanged: previousChanged
-        )
+        profiler.measure("layout.inline.place.lineChildren", {
+            tree.setLineChildrenField(
+                state.children,
+                of: line,
+                previousChanged: previousChanged
+            )
+        })
         state.lines.append(line)
         state.currentLine = nil
         state.children = []

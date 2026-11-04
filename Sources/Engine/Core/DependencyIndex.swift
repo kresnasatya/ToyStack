@@ -41,11 +41,17 @@ struct DependencyIndex {
         inputsByDependent[dependent, default: []].insert(key)
     }
 
-    mutating func removeDependent(_ dependent: FieldKey) {
+    mutating func removeDependent(
+        _ dependent: FieldKey,
+        skippingRemoved removed: Set<LayoutID>? = nil
+    ) {
         guard let inputs: Set<FieldKey> = inputsByDependent.removeValue(forKey: dependent) else {
             return
         }
         for key in inputs {
+            if let removed, case .layout(let owner, _) = key, removed.contains(owner) {
+                continue
+            }
             dependents[key]?.remove(dependent)
             if dependents[key]?.isEmpty == true {
                 dependents.removeValue(forKey: key)
@@ -81,12 +87,34 @@ struct DependencyIndex {
         }
     }
 
+    mutating func removeInputKey(_ key: FieldKey) {
+        dependents.removeValue(forKey: key)
+    }
+
     mutating func removeLayoutEdges(for id: LayoutID) {
         for field in LayoutField.allCases {
             let key: FieldKey = .layout(id, field)
             removeDependent(key)
             dependents.removeValue(forKey: key)
         }
+    }
+
+    mutating func removeLayoutEdges(for ids: Set<LayoutID>) {
+        guard !ids.isEmpty else { return }
+        profiler.measure("layout.sweep.edges.dependents", {
+            for id in ids {
+                for field in LayoutField.allCases {
+                    removeDependent(.layout(id, field), skippingRemoved: ids)
+                }
+            }
+        })
+        profiler.measure("layout.sweep.edges.keys", {
+            for id in ids {
+                for field in LayoutField.allCases {
+                    dependents.removeValue(forKey: .layout(id, field))
+                }
+            }
+        })
     }
 
     func count(of key: FieldKey) -> Int {

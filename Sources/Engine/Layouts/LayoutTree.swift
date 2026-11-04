@@ -207,12 +207,10 @@ struct LayoutTree {
         }
         var removed: [LayoutID] = []
         collectSubtreeIDs(id, into: &removed)
+        removeDependencyEdges(for: Set(removed))
         removeRecursively(id)
         if let parent {
             reindexDependencies(parent)
-        }
-        for removedID in removed {
-            dependencies.removeLayoutEdges(for: removedID)
         }
     }
 
@@ -235,29 +233,61 @@ struct LayoutTree {
         nodes[id.raw] = nil
     }
 
+    /// Removes dependency edges owned by and pointing at the given nodes.
+    ///
+    /// Must run before the nodes are cleared, because the used-field mask is
+    /// read from each node.
+    mutating func removeDependencyEdges(for ids: Set<LayoutID>) {
+        guard !ids.isEmpty else { return }
+        profiler.measure("layout.sweep.edges.dependents", {
+            for id in ids {
+                guard let node: LayoutNode = nodes[id.raw] else { continue }
+                let mask: UInt16 = node.state.fields.state.usedBits
+                for field in LayoutField.allCases where mask & field.mask != 0 {
+                    dependencies.removeDependent(
+                        .layout(id, field),
+                        skippingRemoved: ids
+                    )
+                }
+            }
+        })
+        profiler.measure("layout.sweep.edges.keys", {
+            for id in ids {
+                guard let node: LayoutNode = nodes[id.raw] else { continue }
+                let mask: UInt16 = node.state.fields.state.usedBits
+                for field in LayoutField.allCases where mask & field.mask != 0 {
+                    dependencies.removeInputKey(.layout(id, field))
+                }
+            }
+        })
+    }
+
     /// Frees nodes that are no longer reachable from the document root.
     /// Returns the dropped IDs, so callers can invalidate caches that may
-    /// still hold them.
     @discardableResult
     mutating func sweepUnreachable() -> Set<LayoutID> {
         var reachable: Set<LayoutID> = []
-        collectReachable(rootID, into: &reachable)
+        profiler.measure("layout.sweep.reachability", {
+            collectReachable(rootID, into: &reachable)
+        })
         var removed: Set<LayoutID> = []
-        for index in nodes.indices {
-            guard let node: LayoutNode = nodes[index] else { continue }
-            let id: LayoutID = LayoutID(raw: index)
-            if reachable.contains(id) { continue }
-            if let primary: LayoutID = primaryByNode[node.dom], primary == id {
-                primaryByNode.removeValue(forKey: node.dom)
+        profiler.measure("layout.sweep.identify", {
+            for index in nodes.indices {
+                guard let node: LayoutNode = nodes[index] else { continue }
+                let id: LayoutID = LayoutID(raw: index)
+                if reachable.contains(id) { continue }
+                if let primary: LayoutID = primaryByNode[node.dom], primary == id {
+                    primaryByNode.removeValue(forKey: node.dom)
+                }
+                removed.insert(id)
             }
-            nodes[index] = nil
-            removed.insert(id)
-        }
-        if !removed.isEmpty {
-            for removedID in removed {
-                dependencies.removeLayoutEdges(for: removedID)
+        })
+        removeDependencyEdges(for: removed)
+        profiler.measure("layout.sweep.nodes", {
+            for id in removed {
+                nodes[id.raw] = nil
             }
-        }
+        })
         return removed
     }
 
@@ -489,6 +519,30 @@ struct LayoutTree {
         writeInlineContent(value, for: id)
         markUsed(.inlineContent, at: id)
         markClean(.inlineContent, at: id)
+    }
+
+    mutating func setInlineChildrenField(_ children: [LayoutID], of id: LayoutID) {
+        let wasUsed: Bool = isUsed(.children, at: id)
+        let changed: Bool = !wasUsed || self.children(of: id) != children
+        let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
+        markUsed(.children, at: id)
+        setChildren(children, of: id)
+        markClean(.children, at: id)
+        if changed || !reparented.isEmpty {
+            if isUsed(.height, at: id) {
+                dependencies.replaceDependent(
+                    .layout(id, .height),
+                    with: blockHeightInputs(id)
+                )
+            }
+            for child in reparented {
+                reindexDependencies(child)
+            }
+        }
+        if changed {
+            profiler.count("layout.field.set")
+            markDependents(of: .layout(id, .children))
+        }
     }
 
     mutating func setLineChildrenField(
