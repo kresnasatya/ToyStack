@@ -28,10 +28,9 @@ final class ContentPresenter: @unchecked Sendable {
     private var lastUsesSublayers: Bool?
     private let graceFrames: Int = 10
     /// Binding a tile image costs 0.3-0.5 ms in the commit, so a burst of
-    /// 12-24 new tiles blows the frame budget. While scrolling, spread them.
+    /// 12-24 new tiles blows the frame budget. Incremental arrivals are spread.
     private static let uploadsPerPresent: Int = 6
     private static let pixelsPerPresent: Int = 400_000
-    private var lastContentOffset: CGFloat?
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: Int, size: CGSize)?
@@ -42,7 +41,6 @@ final class ContentPresenter: @unchecked Sendable {
     private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
     private var lastDeferred: Int = 0
     private var drainScheduled: Bool = false
-    private var draining: Bool = false
 
     init(contentLayer: CALayer, scrollbarLayer: CALayer, measure: MeasureTime) {
         self.contentLayer = contentLayer
@@ -104,9 +102,7 @@ final class ContentPresenter: @unchecked Sendable {
             self.lock.unlock()
             guard !superseded else { return }
             guard let pending = self.lastApplied else { return }
-            self.draining = true
             self.present(pending.frame, viewSize: pending.viewSize)
-            self.draining = false
             self.measure.counter("present", [
                 "coalesced": 0
             ], frame: pending.frame.frameID)
@@ -209,13 +205,10 @@ final class ContentPresenter: @unchecked Sendable {
             current: placements.map(\.key)
         )
         let offset: CGFloat = frame.viewport.contentOffset
-        let scrolling: Bool = lastContentOffset.map({ abs($0 - offset) > 0.5 }) ?? false
-        lastContentOffset = offset
         // A different page (or any wholesale replacement of the layer set) is
-        // not a scroll: bind it in one go instead of showing six tiles until
-        // the next present.
+        // not an incremental arrival: bind it in one go instead of showing six
+        // tiles until the next present.
         let replaced: Bool = diff.kept == 0
-        let throttled: Bool = !replaced && (scrolling || draining)
         let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
         var added = 0
         var unhidden = 0
@@ -272,6 +265,11 @@ final class ContentPresenter: @unchecked Sendable {
             layersByPlacement.removeValue(forKey: key)
             purged += 1
         }
+        // Most of the screen needing new pixels means the page moved as a
+        // whole (first paint, navigation, zoom, reflow); bind that in one go.
+        // A few tiles arriving at the edge is the scroll case: spread it.
+        let overhaul: Bool = replaced || rebinds.count * 2 >= placements.count
+        let throttled: Bool = !overhaul
         if throttled {
             rebinds.sort(by: { $0.distance < $1.distance })
         }
