@@ -20,6 +20,15 @@ struct InlineTextItem {
         self.fontOverride = fontOverride
         self.hasSoftHypen = inlineTextItemHasSoftHypen(word)
     }
+
+    func withFont(_ font: BrowserFont) -> InlineTextItem {
+        return InlineTextItem(
+            run: run.withFont(font),
+            word: word,
+            display: display,
+            fontOverride: fontOverride
+        )
+    }
 }
 
 // U+00AD is `C2 AD` in UTF-8; a byte scan avoids Foundation's general

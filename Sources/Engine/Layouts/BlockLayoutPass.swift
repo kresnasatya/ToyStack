@@ -782,15 +782,28 @@ extension LayoutTree {
     }
 
     mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) {
-        let leaves: [LayoutDOMView] = inlineLeaves(id)
-        var items: [InlineItem] = []
-        for leaf in leaves {
-            items.append(contentsOf: makeItems(id, for: leaf))
-        }
         var data: BlockData = blockData(id)
-        data.content.inlineItems = items
-        if !preservingObjects {
-            data.content.inlineObjects.removeAll(keepingCapacity: true)
+        if preservingObjects, !data.content.inlineItems.isEmpty {
+            let zoom: CGFloat = zoom(id)
+            var items: [InlineItem] = data.content.inlineItems
+            for index in items.indices {
+                guard case .text(let item) = items[index] else { continue }
+                let font: BrowserFont = fontFor(item.run.node.id, zoom: zoom)
+                items[index] = .text(item.withFont(font))
+            }
+            data.content.inlineItems = items
+            profiler.count("layout.inline.items.reused", by: items.count)
+        } else {
+            let leaves: [LayoutDOMView] = inlineLeaves(id)
+            var items: [InlineItem] = []
+            for leaf in leaves {
+                items.append(contentsOf: makeItems(id, for: leaf))
+            }
+            data.content.inlineItems = items
+            if !preservingObjects {
+                data.content.inlineObjects.removeAll(keepingCapacity: true)
+            }
+            profiler.count("layout.inline.items.rebuilt", by: items.count)
         }
         data.content.inlineLinePlan = nil
         setKind(.block(data), at: id)
