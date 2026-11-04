@@ -9,6 +9,7 @@ import Foundation
 final class DOMTree {
     private(set) var nodes: [DOMNode?]
     private(set) var root: NodeID
+    private(set) var revision: UInt64 = 0
     var side: DOMSideTables
     var links: DOMLinks
     weak var layoutBox: LayoutBox? {
@@ -126,6 +127,7 @@ final class DOMTree {
     private func allocate(_ node: DOMNode) -> NodeID {
         let id: NodeID = NodeID(raw: UInt32(nodes.count))
         nodes.append(node)
+        revision += 1
         return id
     }
 
@@ -293,5 +295,6 @@ final class DOMTree {
         guard id.raw < nodes.count, var node: DOMNode = nodes[Int(id.raw)] else { return }
         body(&node)
         nodes[Int(id.raw)] = node
+        revision += 1
     }
 }

@@ -17,6 +17,8 @@ class Frame {
     let links: FrameLinks
 
     var state: FrameState
+    private var styleSnapshotCache: StyleSnapshot?
+    private var styleSnapshotRevision: UInt64 = .max
 
     var tab: BrowserTab? { links.tab }
     var parentFrame: Frame? { tab?.frame(links.parent) }
@@ -37,6 +39,8 @@ class Frame {
         guard dom !== newDOM else { return }
         newDOM.links.tab = tab
         state.document.dom = newDOM
+        styleSnapshotCache = nil
+        styleSnapshotRevision = .max
         state.layout.tree.box = nil
         state.layout.tree.isDirty = true
         state.layout.targets = ScrollTargetState()
@@ -829,7 +833,8 @@ class Frame {
                 scope: scope
             )
             if scope?.isEmpty != true {
-                applyStyle(node: nodes, cascade: cascade, snapshot: scoped.snapshot)
+                let snapshot: StyleSnapshot = scoped.snapshot ?? cachedStyleSnapshot()
+                applyStyle(node: nodes, cascade: cascade, snapshot: snapshot)
             }
             profiler.count("style.applied", by: cascade.appliedNodes.count)
             browser?.measure.stop("BrowserTab.style.apply")
@@ -1910,6 +1915,22 @@ class Frame {
         return flipped
     }
 
+    private func cachedStyleSnapshot() -> StyleSnapshot {
+        if let snapshot: StyleSnapshot = styleSnapshotCache,
+            styleSnapshotRevision == dom.revision
+        {
+            profiler.count("style.snapshot.cacheHit")
+            return snapshot
+        }
+        profiler.count("style.snapshot.cacheMiss")
+        let snapshot: StyleSnapshot = profiler.measure("style.snapshot.build", {
+            StyleSnapshotBuilder.build(root: nodes)
+        })
+        styleSnapshotCache = snapshot
+        styleSnapshotRevision = dom.revision
+        return snapshot
+    }
+
     private func scopedStyleScope(
         _ flipped: Set<String>
     ) -> (scope: StyleScope?, snapshot: StyleSnapshot?) {
@@ -1924,7 +1945,7 @@ class Frame {
 
         var direct: Set<NodeID> = []
         let snapshot: StyleSnapshot = profiler.measure("style.snapshot.scope", {
-            StyleSnapshotBuilder.build(root: nodes)
+            cachedStyleSnapshot()
         })
         profiler.measure("style.scope.walk", {
             for node in treeToList(nodes) {
