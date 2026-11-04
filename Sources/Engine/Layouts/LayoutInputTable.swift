@@ -109,7 +109,7 @@ enum LayoutInputTable {
         case .inlineContent:
             return blockContentInputs(id, in: tree)
         case .children:
-            return blockContentInputs(id, in: tree) + [.layout(id, .inlineContent)]
+            return tree.blockChildrenInputs(id)
         case .height:
             return tree.blockHeightInputs(id)
         case .font, .ascent, .descent:

@@ -107,6 +107,16 @@ extension LayoutTree {
         return leaves
     }
 
+    func blockChildrenInputs(_ id: LayoutID) -> [FieldKey] {
+        guard layoutMode(id) == "block" else { return [] }
+        var inputs: [FieldKey] = []
+        for child in domView(id).children {
+            inputs.append(.style(child.id, .display))
+            inputs.append(.style(child.id, .position))
+        }
+        return inputs
+    }
+
     // MARK: - Line plan
 
     mutating private func inlineTextLinePlan(_ id: LayoutID) -> [[Int]]? {

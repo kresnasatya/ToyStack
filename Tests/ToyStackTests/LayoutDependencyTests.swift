@@ -99,7 +99,7 @@ struct LayoutDependencyTests {
         let childInputs: Set<FieldKey> = document.dependencies.fieldKeys(
             for: .layout(block, .children)
         )
-        #expect(childInputs.contains(.layout(block, .inlineContent)))
+        #expect(!childInputs.contains(.layout(block, .inlineContent)))
 
         let heightInputs: Set<FieldKey> = document.dependencies.fieldKeys(
             for: .layout(block, .height)
