@@ -90,7 +90,7 @@ final class StyleFields {
     /// declaration cache is available and the full cascade must run.
     func reapplyInherited(parent: ComputedStyle?) -> Bool? {
         guard canReinheritText else { return nil }
-        let old: ComputedStyle = storage.computed
+        let oldText: TextStyle = storage.computed.text
         let newText: TextStyle
         if inheritedText.isEmpty {
             newText = ComputedStyle.inheriting(from: parent).text
@@ -100,11 +100,9 @@ final class StyleFields {
                 ComputedStyleParser.parse(inheritedText, parent: parent)
             newText = parsed.style.text
         }
-        var style: ComputedStyle = old
-        style.text = newText
         var changedCount: Int = 0
         for property in StyleProperty.inherited
-        where !old.matches(style, for: property) {
+        where !oldText.matches(newText, for: property) {
             changedCount += 1
             layoutChanges.insert(property)
             invalidation.dirtyKeys.remove(property)
@@ -112,7 +110,7 @@ final class StyleFields {
         }
         guard changedCount > 0 else { return false }
 
-        storage.computed = style
+        storage.computed.text = newText
         invalidation.needsRestyle = false
         revision += 1
         profiler.count("style.fields.changed", by: changedCount)

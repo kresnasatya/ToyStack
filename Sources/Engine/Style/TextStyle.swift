@@ -16,6 +16,31 @@ struct TextStyle: Equatable {
     )
 }
 
+// MARK: - Property comparison
+
+extension TextStyle {
+    func matches(_ other: TextStyle, for property: StyleProperty) -> Bool {
+        switch property {
+        case .color:
+            return color == other.color
+        case .fontFamily:
+            return font.family == other.font.family
+        case .fontSize:
+            return font.size == other.font.size
+        case .fontStyle:
+            return font.style == other.font.style
+        case .fontWeight:
+            return font.weight == other.font.weight
+        case .whiteSpace:
+            return whiteSpace == other.whiteSpace
+        case .direction:
+            return direction == other.direction
+        default:
+            return true
+        }
+    }
+}
+
 // MARK: - Font
 
 extension TextStyle {
