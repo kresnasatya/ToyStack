@@ -145,33 +145,33 @@ extension LayoutTree {
                 return
             }
 
-            let maxAscent: CGFloat = inlineChildren.map({ ascent($0) }).max() ?? 0
+            var maxAscent: CGFloat = 0
+            var maxDescent: CGFloat = 0
+            for child in inlineChildren {
+                maxAscent = max(maxAscent, ascent(child))
+                maxDescent = max(maxDescent, descent(child))
+            }
             setField(.ascent, maxAscent, for: id)
-            let maxDescent: CGFloat = inlineChildren.map({ descent($0) }).max() ?? 0
             setField(.descent, maxDescent, for: id)
 
             var nextX: CGFloat = x(id)
             var previousFont: BrowserFont? = nil
+            let baseline: CGFloat = y(id) + ascent(id)
             for child in inlineChildren {
                 if let previousFont, isEmbed(child) {
                     nextX += previousFont.spaceWidth
                 }
                 setField(.x, nextX, for: child)
-                nextX += width(child)
-                previousFont = font(child)
-            }
-
-            let lineY: CGFloat = y(id)
-            let baseline: CGFloat = lineY + ascent(id)
-            for child in inlineChildren {
                 if inputs.tag(domID(of: child)) == "sup" {
                     setField(.y, baseline - maxAscent, for: child)
                 } else {
                     setField(.y, baseline - ascent(child), for: child)
                 }
+                nextX += width(child)
+                previousFont = font(child)
             }
 
-            for child in children where !childrenIDs(of: child).isEmpty {
+            for child in children where !isText(child) && !childrenIDs(of: child).isEmpty {
                 layout(child)
             }
 
