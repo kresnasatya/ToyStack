@@ -3,9 +3,11 @@ import CoreGraphics
 // MARK: - DocumentLayoutPass
 
 extension LayoutTree {
-    func documentLayoutNeeded(_ id: LayoutID) -> Bool {
+    func documentLayoutNeeded(_ id: LayoutID, counting: Bool = true) -> Bool {
         if hasDirtyDescendants(at: id) {
-            profiler.count("layout.dirtyDescendants")
+            if counting {
+                profiler.count("layout.dirtyDescendants")
+            }
             return true
         }
         if isDirty(.zoom, at: id)

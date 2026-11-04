@@ -133,8 +133,8 @@ struct LayoutTree {
         markField(.zoom, at: rootID)
     }
 
-    func documentNeedsLayout() -> Bool {
-        return documentLayoutNeeded(rootID)
+    func documentNeedsLayout(counting: Bool = true) -> Bool {
+        return documentLayoutNeeded(rootID, counting: counting)
     }
 
     var liveIDs: [LayoutID] {

@@ -783,6 +783,7 @@ class Frame {
         }
         let viewportStyle: Bool = state.document.sheets.pending.byViewport
         let reusableStyle: Bool = viewportStyle
+        var layoutChanged: Bool = false
         state.document.sheets.pending.byViewport = false
         state.document.sheets.pending.byOther = false
         let stylesDirty: Bool = nodes.style.isDirty || nodes.style.hasDirtyDescendant
@@ -847,6 +848,9 @@ class Frame {
                 if Self.paintStyleChanged(old: old, new: node.style.computed) {
                     paintedChanged = true
                 }
+                if node.style.hasLayoutChanges {
+                    layoutChanged = true
+                }
                 // Scroll targets are collected by layout class and computed overflow.
                 // A style-only change to either changes the target set, not just rects.
                 if old.layout.display != node.style.computed.layout.display
@@ -865,6 +869,7 @@ class Frame {
             }
             if paintedChanged {
                 state.display.paint.epoch += 1
+                state.display.paint.isNeeded = true
             }
             browser?.measure.stop("BrowserTab.style.diff")
 
@@ -906,8 +911,15 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.visited")
 
             loadBackgroundImages(cascade.appliedNodes)
+        }
 
-            markDocumentDirty()
+        if state.layout.tree.isDirty && !layoutChanged && !viewportStyle
+            && !state.layout.tree.forced,
+            state.layout.tree.box?.tree.documentNeedsLayout(counting: false) == false
+        {
+            // The pass was scheduled by a style change that only touches paint.
+            state.layout.tree.isDirty = false
+            state.layout.tree.forced = false
         }
 
         if state.layout.tree.isDirty {
@@ -957,6 +969,7 @@ class Frame {
                 state.layout.targets.needsRebuild = true
             }
             state.layout.tree.isDirty = false
+            state.layout.tree.forced = false
             #if DEBUG
             if state.runtime.schedule.debugDumpDependencies {
                 dumpDependencies(box.tree, box.tree.rootID)
@@ -1606,6 +1619,9 @@ class Frame {
             state.runtime.interaction.needsFocusScroll = true
             _ = js?.dispatchEvent(type: "focus", el: ref)
         }
+        // Focus is a layout input (caret and text selection geometry), so the
+        // pass cannot be skipped even when no style property moves.
+        setNeedsLayout()
     }
 
     func click(x: CGFloat, y: CGFloat) {
@@ -1757,6 +1773,8 @@ class Frame {
             noteStyleInvalidation("style.invalidate.other")
             state.document.sheets.pending.byOther = true
         }
+        // Schedules the pass; whether it becomes a document layout is decided
+        // after styles are applied, from the changed properties.
         markDocumentDirty()
         state.runtime.schedule.needsRender = true
         parentFrame?.setNeedsLayout()
@@ -1844,6 +1862,7 @@ class Frame {
         // mark the fields that read them. This flag only schedules a render
         // pass; dirtying the root here would turn every clean render into a
         // document pass and make a skipped block count as visited.
+        state.layout.tree.forced = true
         markDocumentDirty()
         state.runtime.schedule.needsRender = true
         parentFrame?.setNeedsLayout()

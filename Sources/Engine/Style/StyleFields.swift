@@ -23,6 +23,16 @@ final class StyleFields {
         return changes
     }
 
+    /// True when a queued change can move geometry, not just pixels.
+    ///
+    /// Paint-only properties (color, opacity, transform, z-index, …) still land
+    /// in `layoutChanges` so a later layout sees them, but they must not be the
+    /// reason a layout runs: a hover that only recolors text would otherwise
+    /// pay a document pass.
+    var hasLayoutChanges: Bool {
+        return layoutChanges.contains(where: { $0.affectsLayout })
+    }
+
     func unknownValue(_ key: String) -> String? {
         return storage.unknown[key]
     }
