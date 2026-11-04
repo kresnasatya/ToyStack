@@ -6,6 +6,12 @@ import Foundation
 /// declares an edge: `DependencyIndex.rebuild(from:)` reconstructs the reverse
 /// index from it alone.
 enum LayoutInputTable {
+    /// Style changes that can alter which fields are inputs, not just their
+    /// values. Only these need the dependency table reindexed.
+    static let structuralStyleProperties: Set<StyleProperty> = [
+        .display, .position, .direction, .whiteSpace, .aspectRatio, .maxWidth,
+    ]
+
     static func inputs(
         for id: LayoutID,
         field: LayoutField,

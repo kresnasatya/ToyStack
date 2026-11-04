@@ -303,32 +303,43 @@ struct LayoutTree {
 
     mutating func consumeStyleChanges() {
         var changed: [NodeID] = []
-        for index in inputs.nodes.indices where inputs.nodes[index] != nil {
-            let node: NodeID = NodeID(raw: UInt32(index))
-            if !inputs.styleChanges(node).isEmpty {
-                changed.append(node)
-            }
-        }
-
-        var affected: Set<LayoutID> = []
-        for node in changed {
-            for property in inputs.styleChanges(node) {
-                for dependent in dependencies.fields(for: .style(node, property)) {
-                    guard case .layout(let id, _) = dependent else { continue }
-                    affected.insert(id)
+        profiler.measure("layout.styleChanges.scan", {
+            for index in inputs.nodes.indices where inputs.nodes[index] != nil {
+                let node: NodeID = NodeID(raw: UInt32(index))
+                if !inputs.styleChanges(node).isEmpty {
+                    changed.append(node)
                 }
             }
-        }
+        })
+        profiler.count("layout.styleChanges.node.count", by: changed.count)
 
-        for id in affected {
-            reindexDependencies(id)
-        }
-
-        for node in changed {
-            for property in inputs.styleChanges(node) {
-                markDependents(of: .style(node, property))
+        var affected: Set<LayoutID> = []
+        profiler.measure("layout.styleChanges.affected", {
+            for node in changed {
+                for property in inputs.styleChanges(node)
+                where LayoutInputTable.structuralStyleProperties.contains(property) {
+                    for dependent in dependencies.fields(for: .style(node, property)) {
+                        guard case .layout(let id, _) = dependent else { continue }
+                        affected.insert(id)
+                    }
+                }
             }
-        }
+        })
+        profiler.count("layout.styleChanges.affected.count", by: affected.count)
+
+        profiler.measure("layout.styleChanges.reindex", {
+            for id in affected {
+                reindexDependencies(id)
+            }
+        })
+
+        profiler.measure("layout.styleChanges.mark", {
+            for node in changed {
+                for property in inputs.styleChanges(node) {
+                    markDependents(of: .style(node, property))
+                }
+            }
+        })
     }
 
     /// Marks the layout fields that read one DOM node's changed style properties.

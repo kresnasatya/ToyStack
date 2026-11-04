@@ -750,23 +750,21 @@ extension LayoutTree {
         .fontSize, .fontFamily, .fontWeight, .fontStyle,
     ]
 
-    private static let inlineStructuralProperties: Set<StyleProperty> = [
-        .display, .position, .direction, .whiteSpace, .aspectRatio, .maxWidth,
-    ]
-
     private func canRefreshFontsOnly(_ id: LayoutID) -> Bool {
         guard !isDirty(.children, at: id),
             blockData(id).changes.childChanges.isEmpty
         else { return false }
         if inputs.styleChanges(domID(of: id)).contains(where: {
-            Self.inlineStructuralProperties.contains($0)
+            LayoutInputTable.structuralStyleProperties.contains($0)
         }) {
             return false
         }
         for leaf in inlineLeaves(id) {
             let owner: LayoutDOMView = leaf.inheritedStyleOwner
             let changes: Set<StyleProperty> = inputs.styleChanges(owner.id)
-            if changes.contains(where: { Self.inlineStructuralProperties.contains($0) }) {
+            if changes.contains(where: {
+                LayoutInputTable.structuralStyleProperties.contains($0)
+            }) {
                 return false
             }
             if leaf.text != nil, isInsideAbbr(leaf.ref) {
