@@ -1948,18 +1948,22 @@ class Frame {
             cachedStyleSnapshot()
         })
         profiler.measure("style.scope.walk", {
-            for node in treeToList(nodes) {
-                guard node.element != nil,
-                    let index: Int = snapshot.index(of: node.id)
-                else { continue }
-                for rule in rules {
-                    if rule.selector.matches(snapshot, index) {
-                        StyleInvalidation.markNode(node)
-                        direct.insert(node.id)
-                        break
+            @MainActor func walk(_ index: Int) {
+                guard let node: StyleNode = snapshot.nodes[index] else { return }
+                if node.content.tag != nil {
+                    for rule in rules {
+                        if rule.selector.matches(snapshot, index) {
+                            StyleInvalidation.markNode(dom.ref(node.identity.id))
+                            direct.insert(node.identity.id)
+                            break
+                        }
                     }
                 }
+                for child in node.identity.children {
+                    walk(child)
+                }
             }
+            walk(snapshot.root)
         })
         return (StyleScope(direct: direct), snapshot)
     }
