@@ -91,10 +91,17 @@ final class StyleFields {
     func reapplyInherited(parent: ComputedStyle?) -> Set<StyleProperty>? {
         guard canReinheritText else { return nil }
         let old: ComputedStyle = storage.computed
-        let parsed: (style: ComputedStyle, unknown: [String: String]) =
-            ComputedStyleParser.parse(inheritedText, parent: parent)
+        let newText: TextStyle
+        if inheritedText.isEmpty {
+            newText = ComputedStyle.inheriting(from: parent).text
+            profiler.count("style.reapplyInherited.empty")
+        } else {
+            let parsed: (style: ComputedStyle, unknown: [String: String]) =
+                ComputedStyleParser.parse(inheritedText, parent: parent)
+            newText = parsed.style.text
+        }
         var style: ComputedStyle = old
-        style.text = parsed.style.text
+        style.text = newText
         let changed: Set<StyleProperty> = style.changed(from: old)
         guard !changed.isEmpty else { return [] }
 
