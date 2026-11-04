@@ -34,8 +34,12 @@ final class StyleCascade {
     }
 
     func record(_ node: DOMRef) {
+        record(node, old: node.style.computed)
+    }
+
+    func record(_ node: DOMRef, old: ComputedStyle) {
         appliedNodes.append(node)
-        oldStyles[node.id] = node.style.computed
+        oldStyles[node.id] = old
     }
 
     func oldStyle(for node: DOMRef) -> ComputedStyle? {

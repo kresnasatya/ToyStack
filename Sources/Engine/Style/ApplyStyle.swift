@@ -28,8 +28,31 @@ private func applyStyle(
     let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
     let applies: Bool = force || direct || node.style.isDirty
     if applies {
-        cascade.record(node)
-        applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+        if force {
+            profiler.count("style.apply.force")
+        } else if direct {
+            profiler.count("style.apply.direct")
+        } else {
+            profiler.count("style.apply.dirtyNode")
+        }
+        let forceOnly: Bool = force && !direct && !node.style.isDirty
+        if forceOnly {
+            let old: ComputedStyle = node.style.computed
+            if let changed: Set<StyleProperty> = node.style.reapplyInherited(
+                parent: node.parent?.style.computed
+            ) {
+                profiler.count("style.apply.inheritedOnly")
+                if !changed.isEmpty {
+                    cascade.record(node, old: old)
+                }
+            } else {
+                cascade.record(node)
+                applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+            }
+        } else {
+            cascade.record(node)
+            applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+        }
     }
 
     let pushedKeys: [SelectorKey]? = node.element.map({ _ in
@@ -46,6 +69,9 @@ private func applyStyle(
         applyStyle(node: child, cascade: cascade, snapshot: snapshot, force: inheritsChange)
     }
 }
+
+@MainActor
+private let inheritedTextKeys: Set<String> = Set(StyleProperty.inherited.map(\.cssName))
 
 @MainActor
 private func applyNodeStyle(
@@ -122,12 +148,20 @@ private func applyNodeStyle(
             }
         }
 
+        let textDeclarations: [String: String] = newStyle.filter({
+            inheritedTextKeys.contains($0.key)
+        })
+
         if let fontSize = newStyle["font-size"], fontSize.hasSuffix("%") {
             let percentage: Double = Double(fontSize.dropLast()) ?? 100.0
             let parentPx: CGFloat = node.parent?.style.computed.text.font.size ?? 16
             newStyle["font-size"] = "\(percentage / 100.0 * Double(parentPx))px"
         }
 
-        node.style.apply(newStyle, parent: node.parent?.style.computed)
+        node.style.apply(
+            newStyle,
+            parent: node.parent?.style.computed,
+            textDeclarations: textDeclarations
+        )
     })
 }

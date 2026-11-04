@@ -6,6 +6,8 @@ final class StyleFields {
     private(set) var revision: UInt64 = 0
     private var invalidation: StyleInvalidationState = StyleInvalidationState()
     private var layoutChanges: Set<StyleProperty> = []
+    private var inheritedText: [String: String] = [:]
+    private var canReinheritText: Bool = false
 
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
@@ -43,6 +45,22 @@ final class StyleFields {
     }
 
     func apply(_ newValues: [String: String], parent: ComputedStyle? = nil) {
+        applyValues(newValues, parent: parent, textDeclarations: nil)
+    }
+
+    func apply(
+        _ newValues: [String: String],
+        parent: ComputedStyle?,
+        textDeclarations: [String: String]
+    ) {
+        applyValues(newValues, parent: parent, textDeclarations: textDeclarations)
+    }
+
+    private func applyValues(
+        _ newValues: [String: String],
+        parent: ComputedStyle?,
+        textDeclarations: [String: String]?
+    ) {
         let old: ComputedStyle = storage.computed
         let oldUnknown: [String: String] = storage.unknown
         let parsed: (style: ComputedStyle, unknown: [String: String]) =
@@ -51,6 +69,8 @@ final class StyleFields {
 
         storage.computed = parsed.style
         storage.unknown = parsed.unknown
+        inheritedText = textDeclarations ?? [:]
+        canReinheritText = textDeclarations != nil
 
         invalidation.dirtyKeys.removeAll()
         invalidation.needsRestyle = false
@@ -62,9 +82,35 @@ final class StyleFields {
         profiler.count("style.fields.changed", by: changed.count)
     }
 
+    /// Reapplies only the inherited text properties from the parent.
+    ///
+    /// A force-only node did not match a new rule; its own declarations are
+    /// unchanged and only inherited text can move. Returns `nil` when no
+    /// declaration cache is available and the full cascade must run.
+    func reapplyInherited(parent: ComputedStyle?) -> Set<StyleProperty>? {
+        guard canReinheritText else { return nil }
+        let old: ComputedStyle = storage.computed
+        let parsed: (style: ComputedStyle, unknown: [String: String]) =
+            ComputedStyleParser.parse(inheritedText, parent: parent)
+        var style: ComputedStyle = old
+        style.text = parsed.style.text
+        let changed: Set<StyleProperty> = style.changed(from: old)
+        guard !changed.isEmpty else { return [] }
+
+        storage.computed = style
+        invalidation.dirtyKeys.subtract(changed)
+        invalidation.needsRestyle = false
+        revision += 1
+        layoutChanges.formUnion(changed)
+        profiler.count("style.fields.changed", by: changed.count)
+        profiler.count("style.apply.inherited", by: 1)
+        return changed
+    }
+
     func set(_ value: AnimatedValue, for property: StyleProperty) {
         guard storage.computed.set(value, for: property) else { return }
         invalidation.dirtyKeys.remove(property)
+        canReinheritText = false
         revision += 1
         layoutChanges.insert(property)
     }
@@ -74,6 +120,7 @@ final class StyleFields {
         body(&storage.computed)
         let changed: Set<StyleProperty> = storage.computed.changed(from: old)
         guard !changed.isEmpty else { return }
+        canReinheritText = false
         invalidation.dirtyKeys.subtract(changed)
         revision += 1
         layoutChanges.formUnion(changed)
