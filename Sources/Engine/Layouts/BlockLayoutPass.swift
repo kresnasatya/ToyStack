@@ -716,11 +716,13 @@ extension LayoutTree {
     // MARK: - Inline items
 
     mutating private func placeInlineItems(_ id: LayoutID) {
-        let items: [InlineItem] = blockData(id).content.inlineItems
+        let data: BlockData = blockData(id)
+        let items: [InlineItem] = data.content.inlineItems
         let reusable: [LayoutID] = childrenIDs(of: id).filter({ isLine($0) })
         var placement: InlinePlacement = InlinePlacement(
             parent: id,
-            reusableLines: reusable
+            reusableLines: reusable,
+            objects: data.content.inlineObjects
         )
         profiler.measure("layout.inline.place.setup", {
             placement.start(in: &self)
@@ -740,6 +742,11 @@ extension LayoutTree {
         profiler.measure("layout.inline.place.finish", {
             placement.finish(in: &self)
         })
+        if placement.objectsChanged {
+            var updated: BlockData = blockData(id)
+            updated.content.inlineObjects = placement.objects
+            setKind(.block(updated), at: id)
+        }
         profiler.measure("layout.inline.place.parentChildren", {
             setInlineChildrenField(placement.lines, of: id)
         })
@@ -981,7 +988,8 @@ extension LayoutTree {
         let previous: LayoutID? = placement.children.last
         let text: LayoutID
         if let index,
-            let cached: LayoutID = cachedText(id, at: index, node: item.run.node, word: item.word)
+            let object: LayoutID = placement.object(at: index),
+            let cached: LayoutID = cachedText(object, node: item.run.node, word: item.word)
         {
             text = cached
             profiler.count("layout.inline.text.cached")
@@ -1001,9 +1009,7 @@ extension LayoutTree {
             )
             setFontAndPrevious(font, previous: previous, for: text)
             if let index {
-                var data: BlockData = blockData(id)
-                data.content.inlineObjects[index] = text
-                setKind(.block(data), at: id)
+                placement.setObject(text, at: index)
             }
         }
         placement.append(text)
@@ -1035,14 +1041,14 @@ extension LayoutTree {
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let input: LayoutID
-        if let cached: LayoutID = cachedEmbed(id, .input, at: index, node: node) {
+        if let object: LayoutID = placement.object(at: index),
+            let cached: LayoutID = cachedEmbed(object, .input, node: node)
+        {
             input = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
             input = makeEmbed(dom: node.ref.id, data: .input, parent: lineID, previous: previous)
-            var data: BlockData = blockData(id)
-            data.content.inlineObjects[index] = input
-            setKind(.block(data), at: id)
+            placement.setObject(input, at: index)
         }
         placement.append(input)
 
@@ -1062,7 +1068,9 @@ extension LayoutTree {
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let button: LayoutID
-        if let cached: LayoutID = cachedEmbed(id, .button, at: index, node: node) {
+        if let object: LayoutID = placement.object(at: index),
+            let cached: LayoutID = cachedEmbed(object, .button, node: node)
+        {
             button = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1072,9 +1080,7 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = blockData(id)
-            data.content.inlineObjects[index] = button
-            setKind(.block(data), at: id)
+            placement.setObject(button, at: index)
         }
         placement.append(button)
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
@@ -1094,7 +1100,9 @@ extension LayoutTree {
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let image: LayoutID
-        if let cached: LayoutID = cachedEmbed(id, .image, at: index, node: node) {
+        if let object: LayoutID = placement.object(at: index),
+            let cached: LayoutID = cachedEmbed(object, .image, node: node)
+        {
             image = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1104,9 +1112,7 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = blockData(id)
-            data.content.inlineObjects[index] = image
-            setKind(.block(data), at: id)
+            placement.setObject(image, at: index)
         }
         placement.append(image)
 
@@ -1127,7 +1133,9 @@ extension LayoutTree {
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let iframe: LayoutID
-        if let cached: LayoutID = cachedEmbed(id, .iframe, at: index, node: node) {
+        if let object: LayoutID = placement.object(at: index),
+            let cached: LayoutID = cachedEmbed(object, .iframe, node: node)
+        {
             iframe = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1137,9 +1145,7 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = blockData(id)
-            data.content.inlineObjects[index] = iframe
-            setKind(.block(data), at: id)
+            placement.setObject(iframe, at: index)
         }
         placement.append(iframe)
 
@@ -1160,7 +1166,9 @@ extension LayoutTree {
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let canvas: LayoutID
-        if let cached: LayoutID = cachedEmbed(id, .canvas, at: index, node: node) {
+        if let object: LayoutID = placement.object(at: index),
+            let cached: LayoutID = cachedEmbed(object, .canvas, node: node)
+        {
             canvas = cached
             attachEmbed(cached, to: lineID, previous: previous)
         } else {
@@ -1170,9 +1178,7 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            var data: BlockData = blockData(id)
-            data.content.inlineObjects[index] = canvas
-            setKind(.block(data), at: id)
+            placement.setObject(canvas, at: index)
         }
         placement.append(canvas)
 
@@ -1226,11 +1232,9 @@ extension LayoutTree {
 
     private func cachedText(
         _ id: LayoutID,
-        at index: Int,
         node: LayoutDOMView,
         word: String
     ) -> LayoutID? {
-        guard let id: LayoutID = blockData(id).content.inlineObjects[index] else { return nil }
         guard contains(id) else { return nil }
         guard isText(id),
             domID(of: id) == node.id,
@@ -1242,10 +1246,8 @@ extension LayoutTree {
     private func cachedEmbed(
         _ id: LayoutID,
         _ kind: EmbedMatch,
-        at index: Int,
         node: LayoutElementView
     ) -> LayoutID? {
-        guard let id: LayoutID = blockData(id).content.inlineObjects[index] else { return nil }
         guard contains(id) else { return nil }
         guard isEmbed(id),
             domID(of: id) == node.ref.id,
@@ -1397,6 +1399,8 @@ private struct BlockChildBuild {
 
 private struct InlinePlacementContext {
     let parent: LayoutID
+    var objects: [Int: LayoutID]
+    var objectsChanged: Bool = false
 }
 
 private struct InlinePlacementState {
@@ -1423,19 +1427,30 @@ private struct LinePool {
 }
 
 struct InlinePlacement {
-    private let context: InlinePlacementContext
+    private var context: InlinePlacementContext
     private var state: InlinePlacementState = InlinePlacementState()
     private var pool: LinePool
     private var previousChanged: Bool = false
 
-    init(parent: LayoutID, reusableLines: [LayoutID]) {
-        self.context = InlinePlacementContext(parent: parent)
+    init(parent: LayoutID, reusableLines: [LayoutID], objects: [Int: LayoutID]) {
+        self.context = InlinePlacementContext(parent: parent, objects: objects)
         self.pool = LinePool(reusableLines)
     }
 
     var lines: [LayoutID] { state.lines }
     var currentLine: LayoutID? { state.currentLine }
     var children: [LayoutID] { state.children }
+    var objects: [Int: LayoutID] { context.objects }
+    var objectsChanged: Bool { context.objectsChanged }
+
+    func object(at index: Int) -> LayoutID? {
+        return context.objects[index]
+    }
+
+    mutating func setObject(_ id: LayoutID, at index: Int) {
+        context.objects[index] = id
+        context.objectsChanged = true
+    }
     var cursorX: CGFloat {
         get { state.cursorX }
         set { state.cursorX = newValue }
