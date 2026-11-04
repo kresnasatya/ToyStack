@@ -60,10 +60,28 @@ struct DependencyIndex {
     }
 
     mutating func replaceDependent(_ dependent: FieldKey, with inputs: [FieldKey]) {
-        removeDependent(dependent)
-        for input in inputs {
-            add(dependent, for: input)
+        let next: Set<FieldKey> = Set(inputs)
+        guard let current: Set<FieldKey> = inputsByDependent[dependent] else {
+            inputsByDependent[dependent] = next
+            for input in next {
+                dependents[input, default: []].insert(dependent)
+            }
+            return
         }
+        if current == next {
+            profiler.count("layout.dependencies.replaceSkipped")
+            return
+        }
+        for input in current.subtracting(next) {
+            dependents[input]?.remove(dependent)
+            if dependents[input]?.isEmpty == true {
+                dependents.removeValue(forKey: input)
+            }
+        }
+        for input in next.subtracting(current) {
+            dependents[input, default: []].insert(dependent)
+        }
+        inputsByDependent[dependent] = next
     }
 
     mutating func reindex(_ id: LayoutID, inputs: [LayoutField: [FieldKey]]) {
