@@ -1919,19 +1919,23 @@ class Frame {
         guard rules.count <= 64 else { return nil } // NOTE: why 64?
 
         var direct: Set<NodeID> = []
-        let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(root: nodes)
-        for node in treeToList(nodes) {
-            guard node.element != nil,
-                let index: Int = snapshot.index(of: node.id)
-            else { continue }
-            for rule in rules {
-                if rule.selector.matches(snapshot, index) {
-                    StyleInvalidation.markNode(node)
-                    direct.insert(node.id)
-                    break
+        let snapshot: StyleSnapshot = profiler.measure("style.snapshot.scope", {
+            StyleSnapshotBuilder.build(root: nodes)
+        })
+        profiler.measure("style.scope.walk", {
+            for node in treeToList(nodes) {
+                guard node.element != nil,
+                    let index: Int = snapshot.index(of: node.id)
+                else { continue }
+                for rule in rules {
+                    if rule.selector.matches(snapshot, index) {
+                        StyleInvalidation.markNode(node)
+                        direct.insert(node.id)
+                        break
+                    }
                 }
             }
-        }
+        })
         return StyleScope(direct: direct)
     }
 

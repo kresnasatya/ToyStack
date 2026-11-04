@@ -3,8 +3,12 @@ import CoreGraphics
 // MARK: - applyStyle
 @MainActor
 func applyStyle(node: DOMRef, cascade: StyleCascade) {
-    let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(root: node)
-    applyStyle(node: node, cascade: cascade, snapshot: snapshot, force: false)
+    let snapshot: StyleSnapshot = profiler.measure("style.snapshot.apply", {
+        StyleSnapshotBuilder.build(root: node)
+    })
+    profiler.measure("style.traverse", {
+        applyStyle(node: node, cascade: cascade, snapshot: snapshot, force: false)
+    })
 }
 
 @MainActor
@@ -38,20 +42,25 @@ private func applyStyle(
         let forceOnly: Bool = force && !direct && !node.style.isDirty
         if forceOnly {
             let old: ComputedStyle = node.style.computed
-            if let changed: Set<StyleProperty> = node.style.reapplyInherited(
-                parent: node.parent?.style.computed
-            ) {
+            let changed: Set<StyleProperty>? = profiler.measure("style.reapplyInherited", {
+                node.style.reapplyInherited(parent: node.parent?.style.computed)
+            })
+            if let changed {
                 profiler.count("style.apply.inheritedOnly")
                 if !changed.isEmpty {
                     cascade.record(node, old: old)
                 }
             } else {
                 cascade.record(node)
-                applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+                profiler.measure("style.apply.node", {
+                    applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+                })
             }
         } else {
             cascade.record(node)
-            applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+            profiler.measure("style.apply.node", {
+                applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
+            })
         }
     }
 
@@ -64,7 +73,11 @@ private func applyStyle(
         }
     }
 
-    let inheritsChange: Bool = applies ? cascade.inheritedChanged(node) : false
+    let inheritsChange: Bool = applies
+        ? profiler.measure("style.inheritedChanged", {
+            cascade.inheritedChanged(node)
+        })
+        : false
     for child in node.children {
         applyStyle(node: child, cascade: cascade, snapshot: snapshot, force: inheritsChange)
     }
