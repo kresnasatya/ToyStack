@@ -521,11 +521,19 @@ struct LayoutTree {
     }
 
     mutating func setFont(_ font: BrowserFont, for id: LayoutID) {
-        let wasUsed: Bool = isUsed(.font, at: id)
-        let changed: Bool = !wasUsed || !CFEqual(storedFont(id).ctFont, font.ctFont)
-        writeFont(font, for: id)
-        markUsed(.font, at: id)
-        markClean(.font, at: id)
+        var node: LayoutNode = self.node(id)
+        let wasUsed: Bool = node.state.fields.isUsed(.font)
+        let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
+        node.state.fields.inlineText.font = font
+        node.state.fields.markUsed(.font)
+        node.state.fields.markClean(.font)
+        nodes[id.raw] = node
+        if !wasUsed {
+            let dependent: FieldKey = .layout(id, .font)
+            for input in LayoutInputTable.inputs(for: id, field: .font, in: self) {
+                dependencies.add(dependent, for: input)
+            }
+        }
         guard changed else { return }
         profiler.count("layout.field.set")
         markDependents(of: .layout(id, .font))
