@@ -72,13 +72,13 @@ struct DependencyIndex {
             profiler.count("layout.dependencies.replaceSkipped")
             return
         }
-        for input in current.subtracting(next) {
+        for input in current where !next.contains(input) {
             dependents[input]?.remove(dependent)
             if dependents[input]?.isEmpty == true {
                 dependents.removeValue(forKey: input)
             }
         }
-        for input in next.subtracting(current) {
+        for input in next where !current.contains(input) {
             dependents[input, default: []].insert(dependent)
         }
         inputsByDependent[dependent] = next

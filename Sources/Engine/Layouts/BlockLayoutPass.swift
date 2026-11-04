@@ -985,8 +985,7 @@ extension LayoutTree {
         {
             text = cached
             profiler.count("layout.inline.text.cached")
-            setFont(font, for: text)
-            attachText(cached, to: lineID, previous: previous)
+            setFontAndPrevious(font, previous: previous, for: text)
         } else {
             profiler.count("layout.inline.text.new")
             text = makeText(
@@ -1000,7 +999,7 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            setFont(font, for: text)
+            setFontAndPrevious(font, previous: previous, for: text)
             if let index {
                 var data: BlockData = blockData(id)
                 data.content.inlineObjects[index] = text

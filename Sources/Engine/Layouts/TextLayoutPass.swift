@@ -94,8 +94,4 @@ extension LayoutTree {
     func textTextWidth(_ id: LayoutID) -> CGFloat {
         return textData(id).metrics.width
     }
-
-    mutating func attachText(_ id: LayoutID, to line: LayoutID, previous: LayoutID?) {
-        setPrevious(previous, of: id)
-    }
 }

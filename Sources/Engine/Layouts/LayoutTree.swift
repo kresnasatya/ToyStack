@@ -539,6 +539,33 @@ struct LayoutTree {
         markDependents(of: .layout(id, .font))
     }
 
+    mutating func setFontAndPrevious(
+        _ font: BrowserFont,
+        previous: LayoutID?,
+        for id: LayoutID
+    ) {
+        var node: LayoutNode = self.node(id)
+        let wasUsed: Bool = node.state.fields.isUsed(.font)
+        let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
+        node.state.fields.inlineText.font = font
+        if node.links.previous != previous {
+            node.links.previous = previous
+            node.links.versions.previous += 1
+        }
+        node.state.fields.markUsed(.font)
+        node.state.fields.markClean(.font)
+        nodes[id.raw] = node
+        if !wasUsed {
+            let dependent: FieldKey = .layout(id, .font)
+            for input in LayoutInputTable.inputs(for: id, field: .font, in: self) {
+                dependencies.add(dependent, for: input)
+            }
+        }
+        guard changed else { return }
+        profiler.count("layout.field.set")
+        markDependents(of: .layout(id, .font))
+    }
+
     mutating func setFontClean(_ font: BrowserFont, for id: LayoutID) {
         writeFont(font, for: id)
         markUsed(.font, at: id)
@@ -665,10 +692,9 @@ struct LayoutTree {
 
         if changed {
             profiler.measure("layout.line.children.deps", {
-                let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
                 let inputs: [(LayoutField, [FieldKey])] = [
-                    (.ascent, inlineChildren.map({ .layout($0, .ascent) })),
-                    (.descent, inlineChildren.map({ .layout($0, .descent) })),
+                    (.ascent, children.map({ .layout($0, .ascent) })),
+                    (.descent, children.map({ .layout($0, .descent) })),
                 ]
                 for (field, fieldInputs) in inputs where isUsed(field, at: id) {
                     dependencies.replaceDependent(.layout(id, field), with: fieldInputs)
