@@ -37,6 +37,12 @@ final class ContentPresenter: @unchecked Sendable {
     private var applied: (revision: Int, size: CGSize)?
     private var presenting = false
     private var coalesced = 0
+    /// Last frame applied, kept so deferred tile binds can finish without
+    /// waiting for the engine to send another present.
+    private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
+    private var lastDeferred: Int = 0
+    private var drainScheduled: Bool = false
+    private var draining: Bool = false
 
     init(contentLayer: CALayer, scrollbarLayer: CALayer, measure: MeasureTime) {
         self.contentLayer = contentLayer
@@ -68,7 +74,10 @@ final class ContentPresenter: @unchecked Sendable {
             lock.lock()
             guard let next = latest else {
                 presenting = false
+                let needsDrain: Bool = lastDeferred > 0 && !drainScheduled
+                if needsDrain { drainScheduled = true }
                 lock.unlock()
+                if needsDrain { scheduleDeferredDrain() }
                 return
             }
             latest = nil
@@ -83,7 +92,30 @@ final class ContentPresenter: @unchecked Sendable {
         }
     }
 
+    /// Tiles left unbound by the scroll budget are picked up on the next frame,
+    /// but a page that lands while the pointer is still would otherwise show
+    /// only the first few tiles until the user scrolls. Keep presenting the
+    /// same frame until the budget drains.
+    private func scheduleDeferredDrain() {
+        queue.asyncAfter(deadline: .now() + 1.0 / 60.0) {
+            self.drainScheduled = false
+            self.lock.lock()
+            let superseded: Bool = self.latest != nil
+            self.lock.unlock()
+            guard !superseded else { return }
+            guard let pending = self.lastApplied else { return }
+            self.draining = true
+            self.present(pending.frame, viewSize: pending.viewSize)
+            self.draining = false
+            self.measure.counter("present", [
+                "coalesced": 0
+            ], frame: pending.frame.frameID)
+            self.drain()
+        }
+    }
+
     private func present(_ frame: PresentedFrame, viewSize: CGSize) {
+        lastApplied = (frame, viewSize)
         frameNumber += 1
         let usesSublayers: Bool = frame.content.usesSublayers
         let flipped: Bool = lastUsesSublayers.map({ $0 != usesSublayers }) ?? false
@@ -137,6 +169,7 @@ final class ContentPresenter: @unchecked Sendable {
         previousSize: CGSize?
     ) {
         let scale: ContentScale = frame.viewport.scale
+        lastDeferred = 0
         if preview, let previousSize, previousSize.width > 0, previousSize.height > 0 {
             contentLayer.backgroundColor = frame.viewport.canvasColor
             contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
@@ -178,6 +211,11 @@ final class ContentPresenter: @unchecked Sendable {
         let offset: CGFloat = frame.viewport.contentOffset
         let scrolling: Bool = lastContentOffset.map({ abs($0 - offset) > 0.5 }) ?? false
         lastContentOffset = offset
+        // A different page (or any wholesale replacement of the layer set) is
+        // not a scroll: bind it in one go instead of showing six tiles until
+        // the next present.
+        let replaced: Bool = diff.kept == 0
+        let throttled: Bool = !replaced && (scrolling || draining)
         let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
         var added = 0
         var unhidden = 0
@@ -234,14 +272,14 @@ final class ContentPresenter: @unchecked Sendable {
             layersByPlacement.removeValue(forKey: key)
             purged += 1
         }
-        if scrolling {
+        if throttled {
             rebinds.sort(by: { $0.distance < $1.distance })
         }
         for rebind in rebinds {
             let pixels: Int = rebind.image.width * rebind.image.height
-            if scrolling,
+            if throttled,
                 contents >= Self.uploadsPerPresent
-                    || contentsPixels + pixels > Self.pixelsPerPresent
+                    || (contents > 0 && contentsPixels + pixels > Self.pixelsPerPresent)
             {
                 deferred += 1
                 continue
@@ -250,6 +288,7 @@ final class ContentPresenter: @unchecked Sendable {
             contents += 1
             contentsPixels += pixels
         }
+        lastDeferred = deferred
         measure.stop("view.updateSublayers")
         measure.counter("view", [
             "placements": placements.count,
@@ -342,6 +381,7 @@ final class ContentPresenter: @unchecked Sendable {
         preview: Bool
     ) {
         let scale: ContentScale = frame.viewport.scale
+        lastDeferred = 0
         for key in Array(layersByPlacement.keys) {
             guard var slot = layersByPlacement[key] else { continue }
             if !slot.hidden {
