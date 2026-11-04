@@ -524,6 +524,7 @@ struct LayoutTree {
         var node: LayoutNode = self.node(id)
         let wasUsed: Bool = node.state.fields.isUsed(.font)
         let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
+        if wasUsed, !node.state.fields.isDirty(.font), !changed { return }
         node.state.fields.inlineText.font = font
         node.state.fields.markUsed(.font)
         node.state.fields.markClean(.font)
@@ -547,8 +548,16 @@ struct LayoutTree {
         var node: LayoutNode = self.node(id)
         let wasUsed: Bool = node.state.fields.isUsed(.font)
         let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
+        let previousChanged: Bool = node.links.previous != previous
+        if wasUsed, !node.state.fields.isDirty(.font), !changed {
+            guard previousChanged else { return }
+            node.links.previous = previous
+            node.links.versions.previous += 1
+            nodes[id.raw] = node
+            return
+        }
         node.state.fields.inlineText.font = font
-        if node.links.previous != previous {
+        if previousChanged {
             node.links.previous = previous
             node.links.versions.previous += 1
         }
