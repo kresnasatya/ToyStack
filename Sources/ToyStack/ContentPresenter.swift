@@ -11,6 +11,13 @@ final class ContentPresenter: @unchecked Sendable {
         var hidden: Bool
     }
 
+    /// One tile image waiting to be bound to its layer.
+    private struct LayerRebind {
+        let distance: CGFloat
+        let layer: CALayer
+        let image: CGImage
+    }
+
     private let queue = DispatchQueue(label: "browser.present", qos: .userInteractive)
     private let measure: MeasureTime
     private let contentLayer: CALayer
@@ -20,6 +27,11 @@ final class ContentPresenter: @unchecked Sendable {
     private var frameNumber: Int = 0
     private var lastUsesSublayers: Bool?
     private let graceFrames: Int = 10
+    /// Binding a tile image costs 0.3-0.5 ms in the commit, so a burst of
+    /// 12-24 new tiles blows the frame budget. While scrolling, spread them.
+    private static let uploadsPerPresent: Int = 6
+    private static let pixelsPerPresent: Int = 400_000
+    private var lastContentOffset: CGFloat?
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: Int, size: CGSize)?
@@ -163,10 +175,18 @@ final class ContentPresenter: @unchecked Sendable {
             previous: previous,
             current: placements.map(\.key)
         )
+        let offset: CGFloat = frame.viewport.contentOffset
+        let scrolling: Bool = lastContentOffset.map({ abs($0 - offset) > 0.5 }) ?? false
+        lastContentOffset = offset
+        let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
         var added = 0
         var unhidden = 0
         var removedNow = 0
         var purged = 0
+        var contents = 0
+        var contentsPixels = 0
+        var deferred = 0
+        var rebinds: [LayerRebind] = []
         for placed in placements {
             let layer: CALayer
             if var slot = layersByPlacement[placed.key] {
@@ -188,6 +208,15 @@ final class ContentPresenter: @unchecked Sendable {
                 added += 1
             }
             updateSublayer(layer, with: placed, scale: scale.effective)
+            if (layer.contents as AnyObject?) !== placed.image {
+                rebinds.append(
+                    LayerRebind(
+                        distance: abs(placed.frame.midY - centerY),
+                        layer: layer,
+                        image: placed.image
+                    )
+                )
+            }
         }
         for key in diff.removed {
             guard var slot = layersByPlacement[key] else { continue }
@@ -205,11 +234,30 @@ final class ContentPresenter: @unchecked Sendable {
             layersByPlacement.removeValue(forKey: key)
             purged += 1
         }
+        if scrolling {
+            rebinds.sort(by: { $0.distance < $1.distance })
+        }
+        for rebind in rebinds {
+            let pixels: Int = rebind.image.width * rebind.image.height
+            if scrolling,
+                contents >= Self.uploadsPerPresent
+                    || contentsPixels + pixels > Self.pixelsPerPresent
+            {
+                deferred += 1
+                continue
+            }
+            rebind.layer.contents = rebind.image
+            contents += 1
+            contentsPixels += pixels
+        }
         measure.stop("view.updateSublayers")
         measure.counter("view", [
             "placements": placements.count,
             "added": added,
             "removed": removedNow,
+            "contents": contents,
+            "contentsPixels": contentsPixels,
+            "deferred": deferred,
             "kept": diff.kept,
             "hidden": layersByPlacement.values.filter(\.hidden).count,
             "unhidden": unhidden,
@@ -227,12 +275,11 @@ final class ContentPresenter: @unchecked Sendable {
         return layer
     }
 
+    /// Geometry and effect only; the image is bound separately so the bind
+    /// count can be spread across presents.
     private func updateSublayer(_ layer: CALayer, with placed: LayerPlacement, scale: CGFloat) {
         if layer.contentsScale != scale {
             layer.contentsScale = scale
-        }
-        if (layer.contents as AnyObject?) !== placed.image {
-            layer.contents = placed.image
         }
         layer.transform = CATransform3DIdentity
         let frame: CGRect = clipFrame(for: placed, on: layer)
