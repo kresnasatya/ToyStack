@@ -670,8 +670,9 @@ struct LayoutTree {
         previousChanged: Bool
     ) {
         let wasUsed: Bool = isUsed(.children, at: id)
+        let oldChildren: [LayoutID] = self.children(of: id)
         let changed: Bool = profiler.measure("layout.line.children.compare", {
-            !wasUsed || self.children(of: id) != children
+            !wasUsed || oldChildren != children
         })
         let reparented: [LayoutID] = profiler.measure("layout.line.children.reparent", {
             children.filter({ node($0).links.parent != id })
@@ -692,12 +693,23 @@ struct LayoutTree {
 
         if changed {
             profiler.measure("layout.line.children.deps", {
-                let inputs: [(LayoutField, [FieldKey])] = [
-                    (.ascent, children.map({ .layout($0, .ascent) })),
-                    (.descent, children.map({ .layout($0, .descent) })),
-                ]
-                for (field, fieldInputs) in inputs where isUsed(field, at: id) {
-                    dependencies.replaceDependent(.layout(id, field), with: fieldInputs)
+                if oldChildren.isEmpty {
+                    for field in [LayoutField.ascent, .descent] where isUsed(field, at: id) {
+                        dependencies.replaceDependent(
+                            .layout(id, field),
+                            with: children.map({ .layout($0, field) })
+                        )
+                    }
+                } else {
+                    for field in [LayoutField.ascent, .descent] where isUsed(field, at: id) {
+                        let dependent: FieldKey = .layout(id, field)
+                        for child in oldChildren where !children.contains(child) {
+                            dependencies.removeEdge(dependent, for: .layout(child, field))
+                        }
+                        for child in children where !oldChildren.contains(child) {
+                            dependencies.add(dependent, for: .layout(child, field))
+                        }
+                    }
                 }
                 dependencies.removeDependent(.layout(id, .children))
             })

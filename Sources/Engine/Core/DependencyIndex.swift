@@ -59,6 +59,14 @@ struct DependencyIndex {
         }
     }
 
+    mutating func removeEdge(_ dependent: FieldKey, for input: FieldKey) {
+        inputsByDependent[dependent]?.remove(input)
+        dependents[input]?.remove(dependent)
+        if dependents[input]?.isEmpty == true {
+            dependents.removeValue(forKey: input)
+        }
+    }
+
     mutating func replaceDependent(_ dependent: FieldKey, with inputs: [FieldKey]) {
         let next: Set<FieldKey> = Set(inputs)
         guard let current: Set<FieldKey> = inputsByDependent[dependent] else {
