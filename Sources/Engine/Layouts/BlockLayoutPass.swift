@@ -931,36 +931,44 @@ extension LayoutTree {
         into placement: inout InlinePlacement
     ) {
         let font: BrowserFont = item.fontOverride ?? item.run.font
-        let measured: CGFloat = item.measuredWidth ?? font.measure(item.display ?? item.word)
+        let measured: CGFloat = profiler.measure("layout.inline.place.text.measure", {
+            item.measuredWidth ?? font.measure(item.display ?? item.word)
+        })
         let w: CGFloat = measured + font.spaceWidth
-        if placement.cursorX + w > width(id) && item.run.whiteSpace.wraps {
-            if item.word.contains("\u{00AD}") {
-                let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
-                var chunk: String = ""
-                var breakIdx: Int = -1
-                for (i, part) in parts.dropLast().enumerated() {
-                    let candidate: String = chunk + part + "-"
-                    if placement.cursorX + font.measure(candidate) <= width(id) {
-                        chunk = chunk + part
-                        breakIdx = i
+        let brokeEarly: Bool = profiler.measure("layout.inline.place.text.break", {
+            if placement.cursorX + w > width(id) && item.run.whiteSpace.wraps {
+                if item.word.contains("\u{00AD}") {
+                    let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
+                    var chunk: String = ""
+                    var breakIdx: Int = -1
+                    for (i, part) in parts.dropLast().enumerated() {
+                        let candidate: String = chunk + part + "-"
+                        if placement.cursorX + font.measure(candidate) <= width(id) {
+                            chunk = chunk + part
+                            breakIdx = i
+                        }
+                    }
+                    if breakIdx >= 0 {
+                        appendToLine(id, clone(item, word: chunk + "-"), index: nil, into: &placement)
+                        placement.endLine(in: &self)
+                        placeText(
+                            id,
+                            clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")),
+                            index: nil,
+                            into: &placement
+                        )
+                        return true
                     }
                 }
-                if breakIdx >= 0 {
-                    appendToLine(id, clone(item, word: chunk + "-"), index: nil, into: &placement)
-                    placement.endLine(in: &self)
-                    placeText(
-                        id,
-                        clone(item, word: parts[(breakIdx + 1)...].joined(separator: "\u{00AD}")),
-                        index: nil,
-                        into: &placement
-                    )
-                    return
-                }
+                placement.endLine(in: &self)
             }
-            placement.endLine(in: &self)
-        }
+            return false
+        })
+        if brokeEarly { return }
 
-        appendToLine(id, item, index: index, into: &placement)
+        profiler.measure("layout.inline.place.text.append", {
+            appendToLine(id, item, index: index, into: &placement)
+        })
         placement.cursorX += w
     }
 
