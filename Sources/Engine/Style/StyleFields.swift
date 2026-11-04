@@ -102,7 +102,11 @@ final class StyleFields {
         }
         var style: ComputedStyle = old
         style.text = newText
-        let changed: Set<StyleProperty> = style.changed(from: old)
+        var changed: Set<StyleProperty> = []
+        for property in StyleProperty.inherited
+        where !old.matches(style, for: property) {
+            changed.insert(property)
+        }
         guard !changed.isEmpty else { return [] }
 
         storage.computed = style
