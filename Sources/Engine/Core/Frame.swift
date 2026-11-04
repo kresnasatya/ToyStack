@@ -1034,12 +1034,23 @@ class Frame {
             window: window
         )
         var builder: PaintSceneBuilder = PaintSceneBuilder()
-        let rootFrame: Int = builder.build(root: doc.rootID, tree: doc, frame: self)
+        let rootFrame: Int = profiler.measure("paint.scene.build", {
+            builder.build(root: doc.rootID, tree: doc, frame: self, window: window)
+        })
+        profiler.count(
+            "paint.scene.nodes",
+            by: builder.sink.scenes.reduce(0, { (total: Int, scene: PaintFrame) -> Int in
+                total + scene.nodes.count
+            })
+        )
         var pass: PaintPass = PaintPass(
             scene: PaintScene(frames: builder.sink.scenes),
             caches: builder.sink.owners.map({ $0.paintCaches })
         )
-        pass.paint(rootFrame, into: &list, session: &session)
+        profiler.measure("paint.pass", {
+            pass.paint(rootFrame, into: &list, session: &session)
+        })
+        profiler.count("paint.ops.count", by: list.count)
 
         for (index, owner) in builder.sink.owners.enumerated() where index != rootFrame {
             owner.paintCaches = pass.caches[index]

@@ -20,8 +20,16 @@ struct PaintBuildSink {
 @MainActor
 struct PaintSceneBuilder {
     private(set) var sink: PaintBuildSink = PaintBuildSink()
+    /// Nodes outside this window are not copied into the scene.
+    private var window: PaintWindow = .full
 
-    mutating func build(root: LayoutID, tree: LayoutTree, frame: Frame) -> Int {
+    mutating func build(
+        root: LayoutID,
+        tree: LayoutTree,
+        frame: Frame,
+        window: PaintWindow = .full
+    ) -> Int {
+        self.window = window
         let index: Int = sink.scenes.count
         sink.owners.append(frame)
         sink.scenes.append(PaintFrame(nodes: [], epoch: frame.paintEpoch))
@@ -35,22 +43,38 @@ struct PaintSceneBuilder {
 
     // MARK: - Nodes
 
+    /// Returns `nil` when the node is culled, so the parent skips it entirely.
     private mutating func appendNode(
         _ tree: LayoutTree,
         _ id: LayoutID,
         parent: Int?,
         nodes: inout [PaintNode]
-    ) -> Int {
+    ) -> Int? {
+        guard !culledAtBuild(tree, id) else { return nil }
         let index: Int = nodes.count
         nodes.append(placeholder(id: id, dom: tree.domID(of: id)))
         var children: [Int] = []
         let childIDs: [LayoutID] = tree.childrenIDs(of: id)
         children.reserveCapacity(childIDs.count)
         for child in childIDs {
-            children.append(appendNode(tree, child, parent: index, nodes: &nodes))
+            if let childIndex: Int = appendNode(tree, child, parent: index, nodes: &nodes) {
+                children.append(childIndex)
+            }
         }
         nodes[index] = makeNode(tree, id, parent: parent, children: children)
         return index
+    }
+
+    /// The same rule the paint pass applies: only line and text nodes are
+    /// window-culled, so absolute and fixed blocks keep their parent chain.
+    private func culledAtBuild(_ tree: LayoutTree, _ id: LayoutID) -> Bool {
+        guard window != .full else { return false }
+        switch tree.kind(id) {
+        case .line, .text:
+            return !window.intersects(tree.selfRect(id))
+        default:
+            return false
+        }
     }
 
     private mutating func makeNode(
@@ -213,7 +237,7 @@ struct PaintSceneBuilder {
         guard let child: Frame = element?.frame, child.loaded, let doc = child.document else {
             return PaintIframe(frame: nil, inner: inner, scroll: 0, bar: nil)
         }
-        let index: Int = build(root: doc.rootID, tree: doc, frame: child)
+        let index: Int = build(root: doc.rootID, tree: doc, frame: child, window: window)
         return PaintIframe(
             frame: index,
             inner: inner,
