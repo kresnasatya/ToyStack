@@ -249,9 +249,10 @@ extension LayoutTree {
         }
         defer { setDirtyDescendants(false, at: id) }
         profiler.count("layout.visited")
-        let style: BlockStyle = blockStyle(id)
+        let style: BlockStyle = profiler.measure("layout.blockStyle", { blockStyle(id) })
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
+            profiler.measure("layout.visit.geometry", {
             setField(.zoom, resolvedZoom(id), for: id)
             let isAbsolute: Bool = style.position == .absolute
 
@@ -310,6 +311,7 @@ extension LayoutTree {
             if let el = domView(id).element, el.attributes["id"] == "toc" {
                 setField(.y, y(id) + VSTEP, for: id)
             }
+            })
 
             let mode: String = profiler.measure("layout.mode", { layoutMode(id) })
             if mode == "block" {
@@ -352,7 +354,9 @@ extension LayoutTree {
                         refreshInlineItems(id, preservingObjects: preserveObjects)
                     })
                 }
-                let plan: [[Int]]? = inlineTextLinePlan(id)
+                let plan: [[Int]]? = profiler.measure("layout.inline.plan", {
+                    inlineTextLinePlan(id)
+                })
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
                     || plan != blockData(id).content.inlineLinePlan
