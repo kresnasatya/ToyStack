@@ -46,12 +46,12 @@ private func applyStyle(
         let forceOnly: Bool = force && !direct && !node.style.isDirty
         if forceOnly {
             let old: ComputedStyle = node.style.computed
-            let changed: Set<StyleProperty>? = profiler.measure("style.reapplyInherited", {
+            let changed: Bool? = profiler.measure("style.reapplyInherited", {
                 node.style.reapplyInherited(parent: node.parent?.style.computed)
             })
             if let changed {
                 profiler.count("style.apply.inheritedOnly")
-                if !changed.isEmpty {
+                if changed {
                     cascade.record(node, old: old)
                 }
             } else {

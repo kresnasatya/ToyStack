@@ -88,7 +88,7 @@ final class StyleFields {
     /// A force-only node did not match a new rule; its own declarations are
     /// unchanged and only inherited text can move. Returns `nil` when no
     /// declaration cache is available and the full cascade must run.
-    func reapplyInherited(parent: ComputedStyle?) -> Set<StyleProperty>? {
+    func reapplyInherited(parent: ComputedStyle?) -> Bool? {
         guard canReinheritText else { return nil }
         let old: ComputedStyle = storage.computed
         let newText: TextStyle
@@ -102,22 +102,22 @@ final class StyleFields {
         }
         var style: ComputedStyle = old
         style.text = newText
-        var changed: Set<StyleProperty> = []
+        var changedCount: Int = 0
         for property in StyleProperty.inherited
         where !old.matches(style, for: property) {
-            changed.insert(property)
+            changedCount += 1
+            layoutChanges.insert(property)
+            invalidation.dirtyKeys.remove(property)
+            profiler.count("style.changed.\(property.cssName)")
         }
-        guard !changed.isEmpty else { return [] }
+        guard changedCount > 0 else { return false }
 
         storage.computed = style
-        invalidation.dirtyKeys.subtract(changed)
         invalidation.needsRestyle = false
         revision += 1
-        layoutChanges.formUnion(changed)
-        recordInheritedChanges(changed)
-        profiler.count("style.fields.changed", by: changed.count)
+        profiler.count("style.fields.changed", by: changedCount)
         profiler.count("style.apply.inherited", by: 1)
-        return changed
+        return true
     }
 
     private func recordInheritedChanges(_ changed: Set<StyleProperty>) {
