@@ -42,6 +42,12 @@ final class StyleCascade {
         oldStyles[node.id] = old
     }
 
+    /// Stores the pre-pass style for a node that was forced but did not change,
+    /// so its children can see that inheritance stopped here.
+    func recordBaseline(_ node: DOMRef, old: ComputedStyle) {
+        oldStyles[node.id] = old
+    }
+
     func oldStyle(for node: DOMRef) -> ComputedStyle? {
         return oldStyles[node.id]
     }

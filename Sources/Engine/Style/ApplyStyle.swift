@@ -53,6 +53,8 @@ private func applyStyle(
                 profiler.count("style.apply.inheritedOnly")
                 if changed {
                     cascade.record(node, old: old)
+                } else {
+                    cascade.recordBaseline(node, old: old)
                 }
             } else {
                 cascade.record(node)
