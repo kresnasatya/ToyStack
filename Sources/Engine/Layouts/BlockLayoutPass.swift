@@ -347,7 +347,10 @@ extension LayoutTree {
                 _ = zoom(id)
                 
                 if inlineContentChanged {
-                    profiler.measure("layout.inline.refresh", { refreshInlineItems(id) })
+                    let preserveObjects: Bool = canRefreshFontsOnly(id)
+                    profiler.measure("layout.inline.refresh", {
+                        refreshInlineItems(id, preservingObjects: preserveObjects)
+                    })
                 }
                 let plan: [[Int]]? = inlineTextLinePlan(id)
                 let shouldPlace: Bool = inlineContentChanged
@@ -739,7 +742,46 @@ extension LayoutTree {
         profiler.count("layout.lines.total", by: placement.lines.count)
     }
 
-    mutating private func refreshInlineItems(_ id: LayoutID) {
+    private static let inlineFontProperties: Set<StyleProperty> = [
+        .fontSize, .fontFamily, .fontWeight, .fontStyle,
+    ]
+
+    private static let inlineStructuralProperties: Set<StyleProperty> = [
+        .display, .position, .direction, .whiteSpace, .aspectRatio, .maxWidth,
+    ]
+
+    private func canRefreshFontsOnly(_ id: LayoutID) -> Bool {
+        guard !isDirty(.children, at: id),
+            blockData(id).changes.childChanges.isEmpty
+        else { return false }
+        if inputs.styleChanges(domID(of: id)).contains(where: {
+            Self.inlineStructuralProperties.contains($0)
+        }) {
+            return false
+        }
+        for leaf in inlineLeaves(id) {
+            let owner: LayoutDOMView = leaf.inheritedStyleOwner
+            let changes: Set<StyleProperty> = inputs.styleChanges(owner.id)
+            if changes.contains(where: { Self.inlineStructuralProperties.contains($0) }) {
+                return false
+            }
+            if leaf.text != nil, isInsideAbbr(leaf.ref) {
+                return false
+            }
+        }
+
+        var fontChanged: Bool = isDirty(.zoom, at: id)
+        for leaf in inlineLeaves(id) {
+            let owner: LayoutDOMView = leaf.inheritedStyleOwner
+            let changes: Set<StyleProperty> = inputs.styleChanges(owner.id)
+            if !changes.isDisjoint(with: Self.inlineFontProperties) {
+                fontChanged = true
+            }
+        }
+        return fontChanged
+    }
+
+    mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) {
         let leaves: [LayoutDOMView] = inlineLeaves(id)
         var items: [InlineItem] = []
         for leaf in leaves {
@@ -747,7 +789,9 @@ extension LayoutTree {
         }
         var data: BlockData = blockData(id)
         data.content.inlineItems = items
-        data.content.inlineObjects.removeAll(keepingCapacity: true)
+        if !preservingObjects {
+            data.content.inlineObjects.removeAll(keepingCapacity: true)
+        }
         data.content.inlineLinePlan = nil
         setKind(.block(data), at: id)
         let revision: UInt64 = node(id).state.fields.inlineText.inlineContent + 1
@@ -917,8 +961,11 @@ extension LayoutTree {
             let cached: LayoutID = cachedText(id, at: index, node: item.run.node, word: item.word)
         {
             text = cached
+            profiler.count("layout.inline.text.cached")
+            setFont(font, for: text)
             attachText(cached, to: lineID, previous: previous)
         } else {
+            profiler.count("layout.inline.text.new")
             text = makeText(
                 TextData(
                     word: item.word,
