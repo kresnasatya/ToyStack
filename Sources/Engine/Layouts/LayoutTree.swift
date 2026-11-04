@@ -491,6 +491,46 @@ struct LayoutTree {
         markDependents(of: .layout(id, field))
     }
 
+
+    mutating func setBlockFrame(
+        _ frame: (zoom: CGFloat, x: CGFloat, y: CGFloat, width: CGFloat),
+        for id: LayoutID
+    ) {
+        var node: LayoutNode = self.node(id)
+        let used: UInt16 = node.state.fields.state.usedBits
+        let oldZoom: CGFloat = node.state.fields.geometry.zoom
+        let oldX: CGFloat = node.state.fields.geometry.origin.x
+        let oldY: CGFloat = node.state.fields.geometry.origin.y
+        let oldWidth: CGFloat = node.state.fields.geometry.size.width
+        node.state.fields.geometry.zoom = frame.zoom
+        node.state.fields.geometry.origin.x = frame.x
+        node.state.fields.geometry.origin.y = frame.y
+        node.state.fields.geometry.size.width = frame.width
+        for field in [LayoutField.zoom, .x, .y, .width] {
+            node.state.fields.markUsed(field)
+            node.state.fields.markClean(field)
+        }
+        nodes[id.raw] = node
+
+        for field in [LayoutField.zoom, .x, .y, .width] where used & field.mask == 0 {
+            let dependent: FieldKey = .layout(id, field)
+            for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
+                dependencies.add(dependent, for: input)
+            }
+        }
+
+        let changes: [(LayoutField, CGFloat, CGFloat)] = [
+            (.zoom, oldZoom, frame.zoom),
+            (.x, oldX, frame.x),
+            (.y, oldY, frame.y),
+            (.width, oldWidth, frame.width),
+        ]
+        for (field, old, value) in changes where used & field.mask == 0 || old != value {
+            profiler.count("layout.field.set")
+            markDependents(of: .layout(id, field))
+        }
+    }
+
     mutating func setPosition(x: CGFloat, y: CGFloat, for id: LayoutID) {
         var node: LayoutNode = self.node(id)
         let used: UInt16 = node.state.fields.state.usedBits

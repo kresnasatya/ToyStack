@@ -253,41 +253,47 @@ extension LayoutTree {
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
             profiler.measure("layout.visit.geometry", {
-            setField(.zoom, resolvedZoom(id), for: id)
+            let zoomValue: CGFloat = resolvedZoom(id)
             let isAbsolute: Bool = style.position == .absolute
+            let parent: LayoutID = parentID(of: id)!
 
-            let parentX: CGFloat = x(parentID(of: id)!)
-            let padLeft: CGFloat = blockExtraNodes(id).isEmpty ? style.box.padding.left * zoom(id) : 0
-            if isAbsolute, let l = style.flags.left {
-                let absoluteXZoom: CGFloat = zoom(id)
-                setField(.x, l * absoluteXZoom + padLeft, for: id)
-            } else {
-                setField(.x, parentX + padLeft, for: id)
-            }
-
-            let parentWidth: CGFloat = width(parentID(of: id)!)
-            let blockZoom: CGFloat = zoom(id)
-            let padHorizontal: CGFloat = blockExtraNodes(id).isEmpty
-                ? (style.box.padding.left + style.box.padding.right) * blockZoom
+            let parentX: CGFloat = x(parent)
+            let padLeft: CGFloat = blockExtraNodes(id).isEmpty
+                ? style.box.padding.left * zoomValue
                 : 0
+            var frameX: CGFloat
+            if isAbsolute, let l = style.flags.left {
+                frameX = l * zoomValue + padLeft
+            } else {
+                frameX = parentX + padLeft
+            }
+
+            let parentWidth: CGFloat = width(parent)
+            let padHorizontal: CGFloat = blockExtraNodes(id).isEmpty
+                ? (style.box.padding.left + style.box.padding.right) * zoomValue
+                : 0
+            var frameWidth: CGFloat
             if let w = style.box.width {
-                setField(.width, w * blockZoom, for: id)
+                frameWidth = w * zoomValue
             } else {
-                setField(.width, max(0, parentWidth - padHorizontal), for: id)
+                frameWidth = max(0, parentWidth - padHorizontal)
             }
 
-            if let el = domView(id).element, el.tag == "li" {
-                setField(.x, x(id) + liIndent, for: id)
-                setField(.width, width(id) - liIndent, for: id)
+            let element = domView(id).element
+            if element?.tag == "li" {
+                frameX += liIndent
+                frameWidth -= liIndent
             }
 
+            var frameY: CGFloat
             if isAbsolute, let t = style.flags.top {
-                let absoluteYZoom: CGFloat = zoom(id)
-                let padTop: CGFloat = blockExtraNodes(id).isEmpty ? style.box.padding.left * blockZoom : 0
-                setField(.y, t * absoluteYZoom + padTop, for: id)
+                let padTop: CGFloat = blockExtraNodes(id).isEmpty
+                    ? style.box.padding.left * zoomValue
+                    : 0
+                frameY = t * zoomValue + padTop
             } else {
-                let ownTop: CGFloat = style.box.margin.top * blockZoom
-                let padTop: CGFloat = style.box.padding.top * blockZoom
+                let ownTop: CGFloat = style.box.margin.top * zoomValue
+                let padTop: CGFloat = style.box.padding.top * zoomValue
                 if let previous: LayoutID = blockPrevious(id) {
                     let prevY: CGFloat = y(previous)
                     let prevHeight: CGFloat = height(previous)
@@ -297,20 +303,21 @@ extension LayoutTree {
                     let prevMarginBottom: CGFloat = isBlock(previous)
                         ? blockStyle(previous).box.margin.bottom
                         : 0
-                    setField(
-                        .y,
-                        prevY + prevHeight + prevPadBottom + prevMarginBottom * blockZoom + ownTop + padTop,
-                        for: id
-                    )
+                    frameY = prevY + prevHeight + prevPadBottom
+                        + prevMarginBottom * zoomValue + ownTop + padTop
                 } else {
-                    setField(.y, y(parentID(of: id)!), for: id)
-                    setField(.y, y(id) + ownTop + padTop, for: id)
+                    frameY = y(parent) + ownTop + padTop
                 }
             }
 
-            if let el = domView(id).element, el.attributes["id"] == "toc" {
-                setField(.y, y(id) + VSTEP, for: id)
+            if element?.attributes["id"] == "toc" {
+                frameY += VSTEP
             }
+
+            setBlockFrame(
+                (zoom: zoomValue, x: frameX, y: frameY, width: frameWidth),
+                for: id
+            )
             })
 
             let mode: String = profiler.measure("layout.mode", { layoutMode(id) })
