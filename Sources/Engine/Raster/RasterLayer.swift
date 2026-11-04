@@ -29,6 +29,27 @@ public struct RasterLayer: Sendable {
         self.tiles = [:]
     }
 
+    /// One layer holding a whole display list: the array is shared, not copied.
+    init(
+        items: [DisplayOp],
+        bounds: Rect,
+        firstCommandIndex: Int = -1,
+        id: LayerID = LayerID(effect: nil, ordinal: 0)
+    ) {
+        self.identity = LayerIdentity(
+            id: id,
+            firstCommandIndex: firstCommandIndex,
+            ancestorChain: []
+        )
+        self.content = LayerContent(
+            items: items,
+            bounds: bounds,
+            tileCache: LayerTileCache()
+        )
+        self.effect = LayerEffectImage()
+        self.tiles = [:]
+    }
+
     mutating func add(_ displayItem: DisplayOp) {
         content.items.append(displayItem)
         content.bounds = content.bounds.union(displayItem.rect)

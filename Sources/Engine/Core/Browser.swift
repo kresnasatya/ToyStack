@@ -276,7 +276,7 @@ public class Browser: ObservableObject {
     }
 
     private func applyEffectFastPath(_ updates: [NodeID: EffectUpdate]) -> Bool {
-        let layers: [RasterLayer] = activePresentation.render.layers
+        let layers: [RasterLayer] = activePresentation.render.composite.layers
         let effectStrategies: [LayerEffectStrategy] = layers.map({ LayerEffectStrategy.resolve($0, updates: updates) })
         let keys: Set<NodeID> = Set(effectStrategies.compactMap({ $0.effect?.key }))
         guard updates.keys.allSatisfy({ keys.contains($0) }) else { return false }
@@ -316,7 +316,12 @@ public class Browser: ObservableObject {
             return
         }
 
-        let wantsComposite: Bool = needsComposite
+        let paintRevision: UInt = activePresentation.display.paintRevision
+        let canReuseLayers: Bool =
+            !activePresentation.render.composite.layers.isEmpty
+            && activePresentation.render.composite.paintRevision == paintRevision
+            && activePresentation.display.compositedUpdates.isEmpty
+        let wantsComposite: Bool = needsComposite && !canReuseLayers
 
         let scrollState: ScrollState = ScrollState(
             scroll: activePresentation.scroll.scroll,
@@ -329,7 +334,7 @@ public class Browser: ObservableObject {
             scene: RasterScene(
                 displayList: activePresentation.display.displayList,
                 compositedUpdates: activePresentation.display.compositedUpdates,
-                previousLayers: activePresentation.render.layers,
+                previousLayers: activePresentation.render.composite.layers,
             ),
             settings: RasterSettings(
                 viewport: Viewport(windowSize: windowSize, topInset: topInset, scale: ContentScale(display: displayScale, page: pageZoom)),
@@ -369,6 +374,8 @@ public class Browser: ObservableObject {
         if wantsComposite {
             needsComposite = false
             needsRaster = false
+        } else if canReuseLayers {
+            needsComposite = false
         }
         needsDraw = false
 
@@ -569,7 +576,11 @@ public class Browser: ObservableObject {
                     }
                     if let owner {
                         var presentation: TabPresentation = owner.presentation
-                        presentation.render.layers = output.compositedLayers ?? presentation.render.layers
+                        presentation.render.composite.layers =
+                            output.compositedLayers ?? presentation.render.composite.layers
+                        if wantsComposite {
+                            presentation.render.composite.paintRevision = paintRevision
+                        }
                         if let drawList: [DisplayOp] = output.drawList {
                             presentation.render.drawList = drawList
                         }

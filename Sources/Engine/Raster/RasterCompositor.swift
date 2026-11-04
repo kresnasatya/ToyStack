@@ -8,6 +8,13 @@ enum RasterCompositor {
         frame: Int
     ) -> [RasterLayer] {
         measure.start("raster.composite.scan", category: .raster, frame: frame)
+        defer { measure.stop("raster.composite.scan") }
+        let displayList: [DisplayOp] = inputs.scene.displayList
+        if !hasEffectScopes(displayList) {
+            var flat: [RasterLayer] = flatLayer(displayList)
+            reuseEffectImages(from: inputs.scene.previousLayers, into: &flat)
+            return flat
+        }
         var compositedLayers: [RasterLayer] = []
         var scopes: [EffectScope] = []
         var ordinals: [EffectScopeID?: Int] = [:]
@@ -15,7 +22,7 @@ enum RasterCompositor {
         var assumeOverlap: Bool = false
         var commandIndex: Int = 0
 
-        for op in inputs.scene.displayList {
+        for op in displayList {
             switch op {
             case .beginEffect(let scope):
                 scopes.append(scope)
@@ -57,8 +64,30 @@ enum RasterCompositor {
         }
 
         reuseEffectImages(from: inputs.scene.previousLayers, into: &compositedLayers)
-        measure.stop("raster.composite.scan")
         return compositedLayers
+    }
+
+    /// Any effect boundary means the list must be split into layers.
+    private static func hasEffectScopes(_ ops: [DisplayOp]) -> Bool {
+        for op in ops {
+            switch op {
+            case .beginEffect, .endEffect:
+                return true
+            default:
+                continue
+            }
+        }
+        return false
+    }
+
+    /// One layer for the whole list: same identity and bounds as the slow path.
+    private static func flatLayer(_ ops: [DisplayOp]) -> [RasterLayer] {
+        guard let first: DisplayOp = ops.first else { return [] }
+        var bounds: Rect = first.rect
+        for op in ops.dropFirst() {
+            bounds = bounds.union(op.rect)
+        }
+        return [RasterLayer(items: ops, bounds: bounds, firstCommandIndex: 0)]
     }
 
     private static func reuseEffectImages(from previous: [RasterLayer], into layers: inout [RasterLayer]) {

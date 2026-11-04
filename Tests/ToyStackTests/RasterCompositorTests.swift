@@ -59,4 +59,42 @@ struct RasterCompositorTests {
         if case .compositedLayer = drawList[2] {} else { Issue.record("expected scoped layer") }
         if case .endEffect = drawList[3] {} else { Issue.record("expected end effect") }
     }
+
+    @Test func flatDisplayListBecomesOneSharedLayer() {
+        let ops: [DisplayOp] = [
+            .rect(rect: Rect(left: 0, top: 0, right: 10, bottom: 10), color: BrowserColor(cssName: "black")),
+            .rect(rect: Rect(left: 10, top: 20, right: 40, bottom: 50), color: BrowserColor(cssName: "red")),
+        ]
+
+        let inputs: RasterInput = Self.input(ops)
+        let layers: [RasterLayer] = RasterCompositor.compute(inputs, measure: MeasureTime(), frame: 0)
+
+        #expect(layers.count == 1)
+        #expect(layers[0].identity.id == LayerID(effect: nil, ordinal: 0))
+        #expect(layers[0].identity.firstCommandIndex == 0)
+        #expect(layers[0].identity.ancestorChain.isEmpty)
+        #expect(layers[0].content.items.count == 2)
+        #expect(layers[0].content.bounds == Rect(left: 0, top: 0, right: 40, bottom: 50))
+
+        let drawList: [DisplayOp] = RasterDrawList.compute(layers: layers, inputs: inputs)
+        #expect(drawList.count == 1)
+        if case .compositedLayer = drawList[0] {} else { Issue.record("expected flat layer") }
+    }
+
+    private static func input(_ ops: [DisplayOp]) -> RasterInput {
+        return RasterInput(
+            scene: RasterScene(displayList: ops, compositedUpdates: [:], previousLayers: []),
+            settings: RasterSettings(
+                viewport: Viewport(
+                    windowSize: CGSize(width: 800, height: 600),
+                    topInset: 0,
+                    scale: ContentScale(display: 1, page: 1)
+                ),
+                preferences: ColorPreferences(prefersDark: false, usesForcedColors: false),
+                flags: RasterInvalidation(needsComposite: true, needsDraw: true),
+                accessibility: AccessibilityBounds(hoveredBounds: nil, readBounds: nil)
+            ),
+            scrollState: ScrollState(scroll: 0, interestTop: 0, interestBottom: 0, maxScroll: 0)
+        )
+    }
 }
