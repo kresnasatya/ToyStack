@@ -78,6 +78,7 @@ final class StyleFields {
             revision += 1
         }
         layoutChanges.formUnion(changed)
+        recordInheritedChanges(changed)
         profiler.count("style.fields.set", by: StyleProperty.allCases.count)
         profiler.count("style.fields.changed", by: changed.count)
     }
@@ -102,9 +103,16 @@ final class StyleFields {
         invalidation.needsRestyle = false
         revision += 1
         layoutChanges.formUnion(changed)
+        recordInheritedChanges(changed)
         profiler.count("style.fields.changed", by: changed.count)
         profiler.count("style.apply.inherited", by: 1)
         return changed
+    }
+
+    private func recordInheritedChanges(_ changed: Set<StyleProperty>) {
+        for property in changed where StyleProperty.inherited.contains(property) {
+            profiler.count("style.changed.\(property.cssName)")
+        }
     }
 
     func set(_ value: AnimatedValue, for property: StyleProperty) {
