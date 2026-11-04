@@ -2,8 +2,12 @@ import CoreGraphics
 
 // MARK: - applyStyle
 @MainActor
-func applyStyle(node: DOMRef, cascade: StyleCascade) {
-    let snapshot: StyleSnapshot = profiler.measure("style.snapshot.apply", {
+func applyStyle(
+    node: DOMRef,
+    cascade: StyleCascade,
+    snapshot provided: StyleSnapshot? = nil
+) {
+    let snapshot: StyleSnapshot = provided ?? profiler.measure("style.snapshot.apply", {
         StyleSnapshotBuilder.build(root: node)
     })
     profiler.measure("style.traverse", {

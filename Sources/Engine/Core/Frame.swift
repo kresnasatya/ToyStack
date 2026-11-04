@@ -811,7 +811,11 @@ class Frame {
             let flipped: Set<String> = flippedMediaQueries(media)
             recordMediaMatches(media)
             browser?.measure.start("BrowserTab.style.scope")
-            let scope: StyleScope? = (reusableStyle && hasBaseline) ? scopedStyleScope(flipped) : nil
+            let scoped: (scope: StyleScope?, snapshot: StyleSnapshot?) =
+                (reusableStyle && hasBaseline)
+                ? scopedStyleScope(flipped)
+                : (nil, nil)
+            let scope: StyleScope? = scoped.scope
             profiler.count(scope == nil ? "style.scope.none" : "style.scope.used")
             if viewportStyle, scope == nil {
                 StyleInvalidation.markDocument(nodes)
@@ -825,7 +829,7 @@ class Frame {
                 scope: scope
             )
             if scope?.isEmpty != true {
-                applyStyle(node: nodes, cascade: cascade)
+                applyStyle(node: nodes, cascade: cascade, snapshot: scoped.snapshot)
             }
             profiler.count("style.applied", by: cascade.appliedNodes.count)
             browser?.measure.stop("BrowserTab.style.apply")
@@ -1908,15 +1912,15 @@ class Frame {
 
     private func scopedStyleScope(
         _ flipped: Set<String>
-    ) -> StyleScope? {
+    ) -> (scope: StyleScope?, snapshot: StyleSnapshot?) {
         var rules: [(selector: any CSSSelector, body: [String: String])] = []
         for rule in state.document.sheets.index.list.sorted {
             guard let query: String = rule.0, flipped.contains(query) else { continue }
             rules.append((rule.1, rule.2))
         }
         profiler.count("style.scope.rules", by: rules.count)
-        guard !rules.isEmpty else { return StyleScope(direct: []) }
-        guard rules.count <= 64 else { return nil } // NOTE: why 64?
+        guard !rules.isEmpty else { return (StyleScope(direct: []), nil) }
+        guard rules.count <= 64 else { return (nil, nil) } // NOTE: why 64?
 
         var direct: Set<NodeID> = []
         let snapshot: StyleSnapshot = profiler.measure("style.snapshot.scope", {
@@ -1936,7 +1940,7 @@ class Frame {
                 }
             }
         })
-        return StyleScope(direct: direct)
+        return (StyleScope(direct: direct), snapshot)
     }
 
     private func recordMediaMatches(_ media: MediaFeatures) {
