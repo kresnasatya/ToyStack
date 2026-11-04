@@ -88,6 +88,26 @@ struct DependencyIndex {
         reindex(id, fields: LayoutField.allCases, inputs: inputs)
     }
 
+    mutating func replaceInput(
+        _ dependent: FieldKey,
+        old: FieldKey,
+        new: FieldKey
+    ) {
+        guard old != new,
+            var inputs: Set<FieldKey> = inputsByDependent[dependent],
+            inputs.contains(old)
+        else { return }
+        inputs.remove(old)
+        inputs.insert(new)
+        inputsByDependent[dependent] = inputs
+
+        dependents[old]?.remove(dependent)
+        if dependents[old]?.isEmpty == true {
+            dependents.removeValue(forKey: old)
+        }
+        dependents[new, default: []].insert(dependent)
+    }
+
     mutating func reindex(
         _ id: LayoutID,
         fields: [LayoutField],

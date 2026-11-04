@@ -569,6 +569,14 @@ struct LayoutTree {
         let reparented: [LayoutID] = profiler.measure("layout.line.children.reparent", {
             children.filter({ node($0).links.parent != id })
         })
+        var oldParents: [LayoutID: LayoutID] = [:]
+        if !reparented.isEmpty {
+            for child in reparented {
+                if let parent: LayoutID = parentID(of: child) {
+                    oldParents[child] = parent
+                }
+            }
+        }
         profiler.measure("layout.line.children.write", {
             markUsed(.children, at: id)
             setChildren(children, of: id)
@@ -604,8 +612,16 @@ struct LayoutTree {
         if !reparented.isEmpty {
             profiler.measure("layout.line.children.reindex", {
                 for child in reparented {
-                    let fields: [LayoutField] = isText(child) ? [.zoom] : LayoutField.allCases
-                    reindexDependencies(child, fields: fields)
+                    if isText(child), let oldParent: LayoutID = oldParents[child] {
+                        dependencies.replaceInput(
+                            .layout(child, .zoom),
+                            old: .layout(oldParent, .zoom),
+                            new: .layout(id, .zoom)
+                        )
+                    } else {
+                        let fields: [LayoutField] = isText(child) ? [.zoom] : LayoutField.allCases
+                        reindexDependencies(child, fields: fields)
+                    }
                 }
             })
         }
