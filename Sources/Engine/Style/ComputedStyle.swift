@@ -20,6 +20,10 @@ struct ComputedStyle: Equatable {
         }
         return style
     }
+
+    static func inheritingText(from parent: ComputedStyle?) -> TextStyle {
+        return parent?.text ?? .initial
+    }
 }
 
 // MARK: - Diff

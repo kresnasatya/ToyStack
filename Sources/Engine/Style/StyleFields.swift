@@ -93,13 +93,12 @@ final class StyleFields {
         let oldText: TextStyle = storage.computed.text
         let newText: TextStyle
         if inheritedText.isEmpty {
-            newText = ComputedStyle.inheriting(from: parent).text
+            newText = ComputedStyle.inheritingText(from: parent)
             profiler.count("style.reapplyInherited.empty")
         } else {
-            let parsed: (style: ComputedStyle, unknown: [String: String]) =
-                ComputedStyleParser.parse(inheritedText, parent: parent)
-            newText = parsed.style.text
+            newText = ComputedStyleParser.parseText(inheritedText, parent: parent)
         }
+        guard oldText != newText else { return false }
         var changedCount: Int = 0
         for property in StyleProperty.inherited
         where !oldText.matches(newText, for: property) {

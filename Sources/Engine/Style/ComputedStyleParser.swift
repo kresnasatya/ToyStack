@@ -126,6 +126,35 @@ enum ComputedStyleParser {
         return (style, unknown)
     }
 
+    static func parseText(
+        _ css: [String: String],
+        parent: ComputedStyle?
+    ) -> TextStyle {
+        var text: TextStyle = parent?.text ?? .initial
+        if let raw = css["color"] {
+            text.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
+        }
+        if let raw = css["font-family"] {
+            text.font.family = raw
+        }
+        if let raw = css["font-size"], let size = fontSize(raw, parent: parent) {
+            text.font.size = size
+        }
+        if let raw = css["font-style"] {
+            text.font.style = TextStyle.Style(css: raw)
+        }
+        if let raw = css["font-weight"] {
+            text.font.weight = TextStyle.Weight(css: raw)
+        }
+        if let raw = css["white-space"] {
+            text.whiteSpace = WhiteSpaceMode(cssValue: raw)
+        }
+        if let raw = css["direction"] {
+            text.direction = TextDirection(cssValue: raw)
+        }
+        return text
+    }
+
     // MARK: - Value helpers
 
     private static func px(_ raw: String?) -> CGFloat? {
