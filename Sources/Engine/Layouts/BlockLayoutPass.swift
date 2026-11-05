@@ -994,7 +994,9 @@ extension LayoutTree {
                 items[index] = .text(item.withFont(font, measuredWidthScale: scale))
             }
             data.content.inlineItems = items
-            textRuns[id] = TextRun(items: items)
+            if textRuns[id] == nil {
+                textRuns[id] = TextRun(items: items)
+            }
             profiler.count("layout.inline.items.reused", by: items.count)
         } else {
             let leaves: [LayoutDOMView] = inlineLeaves(id)

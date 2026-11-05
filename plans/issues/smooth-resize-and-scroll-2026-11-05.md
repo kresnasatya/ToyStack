@@ -709,6 +709,8 @@ GUI trace after 3e (39.15 s, 391 resize events, 18 bursts; the first four are lo
 
 `inline.place.items` is now 14-22 ms (was 15-37 in 3d), but `inline.refresh` rose to 16-17 ms because a font-size change rebuilds the block's `TextRun` even though the item text is unchanged. The two roughly cancel, so resize stays neutral. The next win is preserving the run text when itemization changes only font metrics.
 
+Applied follow-up: a font-only refresh keeps the existing run's text and ranges instead of rebuilding it. On the font-flip page, `inline.refresh` fell from 30.2 to 25.2 ms and resize from 198 to 196 ms. The run is still rebuilt when items are reconstructed from DOM text, where white-space or node changes can alter the ranges.
+
 GUI trace after 3d (35.2 s, 261 resize events, 16 bursts):
 
 | Burst | Events | Preview | Bind | Layout |
