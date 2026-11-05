@@ -1314,6 +1314,7 @@ class Frame {
         guard !viewportFitsInPaintedWindow() else { return false }
 
         state.display.paint.isNeeded = true
+        state.display.composite.isNeededForPaint = true
         paint(window: windowForScroll())
         commitFrame()
         return true

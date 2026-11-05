@@ -95,6 +95,7 @@ public class Browser: ObservableObject {
     private var needsAnimationFrame: Bool = true
     private var needsScrollPaint: Bool = false
     private var pendingScrollTarget: CGFloat? = nil
+    private var compositeGeneration: UInt64 = 0
     private var compositeInFlight: Bool = false
     private var currentFrameID: Int = 0
     private var needsTileContinuation: Bool = false
@@ -368,6 +369,10 @@ public class Browser: ObservableObject {
         if !needsTileContinuation { tileContinuationPasses = 0 }
         needsTileContinuation = false
 
+        if wantsComposite {
+            compositeGeneration &+= 1
+        }
+        let generation: UInt64 = compositeGeneration
         compositeInFlight = true
         if wantsComposite {
             needsComposite = false
@@ -560,8 +565,8 @@ public class Browser: ObservableObject {
                         content: RenderedContent(
                             placements: plan.composition.usesSublayers ? RasterDrawList.placements(layers, effectStrategies: effectStrategies) : [],
                             image: contentImage,
-                            regionTop: regionTop,
-                            usesSublayers: plan.composition.usesSublayers
+                            usesSublayers: plan.composition.usesSublayers,
+                            generation: generation
                         ),
                         needsMoreTiles: store.needsMoreTiles
                     )

@@ -833,11 +833,18 @@ Risk: each render blocks input for 100 ms today. Gate it behind the layout-cost 
 
 ### Phase 5 — Decouple scroll from layout
 
-Status: Phase 5 and Phase 5b **reverted** (2026-11-06).
+Status: Phase 5b + complete-frame contract **applied** (2026-11-06).
 
-Phase 5b tried to fix the ordering: input stored the target; the next tick painted, committed, and waited for raster before presenting. It still failed in the GUI. Content became blank during scroll and only reappeared after a click, and a headless tall-list screenshot showed only the first text tile with the remaining list markers but no text. The paint list contained the text; the missing part was the raster/present continuation. Deferring the repaint lets the first raster pass present an incomplete set of layers, and the deferred tile drain does not recover without another commit. The verified synchronous `repaintForScroll` path is restored.
+The first Phase 5b attempt failed because a repainted scroll frame only requested a draw, not a new composite. The raster reused the previous layers, so text outside the old tiles never reached the draw list; a click forced a new composite and made it appear. The second failure was in the presenter: a new layer generation was uploaded six tiles at a time, exposing empty layers during a scroll.
 
-The next safe boundary is not another tick deferral. The raster/present pipeline needs an explicit complete-frame contract: a scroll frame must carry the paint window, the raster generation, and the deferred-tile state; the presenter must keep draining that generation and must not expose a partial layer set. Only after that can input leave the main loop.
+Applied fix:
+
+- `repaintForScroll` marks `composite.isNeededForPaint`; `commit` then forces a new composite instead of a draw-only frame.
+- `Browser` increments `compositeGeneration` when it starts a new composite.
+- `RenderedContent` carries that generation.
+- `ContentPresenter` binds every tile when the generation changes; throttled/deferred uploads remain allowed only within one generation.
+
+Verified headless on a tall list and on the browser.engineering subset: text stays visible after scrolling down and back up. GUI scroll verification is still required before moving wheel input off the main loop.
 
 The deferred repaint made deep scrolling faster on the input path, but text in list items disappeared after scrolling on a real page. The regression appeared with commit `c7dc171`, so `Browser.applyScroll` and `applyScrollAndUpdateInterest` are back to synchronous `repaintForScroll` until a version with correct repaint ordering is tested in the GUI.
 

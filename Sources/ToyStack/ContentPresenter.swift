@@ -41,6 +41,7 @@ final class ContentPresenter: @unchecked Sendable {
     /// waiting for the engine to send another present.
     private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
     private var lastDeferred: Int = 0
+    private var lastBoundGeneration: UInt64 = 0
     private var drainScheduled: Bool = false
 
     init(contentLayer: CALayer, scrollbarLayer: CALayer, measure: MeasureTime) {
@@ -277,11 +278,13 @@ final class ContentPresenter: @unchecked Sendable {
             layersByPlacement.removeValue(forKey: key)
             purged += 1
         }
-        // Most of the screen needing new pixels means the page moved as a
-        // whole (first paint, navigation, zoom, reflow); bind that in one go.
-        // A few tiles arriving at the edge is the scroll case: spread it.
+        // A new compositor generation must be bound as one complete frame.
+        // Otherwise a scroll can expose layers whose images have not arrived.
+        // Within one generation, a few edge tiles may still be spread.
+        let completeGeneration: Bool = frame.content.generation != lastBoundGeneration
+        lastBoundGeneration = frame.content.generation
         let overhaul: Bool = replaced || rebinds.count * 2 >= placements.count
-        let throttled: Bool = !overhaul
+        let throttled: Bool = !overhaul && !completeGeneration
         if throttled {
             rebinds.sort(by: { $0.distance < $1.distance })
         }
@@ -392,6 +395,7 @@ final class ContentPresenter: @unchecked Sendable {
     ) {
         let scale: ContentScale = frame.viewport.scale
         lastDeferred = 0
+        lastBoundGeneration = frame.content.generation
         for key in Array(layersByPlacement.keys) {
             guard var slot = layersByPlacement[key] else { continue }
             if !slot.hidden {
