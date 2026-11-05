@@ -875,7 +875,10 @@ extension LayoutTree {
             placement.start(at: line, previous: previous, in: &self)
             for itemIndex in range {
                 guard case .text(let text) = items[itemIndex] else { continue }
-                appendToLine(id, text, index: itemIndex, into: &placement)
+                let font: BrowserFont = text.fontOverride ?? text.run.font
+                let measured: CGFloat = text.measuredWidth ?? font.measure(text.display ?? text.word)
+                let w: CGFloat = measured + font.spaceWidth
+                placement.appendText(text, width: w, in: &self)
             }
             placement.finish(in: &self)
             lines.append(line)
@@ -1072,6 +1075,7 @@ extension LayoutTree {
             data.content.hasEmbed = true
             setKind(.line(data), at: placement.currentLine!)
         }
+        placement.flushText(in: &self)
         switch element.tag {
         case "input": addInput(id, element, index: index, into: &placement)
         case "button": addButton(id, element, index: index, into: &placement)
@@ -1107,6 +1111,7 @@ extension LayoutTree {
                         }
                     }
                     if breakIdx >= 0 {
+                        placement.flushText(in: &self)
                         appendToLine(id, clone(item, word: chunk + "-"), index: nil, into: &placement)
                         placement.endLine(in: &self)
                         placeText(
@@ -1129,7 +1134,7 @@ extension LayoutTree {
             measuredItem.measuredWidth = measured
         }
         profiler.measure("layout.inline.place.text.append", {
-            appendToLine(id, measuredItem, index: index, into: &placement)
+            placement.appendText(measuredItem, width: w, in: &self)
         })
         placement.cursorX += w
     }
@@ -1183,7 +1188,7 @@ extension LayoutTree {
                 placement.setObject(text, at: index)
             }
         }
-        placement.append(text)
+        placement.append(text, width: item.measuredWidth ?? font.measure(item.display ?? item.word) + font.spaceWidth)
     }
 
     private func clone(_ item: InlineTextItem, word: String) -> InlineTextItem {
@@ -1221,7 +1226,7 @@ extension LayoutTree {
             input = makeEmbed(dom: node.ref.id, data: .input, parent: lineID, previous: previous)
             placement.setObject(input, at: index)
         }
-        placement.append(input)
+        placement.append(input, width: w)
 
         placement.cursorX += w + font.spaceWidth
     }
@@ -1253,7 +1258,7 @@ extension LayoutTree {
             )
             placement.setObject(button, at: index)
         }
-        placement.append(button)
+        placement.append(button, width: w)
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
     }
@@ -1285,7 +1290,7 @@ extension LayoutTree {
             )
             placement.setObject(image, at: index)
         }
-        placement.append(image)
+        placement.append(image, width: w)
 
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
@@ -1318,7 +1323,7 @@ extension LayoutTree {
             )
             placement.setObject(iframe, at: index)
         }
-        placement.append(iframe)
+        placement.append(iframe, width: w)
 
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
@@ -1351,7 +1356,7 @@ extension LayoutTree {
             )
             placement.setObject(canvas, at: index)
         }
-        placement.append(canvas)
+        placement.append(canvas, width: w)
 
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
@@ -1574,10 +1579,24 @@ private struct InlinePlacementContext {
     var objectsChanged: Bool = false
 }
 
+private struct PendingText {
+    let node: NodeID
+    let font: BrowserFont
+    var text: String
+    var width: CGFloat
+}
+
+private struct InlineLineContent {
+    var children: [LayoutID] = []
+    var pending: PendingText? = nil
+    var reuseText: [LayoutID] = []
+    var widths: [CGFloat] = []
+}
+
 private struct InlinePlacementState {
     var lines: [LayoutID] = []
     var currentLine: LayoutID? = nil
-    var children: [LayoutID] = []
+    var content: InlineLineContent = InlineLineContent()
     var cursorX: CGFloat = 0
 }
 
@@ -1610,7 +1629,7 @@ struct InlinePlacement {
 
     var lines: [LayoutID] { state.lines }
     var currentLine: LayoutID? { state.currentLine }
-    var children: [LayoutID] { state.children }
+    var children: [LayoutID] { state.content.children }
     var objects: [Int: LayoutID] { context.objects }
     var objectsChanged: Bool { context.objectsChanged }
 
@@ -1630,8 +1649,10 @@ struct InlinePlacement {
     mutating func start(in tree: inout LayoutTree) {
         let previous: LayoutID? = state.lines.last
         if let line: LayoutID = pool.take() {
+            let reuseText: [LayoutID] = tree.childrenIDs(of: line).filter({ tree.isText($0) })
             previousChanged = tree.resetLine(line, previous: previous)
             state.currentLine = line
+            state.content = InlineLineContent(reuseText: reuseText)
         } else {
             state.currentLine = tree.makeLine(
                 dom: tree.node(context.parent).dom,
@@ -1639,8 +1660,8 @@ struct InlinePlacement {
                 previous: previous
             )
             previousChanged = true
+            state.content = InlineLineContent()
         }
-        state.children = []
         state.cursorX = 0
     }
 
@@ -1650,42 +1671,107 @@ struct InlinePlacement {
         previous: LayoutID?,
         in tree: inout LayoutTree
     ) -> Bool {
+        let reuseText: [LayoutID] = tree.childrenIDs(of: line).filter({ tree.isText($0) })
         previousChanged = tree.resetLine(line, previous: previous)
         state.currentLine = line
-        state.children = []
+        state.content = InlineLineContent(reuseText: reuseText)
         state.cursorX = 0
         return previousChanged
     }
 
     mutating func endLine(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
-        profiler.measure("layout.inline.place.lineChildren", {
-            tree.setLineChildrenField(
-                state.children,
-                of: line,
-                previousChanged: previousChanged
-            )
-        })
+        flushText(in: &tree)
+        commitLine(line, in: &tree)
         state.lines.append(line)
         start(in: &tree)
     }
 
     mutating func finish(in tree: inout LayoutTree) {
         guard let line: LayoutID = state.currentLine else { return }
+        flushText(in: &tree)
+        commitLine(line, in: &tree)
+        state.lines.append(line)
+        state.currentLine = nil
+        state.content = InlineLineContent()
+    }
+
+    mutating func appendText(_ item: InlineTextItem, width: CGFloat, in tree: inout LayoutTree) {
+        let font: BrowserFont = item.fontOverride ?? item.run.font
+        let text: String = item.display ?? item.word
+        if var pending: PendingText = state.content.pending,
+            pending.node == item.run.node.id,
+            CFEqual(pending.font.ctFont, font.ctFont),
+            !item.hasSoftHypen
+        {
+            pending.text += " " + text
+            pending.width += width
+            state.content.pending = pending
+            return
+        }
+        flushText(in: &tree)
+        state.content.pending = PendingText(
+            node: item.run.node.id,
+            font: font,
+            text: text,
+            width: width
+        )
+    }
+
+    mutating func flushText(in tree: inout LayoutTree) {
+        guard let pending: PendingText = state.content.pending,
+            let line: LayoutID = state.currentLine
+        else { return }
+        let previous: LayoutID? = state.content.children.last
+        let text: LayoutID
+        if state.content.reuseText.isEmpty {
+            text = tree.makeText(
+                TextData(
+                    word: pending.text,
+                    display: pending.text,
+                    fontOverride: nil,
+                    metrics: TextMetrics(width: pending.width, whiteSpace: .normal, measured: true)
+                ),
+                dom: pending.node,
+                parent: line,
+                previous: previous
+            )
+        } else {
+            text = state.content.reuseText.removeFirst()
+            var data: TextData = tree.textData(text)
+            data.word = pending.text
+            data.display = pending.text
+            data.metrics.width = pending.width
+            data.metrics.measured = true
+            tree.setKind(.text(data), at: text)
+        }
+        tree.setFontAndPrevious(
+            pending.font,
+            previous: previous,
+            measuredWidth: nil,
+            for: text
+        )
+        state.content.children.append(text)
+        state.content.widths.append(pending.width)
+        state.content.pending = nil
+    }
+
+    mutating func append(_ child: LayoutID, width: CGFloat) {
+        state.content.children.append(child)
+        state.content.widths.append(width)
+    }
+
+    private mutating func commitLine(_ line: LayoutID, in tree: inout LayoutTree) {
+        var data: LineData = tree.lineData(line)
+        data.content.inlineWidths = state.content.widths
+        tree.setKind(.line(data), at: line)
         profiler.measure("layout.inline.place.lineChildren", {
             tree.setLineChildrenField(
-                state.children,
+                state.content.children,
                 of: line,
                 previousChanged: previousChanged
             )
         })
-        state.lines.append(line)
-        state.currentLine = nil
-        state.children = []
-    }
-
-    mutating func append(_ child: LayoutID) {
-        state.children.append(child)
     }
 }
 

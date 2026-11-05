@@ -602,7 +602,28 @@ Reuse pool attempt (also reverted): rebuilding a line from the free pool reused 
 
 The fragment width changes on every line for every width, so it writes metrics and marks dependents each pass; per-word widths stay constant and only line positions move. A fragment model needs line-owned width/dependency handling before it can win on resize. Both attempts are reverted; source stays at Phase 3.
 
-The original analysis is below.
+### Phase 3b — Line-owned fragment widths (applied)
+
+Status: **applied** (2026-11-05).
+
+- A line keeps one text fragment per font run.
+- `LineContent.inlineWidths` owns the width of each inline child. Line placement, `contentWidth`, paint, hit bounds, caret offsets, and accessibility read that array.
+- Reusing a fragment updates its text and metrics payload, but not the layout width field each pass.
+- The free-line pool reuses the previous line's text fragments.
+- Tests assert one fragment per line and compare incremental output with a full rebuild.
+
+Release measurements:
+
+| Page | Workload | Per-word | Fragment |
+|---|---|---:|---:|
+| 300 x 20 words | initial | 125 ms | **38 ms** |
+| 300 x 20 words | resize 800 -> 700 | 24 ms | **17.6 ms** |
+| 1000 x 13 words | resize 400 -> 300 | **74 ms** | 91 ms |
+| 1000 x 13 words | resize 400 -> 450 | **78 ms** | 92 ms |
+
+The model wins when a line holds many words and loses on pages with two or three words per line, because each rebuilt line still updates a fragment payload. The dense-text case is the target for resize flow; short-line pages keep the previous cost.
+
+The original per-word analysis is below.
 
 Two sub-steps, in order.
 

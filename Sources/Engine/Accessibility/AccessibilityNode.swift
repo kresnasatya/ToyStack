@@ -39,7 +39,7 @@ class AccessibilityNode {
                     let y: CGFloat = tree.y(item)
                     let r: Rect = Rect(
                         left: x, top: y,
-                        right: x + tree.width(item), bottom: y + tree.height(item)
+                        right: x + tree.textTextWidth(item), bottom: y + tree.height(item)
                     )
                     result = result.map { union($0, r) } ?? r
                 }

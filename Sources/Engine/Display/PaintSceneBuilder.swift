@@ -161,7 +161,7 @@ struct PaintSceneBuilder {
             let data: TextData = tree.textData(id)
             return .text(PaintText(
                 string: data.display ?? data.word,
-                width: data.metrics.width,
+                width: tree.textTextWidth(id),
                 top: tree.textAbsoluteY(id),
                 color: tree.domRef(id).inheritedStyleOwner.style.computed.text.color
             ))

@@ -158,7 +158,7 @@ struct ViewportResizeTests {
         expectIncrementalMatchesFull(page)
     }
 
-    @Test func widthResizeWithBreakChangeReusesTextObjects() throws {
+    @Test func widthResizeWithBreakChangeFragmentsTextPerLine() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="para">one two three four five six seven eight nine ten</p>"#,
             rules: """
@@ -169,13 +169,18 @@ struct ViewportResizeTests {
         let p: ElementRef = try #require(page.firstElement(id: "para"))
         let block: LayoutID = try #require(page.firstBlockID(in: p))
 
-        let textsBefore: [LayoutID] = treeToList(page.tree, block).filter({ page.tree.isText($0) })
-
         page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
 
-        #expect(treeToList(page.tree, block).filter({ page.tree.isText($0) }) == textsBefore)
+        let lines: [LayoutID] = page.tree.childrenIDs(of: block)
+            .filter({ page.tree.isLine($0) })
+        #expect(!lines.isEmpty)
+        for line in lines {
+            let fragments: [LayoutID] = page.tree.childrenIDs(of: line)
+                .filter({ page.tree.isText($0) })
+            #expect(fragments.count == 1)
+        }
         expectIncrementalMatchesFull(page)
     }
 

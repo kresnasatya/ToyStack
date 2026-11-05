@@ -95,10 +95,21 @@ extension LayoutTree {
     func textSelfRect(_ id: LayoutID) -> Rect {
         let top: CGFloat = textAbsoluteY(id)
         let x: CGFloat = x(id)
-        return Rect(left: x, top: top, right: x + width(id), bottom: top + height(id))
+        return Rect(left: x, top: top, right: x + textTextWidth(id), bottom: top + height(id))
     }
 
     func textTextWidth(_ id: LayoutID) -> CGFloat {
+        guard let line: LayoutID = parentID(of: id) else {
+            return textData(id).metrics.width
+        }
+        let inline: [LayoutID] = childrenIDs(of: line).filter({ isText($0) || isEmbed($0) })
+        guard let index: Int = inline.firstIndex(of: id) else {
+            return textData(id).metrics.width
+        }
+        let widths: [CGFloat] = lineData(line).content.inlineWidths
+        if index < widths.count {
+            return widths[index]
+        }
         return textData(id).metrics.width
     }
 }

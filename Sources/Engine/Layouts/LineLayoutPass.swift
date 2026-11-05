@@ -176,7 +176,7 @@ extension LayoutTree {
             var nextX: CGFloat = x(id)
             var previousFont: BrowserFont? = nil
             let baseline: CGFloat = y(id) + ascent(id)
-            for child in inlineChildren {
+            for (index, child) in inlineChildren.enumerated() {
                 if let previousFont, isEmbed(child) {
                     nextX += previousFont.spaceWidth
                 }
@@ -184,7 +184,7 @@ extension LayoutTree {
                     ? baseline - maxAscent
                     : baseline - ascent(child)
                 setPosition(x: nextX, y: childY, for: child)
-                nextX += width(child)
+                nextX += inlineWidth(id, index: index, child: child)
                 previousFont = font(child)
             }
 
@@ -223,9 +223,18 @@ extension LayoutTree {
         }
     }
 
+    private func inlineWidth(_ id: LayoutID, index: Int, child: LayoutID) -> CGFloat {
+        let widths: [CGFloat] = lineData(id).content.inlineWidths
+        if index < widths.count {
+            return widths[index]
+        }
+        return width(child)
+    }
+
     private func contentWidth(_ id: LayoutID) -> CGFloat {
-        guard let last: LayoutID = childrenIDs(of: id).last else { return 0 }
-        let trailing: CGFloat = isText(last) ? textTextWidth(last) : width(last)
+        let inline: [LayoutID] = childrenIDs(of: id).filter({ isText($0) || isEmbed($0) })
+        guard let last: LayoutID = inline.last else { return 0 }
+        let trailing: CGFloat = inlineWidth(id, index: inline.count - 1, child: last)
         return x(last) + trailing - x(id)
     }
 

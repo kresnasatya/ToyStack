@@ -20,10 +20,12 @@ struct LineData {
 struct LineContent {
     var centered: Bool
     var hasEmbed: Bool
+    var inlineWidths: [CGFloat]
 
     init() {
         self.centered = false
         self.hasEmbed = false
+        self.inlineWidths = []
     }
 }
 

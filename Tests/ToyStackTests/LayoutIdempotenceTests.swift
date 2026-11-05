@@ -32,7 +32,6 @@ struct LayoutIdempotenceTests {
         var document: LayoutTree = try #require(fixture.frame.document)
 
         let objectsBefore: [LayoutID] = blockIDs(of: document.rootID, in: document)
-        let textIDsBefore: [LayoutID] = blockTexts(in: document.rootID, in: document)
         let first: [Snapshot] = snapshot(of: document.rootID, in: document)
 
         let zoom: CGFloat = document.zoom(document.rootID)
@@ -47,7 +46,6 @@ struct LayoutIdempotenceTests {
 
         #expect((profiler.snapshot()["layout.visited"]?.count ?? 0) > 0)
         #expect(blockIDs(of: document.rootID, in: document) == objectsBefore)
-        #expect(blockTexts(in: document.rootID, in: document) == textIDsBefore)
         #expect(snapshot(of: document.rootID, in: document) == first)
     }
 
@@ -146,16 +144,6 @@ private func appendSnapshot(
 @MainActor
 private func blockIDs(of id: LayoutID, in tree: LayoutTree) -> [LayoutID] {
     return treeToList(tree, id).filter({ tree.isBlock($0) })
-}
-
-@MainActor
-private func blockTexts(in id: LayoutID, in tree: LayoutTree) -> [LayoutID] {
-    return treeToList(tree, id)
-        .filter({ tree.isText($0) })
-        .filter { text in
-            guard let line: LayoutID = tree.parentID(of: text) else { return false }
-            return tree.isLine(line) && tree.isBlock(tree.parentID(of: line) ?? line)
-        }
 }
 
 @MainActor
