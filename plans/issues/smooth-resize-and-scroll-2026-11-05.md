@@ -580,6 +580,17 @@ GUI trace after Phase 3 (25.08 s, 116 resize events, 6 bursts):
 
 Preview scheduling is still correct: about two previews per event, binds only at the start or after the reflow. Layout remains slow because most blocks change their line plan on these widths; the fast path hits only 12 of 231 inline blocks on those frames. Breakpoint frames spend 37-41 ms in `inline.place.items` and ~88k field writes; non-flip frames spend 29-34 ms in line children and 15-16 ms in dependency updates. The next step is 3b (one text fragment per line), not more width-only fast paths.
 
+3b experiment (reverted): merging words into one text fragment per line cut initial layout and line children, but made resizes slower because every rebuilt line allocated a new fragment and rewrote its fields.
+
+| Case | Per-word text | Line fragments |
+|---|---:|---:|
+| Initial layout, release | 305 ms | 219 ms |
+| Resize 400 -> 300, release | 74 ms | 130 ms |
+| Resize 400 -> 450, release | 78 ms | 104 ms |
+| Resize field writes | 17k | 38k |
+
+The prerequisite for 3b is a fragment reuse pool: a rebuilt line must update the text child from its previous line instead of creating a new one. Without that, the fragment model wins on initial layout and loses on resize.
+
 The original analysis is below.
 
 Two sub-steps, in order.
