@@ -493,7 +493,26 @@ Exit condition: trace shows at most one preview present per tick; layout latency
 
 ### Phase 2 — Preview without distorting text
 
-The current preview scales `contentLayer` by `newSize / previousSize` (`ContentPresenter.swift:181`). That is why text stretches during a drag.
+Status: **applied** (2026-11-05), Option A.
+
+The preview now keeps the last complete frame at 1:1, sets the content layer and its parent to the canvas color, and clips the new area to the view. It no longer scales `contentLayer` by `newSize / previousSize`, so text keeps its shape during a drag. The new-area color is the canvas color until the reflow binds.
+
+The original analysis and diff are kept below as history.
+
+Trace after the clip change (26.67 s, 234 resize events, 15 bursts):
+
+| Measure | Result |
+|---|---:|
+| Preview per resize event | ~2 |
+| Bind per drag burst | 1-3 |
+| Bind position | burst start or 257-331 ms after the last event |
+| Bind during drag | none |
+| Layout after last event | 121-176 ms |
+| Layout duration on resize | 95-150 ms |
+| `view.apply` median | 0.05 ms |
+| `present` coalesced | 7 total |
+
+The first two bursts are load and scroll, not drags. Drag bursts keep the same preview/bind shape as before the clip change. Pixel appearance still needs a manual GUI check: text should keep its shape and the new area should be canvas colored.
 
 Option A (recommended): **clip the last complete frame at 1:1** and fill the new area with the canvas color. This is what Chromium's display compositor does after its 2026 resize fixes: if the frame does not match the window, clip the viewport to the frame, not stretch stale pixels.
 

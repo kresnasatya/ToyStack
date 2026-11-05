@@ -182,20 +182,17 @@ final class ContentPresenter: @unchecked Sendable {
         let scale: ContentScale = frame.viewport.scale
         lastDeferred = 0
         if preview, let previousSize, previousSize.width > 0, previousSize.height > 0 {
+            // Keep the last complete frame at one-to-one scale. The layer fills
+            // the new view with the canvas color while its sublayers keep the
+            // old placements, so the new area is blank until the reflow binds.
             contentLayer.backgroundColor = frame.viewport.canvasColor
             contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
-            let base: CATransform3D = CATransform3DMakeScale(scale.page, scale.page, 1)
-            contentLayer.transform = CATransform3DScale(
-                base,
-                viewSize.width / previousSize.width,
-                viewSize.height / previousSize.height,
-                1
-            )
+            contentLayer.transform = CATransform3DMakeScale(scale.page, scale.page, 1)
             contentLayer.frame = CGRect(
                 x: 0,
                 y: frame.viewport.contentOffset,
-                width: previousSize.width,
-                height: previousSize.height
+                width: viewSize.width,
+                height: viewSize.height
             )
             return
         }
