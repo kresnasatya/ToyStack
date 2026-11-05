@@ -1319,6 +1319,10 @@ class Frame {
         return true
     }
 
+    func scrollNeedsPaint() -> Bool {
+        return !viewportFitsInPaintedWindow()
+    }
+
     private func scrollTo(_ elt: DOMRef) {
         state.runtime.animation.tween = nil
         guard let doc = document else { return }

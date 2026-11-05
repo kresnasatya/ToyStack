@@ -833,6 +833,22 @@ Risk: each render blocks input for 100 ms today. Gate it behind the layout-cost 
 
 ### Phase 5 — Decouple scroll from layout
 
+Status: **short-term applied** (2026-11-05).
+
+`Browser.applyScroll` and `applyScrollAndUpdateInterest` no longer call `repaintForScroll` on the input path. They update the offset, present the old content, set `needsScrollRepaint`, and let `animationTick` repaint once before the next frame.
+
+Headless scroll benchmark (`large.html`, 180 scroll events):
+
+| Measure | Result |
+|---|---:|
+| `BrowserTab.scrollAt` median | 0.034 ms |
+| `BrowserTab.scrollAt` max | 0.06 ms |
+| Paints | 8 |
+| Paint cost (moved off input) | ~71 ms debug each |
+| `present.main` median | 0.006 ms |
+
+The input handler no longer blocks on a paint window. The limitation is unchanged: wheel events still arrive on the main thread, so a long layout can still delay them. True async scrolling needs an input path outside the main run loop or a compositor process.
+
 Short-term:
 
 - Do not call `repaintForScroll()` synchronously from `Browser.applyScroll` on the input path. It paints a window (5-8 ms) when the scroll leaves the painted range. Move that paint to the next animation tick, or widen the paint window.
