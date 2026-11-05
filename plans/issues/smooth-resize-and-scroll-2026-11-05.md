@@ -653,6 +653,8 @@ Measured on a 1000-block page whose media query flips font-size at the resize br
 
 The font cache is the useful win; the geometry guard is limited because a font-size change moves most block y positions. `inline.place.items` is now the largest single item and needs a placement-level change, not another cache.
 
+Release on the same font-flip page: initial 102 ms, resize **41 ms**. At that point the resize target of < 50 ms is met in release; a GUI trace is still needed to confirm on the real page.
+
 Two sub-steps, in order.
 
 #### 3a. Reuse a line without re-placing its children
