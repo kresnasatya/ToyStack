@@ -2,3 +2,4 @@
 !*.png
 !*.mov
 !*.trace
+!benchmark/
