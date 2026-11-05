@@ -713,6 +713,8 @@ Applied follow-up: a font-only refresh keeps the existing run's text and ranges 
 
 Latest GUI trace (16.3 s, 164 resize events, 9 bursts) was a **debug build**: `jsc.context` was 48.8 ms and `load.jsInit` 58.4 ms, versus ~1 ms and ~2.7 ms in the release traces. Resize layout was 76-121 ms. Preview/bind scheduling was still correct, but these absolute numbers cannot be compared with release. Run `swift run -c release ToyStack` for the target measurement.
 
+Next release trace (19.27 s, 179 resize events, 11 bursts): the first six bursts happen before the page renders (layout 1-2 ms, no preview); the five real drag bursts show layout **68-110 ms**, two previews per event, and 1-3 binds. Hotspots are `layout.visit` 41-60 ms, `inline.place.items` 15-20 ms on breakpoints, `inline.refresh` 9-10 ms, `line.place` 5-9 ms, and 15-37k field writes. The initial layout is 225 ms.
+
 GUI trace after 3d (35.2 s, 261 resize events, 16 bursts):
 
 | Burst | Events | Preview | Bind | Layout |
