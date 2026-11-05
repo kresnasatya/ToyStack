@@ -1082,10 +1082,12 @@ extension LayoutTree {
         {
             text = cached
             profiler.count("layout.inline.text.cached")
-            setFontAndPrevious(font, previous: previous, for: text)
-            if let measuredWidth: CGFloat = item.measuredWidth {
-                setTextMeasuredWidth(measuredWidth, for: text)
-            }
+            setFontAndPrevious(
+                font,
+                previous: previous,
+                measuredWidth: item.measuredWidth,
+                for: text
+            )
         } else {
             profiler.count("layout.inline.text.new")
             text = makeText(
@@ -1103,7 +1105,12 @@ extension LayoutTree {
                 parent: lineID,
                 previous: previous
             )
-            setFontAndPrevious(font, previous: previous, for: text)
+            setFontAndPrevious(
+                font,
+                previous: previous,
+                measuredWidth: item.measuredWidth,
+                for: text
+            )
             if let index {
                 placement.setObject(text, at: index)
             }

@@ -849,3 +849,39 @@ antarbagian.
 
 Tidak ada regresi yang terlihat. Langkah ini tetap disimpan karena mengurangi
 penulisan node per baris, tetapi bukan pengungkit besar.
+
+## 17. Langkah 8 — satu tulisan untuk font dan metrics teks
+
+Saat text object dipakai ulang, `appendToLine` memanggil `setFontAndPrevious`
+lalu `setTextMeasuredWidth`. Keduanya menyalin `LayoutNode` dan menulis node
+yang sama. Digabung menjadi satu `setFontAndPrevious` dengan parameter
+`measuredWidth`; metrics diubah dalam salinan node yang sama.
+
+Hasil release headless:
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `document` frame load | 1.084,9 ms | **1.053,2 ms** |
+| `inline.place` font flip | 118,8 ms | **110,1 ms** |
+| `text.append` font flip | 63,9 ms | **55,5 ms** |
+| `layout.text` font flip | 44,4 ms | **41,9 ms** |
+| `field.set` count | 274.998 | 274.998 |
+
+Width-only tidak berubah berarti karena tidak ada penempatan teks.
+
+`swift test`: **234 tes / 39 suite lulus**.
+
+### Trace GUI langkah 8
+
+Trace: 15.838 event.
+
+| Rezim | Frame | `inline.place` | `text.append` | `layout.text` | `document` |
+|---|---:|---:|---:|---:|---:|
+| Style-only | 87, 89, 97, 99, 107, 109, 115 | 53–69 ms | 19,5–19,9 ms (10.336 panggilan) | 14,0–14,6 ms | 135–156 ms |
+| Width-only | 85, 91, 93, 95, 101, 103, 105, 111, 113 | 26–42 ms | ~0,02 ms | — | 73–91 ms |
+
+`text.append` turun dari sekitar 22,6 ms menjadi **19,5–19,9 ms** pada font flip.
+`inline.place` sedikit turun; `layout.text` dan `document` hampir sama.
+Width-only tidak berubah karena tidak menempatkan text.
+
+Tidak ada regresi.

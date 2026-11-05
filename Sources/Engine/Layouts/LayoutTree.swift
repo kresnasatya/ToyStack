@@ -582,26 +582,36 @@ struct LayoutTree {
     mutating func setFontAndPrevious(
         _ font: BrowserFont,
         previous: LayoutID?,
+        measuredWidth: CGFloat?,
         for id: LayoutID
     ) {
         var node: LayoutNode = self.node(id)
         let wasUsed: Bool = node.state.fields.isUsed(.font)
+        let fontDirty: Bool = node.state.fields.isDirty(.font)
         let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
         let previousChanged: Bool = node.links.previous != previous
-        if wasUsed, !node.state.fields.isDirty(.font), !changed {
-            guard previousChanged else { return }
-            node.links.previous = previous
-            node.links.versions.previous += 1
-            nodes[id.raw] = node
-            return
+        var metricsChanged: Bool = false
+        if let measuredWidth: CGFloat {
+            if case .text(var data) = node.kind,
+                data.metrics.width != measuredWidth || !data.metrics.measured
+            {
+                data.metrics.width = measuredWidth
+                data.metrics.measured = true
+                node.kind = .text(data)
+                metricsChanged = true
+            }
         }
-        node.state.fields.inlineText.font = font
+        let needsWrite: Bool = !wasUsed || changed || fontDirty || previousChanged || metricsChanged
+        guard needsWrite else { return }
+        if !wasUsed || changed || fontDirty {
+            node.state.fields.inlineText.font = font
+            node.state.fields.markUsed(.font)
+            node.state.fields.markClean(.font)
+        }
         if previousChanged {
             node.links.previous = previous
             node.links.versions.previous += 1
         }
-        node.state.fields.markUsed(.font)
-        node.state.fields.markClean(.font)
         nodes[id.raw] = node
         if !wasUsed {
             let dependent: FieldKey = .layout(id, .font)
@@ -618,14 +628,6 @@ struct LayoutTree {
         writeFont(font, for: id)
         markUsed(.font, at: id)
         markClean(.font, at: id)
-    }
-
-    mutating func setTextMeasuredWidth(_ width: CGFloat, for id: LayoutID) {
-        var data: TextData = textData(id)
-        guard data.metrics.width != width || !data.metrics.measured else { return }
-        data.metrics.width = width
-        data.metrics.measured = true
-        setKind(.text(data), at: id)
     }
 
     mutating func setTextMetrics(
