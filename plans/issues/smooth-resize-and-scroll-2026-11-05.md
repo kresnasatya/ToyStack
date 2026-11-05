@@ -701,6 +701,14 @@ Release on the font-flip page:
 
 The shared run cuts fragment construction cost and initial layout. Resize is neutral because field writes and line placement still dominate. This is the engine-style text model, but the line text node is still a layout-tree object; removing that object entirely would be the next step.
 
+GUI trace after 3e (39.15 s, 391 resize events, 18 bursts; the first four are load/no-layout):
+
+| Burst | Events | Preview | Bind | Layout |
+|---|---:|---:|---:|---:|
+| drag | 7-36 | ~2x events | 1-6 | 69-120 ms |
+
+`inline.place.items` is now 14-22 ms (was 15-37 in 3d), but `inline.refresh` rose to 16-17 ms because a font-size change rebuilds the block's `TextRun` even though the item text is unchanged. The two roughly cancel, so resize stays neutral. The next win is preserving the run text when itemization changes only font metrics.
+
 GUI trace after 3d (35.2 s, 261 resize events, 16 bursts):
 
 | Burst | Events | Preview | Bind | Layout |
