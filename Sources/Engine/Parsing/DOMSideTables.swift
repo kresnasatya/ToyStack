@@ -26,6 +26,7 @@ struct ImageTable {
     var images: [NodeID: CGImage]
     var backgrounds: [NodeID: CGImage]
     var backgroundSources: [NodeID: String]
+    var revision: UInt64
 }
 
 extension ImageTable {
@@ -33,6 +34,7 @@ extension ImageTable {
         self.images = [:]
         self.backgrounds = [:]
         self.backgroundSources = [:]
+        self.revision = 0
     }
 }
 

@@ -1,0 +1,511 @@
+# Layout Reflow Cost — Plan Lanjutan
+
+Tanggal: 2026-11-05
+Sumber: `browser.trace` terbaru (10.906 event), `plans/resize-flow-trace-2026-11-05.md`
+poin 1, dan `plans/viewport-style-scope-2026-11-05.md`.
+
+## 1. Hubungan dengan poin 1
+
+Plan ini adalah eksekusi poin 1: **turunkan biaya reflow dulu**. Poin 2 (style
+pass viewport) sudah selesai. Poin 3 (pindah layout dari main thread) belum
+disentuh dan tidak akan membantu selama satu reflow masih 155 ms.
+
+Trace terbaru memakai halaman yang sama dengan laporan lama:
+
+| Klaim poin 1 | Trace terbaru |
+|---|---:|
+| 1.773 node selalu di-rebuild | `layout.visit` = `layout.rebuilt` = **1.773** |
+| `layout.inputs.build` 12–20 ms | **9,3–18,6 ms** |
+| `layout.field.mark` puluhan ribu | **11.825–74.708** |
+| `layout.field.set` puluhan ribu | **25.540–89.126** |
+| 50–70 ms di luar span per-node | `BrowserTab.layout` 155–161 ms vs `layout.visit` 79–85 ms |
+
+Dua rezim yang harus dibedakan:
+
+| Rezim | Frame | `inline.place` | `layout.text` | `measureCalls` | Layout |
+|---|---:|---:|---:|---:|---:|
+| Width-only reflow | 82, 86, 88 | 30–41 ms | ~0 | 11 | 100–112 ms |
+| Breakpoint + `font-size` | 80, 84, 90, 137 | 43–49 ms | 17,7–18,3 ms | 20.672 | 155–161 ms |
+
+## 2. Tujuan dan urutan
+
+Target akhir tetap **layout < 16 ms**. Urutan kerja:
+
+1. **Reuse layout inputs antar-pass** (diimplementasikan di plan ini).
+   Target: hilangkan 9–18 ms `layout.inputs.build` pada pass yang DOM dan
+   style-nya tidak berubah.
+2. **Hentikan penempatan ulang baris yang tidak berubah.**
+   Target: `inline.place` dan `line.children.deps` turun pada width-only reflow.
+3. **Cache pengukuran teks per item saat `font-size` berubah.**
+   Target: 20.672 `measureCalls` dan `text.measure` 18 ms turun.
+4. **Kurangi churn dependency field.**
+   `layout.field.mark/set` 11k–89k dan `line.children.deps` 8–14 ms.
+5. **Instrumentasi orkestrasi `layoutDocument`.**
+   Selisih `BrowserTab.layout` vs `layout.visit` masih 70–80 ms.
+
+Plan ini hanya mengerjakan langkah 1. Langkah 2–5 menjadi plan terpisah agar
+setiap langkah bisa diukur sendiri.
+
+## 3. Keputusan desain langkah 1
+
+**Option A — pakai `LayoutInputs` dari layout tree sebelumnya (dipilih).**
+Layout tree sudah menyimpan inputs pass terakhir. Builder membandingkan
+`ObjectIdentifier(dom)`, `dom.revision`, image revision, dan `style.revision`
+per node. Node yang revision-nya sama memakai input lama; node yang berubah
+dibangun ulang.
+
+- Keuntungan: tidak menambah salinan `LayoutInputs` yang persisten; array lama
+  dipakai sebagai COW source.
+- Kekurangan: array baru tetap dibuat saat ada node berubah.
+
+**Option B — cache `LayoutInputs` penuh di `Frame`.**
+Lebih sederhana, tetapi menyimpan salinan besar kedua (15 ribu node) di samping
+inputs yang sudah dipegang layout tree. Ditolak karena memori dan duplikasi.
+
+Kunci invalidasi:
+
+| Faktor | Sumber |
+|---|---|
+| DOM berbeda / berubah | `ObjectIdentifier(dom)` + `dom.revision` |
+| Gambar berubah | `ImageTable.revision` (baru) |
+| Style node berubah | `StyleFields.revision` per node |
+| Ada style write apa pun | `StyleRevision.epoch` global |
+| Font warisan berubah tanpa revision node | perbandingan `font` dengan style parent untuk text node |
+
+`ImageTable.revision` perlu ada karena gambar dimuat tanpa mengubah DOM revision
+maupun style revision (`ElementRef.image` setter). Tanpa revision itu, input
+gambar bisa basi.
+
+## 4. File yang berubah
+
+| File | Perubahan |
+|---|---|
+| `Sources/Engine/Layouts/LayoutInputsKey.swift` (baru) | Kunci revisi untuk reuse. |
+| `Sources/Engine/Style/StyleRevision.swift` (baru) | Epoch global untuk setiap perubahan computed style. |
+| `Sources/Engine/Layouts/LayoutInputsBuilder.swift` | Reuse node input yang tidak berubah; counter `layout.inputs.reused/rebuilt/style`. |
+| `Sources/Engine/Layouts/LayoutTree.swift` | `clearStyleChanges()` untuk membuang perubahan setelah layout selesai. |
+| `Sources/Engine/Layouts/DocumentLayoutPass.swift` | Panggil `clearStyleChanges()` di akhir pass. |
+| `Sources/Engine/Core/Frame.swift` | Simpan kunci, pakai input tree sebelumnya, build inputs sekali per pass. |
+| `Sources/Engine/Parsing/DOMSideTables.swift` | `ImageTable.revision`. |
+| `Sources/Engine/Parsing/ElementRef.swift` | Bump revision saat `image` berubah. |
+| `Tests/ToyStackTests/LayoutInputsCacheTests.swift` (baru) | Reuse width-only, rebuild style/DOM/gambar. |
+
+## 5. Perubahan kode
+
+### 5.1 `Sources/Engine/Layouts/LayoutInputsKey.swift` (baru)
+
+```swift
+import Foundation
+
+/// Revision key for reusing the previous layout inputs.
+struct LayoutInputsKey {
+    let dom: ObjectIdentifier
+    let domRevision: UInt64
+    let imageRevision: UInt64
+    let styleRevision: UInt64
+}
+```
+
+### 5.1b `Sources/Engine/Style/StyleRevision.swift` (baru)
+
+```swift
+import Foundation
+
+/// Monotonic epoch for computed-style writes.
+@MainActor
+enum StyleRevision {
+    private(set) static var epoch: UInt64 = 0
+
+    static func bump() {
+        epoch &+= 1
+    }
+}
+```
+
+`StyleFields` memanggil `StyleRevision.bump()` di setiap tempat yang menaikkan
+`revision`: `applyValues`, `reapplyInherited`, `set`, dan `mutate`. Epoch ini
+membuat fast path aman untuk mutasi style langsung (animasi, tool, tes) yang
+tidak melalui style pass.
+
+### 5.2 `Sources/Engine/Layouts/LayoutInputsBuilder.swift`
+
+```diff
+ @MainActor
+ enum LayoutInputsBuilder {
+     static func build(dom: DOMTree) -> LayoutInputs {
+-        var nodes: [LayoutInput?] = []
++        return build(dom: dom, previous: nil, key: nil)
++    }
++
++    static func build(
++        dom: DOMTree,
++        previous: LayoutInputs?,
++        key: LayoutInputsKey?
++    ) -> LayoutInputs {
++        let reusable: LayoutInputs?
++        if let key: LayoutInputsKey = key,
++            key.dom == ObjectIdentifier(dom),
++            key.domRevision == dom.revision,
++            key.imageRevision == dom.side.images.revision
++        {
++            reusable = previous
++        } else {
++            reusable = nil
++        }
++        var nodes: [LayoutInput?] = reusable?.nodes ?? []
+         var styleChanges: [NodeID: Set<StyleProperty>] = [:]
+         dom.forEachNode { id in
+             guard let node: DOMNode = dom.node(id) else { return }
+             while nodes.count <= Int(id.raw) { nodes.append(nil) }
++            let revision: UInt64 = node.base.style.revision
++            let old: LayoutInput? = reusable?.input(id)
++            if let old, old.style.revision == revision {
++                if node.text == nil {
++                    profiler.count("layout.inputs.reused")
++                    return
++                }
++                if let parent: NodeID = node.base.parent,
++                    let parentNode: DOMNode = dom.node(parent),
++                    old.style.font == parentNode.base.style.computed.text.font
++                {
++                    profiler.count("layout.inputs.reused")
++                    return
++                }
++            }
++            let changes: Set<StyleProperty> = node.base.style.takeLayoutChanges()
++            if !changes.isEmpty { styleChanges[id] = changes }
++            let font: TextStyle.Font
++            if node.text != nil, let parent: NodeID = node.base.parent,
++                let parentNode: DOMNode = dom.node(parent)
++            {
++                font = parentNode.base.style.computed.text.font
++            } else {
++                font = node.base.style.computed.text.font
++            }
++            if let old {
++                var updated: LayoutInput = old
++                updated.style = LayoutInputStyle(
++                    computed: node.base.style.computed,
++                    font: font,
++                    revision: revision
++                )
++                nodes[Int(id.raw)] = updated
++                profiler.count("layout.inputs.style")
++                return
++            }
++            profiler.count("layout.inputs.rebuilt")
+             let element: ElementData? = node.element
+             let ref: DOMRef = dom.ref(id)
+             let elementRef: ElementRef? = ref.element
+-            let changes: Set<StyleProperty> = node.base.style.takeLayoutChanges()
+-            if !changes.isEmpty { styleChanges[id] = changes }
+             nodes[Int(id.raw)] = LayoutInput(
+@@
+                 style: LayoutInputStyle(
+                     computed: node.base.style.computed,
+-                    font: ref.inheritedStyleOwner.style.computed.text.font,
++                    font: font,
+                     revision: node.base.style.revision
+                 ),
+```
+
+Saat kunci cocok, `node`, `content`, dan `media` tidak mungkin berubah karena
+DOM revision dan image revision sama. Jadi node dengan style berubah hanya
+mengganti `style` field; atribut, children, dan gambar tidak disalin ulang.
+`layout.inputs.style` mencatat jalur ini.
+
+### 5.3 `LayoutTree.swift` + `DocumentLayoutPass.swift` — clear setelah layout
+
+```diff
+@@ Sources/Engine/Layouts/LayoutTree.swift
+     /// Marks the layout fields that read one DOM node's changed style properties.
+     mutating func consumeStyleChanges(for node: NodeID) {
+         for property in inputs.styleChanges(node) {
+             markDependents(of: .style(node, property))
+         }
+     }
++
++    mutating func clearStyleChanges() {
++        source.inputs.styleChanges.removeAll(keepingCapacity: true)
++    }
+```
+
+```diff
+@@ Sources/Engine/Layouts/DocumentLayoutPass.swift
+         profiler.measure("layout.dependencies.consumeStyleChanges", {
+             consumeStyleChanges()
+         })
++        defer {
++            clearStyleChanges()
++        }
+         guard documentLayoutNeeded(root) else { return }
+```
+
+`styleChanges` tidak boleh dibuang di `consumeStyleChanges()`. Layout masih
+membacanya setelah itu, terutama `canRefreshFontsOnly` untuk memilih reuse
+inline item. Kalau dibuang terlalu awal, semua inline item dibangun ulang;
+trace GUI menunjukkan `inline.place` melonjak dari 43–49 ms ke 133–142 ms.
+Clear dilakukan di akhir `layoutDocument`, setelah semua pembaca selesai.
+Ini juga mencegah layout redundan memutar perubahan yang sama
+(`LayoutIdempotenceTests`).
+
+### 5.4 `Sources/Engine/Core/Frame.swift` — build sekali per pass
+
+```diff
+     private var styleSnapshotCache: StyleSnapshot?
+     private var styleSnapshotRevision: UInt64 = .max
++    private var layoutInputsKey: LayoutInputsKey?
+@@
+         state.document.dom = newDOM
+         styleSnapshotCache = nil
+         styleSnapshotRevision = .max
++        layoutInputsKey = nil
+@@
+         if state.layout.tree.isDirty {
+             browser?.measure.start("BrowserTab.layout")
+             profiler.reset()
+             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
+             defer { browser?.measure.stop("BrowserTab.layout") }
++            let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
++            let canReuseInputs: Bool
++            if !stylesDirty, !viewportStyle,
++                let previousInputs,
++                previousInputs.styleChanges.isEmpty,
++                let key: LayoutInputsKey = layoutInputsKey,
++                key.dom == ObjectIdentifier(dom),
++                key.domRevision == dom.revision,
++                key.imageRevision == dom.side.images.revision,
++                key.styleRevision == StyleRevision.epoch
++            {
++                canReuseInputs = true
++                profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
++            } else {
++                canReuseInputs = false
++            }
++            let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
++                if canReuseInputs, let previousInputs {
++                    return previousInputs
++                }
++                return LayoutInputsBuilder.build(
++                    dom: dom,
++                    previous: previousInputs,
++                    key: layoutInputsKey
++                )
++            })
++            layoutInputsKey = LayoutInputsKey(
++                dom: ObjectIdentifier(dom),
++                domRevision: dom.revision,
++                imageRevision: dom.side.images.revision,
++                styleRevision: StyleRevision.epoch
++            )
+             let box: LayoutBox
+             if let existing = state.layout.tree.box, existing.tree.dom === dom,
+                 browser?.forceFullLayout != true
+             {
+                 box = existing
+             } else {
+                 box = LayoutBox(LayoutTree(
+                     dom: dom,
+                     root: dom.root,
+-                    inputs: LayoutInputsBuilder.build(dom: dom)
++                    inputs: inputs
+                 ))
+                 state.layout.targets.isValid = false
+             }
+             state.layout.tree.box = box
+             dom.layoutBox = box
+-            let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
+-                LayoutInputsBuilder.build(dom: dom)
+-            })
+             box.tree.refreshInputs(inputs)
+```
+
+Efek tambahan: layout pertama tidak lagi membangun inputs dua kali
+(`LayoutTree.init` dulu membangun sendiri, lalu `Frame` membangun lagi).
+
+### 5.5 `Sources/Engine/Parsing/DOMSideTables.swift`
+
+```diff
+ struct ImageTable {
+     var images: [NodeID: CGImage]
+     var backgrounds: [NodeID: CGImage]
+     var backgroundSources: [NodeID: String]
++    var revision: UInt64
+ }
+@@
+     init() {
+         self.images = [:]
+         self.backgrounds = [:]
+         self.backgroundSources = [:]
++        self.revision = 0
+     }
+ }
+```
+
+### 5.6 `Sources/Engine/Parsing/ElementRef.swift`
+
+```diff
+     var image: CGImage? {
+         get { dom.side.images.images[id] }
+-        nonmutating set { dom.side.images.images[id] = newValue }
++        nonmutating set {
++            dom.side.images.images[id] = newValue
++            dom.side.images.revision &+= 1
++        }
+     }
+```
+
+Hanya `images` yang menaikkan revision. Background image tidak dibaca oleh
+`LayoutInputs`, jadi tidak perlu membatalkan cache layout.
+
+## 6. Tes
+
+File baru `Tests/ToyStackTests/LayoutInputsCacheTests.swift`.
+
+### 6.1 Width-only resize memakai input lama
+
+1. Render halaman tanpa media query.
+2. `setViewport(width: 500)` + `setNeedsViewportResize()`.
+3. Render, periksa counter:
+   - `layout.inputs.reused` > 0
+   - `layout.inputs.rebuilt` tidak ada
+   - geometri sama dengan hasil sebelum perubahan.
+
+### 6.2 Style satu node hanya memperbarui field style
+
+1. Ubah satu field style node secara langsung, lalu `setNeedsLayout`.
+2. Render.
+3. `layout.inputs.style` > 0, `layout.inputs.reused` > 0, dan
+   `layout.inputs.rebuilt` tidak ada.
+4. Warna elemen berubah.
+
+### 6.3 Mutasi teks dan gambar membatalkan cache
+
+1. `text.append(" more")` → DOM revision berubah → `layout.inputs.reused`
+   tidak ada.
+2. Set `img.image`, panggil `LayoutInvalidation.imageChanged`, render →
+   `layout.inputs.reused` tidak ada.
+
+### 6.4 Regresi perilaku
+
+`swift test` penuh harus tetap lulus, termasuk `ViewportResizeTests`,
+`LayoutOracleTests`, dan `LayoutDependencyTests`.
+
+## 7. Verifikasi performa
+
+Baseline headless debug, 15.005 node DOM, lebar 800 → 700 (tanpa media flip)
+dan 800 → 400 (dengan `font-size` flip):
+
+| Metrik | Sebelum | Sesudah | Perubahan |
+|---|---:|---:|---:|
+| `layout.inputs.build` width-only | 36,5 ms | **0 ms** (fast path) | −100% |
+| `layout.inputs.build` breakpoint | 40,7 ms | **32,6 ms** | −20% |
+| `layout.inputs.reused` width-only | — | 15.005 node | semua node |
+| `layout.inputs.style` breakpoint | — | 15.001 node | hanya style field |
+
+Fast path melewati builder sepenuhnya bila DOM, gambar, dan style tidak
+berubah. Build tetap berjalan untuk style flip, mutasi DOM, gambar, dan
+animasi.
+
+Angka absolut ini dari build **debug**. Angka GUI dari trace terakhir:
+
+| Rezim | `layout.inputs.build` sebelum fast path |
+|---|---:|
+| Width-only | 12,7–25,0 ms |
+| Breakpoint | 13,4–15,7 ms |
+
+| Rezim | `layout.inputs.build` setelah fast path (GUI) |
+|---|---:|
+| Width-only | **0 ms** |
+| Breakpoint | 11,1–14,3 ms |
+
+Fast path baru ditambahkan setelah trace itu. Trace GUI berikutnya
+mengonfirmasi `layout.inputs.build` width-only = **0 ms** dengan
+`layout.inputs.reused` = 14.995. Breakpoint tetap membayar builder
+11,1–14,3 ms karena 5.501 node berubah style.
+
+## 8. Risiko
+
+- Cache salah invalidasi membuat teks, gambar, atau style basi. Kunci harus
+  mencakup DOM identity+revision, image revision, dan style revision per node.
+- Reuse melewati `takeLayoutChanges()` untuk node yang revision-nya sama.
+  Itu aman karena setiap penulisan style yang mengisi `layoutChanges` juga
+  menaikkan `StyleFields.revision`. Invariant ini harus dipertahankan.
+- Font text node tidak mengikuti `StyleFields.revision` saat parent dianimasikan
+  langsung; karena itu `font` parent tetap dibandingkan sebelum reuse.
+- Node yang berubah style tetapi nilai computed-nya sama tetap memperbarui
+  `style` field. Itu aman, hanya sedikit lebih mahal.
+- Langkah ini tidak menyentuh `inline.place` 43–49 ms. Itu tetap target
+  berikutnya.
+
+## 9. Trace GUI setelah input reuse
+
+Trace: 20.972 event, 14 layout pass, 1.773 layout node per reflow.
+
+| Rezim | Frame | `inputs.build` | `reused` | `style` |
+|---|---:|---:|---:|---:|
+| Width-only | 73, 75, 77, 81, 85, 87, 89 | 8,3–20,4 ms | 14.995 | — |
+| Style-only | 69, 71, 79, 83 | 12,7–14,5 ms | 9.494 | 5.501 |
+
+Jadi reuse bekerja di GUI: node yang tidak berubah tidak membangun ulang
+`LayoutInput`.
+
+### Regresi yang ditemukan
+
+Frame style-only menunjukkan `layout.inline.items.rebuilt` = **10.343** dan
+`layout.inline.place` **133–142 ms**, padahal trace sebelumnya 43–49 ms.
+Penyebabnya: `styleChanges` dibuang di `consumeStyleChanges()`, padahal
+`canRefreshFontsOnly` membacanya setelah itu. Akibatnya semua inline item
+dibangun ulang, bukan dipakai ulang.
+
+Perbaikan: `clearStyleChanges()` dipindah ke akhir `layoutDocument`, setelah
+semua pembaca selesai. Smoke test headless setelah perbaikan:
+
+| Metrik | Sebelum perbaikan | Sesudah perbaikan |
+|---|---:|---:|
+| `inline.items.reused` pada font flip | — | 30.000 |
+| `inline.place` (debug) | 480 ms | 490 ms |
+
+Jadi jalur reuse inline kembali seperti baseline, bukan regresi. Trace GUI
+berikutnya harus menunjukkan `inline.items.reused` > 0 dan `inline.place`
+kembali ke kisaran 43–49 ms.
+
+### Trace GUI ketiga (setelah clear dipindah)
+
+Trace: 9.439 event, 11 layout pass, 1.773 layout node per reflow.
+
+| Rezim | Frame | `inputs.build` | `reused` | `style` | `inline.items.reused` | `inline.place` |
+|---|---:|---:|---:|---:|---:|---:|
+| Width-only | 89, 95, 97, 103, 105 | 12,7–25,0 ms | 14.995 | — | — | 0,5–52 ms |
+| Style-only | 91, 93, 99, 101 | 13,4–15,7 ms | 9.494 | 5.501 | 10.343 | 51–60 ms |
+
+Regresi inline sudah hilang: `inline.items.rebuilt` tidak ada, `inline.items.reused`
+10.343, dan `inline.place` kembali ke 51–60 ms (sebelumnya 133–142 ms).
+
+`inputs.build` width-only masih 12,7–25,0 ms karena fast path belum ada pada
+trace ini. Fast path kemudian ditambahkan dan diukur headless: 0 ms untuk
+width-only, 32,6 ms untuk breakpoint (debug). Perlu satu trace GUI lagi untuk
+mengonfirmasi angka release.
+
+### Trace GUI keempat (fast path aktif)
+
+Trace: 12.679 event, 19 layout pass, 1.773 layout node per reflow.
+
+| Rezim | Frame | `inputs.build` | `reused` | `style` | `inline.items.reused` | `inline.place` |
+|---|---:|---:|---:|---:|---:|---:|
+| Width-only | 84, 86, 90, 94, 96, 100, 104, 108 | **0 ms** | 14.995 | — | — | 1,9–58,2 ms |
+| Style-only | 80, 88, 98, 102, 106, 110, 112, 114 | 11,1–14,3 ms | 9.494 | 5.501 | 10.343 | 35,6–57,7 ms |
+
+Fast path bekerja di GUI. Width-only tidak lagi membangun input sama sekali.
+Style-only tetap membangun 5.501 field style; ini yang tersisa dari langkah 1.
+
+Biaya frame setelah langkah 1:
+
+| Rezim | Layout | Style | AnimFrame |
+|---|---:|---:|---:|
+| Width-only | 44–122 ms | 0 ms | 44–122 ms |
+| Style-only | 141–171 ms | 29,6–44,9 ms | 182–215 ms |
+
+Inline item tidak dibangun ulang, tetapi `inline.place` masih 35–58 ms dan
+`layout.visit` 60–93 ms. Bottleneck berikutnya tetap inline placement, bukan
+input building.

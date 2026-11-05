@@ -27,7 +27,7 @@ struct DOMDataTests {
         #expect(storedPropertyCount(ElementData(tag: "p", attributes: [:], isChecked: false)) == 3)
         #expect(storedPropertyCount(DOMTextData(text: "")) == 1)
         #expect(storedPropertyCount(DOMSideTables()) == 4)
-        #expect(storedPropertyCount(ImageTable()) == 3)
+        #expect(storedPropertyCount(ImageTable()) == 4)
         #expect(storedPropertyCount(EmbedTable()) == 2)
         #expect(storedPropertyCount(CanvasTable()) == 1)
     }

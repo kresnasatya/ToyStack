@@ -30,6 +30,9 @@ extension LayoutTree {
         profiler.measure("layout.dependencies.consumeStyleChanges", {
             consumeStyleChanges()
         })
+        defer {
+            clearStyleChanges()
+        }
         guard documentLayoutNeeded(root) else { return }
         defer {
             setDirtyDescendants(false, at: root)

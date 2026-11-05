@@ -86,6 +86,7 @@ final class StyleFields {
         invalidation.needsRestyle = false
         if !changed.isEmpty || parsed.unknown != oldUnknown {
             revision += 1
+            StyleRevision.bump()
         }
         layoutChanges.formUnion(changed)
         recordInheritedChanges(changed)
@@ -122,6 +123,7 @@ final class StyleFields {
         storage.computed.text = newText
         invalidation.needsRestyle = false
         revision += 1
+        StyleRevision.bump()
         profiler.count("style.fields.changed", by: changedCount)
         profiler.count("style.apply.inherited", by: 1)
         return true
@@ -138,6 +140,7 @@ final class StyleFields {
         invalidation.dirtyKeys.remove(property)
         canReinheritText = false
         revision += 1
+        StyleRevision.bump()
         layoutChanges.insert(property)
     }
 
@@ -149,6 +152,7 @@ final class StyleFields {
         canReinheritText = false
         invalidation.dirtyKeys.subtract(changed)
         revision += 1
+        StyleRevision.bump()
         layoutChanges.formUnion(changed)
     }
 

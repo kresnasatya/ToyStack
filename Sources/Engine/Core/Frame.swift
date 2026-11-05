@@ -19,6 +19,7 @@ class Frame {
     var state: FrameState
     private var styleSnapshotCache: StyleSnapshot?
     private var styleSnapshotRevision: UInt64 = .max
+    private var layoutInputsKey: LayoutInputsKey?
 
     var tab: BrowserTab? { links.tab }
     var parentFrame: Frame? { tab?.frame(links.parent) }
@@ -41,6 +42,7 @@ class Frame {
         state.document.dom = newDOM
         styleSnapshotCache = nil
         styleSnapshotRevision = .max
+        layoutInputsKey = nil
         state.layout.tree.box = nil
         state.layout.tree.isDirty = true
         state.layout.targets = ScrollTargetState()
@@ -921,6 +923,38 @@ class Frame {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
+            let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
+            let canReuseInputs: Bool
+            if !stylesDirty, !viewportStyle,
+                let previousInputs,
+                previousInputs.styleChanges.isEmpty,
+                let key: LayoutInputsKey = layoutInputsKey,
+                key.dom == ObjectIdentifier(dom),
+                key.domRevision == dom.revision,
+                key.imageRevision == dom.side.images.revision,
+                key.styleRevision == StyleRevision.epoch
+            {
+                canReuseInputs = true
+                profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
+            } else {
+                canReuseInputs = false
+            }
+            let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
+                if canReuseInputs, let previousInputs {
+                    return previousInputs
+                }
+                return LayoutInputsBuilder.build(
+                    dom: dom,
+                    previous: previousInputs,
+                    key: layoutInputsKey
+                )
+            })
+            layoutInputsKey = LayoutInputsKey(
+                dom: ObjectIdentifier(dom),
+                domRevision: dom.revision,
+                imageRevision: dom.side.images.revision,
+                styleRevision: StyleRevision.epoch
+            )
             let box: LayoutBox
             if let existing = state.layout.tree.box, existing.tree.dom === dom,
                 browser?.forceFullLayout != true
@@ -930,15 +964,12 @@ class Frame {
                 box = LayoutBox(LayoutTree(
                     dom: dom,
                     root: dom.root,
-                    inputs: LayoutInputsBuilder.build(dom: dom)
+                    inputs: inputs
                 ))
                 state.layout.targets.isValid = false
             }
             state.layout.tree.box = box
             dom.layoutBox = box
-            let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
-                LayoutInputsBuilder.build(dom: dom)
-            })
             box.tree.refreshInputs(inputs)
             box.tree.layoutDocument(
                 availableWidth: frameWidth,

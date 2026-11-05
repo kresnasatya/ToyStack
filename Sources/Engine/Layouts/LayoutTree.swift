@@ -349,6 +349,10 @@ struct LayoutTree {
         }
     }
 
+    mutating func clearStyleChanges() {
+        source.inputs.styleChanges.removeAll(keepingCapacity: true)
+    }
+
     // MARK: - Fields
     func isDirty(_ field: LayoutField, at id: LayoutID) -> Bool {
         return node(id).state.fields.isDirty(field)

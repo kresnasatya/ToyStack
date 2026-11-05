@@ -50,7 +50,10 @@ extension ElementRef {
 
     var image: CGImage? {
         get { dom.side.images.images[id] }
-        nonmutating set { dom.side.images.images[id] = newValue }
+        nonmutating set {
+            dom.side.images.images[id] = newValue
+            dom.side.images.revision &+= 1
+        }
     }
 
     var backgroundImage: CGImage? {
