@@ -1,6 +1,6 @@
 # Smooth Scroll and Smooth Resize: Responsibility, Comparison, and ToyStack Plan
 
-Status: analysis + proposed plan. No code is changed by this document.
+Status: analysis + proposed plan. Phase 1 is implemented; the rest is still a plan.
 
 ## Short answer
 
@@ -290,13 +290,103 @@ Exit condition: a 30-event burst reproduces the current 90-153 ms layout and the
 
 ### Phase 1 — Drive the preview from the frame clock
 
-Current defects:
+Status: **applied** (2026-11-05).
 
-- `beginResizePreview` starts a main-queue timer per event.
-- The timer competes with queued resize events and presents.
-- Presents during a drag are per event, not per frame.
+Implemented:
 
-Proposed change in `Sources/Engine/Core/Browser.swift`:
+- `Sources/Engine/Core/ResizePreviewPolicy.swift` — pure policy: `resize(now:requiresPreview:)`, `presentPreview(size:now:)`, `allowsLayout(now:)`, `cancel()`. No timer, no `DispatchWorkItem`.
+- `Sources/Engine/Core/Browser.swift` — one `resizePreview` property; `resize` only sets a deadline and requests the next frame; `animationTick` presents at most one size per tick and lays out on the first tick after the deadline.
+- `Tests/ToyStackTests/ResizePreviewPolicyTests.swift` — 6 tests covering fast frames, one present per size, deadline expiry, continued drag extension, fast-frame cancel, and explicit cancel.
+
+Why it is safe:
+
+- The preview stays alive because `animationTick` returns without clearing `needsAnimationFrame`.
+- Only one present happens per size change per tick, not one per event.
+- The final layout starts on the first tick after the deadline, not from a competing main-queue timer.
+- Fast pages never enter preview.
+
+The diff below is the original sketch. It is kept as history; the implemented version moved the state out of `Browser` into `ResizePreviewPolicy`.
+
+Trace after the change (GUI, 21.03 s, 263 resize events, 11 bursts):
+
+| Measure | Result |
+|---|---:|
+| Resize events per burst | 52 / 19 / 38 / 15 / 35 / 1 / 14 / 30 / 9 / 27 / 23 |
+| Event spacing | 16.7 ms |
+| Layout after last event | 125-167 ms |
+| Layout duration on resize | 40-162 ms |
+| Style on breakpoint flips | 30-33 ms |
+| Paint | 7-8 ms |
+| Scroll handle | 0.139 ms median |
+| Presents during a burst | ~2 per resize event |
+
+The scheduling part works: one layout per burst, starting one tick after the 120 ms deadline. The present count did not drop because the GUI already emits one resize event per 60 Hz tick, so one preview per tick is also one per event.
+
+The trace also exposes a pre-existing wiring issue: `PresentedFrame.revision` is `presentRevision`, which increments on every `dispatchPresent`. `ContentPresentationState.decide` requires the *same* revision to enter `.preview`, so two separately dispatched presents almost never preview. In the first burst, only **4 of 104** presents took the preview path (no `view` counter); the other 100 emitted `view` counters with `placements: 120`, which is the bind path. The preview scale therefore runs occasionally, not on every resize tick.
+
+Before Phase 2 changes the scale, split the revision:
+
+- keep a present sequence number for `ContentPresenter.enqueue` de-duplication,
+- give `ContentPresentationState` a content revision that changes only when committed content changes (paint revision),
+- add a test with two presents of the same content revision at different sizes, then one with a new content revision.
+
+Without that split, Phase 2's clip/scale choice will not run on most resize presents either.
+
+### Phase 1b — Split content revision from present sequence
+
+Status: **applied** (2026-11-05).
+
+- `Sources/Engine/Presentation/PresentedRevision.swift` — `content` + `sequence`.
+- `ContentPresentationState.decide` compares `revision.content` only; a sequence change with the same content and a new size previews.
+- `ContentPresenter` de-duplicates by the full revision (content + sequence) plus view size, so scroll presents are not dropped.
+- `Browser` keeps a `contentRevision` that bumps on commit, new tab, and tab switch; `presentRevision` remains the dispatch sequence.
+- `Tests/ToyStackTests/ContentPresentationStateTests.swift` covers same-content/different-sequence preview, same-content/same-size bind, and new-content bind.
+
+Phase 2 can now change the preview drawing and actually exercise the `.preview` path.
+
+### Phase 1c — Idempotent preview from the base view size
+
+The next GUI trace (37.61 s, 452 resize events, 25 bursts) showed the split working, but every resize tick still produced **one preview followed by one bind**:
+
+| Measure | Result |
+|---|---:|
+| `view.presentation` preview | 440 |
+| `view.presentation` bind | 690 |
+| Preview per resize event | ~1 |
+| Bind per resize event | ~1 |
+| Layout after last event | 121-170 ms |
+| Layout duration on resize | 45-175 ms |
+| Paint | 5.6 ms median |
+| Scroll handle | 0.251 ms median |
+
+The bind arrives about 13 ms after the preview, at the same view size. `ContentPresentationState` treated a same-size present as a bind, so the second present overwrote the preview with old placements at the new size.
+
+Applied fix: `ContentPresentationState` now stores the **base view size** where the current content was bound, not the last presented size.
+
+- Same content, size different from base → `.preview(from: base)` on every present, including repeats.
+- Same content, size equal to base → `.bind` (scroll and tile updates).
+- New content → `.bind` and the base moves to the current size.
+
+`baseViewSize` replaces `lastViewSize`. Tests cover repeated previews, same-size repeat after a preview, same-size at base, and new content at the same or a new size.
+
+Expected next trace: roughly two previews per resize event during a drag, and binds only when a reflow commits.
+
+Confirmed (27.08 s, 292 resize events, 15 bursts):
+
+| Measure | Result |
+|---|---:|
+| `view.presentation` preview | 573 |
+| `view.presentation` bind | 253 |
+| Preview per resize event | ~2 |
+| Bind per burst | 1-3 |
+| Bind position | at burst start or 326-381 ms after the last event |
+| Bind during drag | none |
+| Layout after last event | 123-163 ms |
+| Layout duration on resize | 88-158 ms |
+| `view.apply` median | 0.04 ms |
+| `present` coalesced | 1 total |
+
+The preview path is now the normal resize path. Binds happen when content is committed, not in the middle of a drag. Phase 2 can change the preview drawing without fighting the bind path.
 
 ```diff
 -    private var resizePreviewWorkItem: DispatchWorkItem?
