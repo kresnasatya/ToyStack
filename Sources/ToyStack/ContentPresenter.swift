@@ -34,6 +34,7 @@ final class ContentPresenter: @unchecked Sendable {
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: Int, size: CGSize)?
+    private var presentationState: ContentPresentationState = ContentPresentationState()
     private var presenting = false
     private var coalesced = 0
     /// Last frame applied, kept so deferred tile binds can finish without
@@ -121,11 +122,22 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
         lastUsesSublayers = usesSublayers
         lock.lock()
-        let previous: (revision: Int, size: CGSize)? = applied
         applied = (frame.revision, viewSize)
         lock.unlock()
-        let preview: Bool =
-            previous.map({ $0.size != viewSize && $0.revision == frame.revision }) ?? false
+        let decision: ContentPresentationState.Decision = presentationState.decide(
+            revision: frame.revision,
+            viewSize: viewSize
+        )
+        let preview: Bool
+        let previousSize: CGSize?
+        switch decision {
+        case .bind:
+            preview = false
+            previousSize = nil
+        case let .preview(from: size):
+            preview = true
+            previousSize = size
+        }
         measure.start("view.apply", category: .present, frame: frame.frameID)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -135,7 +147,7 @@ final class ContentPresenter: @unchecked Sendable {
                 frame,
                 viewSize: viewSize,
                 preview: preview,
-                previousSize: previous?.size
+                previousSize: previousSize
             )
         } else {
             applyImage(frame, viewSize: viewSize, preview: preview)

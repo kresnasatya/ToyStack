@@ -174,6 +174,9 @@ public class Browser: ObservableObject {
             deadline: .now() + resizePreviewDelay,
             execute: work
         )
+        // Rebind the old content before AppKit applies the new view size.
+        // Without this, the layout present scales the old content directly
+        // and text stretches during the drag.
         dispatchPresent(frameID: currentFrameID)
     }
 
