@@ -655,6 +655,14 @@ The font cache is the useful win; the geometry guard is limited because a font-s
 
 Release on the same font-flip page: initial 102 ms, resize **41 ms**. At that point the resize target of < 50 ms is met in release; a GUI trace is still needed to confirm on the real page.
 
+GUI trace after 3c (23.63 s, 386 resize events, 15 bursts):
+
+| Burst | Events | Preview | Bind | Layout |
+|---|---:|---:|---:|---:|
+| drag bursts | 12-81 | ~2x events | 1-4 | 57-153 ms |
+
+`inline.refresh` is now 8-9 ms (was 24-30) and `layout.visit.geometry` 7-18 ms. The remaining cost is `inline.place.items` at 15-51 ms on frames where the breakpoint changes font size; non-breakpoint frames have almost no item placement but still pay 20-44 ms in inline placement. Preview scheduling remains correct: two previews per event and binds only at the start or after the reflow.
+
 Two sub-steps, in order.
 
 #### 3a. Reuse a line without re-placing its children
