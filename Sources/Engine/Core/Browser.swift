@@ -93,7 +93,6 @@ public class Browser: ObservableObject {
     private var needsRaster: Bool = false
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
-    private var needsScrollRepaint: Bool = false
     private var compositeInFlight: Bool = false
     private var currentFrameID: Int = 0
     private var needsTileContinuation: Bool = false
@@ -199,11 +198,6 @@ public class Browser: ObservableObject {
     private func animationTick() {
         guard needsAnimationFrame else {
             return
-        }
-        if needsScrollRepaint {
-            needsScrollRepaint = false
-            _ = activeTab?.rootFrame.repaintForScroll()
-            dispatchPresent(frameID: currentFrameID)
         }
         let now: Date = Date()
         if resizePreview.presentPreview(size: windowSize, now: now) {
@@ -651,25 +645,23 @@ public class Browser: ObservableObject {
 
     public func applyScroll(_ scroll: CGFloat) {
         activePresentation.scroll.scroll = scroll
-        needsScrollRepaint = activeTab?.rootFrame.scrollNeedsPaint() ?? false
+
+        let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
 
         if activePresentation.render.content.usesSublayers {
-            dispatchPresent(frameID: currentFrameID)
-            if !needsScrollRepaint {
-                let step: CGFloat = RasterLayer.tileSize
-                if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
-                    lastTileScroll = scroll
-                    setNeedsDrawOnly()
-                    scheduleRasterAndDraw()
-                }
+            if didRepaint {
+                setNeedsComposite()
             }
-        } else if !needsScrollRepaint {
+            dispatchPresent(frameID: currentFrameID)
+            let step: CGFloat = RasterLayer.tileSize
+            if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
+                lastTileScroll = scroll
+                setNeedsDrawOnly()
+                scheduleRasterAndDraw()
+            }
+        } else {
             setNeedsDrawOnly()
             scheduleRasterAndDraw()
-        }
-
-        if needsScrollRepaint {
-            needsAnimationFrame = true
         }
     }
 
@@ -677,13 +669,12 @@ public class Browser: ObservableObject {
         activePresentation.scroll.scroll = scroll
         activePresentation.scroll.interestTop = interestTop
         activePresentation.scroll.interestBottom = interestBottom
-        needsScrollRepaint = activeTab?.rootFrame.scrollNeedsPaint() ?? false
-        if needsScrollRepaint {
-            needsAnimationFrame = true
-        } else {
-            setNeedsDrawOnly()
-            scheduleRasterAndDraw()
+        let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
+        if didRepaint && activePresentation.render.content.usesSublayers {
+            setNeedsComposite()
         }
+        setNeedsDrawOnly()
+        scheduleRasterAndDraw()
     }
 
     public func togglePrefersDark() {

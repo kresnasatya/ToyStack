@@ -833,9 +833,11 @@ Risk: each render blocks input for 100 ms today. Gate it behind the layout-cost 
 
 ### Phase 5 — Decouple scroll from layout
 
-Status: **short-term applied** (2026-11-05).
+Status: **reverted** (2026-11-05).
 
-`Browser.applyScroll` and `applyScrollAndUpdateInterest` no longer call `repaintForScroll` on the input path. They update the offset, present the old content, set `needsScrollRepaint`, and let `animationTick` repaint once before the next frame.
+The deferred repaint made deep scrolling faster on the input path, but text in list items disappeared after scrolling on a real page. The regression appeared with commit `c7dc171`, so `Browser.applyScroll` and `applyScrollAndUpdateInterest` are back to synchronous `repaintForScroll` until a version with correct repaint ordering is tested in the GUI.
+
+Historical short-term:
 
 Headless scroll benchmark (`large.html`, 180 scroll events):
 
