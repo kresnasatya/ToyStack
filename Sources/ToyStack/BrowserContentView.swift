@@ -9,7 +9,6 @@ final class ContentLayerView: NSView {
     private let scrollbarLayer = CALayer()
     private var presenter: ContentPresenter?
     private weak var browser: Browser?
-    private weak var measure: MeasureTime?
 
     private func ensureLayers() {
         guard contentLayer.superlayer == nil else { return }
@@ -45,17 +44,19 @@ final class ContentLayerView: NSView {
     func apply(_ browser: Browser) {
         self.browser = browser
         ensureLayers()
-        measure?.start("present.main")
-        presenter?.enqueue(browser.presentedFrame, viewSize: bounds.size)
-        measure?.stop("present.main")
     }
 
     override func layout() {
         super.layout()
-        if let browser { apply(browser) }
+        presentCurrentFrame()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    private func presentCurrentFrame() {
+        guard let browser else { return }
+        presenter?.enqueue(browser.presentedFrame, viewSize: bounds.size)
+    }
 }
 
 struct BrowserContentView: NSViewRepresentable {
