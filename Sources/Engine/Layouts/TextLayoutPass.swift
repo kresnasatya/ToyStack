@@ -49,7 +49,7 @@ extension LayoutTree {
             if fontChanged {
                 var data: TextData = textData(id)
                 let resolvedFont: BrowserFont
-                if let override = data.fontOverride {
+                if let override = data.payload.fontOverride {
                     resolvedFont = override
                 } else {
                     resolvedFont = fontFor(domID(of: id), zoom: zoom(id))
@@ -68,7 +68,7 @@ extension LayoutTree {
                     profiler.count("text.measureReused")
                     measured = data.metrics.width
                 } else {
-                    measured = measuredFont.measure(data.display ?? data.word)
+                    measured = measuredFont.measure(textString(id))
                     var updated: TextData = data
                     updated.metrics.width = measured
                     updated.metrics.measured = true

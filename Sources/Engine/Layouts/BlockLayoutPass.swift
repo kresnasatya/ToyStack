@@ -797,6 +797,9 @@ extension LayoutTree {
     mutating private func placeInlineItems(_ id: LayoutID) {
         let data: BlockData = blockData(id)
         let items: [InlineItem] = data.content.inlineItems
+        if textRuns[id] == nil {
+            textRuns[id] = TextRun(items: items)
+        }
         let reusable: [LayoutID] = childrenIDs(of: id).filter({ isLine($0) })
         var placement: InlinePlacement = InlinePlacement(
             parent: id,
@@ -841,6 +844,9 @@ extension LayoutTree {
     ) {
         let data: BlockData = blockData(id)
         let items: [InlineItem] = data.content.inlineItems
+        if textRuns[id] == nil {
+            textRuns[id] = TextRun(items: items)
+        }
         let oldLines: [LayoutID] = childrenIDs(of: id).filter({ isLine($0) })
         var oldLineByStart: [Int: (line: LayoutID, count: Int)] = [:]
         for index in oldPlan.indices where index < oldLines.count {
@@ -891,7 +897,7 @@ extension LayoutTree {
                 let font: BrowserFont = text.fontOverride ?? text.run.font
                 let measured: CGFloat = text.measuredWidth ?? font.measure(text.display ?? text.word)
                 let w: CGFloat = measured + font.spaceWidth
-                placement.appendText(text, width: w, in: &self)
+                placement.appendText(text, width: w, index: itemIndex, in: &self)
             }
             placement.finish(in: &self)
             lines.append(line)
@@ -988,6 +994,7 @@ extension LayoutTree {
                 items[index] = .text(item.withFont(font, measuredWidthScale: scale))
             }
             data.content.inlineItems = items
+            textRuns[id] = TextRun(items: items)
             profiler.count("layout.inline.items.reused", by: items.count)
         } else {
             let leaves: [LayoutDOMView] = inlineLeaves(id)
@@ -996,6 +1003,7 @@ extension LayoutTree {
                 items.append(contentsOf: makeItems(id, for: leaf))
             }
             data.content.inlineItems = items
+            textRuns[id] = TextRun(items: items)
             if !preservingObjects {
                 data.content.inlineObjects.removeAll(keepingCapacity: true)
             }
@@ -1162,7 +1170,7 @@ extension LayoutTree {
         if measuredItem.measuredWidth == nil {
             measuredItem.measuredWidth = measured
         }
-        placement.appendText(measuredItem, width: w, in: &self)
+        placement.appendText(measuredItem, width: w, index: index ?? 0, in: &self)
         placement.cursorX += w
     }
 
@@ -1192,9 +1200,12 @@ extension LayoutTree {
             profiler.count("layout.inline.text.new")
             text = makeText(
                 TextData(
-                    word: item.word,
-                    display: item.display,
-                    fontOverride: item.fontOverride,
+                    payload: TextPayload(
+                        word: item.word,
+                        display: item.display,
+                        fontOverride: item.fontOverride
+                    ),
+                    fragment: nil,
                     metrics: TextMetrics(
                         width: item.measuredWidth ?? 0,
                         whiteSpace: item.run.whiteSpace,
@@ -1441,7 +1452,7 @@ extension LayoutTree {
         guard contains(id) else { return nil }
         guard isText(id),
             domID(of: id) == node.id,
-            textData(id).word == word
+            textData(id).payload.word == word
         else { return nil }
         return id
     }
@@ -1606,10 +1617,15 @@ private struct InlinePlacementContext {
     var objectsChanged: Bool = false
 }
 
-private struct PendingText {
+private struct PendingTextStyle {
     let node: NodeID
     let font: BrowserFont
-    var text: String
+}
+
+private struct PendingText {
+    let style: PendingTextStyle
+    let start: Int
+    var count: Int
     var width: CGFloat
 }
 
@@ -1723,24 +1739,25 @@ struct InlinePlacement {
         state.content = InlineLineContent()
     }
 
-    mutating func appendText(_ item: InlineTextItem, width: CGFloat, in tree: inout LayoutTree) {
+    mutating func appendText(_ item: InlineTextItem, width: CGFloat, index: Int, in tree: inout LayoutTree) {
         let font: BrowserFont = item.fontOverride ?? item.run.font
-        let text: String = item.display ?? item.word
+        let style: PendingTextStyle = PendingTextStyle(node: item.run.node.id, font: font)
         if var pending: PendingText = state.content.pending,
-            pending.node == item.run.node.id,
-            CFEqual(pending.font.ctFont, font.ctFont),
+            pending.style.node == style.node,
+            CFEqual(pending.style.font.ctFont, style.font.ctFont),
+            index == pending.start + pending.count,
             !item.hasSoftHypen
         {
-            pending.text += " " + text
+            pending.count += 1
             pending.width += width
             state.content.pending = pending
             return
         }
         flushText(in: &tree)
         state.content.pending = PendingText(
-            node: item.run.node.id,
-            font: font,
-            text: text,
+            style: style,
+            start: index,
+            count: 1,
             width: width
         )
     }
@@ -1750,30 +1767,35 @@ struct InlinePlacement {
             let line: LayoutID = state.currentLine
         else { return }
         let previous: LayoutID? = state.content.children.last
+        let fragment: TextFragment = TextFragment(
+            block: context.parent,
+            start: pending.start,
+            count: pending.count
+        )
         let text: LayoutID
         if state.content.reuseText.isEmpty {
             text = tree.makeText(
                 TextData(
-                    word: pending.text,
-                    display: pending.text,
-                    fontOverride: nil,
+                    payload: TextPayload(word: "", display: nil, fontOverride: nil),
+                    fragment: fragment,
                     metrics: TextMetrics(width: pending.width, whiteSpace: .normal, measured: true)
                 ),
-                dom: pending.node,
+                dom: pending.style.node,
                 parent: line,
                 previous: previous
             )
         } else {
             text = state.content.reuseText.removeFirst()
             var data: TextData = tree.textData(text)
-            data.word = pending.text
-            data.display = pending.text
+            data.fragment = fragment
+            data.payload.word = ""
+            data.payload.display = nil
             data.metrics.width = pending.width
             data.metrics.measured = true
             tree.setKind(.text(data), at: text)
         }
         tree.setFontAndPrevious(
-            pending.font,
+            pending.style.font,
             previous: previous,
             measuredWidth: nil,
             for: text

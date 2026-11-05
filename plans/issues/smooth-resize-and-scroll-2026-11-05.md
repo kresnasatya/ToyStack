@@ -682,6 +682,25 @@ Item placement dropped by about a third and total resize by about 6%. The remain
 
 Release on the same page: resize **39 ms**, `inline.place.items` **4.3 ms** (from 7.8 ms in 3c).
 
+### Phase 3e — Shared text runs and fragment ranges (applied)
+
+Status: **applied** (2026-11-05).
+
+- `TextRun` owns the block's UTF-16 text and the character range of every inline item.
+- A line text node stores `TextFragment(block, start item, count)` instead of a joined string.
+- Paint, text measurement, caret, and accessibility read the fragment through `LayoutTree.textString`.
+- Runs are rebuilt when itemization changes and reused across width-only resizes.
+
+Release on the font-flip page:
+
+| Measure | 3d | 3e |
+|---|---:|---:|
+| Initial layout | 122 ms | **103 ms** |
+| Resize layout | 39.4 ms | 39.8 ms |
+| `inline.place.items` | 4.3 ms | **3.2 ms** |
+
+The shared run cuts fragment construction cost and initial layout. Resize is neutral because field writes and line placement still dominate. This is the engine-style text model, but the line text node is still a layout-tree object; removing that object entirely would be the next step.
+
 GUI trace after 3d (35.2 s, 261 resize events, 16 bursts):
 
 | Burst | Events | Preview | Bind | Layout |

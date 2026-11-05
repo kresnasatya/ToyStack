@@ -15,6 +15,7 @@ struct LayoutTree {
     /// Set when layout adds or re-links nodes. A pure width/geometry pass
     /// leaves it false and can skip the reachability sweep.
     private(set) var needsSweep: Bool = false
+    var textRuns: [LayoutID: TextRun] = [:]
 
     private var storageEffects: [LayoutEffect] {
         get { source.effects }
@@ -971,6 +972,14 @@ extension LayoutTree {
             preconditionFailure("Not a text node")
         }
         return data
+    }
+
+    func textString(_ id: LayoutID) -> String {
+        let data: TextData = textData(id)
+        if let fragment = data.fragment, let run: TextRun = textRuns[fragment.block] {
+            return run.string(start: fragment.start, count: fragment.count)
+        }
+        return data.payload.display ?? data.payload.word
     }
 
     func embedData(_ id: LayoutID) -> EmbedData {

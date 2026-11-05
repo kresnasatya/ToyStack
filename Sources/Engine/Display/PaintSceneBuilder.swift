@@ -158,9 +158,8 @@ struct PaintSceneBuilder {
                 focusRing: lineFocusRing(tree, id)
             ))
         case .text:
-            let data: TextData = tree.textData(id)
             return .text(PaintText(
-                string: data.display ?? data.word,
+                string: tree.textString(id),
                 width: tree.textTextWidth(id),
                 top: tree.textAbsoluteY(id),
                 color: tree.domRef(id).inheritedStyleOwner.style.computed.text.color

@@ -210,9 +210,8 @@ extension LayoutTree {
         let prev: LayoutID? = childrenIDs(of: line).last
         let text: LayoutID = makeText(
             TextData(
-                word: word,
-                display: nil,
-                fontOverride: font,
+                payload: TextPayload(word: word, display: nil, fontOverride: font),
+                fragment: nil,
                 metrics: TextMetrics(width: 0, whiteSpace: .normal)
             ),
             dom: node.id,

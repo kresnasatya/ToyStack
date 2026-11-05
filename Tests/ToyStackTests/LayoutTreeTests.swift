@@ -40,7 +40,7 @@ struct LayoutTreeTests {
             previous: nil
         )
         let child: LayoutID = tree.append(
-            kind: .text(TextData(word: "hello", display: nil, fontOverride: nil, metrics: TextMetrics(width: 0, whiteSpace: .normal))),
+            kind: .text(TextData(payload: TextPayload(word: "hello", display: nil, fontOverride: nil), fragment: nil, metrics: TextMetrics(width: 0, whiteSpace: .normal))),
             dom: tree.dom.root,
             parent: parent,
             previous: nil

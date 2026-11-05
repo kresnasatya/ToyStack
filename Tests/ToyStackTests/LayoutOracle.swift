@@ -78,7 +78,7 @@ private func appendLayoutSignature(
         "\(path) \(layoutKindName(tree.kind(id))) \(tree.selfRect(id)) children=\(children.count)"
     if tree.isText(id) {
         let data: TextData = tree.textData(id)
-        line += " word=\(data.word) display=\(data.display ?? "") width=\(data.metrics.width)"
+        line += " text=\(tree.textString(id)) width=\(data.metrics.width)"
     }
     parts.append(line)
 
