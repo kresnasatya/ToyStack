@@ -623,6 +623,14 @@ Release measurements:
 
 The model wins when a line holds many words and loses on pages with two or three words per line, because each rebuilt line still updates a fragment payload. The dense-text case is the target for resize flow; short-line pages keep the previous cost.
 
+GUI trace after this change (28.99 s, 248 resize events, 12 bursts):
+
+| Burst | Events | Preview | Bind | Layout |
+|---|---:|---:|---:|---:|
+| drag bursts | 7-35 | ~2x events | 1-3 | 85-129 ms |
+
+The fragment model is active: `line.children` is 3-10 ms (was 29-34), `line.place` 6-11 ms (was 13-17), and `line.children.deps` 1-5 ms (was 15-16). The remaining cost moved to the block pass: `layout.visit` 50-78 ms, `inline.place.items` 20-25 ms on breakpoint frames, and ~15-37k field writes. Preview scheduling is unchanged: two previews per event and binds only at the start or after the reflow.
+
 The original per-word analysis is below.
 
 Two sub-steps, in order.
