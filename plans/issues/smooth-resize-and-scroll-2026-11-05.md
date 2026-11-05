@@ -833,7 +833,11 @@ Risk: each render blocks input for 100 ms today. Gate it behind the layout-cost 
 
 ### Phase 5 — Decouple scroll from layout
 
-Status: **reverted** (2026-11-05).
+Status: Phase 5 and Phase 5b **reverted** (2026-11-06).
+
+Phase 5b tried to fix the ordering: input stored the target; the next tick painted, committed, and waited for raster before presenting. It still failed in the GUI. Content became blank during scroll and only reappeared after a click, and a headless tall-list screenshot showed only the first text tile with the remaining list markers but no text. The paint list contained the text; the missing part was the raster/present continuation. Deferring the repaint lets the first raster pass present an incomplete set of layers, and the deferred tile drain does not recover without another commit. The verified synchronous `repaintForScroll` path is restored.
+
+The next safe boundary is not another tick deferral. The raster/present pipeline needs an explicit complete-frame contract: a scroll frame must carry the paint window, the raster generation, and the deferred-tile state; the presenter must keep draining that generation and must not expose a partial layer set. Only after that can input leave the main loop.
 
 The deferred repaint made deep scrolling faster on the input path, but text in list items disappeared after scrolling on a real page. The regression appeared with commit `c7dc171`, so `Browser.applyScroll` and `applyScrollAndUpdateInterest` are back to synchronous `repaintForScroll` until a version with correct repaint ordering is tested in the GUI.
 
