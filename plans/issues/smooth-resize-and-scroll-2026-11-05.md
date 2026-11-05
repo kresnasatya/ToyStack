@@ -591,6 +591,17 @@ Preview scheduling is still correct: about two previews per event, binds only at
 
 The prerequisite for 3b is a fragment reuse pool: a rebuilt line must update the text child from its previous line instead of creating a new one. Without that, the fragment model wins on initial layout and loses on resize.
 
+Reuse pool attempt (also reverted): rebuilding a line from the free pool reused its old text fragment and updated word/width/font in place. It narrowed the gap but did not beat per-word resize:
+
+| Case | Per-word | Fragment + reuse |
+|---|---:|---:|
+| Initial layout, release | 305 ms | 219 ms |
+| Resize 400 -> 300, release | 74 ms | 91 ms |
+| Resize 400 -> 450, release | 78 ms | 92 ms |
+| Resize field writes | 17k | 28k |
+
+The fragment width changes on every line for every width, so it writes metrics and marks dependents each pass; per-word widths stay constant and only line positions move. A fragment model needs line-owned width/dependency handling before it can win on resize. Both attempts are reverted; source stays at Phase 3.
+
 The original analysis is below.
 
 Two sub-steps, in order.
