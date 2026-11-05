@@ -491,7 +491,7 @@ struct LayoutTree {
     }
 
 
-    mutating func setBlockFrame(
+    mutating func setFrame(
         _ frame: (zoom: CGFloat, x: CGFloat, y: CGFloat, width: CGFloat),
         for id: LayoutID
     ) {

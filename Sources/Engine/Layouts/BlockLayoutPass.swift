@@ -314,7 +314,7 @@ extension LayoutTree {
                 frameY += VSTEP
             }
 
-            setBlockFrame(
+            setFrame(
                 (zoom: zoomValue, x: frameX, y: frameY, width: frameWidth),
                 for: id
             )

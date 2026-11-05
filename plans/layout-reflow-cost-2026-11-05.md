@@ -810,3 +810,42 @@ headless.
 
 `layout.line.place` tetap 14–16 ms. Ini kandidat berikutnya, bersama
 posisi child per baris.
+
+## 16. Langkah 7 — tulis frame baris sekali
+
+`layoutLine` menulis zoom, width, x, dan y lewat empat `setField`, masing-masing
+menyalin node dan menandai field. Diganti dengan satu `setFrame` yang menulis
+keempat field dalam satu salinan node; `setBlockFrame` digeneralisasi menjadi
+`setFrame` karena bentuknya sama.
+
+Hasil release headless:
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `layout.document` width-only | 113,5 ms | **97,5 ms** |
+| `layout.document` font flip | 467,5 ms | **437,7 ms** |
+| `layout.line.place` width-only | — | — |
+| `layout.line.place` font flip | 52,4 ms | 52,6 ms |
+| `field.set` count | 274.998 | 274.998 |
+
+`line.place` sendiri tidak berubah; keuntungannya ada di biaya penulisan field
+per baris. `field.set` count tetap sama karena jumlah field yang berubah sama.
+
+`swift test`: **234 tes / 39 suite lulus**.
+
+### Trace GUI langkah 7
+
+Trace: 7.892 event.
+
+| Rezim | Frame | `document` | `visit` | `line.place` | `inline.place` |
+|---|---:|---:|---:|---:|---:|
+| Style-only | 73, 75, 83, 85 | 135–157 ms | 85–104 ms | 14,2–17,5 ms | 55–71 ms |
+| Width-only | 71, 77, 81 | 83–90 ms | 25–60 ms | 14,5–15,2 ms | 37–40 ms |
+
+Perubahan `setFrame` memberi dokumen sekitar 5% lebih rendah pada style-only
+dibanding trace sebelumnya (142–164 ms), tetapi `line.place` dan jumlah
+`field.set/mark` tidak berubah. Efeknya kecil dan bercampur dengan variasi
+antarbagian.
+
+Tidak ada regresi yang terlihat. Langkah ini tetap disimpan karena mengurangi
+penulisan node per baris, tetapi bukan pengungkit besar.

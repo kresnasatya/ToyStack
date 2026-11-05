@@ -79,14 +79,17 @@ extension LayoutTree {
             setKind(.line(data), at: id)
         }
         let parent: LayoutID = parentID(of: id)!
-        setField(.zoom, zoom(parent), for: id)
-        setField(.width, width(parent), for: id)
-        setField(.x, x(parent), for: id)
-        if let previous: LayoutID = previousID(of: id) {
-            setField(.y, y(previous) + height(previous), for: id)
-        } else {
-            setField(.y, y(parent), for: id)
-        }
+        let previous: LayoutID? = previousID(of: id)
+        let lineY: CGFloat = previous.map({ y($0) + height($0) }) ?? y(parent)
+        setFrame(
+            (
+                zoom: zoom(parent),
+                x: x(parent),
+                y: lineY,
+                width: width(parent)
+            ),
+            for: id
+        )
 
         for child in children { layout(child) }
 
