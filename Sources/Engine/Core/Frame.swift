@@ -812,19 +812,13 @@ class Frame {
 
             browser?.measure.start("BrowserTab.style.apply")
             let media: MediaFeatures = currentMedia()
-            let hasBaseline: Bool = !state.document.sheets.index.media.matches.isEmpty
             let flipped: Set<String> = flippedMediaQueries(media)
             recordMediaMatches(media)
             browser?.measure.start("BrowserTab.style.scope")
             let scoped: (scope: StyleScope?, snapshot: StyleSnapshot?) =
-                (reusableStyle && hasBaseline)
-                ? scopedStyleScope(flipped)
-                : (nil, nil)
+                reusableStyle ? scopedStyleScope(flipped) : (nil, nil)
             let scope: StyleScope? = scoped.scope
             profiler.count(scope == nil ? "style.scope.none" : "style.scope.used")
-            if viewportStyle, scope == nil {
-                StyleInvalidation.markDocument(nodes)
-            }
             browser?.measure.stop("BrowserTab.style.scope")
             profiler.count("style.flipped.queries", by: flipped.count)
             profiler.count("style.scope.direct", by: scope?.direct.count ?? 0)
@@ -833,7 +827,7 @@ class Frame {
                 media: media,
                 scope: scope
             )
-            if scope?.isEmpty != true {
+            if scope?.isEmpty != true || stylesDirty {
                 let snapshot: StyleSnapshot = scoped.snapshot ?? cachedStyleSnapshot()
                 applyStyle(node: nodes, cascade: cascade, snapshot: snapshot)
             }
@@ -1964,36 +1958,24 @@ class Frame {
     private func scopedStyleScope(
         _ flipped: Set<String>
     ) -> (scope: StyleScope?, snapshot: StyleSnapshot?) {
-        var rules: [(selector: any CSSSelector, body: [String: String])] = []
+        var selectors: [any CSSSelector] = []
         for rule in state.document.sheets.index.list.sorted {
             guard let query: String = rule.0, flipped.contains(query) else { continue }
-            rules.append((rule.1, rule.2))
+            selectors.append(rule.1)
         }
-        profiler.count("style.scope.rules", by: rules.count)
-        guard !rules.isEmpty else { return (StyleScope(direct: []), nil) }
-        guard rules.count <= 64 else { return (nil, nil) } // NOTE: why 64?
+        profiler.count("style.scope.rules", by: selectors.count)
+        guard !selectors.isEmpty else { return (StyleScope(direct: []), nil) }
 
-        var direct: Set<NodeID> = []
         let snapshot: StyleSnapshot = profiler.measure("style.snapshot.scope", {
             cachedStyleSnapshot()
         })
-        profiler.measure("style.scope.walk", {
-            @MainActor func walk(_ index: Int) {
-                guard let node: StyleNode = snapshot.nodes[index] else { return }
-                if node.content.tag != nil {
-                    for rule in rules {
-                        if rule.selector.matches(snapshot, index) {
-                            StyleInvalidation.markNode(dom.ref(node.identity.id))
-                            direct.insert(node.identity.id)
-                            break
-                        }
-                    }
-                }
-                for child in node.identity.children {
-                    walk(child)
-                }
+        let direct: Set<NodeID> = profiler.measure("style.scope.walk", {
+            let matches: Set<NodeID> = ScopedStyleMatcher(selectors: selectors)
+                .directMatches(in: snapshot)
+            for id in matches {
+                StyleInvalidation.markNode(dom.ref(id))
             }
-            walk(snapshot.root)
+            return matches
         })
         return (StyleScope(direct: direct), snapshot)
     }
