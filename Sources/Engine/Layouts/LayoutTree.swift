@@ -741,31 +741,21 @@ struct LayoutTree {
                 }
             }
         }
-        profiler.measure("layout.line.children.write", {
-            markUsed(.children, at: id)
-            setChildren(children, of: id)
-            markClean(.children, at: id)
-        })
+        if changed || !reparented.isEmpty {
+            profiler.measure("layout.line.children.write", {
+                markUsed(.children, at: id)
+                setChildren(children, of: id)
+                markClean(.children, at: id)
+            })
+        }
 
         if changed {
             profiler.measure("layout.line.children.deps", {
-                if oldChildren.isEmpty {
-                    for field in [LayoutField.ascent, .descent] where isUsed(field, at: id) {
-                        dependencies.replaceDependent(
-                            .layout(id, field),
-                            with: children.map({ .layout($0, field) })
-                        )
-                    }
-                } else {
-                    for field in [LayoutField.ascent, .descent] where isUsed(field, at: id) {
-                        let dependent: FieldKey = .layout(id, field)
-                        for child in oldChildren where !children.contains(child) {
-                            dependencies.removeEdge(dependent, for: .layout(child, field))
-                        }
-                        for child in children where !oldChildren.contains(child) {
-                            dependencies.add(dependent, for: .layout(child, field))
-                        }
-                    }
+                for field in [LayoutField.ascent, .descent] where isUsed(field, at: id) {
+                    dependencies.replaceDependent(
+                        .layout(id, field),
+                        with: children.map({ .layout($0, field) })
+                    )
                 }
                 dependencies.removeDependent(.layout(id, .children))
             })

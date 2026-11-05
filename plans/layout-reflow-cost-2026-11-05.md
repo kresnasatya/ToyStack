@@ -739,3 +739,74 @@ orkestrasi `layoutDocument` yang belum terukur.
 Jadi langkah 5 selesai: gap 70–80 ms sekarang bisa dipecah. Optimasi berikutnya
 harus menyasar biaya per-node/recursion, atau memindahkan layout dari main
 thread.
+
+## 14. Percobaan dispatch ringan (ditolak)
+
+Dicoba:
+
+- `LayoutKindTag` untuk menghindari `switch kind(id)` yang menyalin node.
+- Akses langsung `nodes[id]?.state.fields` dan `nodes[id]?.links` untuk
+  mengurangi salinan `LayoutNode` di guard dan traversal.
+- Guard per kind memakai `fields(id)`.
+
+Hasil release headless, halaman 5.000 blok:
+
+| Metrik | Baseline | Percobaan |
+|---|---:|---:|
+| `layout.document` width-only | 114,6 ms | **124,1 ms** |
+| `layout.visit` width-only | 61,5 ms | **67,5 ms** |
+| `layout.document` font flip | 459,6 ms | **494,5 ms** |
+| `layout.visit` font flip | 267,9 ms | **290,1 ms** |
+
+Perubahan ini konsisten lebih lambat sekitar 7–8%. Method accessor tambahan
+tidak inline di build release, sementara salinan `LayoutNode` sudah dioptimalkan
+compiler. Semua perubahan dicabut.
+
+Kesimpulan: biaya dispatch tidak bisa diturunkan hanya dengan membungkus akses
+node. Perlu perubahan struktur traversal (misalnya batch per kind atau skip
+subtree bersih), atau memindahkan layout dari main thread.
+
+## 15. Langkah 6 — dependency baris saat inline placement
+
+Target: `inline.place.lineChildren` dan `line.children.deps`.
+
+Perubahan di `setLineChildrenField`:
+
+- `setChildren` tidak ditulis ulang bila children sama dan tidak ada
+  reparent.
+- Edge ascent/descent diganti dengan satu `replaceDependent` per field,
+  bukan loop `removeEdge`/`add` per child.
+- Pemeriksaan `contains` O(n²) hilang.
+
+Hasil release headless, halaman 5.000 blok:
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `inline.place` frame load | 515,0 ms | **477,0 ms** |
+| `inline.place` font flip | 125,8 ms | **118,7 ms** |
+| `inline.place.lineChildren` load | 43,9 ms | **36,8 ms** |
+| `inline.place.lineChildren` font flip | 11,6 ms | **3,0 ms** |
+| `line.children.write` load | 7,4 ms | **4,8 ms** |
+
+Width-only tidak berubah berarti (114,6 → 113,5 ms). Dokumen font flip
+459,6 → 467,5 ms pada satu run; inline.place turun 7,1 ms, sisanya variasi
+antarbagian.
+
+`swift test`: **234 tes / 39 suite lulus**.
+
+### Trace GUI langkah 6
+
+Trace: 12.485 event.
+
+| Rezim | Frame | `inline.place` | `lineChildren` | `line.children.deps` | `write` | `reindex` |
+|---|---:|---:|---:|---:|---:|---:|
+| Style-only | 54, 58, 80, 82 | 55–65 ms | 19,8–25,1 ms | 10,2–13,6 ms | 1,7–2,1 ms | 5,7–6,3 ms |
+| Width-only | 50, 60, 62, 84 | 34–43 ms | 25,9–30,8 ms | 12,2–16,2 ms | 2,2–2,5 ms | 7,6–9,4 ms |
+
+Perubahan memberi efek kecil tetapi konsisten pada `line.children.write`
+(sebelumnya 2,4–2,9 ms). `line.children.deps` dan `inline.place` hampir sama
+karena jumlah baris dan line break di halaman GUI berbeda dari benchmark
+headless.
+
+`layout.line.place` tetap 14–16 ms. Ini kandidat berikutnya, bersama
+posisi child per baris.
