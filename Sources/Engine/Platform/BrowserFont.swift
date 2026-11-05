@@ -53,6 +53,7 @@ public struct BrowserFont: @unchecked Sendable {
     }
 
     public var linespace: CGFloat { ascent + descent + leading }
+    var size: CGFloat { CTFontGetSize(ctFont) }
 
     public func measure(_ text: String) -> CGFloat {
         profiler.count("text.measureCalls")

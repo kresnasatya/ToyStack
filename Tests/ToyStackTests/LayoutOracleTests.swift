@@ -145,6 +145,26 @@ struct LayoutOracleTests {
         expectIncrementalMatchesFull(page)
     }
 
+    @Test func fontSizeFlipReusesScaledWordWidths() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three four five six seven eight nine ten</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+                @media (min-width: 600px) { p { font-size: 30px; } }
+                """
+        )
+
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let metrics: [String: ProfileMetric] = profiler.snapshot()
+        #expect((metrics["text.measureCalls"]?.count ?? 0) == 0)
+        expectIncrementalMatchesFull(page)
+    }
+
     @Test func pageZoomDoesNotLeaveStaleMetrics() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="para">zoom me</p>"#,

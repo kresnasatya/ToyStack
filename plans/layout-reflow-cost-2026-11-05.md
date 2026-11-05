@@ -885,3 +885,49 @@ Trace: 15.838 event.
 Width-only tidak berubah karena tidak menempatkan text.
 
 Tidak ada regresi.
+
+## 18. Langkah 9 — skala lebar kata saat font-size berubah
+
+Saat font-size berubah, `refreshInlineItems` membuat ulang item dan membuang
+`measuredWidth`, sehingga `inlineTextLinePlan` mengukur ulang 10.336 kata.
+Untuk perubahan ukuran font saja, lebar glyph berskala linear dengan ukuran
+font.
+
+Perubahan:
+
+- `BrowserFont.size` (computed dari `CTFontGetSize`).
+- `InlineTextItem.withFont` menerima `measuredWidthScale` dan menyimpan lebar
+  lama × rasio ukuran font baru/lama.
+- `refreshInlineItems` memakai skala hanya bila perubahan font tidak menyentuh
+  family, weight, atau style.
+
+Hasil release headless:
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `document` font flip | 422,7 ms | **398,7 ms** |
+| `visit` font flip | 251,0 ms | **227,3 ms** |
+| `inline.plan` font flip | 35,4 ms | **8,5 ms** |
+| `text.measureCalls` font flip | 30.000 | **0** |
+| `text.measure` font flip | 15,1 ms | **0** |
+| `layout.text` font flip | 41,9 ms | 41,3 ms |
+
+Tes oracle baru `fontSizeFlipReusesScaledWordWidths` memastikan hasil
+inkremental sama dengan full layout dan tidak ada ukur ulang.
+
+`swift test`: **235 tes / 39 suite lulus**.
+
+### Trace GUI langkah 9
+
+Trace: 8.909 event.
+
+| Rezim | Frame | `inline.plan` | `text.measureCalls` | `text.measure` | `layout.text` | `document` |
+|---|---:|---:|---:|---:|---:|---:|
+| Style-only | 142, 144, 150, 154 | 2,6–2,7 ms | 11 | **0** | 13,9 ms | 134–148 ms |
+| Width-only | 113, 140, 146, 148, 152, 156, 158 | 3,2–4,2 ms | 11 | — | — | 43–90 ms |
+
+`inline.plan` pada font flip turun dari 5,8–6,0 ms ke **2,6–2,7 ms**.
+`text.measureReused` = 10.336 dan `text.measure` = 0. `layout.text` 13,9 ms.
+
+Width-only tidak berubah karena tidak ada perubahan ukuran font. Tidak ada
+regresi.

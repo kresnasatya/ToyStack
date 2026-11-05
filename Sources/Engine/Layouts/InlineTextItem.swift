@@ -21,13 +21,17 @@ struct InlineTextItem {
         self.hasSoftHypen = inlineTextItemHasSoftHypen(word)
     }
 
-    func withFont(_ font: BrowserFont) -> InlineTextItem {
-        return InlineTextItem(
+    func withFont(_ font: BrowserFont, measuredWidthScale: CGFloat? = nil) -> InlineTextItem {
+        var item: InlineTextItem = InlineTextItem(
             run: run.withFont(font),
             word: word,
             display: display,
             fontOverride: fontOverride
         )
+        if let measuredWidthScale: CGFloat, let measuredWidth: CGFloat {
+            item.measuredWidth = measuredWidth * measuredWidthScale
+        }
+        return item
     }
 }
 

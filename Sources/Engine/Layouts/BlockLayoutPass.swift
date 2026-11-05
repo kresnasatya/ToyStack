@@ -875,15 +875,30 @@ extension LayoutTree {
         return fontChanged
     }
 
+    private func canScaleMeasuredWidths(_ id: LayoutID) -> Bool {
+        let disallowed: Set<StyleProperty> = [.fontFamily, .fontWeight, .fontStyle]
+        for leaf in inlineLeaves(id) {
+            let owner: LayoutDOMView = leaf.inheritedStyleOwner
+            for change in inputs.styleChanges(owner.id) where disallowed.contains(change) {
+                return false
+            }
+        }
+        return true
+    }
+
     mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) {
         var data: BlockData = blockData(id)
         if preservingObjects, !data.content.inlineItems.isEmpty {
             let zoom: CGFloat = zoom(id)
+            let scaleWidths: Bool = canScaleMeasuredWidths(id)
             var items: [InlineItem] = data.content.inlineItems
             for index in items.indices {
                 guard case .text(let item) = items[index] else { continue }
                 let font: BrowserFont = fontFor(item.run.node.id, zoom: zoom)
-                items[index] = .text(item.withFont(font))
+                let scale: CGFloat? = scaleWidths
+                    ? font.size / item.run.font.size
+                    : nil
+                items[index] = .text(item.withFont(font, measuredWidthScale: scale))
             }
             data.content.inlineItems = items
             profiler.count("layout.inline.items.reused", by: items.count)
