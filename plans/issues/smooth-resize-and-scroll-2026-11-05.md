@@ -837,6 +837,27 @@ Status: **reverted** (2026-11-05).
 
 The deferred repaint made deep scrolling faster on the input path, but text in list items disappeared after scrolling on a real page. The regression appeared with commit `c7dc171`, so `Browser.applyScroll` and `applyScrollAndUpdateInterest` are back to synchronous `repaintForScroll` until a version with correct repaint ordering is tested in the GUI.
 
+Diagnosis: the input path published the new scroll offset to the presentation and presented the **old display list at the new offset** before the paint window was rebuilt. On a page that needs a new paint window, block ops such as list bullets can still be present while line/text ops are missing or culled. Deferring only the paint, not the presentation, is the bug. `repaintForScroll` then dispatched again before raster had installed the new tiles, so a stale frame could win the last present.
+
+The correct sequence is:
+
+1. input updates the scroll offset and marks `needsPaintAtLatestScroll`;
+2. the input path presents only if the existing paint window still covers the viewport;
+3. otherwise it keeps the old offset/content visible, or clips the old frame, and does not publish the new offset as complete;
+4. the next tick paints at the latest offset, commits, waits for raster, then presents once;
+5. stale intermediate frames are discarded by a content revision check, not presented.
+
+Phase 6 was not causal: wheel scrolling bypasses `ScrollTween`; the tween only drives keyboard scroll. It can be kept after the scroll-repaint ordering is fixed.
+
+Medium-term design:
+
+- Keep `ScrollState` on the main thread for layout/hit-test, and a separate `PresentedScroll` read by the present queue.
+- Input publishes the target offset, not a full frame. The present queue applies it only when `contentRevision` matches the display list and the painted window covers the viewport.
+- If the window does not cover it, request one paint at the latest offset; the present queue waits for the new content revision.
+- Coalesce to the latest offset; never queue one full present per wheel event.
+- Add a regression fixture: a tall page with list text, scroll past the paint window, assert text ops/screenshot and no missing list text.
+- Only after that move wheel input off the main run loop (event tap or compositor process). That step makes scrolling independent of layout; the current short-term change only moved paint work.
+
 Historical short-term:
 
 Headless scroll benchmark (`large.html`, 180 scroll events):
