@@ -682,6 +682,14 @@ Item placement dropped by about a third and total resize by about 6%. The remain
 
 Release on the same page: resize **39 ms**, `inline.place.items` **4.3 ms** (from 7.8 ms in 3c).
 
+GUI trace after 3d (35.2 s, 261 resize events, 16 bursts):
+
+| Burst | Events | Preview | Bind | Layout |
+|---|---:|---:|---:|---:|
+| drag | 5-31 | ~2x events | 1-3 | 29-132 ms |
+
+Compared with the 3c GUI trace, the worst layout fell from 153 to 132 ms and the worst item placement from 51 to 37 ms. On the real page `inline.place.items` is still 15-37 ms on breakpoint frames, because the fragment churn is larger than on the synthetic font-flip page. Non-breakpoint frames have almost no item placement but still pay 24-43 ms in inline placement; `layout.visit.geometry` is 7-12 ms and `inline.refresh` 9-10 ms.
+
 Two sub-steps, in order.
 
 #### 3a. Reuse a line without re-placing its children
