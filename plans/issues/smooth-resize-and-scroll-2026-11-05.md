@@ -680,6 +680,8 @@ Measured on the font-flip page (debug):
 
 Item placement dropped by about a third and total resize by about 6%. The remaining cost is fragment construction and line placement inside the placement loop.
 
+Release on the same page: resize **39 ms**, `inline.place.items` **4.3 ms** (from 7.8 ms in 3c).
+
 Two sub-steps, in order.
 
 #### 3a. Reuse a line without re-placing its children
