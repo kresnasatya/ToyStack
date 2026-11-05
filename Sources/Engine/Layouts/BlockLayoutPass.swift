@@ -361,14 +361,21 @@ extension LayoutTree {
                         refreshInlineItems(id, preservingObjects: preserveObjects)
                     })
                 }
+                let oldPlan: [[Int]]? = blockData(id).content.inlineLinePlan
                 let plan: [[Int]]? = profiler.measure("layout.inline.plan", {
                     inlineTextLinePlan(id)
                 })
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
-                    || plan != blockData(id).content.inlineLinePlan
+                    || plan != oldPlan
                 if shouldPlace {
-                    profiler.measure("layout.inline.place", { placeInlineItems(id) })
+                    if !inlineContentChanged, let plan, let oldPlan {
+                        profiler.measure("layout.inline.place", {
+                            placeInlineItems(id, plan: plan, oldPlan: oldPlan)
+                        })
+                    } else {
+                        profiler.measure("layout.inline.place", { placeInlineItems(id) })
+                    }
                 } else {
                     setChildrenField(childrenIDs(of: id), of: id)
                 }
@@ -758,6 +765,75 @@ extension LayoutTree {
             setInlineChildrenField(placement.lines, of: id)
         })
         profiler.count("layout.lines.total", by: placement.lines.count)
+    }
+
+    /// Places a changed line plan. Lines whose item range is unchanged keep
+    /// their existing children; only shifted or re-broken lines are rebuilt.
+    mutating private func placeInlineItems(
+        _ id: LayoutID,
+        plan: [[Int]],
+        oldPlan: [[Int]]
+    ) {
+        let data: BlockData = blockData(id)
+        let items: [InlineItem] = data.content.inlineItems
+        let oldLines: [LayoutID] = childrenIDs(of: id).filter({ isLine($0) })
+        var oldLineByRange: [[Int]: LayoutID] = [:]
+        for index in oldPlan.indices where index < oldLines.count {
+            oldLineByRange[oldPlan[index]] = oldLines[index]
+        }
+        var reusable: [Int: LayoutID] = [:]
+        var used: Set<LayoutID> = []
+        for index in plan.indices {
+            guard let line: LayoutID = oldLineByRange[plan[index]],
+                !used.contains(line)
+            else { continue }
+            reusable[index] = line
+            used.insert(line)
+        }
+        var free: [LayoutID] = oldLines.filter({ !used.contains($0) })
+        var placement: InlinePlacement = InlinePlacement(
+            parent: id,
+            reusableLines: [],
+            objects: data.content.inlineObjects
+        )
+        var lines: [LayoutID] = []
+        var previous: LayoutID? = nil
+        for (index, range) in plan.enumerated() {
+            if let line: LayoutID = reusable[index] {
+                let previousChanged: Bool = resetLine(line, previous: previous)
+                setLineChildrenField(
+                    childrenIDs(of: line),
+                    of: line,
+                    previousChanged: previousChanged
+                )
+                lines.append(line)
+                previous = line
+                profiler.count("layout.inline.place.reusedLines")
+                continue
+            }
+            let line: LayoutID
+            if let freeLine: LayoutID = free.popLast() {
+                line = freeLine
+            } else {
+                line = makeLine(dom: node(id).dom, parent: id, previous: previous)
+            }
+            placement.start(at: line, previous: previous, in: &self)
+            for itemIndex in range {
+                guard case .text(let text) = items[itemIndex] else { continue }
+                appendToLine(id, text, index: itemIndex, into: &placement)
+            }
+            placement.finish(in: &self)
+            lines.append(line)
+            previous = line
+            profiler.count("layout.inline.place.rebuiltLines")
+        }
+        if placement.objectsChanged {
+            var updated: BlockData = blockData(id)
+            updated.content.inlineObjects = placement.objects
+            setKind(.block(updated), at: id)
+        }
+        setInlineChildrenField(lines, of: id)
+        profiler.count("layout.lines.total", by: lines.count)
     }
 
     private static let inlineFontProperties: Set<StyleProperty> = [
@@ -1478,6 +1554,19 @@ struct InlinePlacement {
         }
         state.children = []
         state.cursorX = 0
+    }
+
+    @discardableResult
+    mutating func start(
+        at line: LayoutID,
+        previous: LayoutID?,
+        in tree: inout LayoutTree
+    ) -> Bool {
+        previousChanged = tree.resetLine(line, previous: previous)
+        state.currentLine = line
+        state.children = []
+        state.cursorX = 0
+        return previousChanged
     }
 
     mutating func endLine(in tree: inout LayoutTree) {

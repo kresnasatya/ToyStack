@@ -31,10 +31,10 @@ Dua rezim yang harus dibedakan:
 
 Target akhir tetap **layout < 16 ms**. Urutan kerja:
 
-1. **Reuse layout inputs antar-pass** (diimplementasikan di plan ini).
+1. **Reuse layout inputs antar-pass** (selesai).
    Target: hilangkan 9–18 ms `layout.inputs.build` pada pass yang DOM dan
    style-nya tidak berubah.
-2. **Hentikan penempatan ulang baris yang tidak berubah.**
+2. **Hentikan penempatan ulang baris yang tidak berubah** (selesai).
    Target: `inline.place` dan `line.children.deps` turun pada width-only reflow.
 3. **Cache pengukuran teks per item saat `font-size` berubah.**
    Target: 20.672 `measureCalls` dan `text.measure` 18 ms turun.
@@ -43,7 +43,7 @@ Target akhir tetap **layout < 16 ms**. Urutan kerja:
 5. **Instrumentasi orkestrasi `layoutDocument`.**
    Selisih `BrowserTab.layout` vs `layout.visit` masih 70–80 ms.
 
-Plan ini hanya mengerjakan langkah 1. Langkah 2–5 menjadi plan terpisah agar
+Plan ini mengerjakan langkah 1 dan 2. Langkah 3–5 menjadi plan terpisah agar
 setiap langkah bisa diukur sendiri.
 
 ## 3. Keputusan desain langkah 1
@@ -509,3 +509,78 @@ Biaya frame setelah langkah 1:
 Inline item tidak dibangun ulang, tetapi `inline.place` masih 35–58 ms dan
 `layout.visit` 60–93 ms. Bottleneck berikutnya tetap inline placement, bukan
 input building.
+
+## 10. Langkah 2 — reuse baris
+
+Implementasi ada di `BlockLayoutPass.swift`.
+
+### 10.1 Desain
+
+Saat width berubah dan line plan berubah, `inlineTextLinePlan` sudah tahu
+rentang item untuk setiap baris. `placeInlineItems(id, plan:oldPlan:)` memakai
+rentang itu:
+
+1. Setiap baris lama dipetakan dari rentang item ke `LayoutID`.
+2. Baris baru dengan rentang item yang sama memakai baris lama apa adanya:
+   `resetLine` menandai field, `setLineChildrenField` mempertahankan children
+   dan dependency `previous`.
+3. Baris yang rentangnya berubah dibangun ulang dari rentang baru.
+   `appendToLine` dipanggil langsung; line breaking tidak dihitung ulang
+   karena plan sudah menentukannya.
+4. Baris lama yang tidak dipakai masuk pool untuk baris baru.
+
+Jalur ini hanya dipakai bila `inlineContentChanged == false`. Saat font atau
+item berubah, jalur lama tetap dipakai karena text object harus diperbarui.
+
+### 10.2 Counter dan tes
+
+Counter baru: `layout.inline.place.reusedLines` dan
+`layout.inline.place.rebuiltLines`.
+
+Tes baru: `ViewportResizeTests.widthResizeReusesUnchangedLinePrefix`.
+Halaman memakai `<br>` sehingga baris pertama tidak berubah saat lebar turun;
+tes memastikan line ID pertama tetap, reusedLines > 0, rebuiltLines > 0, dan
+hasil incremental sama dengan full layout.
+
+### 10.3 Hasil
+
+Benchmark headless debug: satu paragraf 3.000 kata, lebar 800 → 760.
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `inline.place` | 52,9 ms | **46,9 ms** |
+| `reusedLines` | — | 1 |
+| `rebuiltLines` | — | 187 |
+| `text.append` | 5,4 ms | tidak ada (langsung append) |
+
+Pada perubahan lebar kecil ini line break bergeser di hampir semua baris,
+jadi hanya 1 baris yang benar-benar dipakai ulang. Keuntungan utama datang
+dari tidak menghitung ulang line breaking: `placeText` dilewati untuk baris
+yang dibangun ulang. Pada halaman dengan prefix baris stabil, `reusedLines`
+akan lebih besar.
+
+`swift test`: **234 tes / 39 suite lulus**.
+
+### Trace GUI langkah 2
+
+Trace: 12.911 event, 15 layout pass.
+
+| Rezim | Frame | `inputs.build` | `reusedLines` | `rebuiltLines` | `inline.place` |
+|---|---:|---:|---:|---:|---:|
+| Width-only | 98, 104, 106, 124, 134 | 0 ms (kecuali 98) | 2–17 | 34–852 | 27–49 ms |
+| Style-only | 100, 102, 120, 122, 126, 128, 130, 132 | 8,2–15,3 ms | — | — | 48–65 ms |
+
+Pada width-only, reuse baris aktif. Jumlahnya kecil karena line break bergeser
+di banyak baris. Pada style-only, jalur lama tetap dipakai (`inlineContentChanged`),
+jadi `reusedLines` tidak muncul dan inline item tetap reuse 10.343.
+
+Biaya frame:
+
+| Rezim | Layout | Style | AnimFrame |
+|---|---:|---:|---:|
+| Width-only | 56–133 ms | 0 ms | 56–133 ms |
+| Style-only | 148–176 ms | 17–46 ms | 166–219 ms |
+
+Kesimpulan: langkah 2 mengurangi pekerjaan line placement pada width-only,
+tetapi belum mengubah gambaran besar. Bottleneck berikutnya adalah style pass
+saat font flip dan `layout.visit`/inline placement pada blok besar.
