@@ -633,6 +633,26 @@ The fragment model is active: `line.children` is 3-10 ms (was 29-34), `line.plac
 
 The original per-word analysis is below.
 
+### Phase 3c — Reduce block pass and item refresh (partial)
+
+Status: **partially applied** (2026-11-05).
+
+- `refreshInlineItems` caches the resolved font per DOM node instead of resolving it per word.
+- `layoutMode` returns a small enum instead of a string.
+- Geometry is skipped when `.zoom/.x/.y/.width` are all clean; only child/inline/height work remains.
+
+Measured on a 1000-block page whose media query flips font-size at the resize breakpoint (debug):
+
+| Measure | Before | After |
+|---|---:|---:|
+| Initial layout | 366 ms | 351 ms |
+| Resize layout | 218 ms | **200 ms** |
+| `inline.refresh` | 36.8 ms | **24.0 ms** |
+| `inline.place.items` | 34.2 ms | 34.0 ms |
+| `layout.visit.geometry` | 19.3 ms | 18.3 ms |
+
+The font cache is the useful win; the geometry guard is limited because a font-size change moves most block y positions. `inline.place.items` is now the largest single item and needs a placement-level change, not another cache.
+
 Two sub-steps, in order.
 
 #### 3a. Reuse a line without re-placing its children

@@ -108,7 +108,7 @@ extension LayoutTree {
     }
 
     func blockChildrenInputs(_ id: LayoutID) -> [FieldKey] {
-        guard layoutMode(id) == "block" else { return [] }
+        guard layoutMode(id) == .block else { return [] }
         var inputs: [FieldKey] = []
         for child in domView(id).children {
             inputs.append(.style(child.id, .display))
@@ -255,8 +255,11 @@ extension LayoutTree {
         let oldFrameX: CGFloat = frameWasClean ? x(id) : 0
         let oldFrameY: CGFloat = frameWasClean ? y(id) : 0
         let widthWasDirty: Bool = isDirty(.width, at: id)
+        let geometryDirty: Bool = isDirty(.zoom, at: id) || isDirty(.x, at: id)
+            || isDirty(.y, at: id) || widthWasDirty
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
+            if geometryDirty {
             profiler.measure("layout.visit.geometry", {
             let zoomValue: CGFloat = resolvedZoom(id)
             let isAbsolute: Bool = style.position == .absolute
@@ -324,11 +327,13 @@ extension LayoutTree {
                 for: id
             )
             })
-            let frameMoved: Bool = !frameWasClean || x(id) != oldFrameX || y(id) != oldFrameY
-            let widthChanged: Bool = widthWasDirty
+            }
+            let frameMoved: Bool = geometryDirty
+                && (!frameWasClean || x(id) != oldFrameX || y(id) != oldFrameY)
+            let widthChanged: Bool = geometryDirty && widthWasDirty
 
-            let mode: String = profiler.measure("layout.mode", { layoutMode(id) })
-            if mode == "block" {
+            let mode: LayoutMode = profiler.measure("layout.mode", { layoutMode(id) })
+            if mode == .block {
                 profiler.count("layout.mode.block")
                 if isDirty(.children, at: id) {
                     setChildrenField(rebuildBlockChildren(id), of: id)
@@ -449,17 +454,22 @@ extension LayoutTree {
         setKind(.block(data), at: id)
     }
 
-    private func layoutMode(_ id: LayoutID) -> String {
-        if !blockExtraNodes(id).isEmpty { return "inline" }
-        if domView(id).text != nil { return "inline" }
+    private enum LayoutMode {
+        case block
+        case inline
+    }
+
+    private func layoutMode(_ id: LayoutID) -> LayoutMode {
+        if !blockExtraNodes(id).isEmpty { return .inline }
+        if domView(id).text != nil { return .inline }
         let hasBlockChild: Bool = domView(id).children.contains(where: {
             $0.style.computed.layout.display == .block
         })
-        if hasBlockChild { return "block" }
+        if hasBlockChild { return .block }
         if let el = domView(id).element {
-            return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
+            return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? .block : .inline
         }
-        return "inline"
+        return .inline
     }
 
     /// A width-only change that keeps the break plan leaves line contents and
@@ -948,12 +958,30 @@ extension LayoutTree {
             let zoom: CGFloat = zoom(id)
             let scaleWidths: Bool = canScaleMeasuredWidths(id)
             var items: [InlineItem] = data.content.inlineItems
+            var fonts: [NodeID: BrowserFont] = [:]
+            var scales: [NodeID: CGFloat] = [:]
             for index in items.indices {
                 guard case .text(let item) = items[index] else { continue }
-                let font: BrowserFont = fontFor(item.run.node.id, zoom: zoom)
-                let scale: CGFloat? = scaleWidths
-                    ? font.size / item.run.font.size
-                    : nil
+                let node: NodeID = item.run.node.id
+                let font: BrowserFont
+                if let cached: BrowserFont = fonts[node] {
+                    font = cached
+                } else {
+                    font = fontFor(node, zoom: zoom)
+                    fonts[node] = font
+                }
+                let scale: CGFloat?
+                if scaleWidths {
+                    if let cached: CGFloat = scales[node] {
+                        scale = cached
+                    } else {
+                        let next: CGFloat = font.size / item.run.font.size
+                        scales[node] = next
+                        scale = next
+                    }
+                } else {
+                    scale = nil
+                }
                 items[index] = .text(item.withFont(font, measuredWidthScale: scale))
             }
             data.content.inlineItems = items
