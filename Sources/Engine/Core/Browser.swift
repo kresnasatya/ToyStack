@@ -31,7 +31,8 @@ public class Browser: ObservableObject {
         get { activeTab?.presentation ?? TabPresentation.empty }
         set { activeTab?.presentation = newValue }
     }
-    private var presentRevision: Int = 0
+    private var presentSequence: Int = 0
+    private var contentRevision: Int = 0
 
     public var drawList: [DisplayOp] { activePresentation.render.drawList }
     public var activeTabScroll: CGFloat { activePresentation.scroll.scroll }
@@ -50,7 +51,7 @@ public class Browser: ObservableObject {
 
     private func presentedFrame(frameID: Int) -> PresentedFrame {
         PresentedFrame(
-            revision: presentRevision,
+            revision: PresentedRevision(content: contentRevision, sequence: presentSequence),
             frameID: frameID,
             content: activePresentation.render.content,
             viewport: PresentedViewport(
@@ -96,9 +97,7 @@ public class Browser: ObservableObject {
     private var currentFrameID: Int = 0
     private var needsTileContinuation: Bool = false
     private var tileContinuationPasses: UInt = 0
-    private var resizePreviewWorkItem: DispatchWorkItem?
-    private var isResizePreview: Bool = false
-    private let resizePreviewDelay: TimeInterval = 0.12
+    private var resizePreview: ResizePreviewPolicy = ResizePreviewPolicy()
 
     @Published public var prefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
@@ -139,6 +138,7 @@ public class Browser: ObservableObject {
         tab.load(url)
         activeTab = tab
         tabs.append(tab)
+        contentRevision += 1
         dispatchPresent(frameID: currentFrameID)
         startAnimationTimer()
     }
@@ -148,42 +148,18 @@ public class Browser: ObservableObject {
         for tab in tabs {
             tab.resize(width: size.width, height: size.height - topInset)
         }
-        guard deferLayout,
-            activeTab != nil,
-            estimatedFrameTime > FRAME_BUDGET * 2.0
-        else {
-            cancelResizePreview()
+        guard deferLayout, activeTab != nil else {
+            resizePreview.cancel()
             return
         }
-        beginResizePreview()
-    }
-
-    private func beginResizePreview() {
-        isResizePreview = true
-        resizePreviewWorkItem?.cancel()
-
-        let work: DispatchWorkItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.isResizePreview = false
-            if let tab: BrowserTab = self.activeTab {
-                self.setNeedsAnimationFrame(tab)
-            }
+        // Hold the old content visible while the pointer moves. The animation
+        // tick presents it once per frame and lays out one beat after the last
+        // event, so a slow page never lays out a size that is already stale.
+        let requiresPreview: Bool = estimatedFrameTime > FRAME_BUDGET * 2.0
+        resizePreview.resize(now: Date(), requiresPreview: requiresPreview)
+        if let tab: BrowserTab = activeTab {
+            setNeedsAnimationFrame(tab)
         }
-        resizePreviewWorkItem = work
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + resizePreviewDelay,
-            execute: work
-        )
-        // Rebind the old content before AppKit applies the new view size.
-        // Without this, the layout present scales the old content directly
-        // and text stretches during the drag.
-        dispatchPresent(frameID: currentFrameID)
-    }
-
-    private func cancelResizePreview() {
-        resizePreviewWorkItem?.cancel()
-        resizePreviewWorkItem = nil
-        isResizePreview = false
     }
 
     public func startAnimationTimer() {
@@ -210,7 +186,7 @@ public class Browser: ObservableObject {
 
     public func stopAnimationTimer() {
         pauseAnimationTimer()
-        cancelResizePreview()
+        resizePreview.cancel()
         measure.close()
     }
 
@@ -223,10 +199,15 @@ public class Browser: ObservableObject {
         guard needsAnimationFrame else {
             return
         }
-        needsAnimationFrame = false
-        guard !isResizePreview else {
+        let now: Date = Date()
+        if resizePreview.presentPreview(size: windowSize, now: now) {
+            dispatchPresent(frameID: currentFrameID)
             return
         }
+        guard resizePreview.allowsLayout(now: now) else {
+            return
+        }
+        needsAnimationFrame = false
         frameStartTime = Date()
         activeTab?.runAnimationFrame()
     }
@@ -241,6 +222,7 @@ public class Browser: ObservableObject {
 
     func commit(tab: BrowserTab, data: FrameSnapshot) {
         guard tab === activeTab else { return }
+        contentRevision += 1
         let paintChanged: Bool = data.display.revision != activePresentation.display.paintRevision
         activePresentation.display.displayList = data.display.ops
         activePresentation.scroll.scroll = data.scroll.scroll
@@ -293,7 +275,7 @@ public class Browser: ObservableObject {
 
     private func dispatchPresent(frameID: Int) {
         measure.start("present.main", category: .present, frame: frameID)
-        presentRevision += 1
+        presentSequence += 1
         onPresent?(presentedFrame(frameID: frameID))
         measure.stop("present.main")
     }
@@ -749,6 +731,7 @@ public class Browser: ObservableObject {
         }
         needsAnimationFrame = true
         activeTab?.runAnimationFrame()
+        contentRevision += 1
         dispatchPresent(frameID: currentFrameID)
     }
 

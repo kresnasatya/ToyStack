@@ -423,6 +423,10 @@ returns.
 `view.usesSublayersFlips` (`flip`, `sublayers`): GUI only. `flip` is 1 when the
 strategy changed on this frame; `sublayers` is the current strategy.
 
+`view.presentation` (`preview`): GUI only. 1 when the presenter kept the old
+content and scaled/clipped it for the new view size; 0 when it bound new layer
+placements. A resize burst should show mostly 1 until the reflow commits.
+
 ## Known distortions
 
 - **`raster.composite` is one scan.** `raster.composite.scan` covers the linear display-list scan and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.

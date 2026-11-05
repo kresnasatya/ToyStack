@@ -1,33 +1,32 @@
 import CoreGraphics
 
 /// Decides whether a presented frame binds new content or only previews the
-/// previous view size.
+/// view size the content was laid out at.
 ///
-/// The resize path presents the old content once to rebind it, then presents
-/// again with the new view size. The second present must scale from the size
-/// used by the first, so the last view size is updated on both bind and
-/// preview. This mirrors the two-phase behavior that keeps text from being
-/// scaled directly from the pre-drag size.
+/// Content and presentation are separate revisions. A resize presents the same
+/// content several times at different sizes; those presents must preview from
+/// the size at which the content was last bound. Repeated previews are
+/// idempotent, so a tile update cannot overwrite the preview with a bind.
 public struct ContentPresentationState {
     public enum Decision: Equatable {
         case bind
         case preview(from: CGSize)
     }
 
-    public private(set) var lastViewSize: CGSize?
-    private var lastRevision: Int?
+    /// The view size at which the current content was last bound.
+    public private(set) var baseViewSize: CGSize?
+    private var lastRevision: PresentedRevision?
 
     public init() {}
 
-    public mutating func decide(revision: Int, viewSize: CGSize) -> Decision {
-        let decision: Decision
-        if let lastViewSize, lastRevision == revision, lastViewSize != viewSize {
-            decision = .preview(from: lastViewSize)
-        } else {
-            decision = .bind
+    public mutating func decide(revision: PresentedRevision, viewSize: CGSize) -> Decision {
+        let sameContent: Bool = lastRevision?.content == revision.content
+        if sameContent, let baseViewSize, baseViewSize != viewSize {
+            lastRevision = revision
+            return .preview(from: baseViewSize)
         }
         lastRevision = revision
-        lastViewSize = viewSize
-        return decision
+        baseViewSize = viewSize
+        return .bind
     }
 }

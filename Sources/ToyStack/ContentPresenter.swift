@@ -33,7 +33,7 @@ final class ContentPresenter: @unchecked Sendable {
     private static let pixelsPerPresent: Int = 400_000
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
-    private var applied: (revision: Int, size: CGSize)?
+    private var applied: (revision: PresentedRevision, size: CGSize)?
     private var presentationState: ContentPresentationState = ContentPresentationState()
     private var presenting = false
     private var coalesced = 0
@@ -138,6 +138,9 @@ final class ContentPresenter: @unchecked Sendable {
             preview = true
             previousSize = size
         }
+        measure.counter("view.presentation", [
+            "preview": preview ? 1 : 0
+        ], frame: frame.frameID)
         measure.start("view.apply", category: .present, frame: frame.frameID)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
