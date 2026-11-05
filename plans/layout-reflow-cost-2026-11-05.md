@@ -38,7 +38,7 @@ Target akhir tetap **layout < 16 ms**. Urutan kerja:
    Target: `inline.place` dan `line.children.deps` turun pada width-only reflow.
 3. **Cache pengukuran teks per item saat `font-size` berubah** (selesai).
    Target: 20.672 `measureCalls` dan `text.measure` 18 ms turun.
-4. **Kurangi churn dependency field.**
+4. **Kurangi churn dependency field** (sebagian).
    `layout.field.mark/set` 11k–89k dan `line.children.deps` 8–14 ms.
 5. **Instrumentasi orkestrasi `layoutDocument`.**
    Selisih `BrowserTab.layout` vs `layout.visit` masih 70–80 ms.
@@ -642,3 +642,32 @@ Biaya frame setelah langkah 3:
 
 Sisa bottleneck: `inline.place` 38–70 ms pada style-only dan 4–52 ms pada
 width-only, plus dependency/field updates.
+
+## 12. Langkah 4 — churn field dan dependency
+
+Perubahan yang dipakai:
+
+- `consumeStyleChanges` tidak lagi memindai semua `inputs.nodes`. Kunci
+  `inputs.styleChanges` langsung dipakai karena dictionary itu sudah hanya
+  berisi node yang berubah.
+
+Perubahan yang dicoba lalu dicabut:
+
+- `markUsed`, `markClean`, `markField`, `markAncestorsDirty`, dan
+  `setDirtyDescendants` sempat diubah untuk memutasi `nodes[id]` langsung.
+  Di build debug ini terlihat jauh lebih cepat, tetapi trace GUI release
+  menunjukkan regresi:
+  `styleChanges.mark` 6,2–6,8 ms → 9,0–9,4 ms dan `consumeStyleChanges`
+  7,5–8,4 ms → 9,4–9,8 ms. Salinan `LayoutNode` dioptimalkan compiler release,
+  sementara optional chaining berulang menambah biaya. Perubahan itu dicabut.
+
+### Hasil GUI
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `layout.styleChanges.scan` | 1,26 ms | **0,01 ms** |
+
+Sisa biaya langkah 4 kecil: sekitar 1,25 ms per style flip. `field.mark/set`
+tidak berubah dan `line.children.deps` masih 13–16 ms pada font flip.
+
+`swift test`: **234 tes / 39 suite lulus**.

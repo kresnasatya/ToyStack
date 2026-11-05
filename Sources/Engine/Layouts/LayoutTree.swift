@@ -304,12 +304,7 @@ struct LayoutTree {
     mutating func consumeStyleChanges() {
         var changed: [NodeID] = []
         profiler.measure("layout.styleChanges.scan", {
-            for index in inputs.nodes.indices where inputs.nodes[index] != nil {
-                let node: NodeID = NodeID(raw: UInt32(index))
-                if !inputs.styleChanges(node).isEmpty {
-                    changed.append(node)
-                }
-            }
+            changed = Array(inputs.styleChanges.keys)
         })
         profiler.count("layout.styleChanges.node.count", by: changed.count)
 
