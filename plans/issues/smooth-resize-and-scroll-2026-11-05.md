@@ -663,6 +663,23 @@ GUI trace after 3c (23.63 s, 386 resize events, 15 bursts):
 
 `inline.refresh` is now 8-9 ms (was 24-30) and `layout.visit.geometry` 7-18 ms. The remaining cost is `inline.place.items` at 15-51 ms on frames where the breakpoint changes font size; non-breakpoint frames have almost no item placement but still pay 20-44 ms in inline placement. Preview scheduling remains correct: two previews per event and binds only at the start or after the reflow.
 
+### Phase 3d — Cheaper item placement (applied)
+
+Status: **applied** (2026-11-05).
+
+- Per-word `profiler.measure` spans around text measure, break, and append were removed; `inline.place.items` already measures the loop.
+- Line reuse matching keys by `(start index, count)` instead of hashing the whole range array.
+
+Measured on the font-flip page (debug):
+
+| Measure | 3c | 3d |
+|---|---:|---:|
+| `inline.place.items` | 34.0 ms | **23.0 ms** |
+| `inline.place` | 60.1 ms | **48.2 ms** |
+| Resize layout | 200.6 ms | **188.8 ms** |
+
+Item placement dropped by about a third and total resize by about 6%. The remaining cost is fragment construction and line placement inside the placement loop.
+
 Two sub-steps, in order.
 
 #### 3a. Reuse a line without re-placing its children

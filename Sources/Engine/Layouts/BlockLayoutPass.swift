@@ -842,18 +842,21 @@ extension LayoutTree {
         let data: BlockData = blockData(id)
         let items: [InlineItem] = data.content.inlineItems
         let oldLines: [LayoutID] = childrenIDs(of: id).filter({ isLine($0) })
-        var oldLineByRange: [[Int]: LayoutID] = [:]
+        var oldLineByStart: [Int: (line: LayoutID, count: Int)] = [:]
         for index in oldPlan.indices where index < oldLines.count {
-            oldLineByRange[oldPlan[index]] = oldLines[index]
+            guard let start: Int = oldPlan[index].first else { continue }
+            oldLineByStart[start] = (oldLines[index], oldPlan[index].count)
         }
         var reusable: [Int: LayoutID] = [:]
         var used: Set<LayoutID> = []
         for index in plan.indices {
-            guard let line: LayoutID = oldLineByRange[plan[index]],
-                !used.contains(line)
+            guard let start: Int = plan[index].first,
+                let old: (line: LayoutID, count: Int) = oldLineByStart[start],
+                old.count == plan[index].count,
+                !used.contains(old.line)
             else { continue }
-            reusable[index] = line
-            used.insert(line)
+            reusable[index] = old.line
+            used.insert(old.line)
         }
         var free: [LayoutID] = oldLines.filter({ !used.contains($0) })
         var placement: InlinePlacement = InlinePlacement(
@@ -1121,11 +1124,9 @@ extension LayoutTree {
         into placement: inout InlinePlacement
     ) {
         let font: BrowserFont = item.fontOverride ?? item.run.font
-        let measured: CGFloat = profiler.measure("layout.inline.place.text.measure", {
-            item.measuredWidth ?? font.measure(item.display ?? item.word)
-        })
+        let measured: CGFloat = item.measuredWidth ?? font.measure(item.display ?? item.word)
         let w: CGFloat = measured + font.spaceWidth
-        let brokeEarly: Bool = profiler.measure("layout.inline.place.text.break", {
+        let brokeEarly: Bool = {
             if placement.cursorX + w > width(id) && item.run.whiteSpace.wraps {
                 if item.word.contains("\u{00AD}") {
                     let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
@@ -1154,16 +1155,14 @@ extension LayoutTree {
                 placement.endLine(in: &self)
             }
             return false
-        })
+        }()
         if brokeEarly { return }
 
         var measuredItem: InlineTextItem = item
         if measuredItem.measuredWidth == nil {
             measuredItem.measuredWidth = measured
         }
-        profiler.measure("layout.inline.place.text.append", {
-            placement.appendText(measuredItem, width: w, in: &self)
-        })
+        placement.appendText(measuredItem, width: w, in: &self)
         placement.cursorX += w
     }
 
