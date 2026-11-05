@@ -955,27 +955,32 @@ class Frame {
                 imageRevision: dom.side.images.revision,
                 styleRevision: StyleRevision.epoch
             )
-            let box: LayoutBox
-            if let existing = state.layout.tree.box, existing.tree.dom === dom,
-                browser?.forceFullLayout != true
-            {
-                box = existing
-            } else {
-                box = LayoutBox(LayoutTree(
-                    dom: dom,
-                    root: dom.root,
-                    inputs: inputs
-                ))
-                state.layout.targets.isValid = false
-            }
-            state.layout.tree.box = box
-            dom.layoutBox = box
-            box.tree.refreshInputs(inputs)
-            box.tree.layoutDocument(
-                availableWidth: frameWidth,
-                zoom: 1.0,
-                pageZoom: pageZoom
-            )
+            let box: LayoutBox = profiler.measure("layout.prepare", {
+                let box: LayoutBox
+                if let existing = state.layout.tree.box, existing.tree.dom === dom,
+                    browser?.forceFullLayout != true
+                {
+                    box = existing
+                } else {
+                    box = LayoutBox(LayoutTree(
+                        dom: dom,
+                        root: dom.root,
+                        inputs: inputs
+                    ))
+                    state.layout.targets.isValid = false
+                }
+                state.layout.tree.box = box
+                dom.layoutBox = box
+                box.tree.refreshInputs(inputs)
+                return box
+            })
+            profiler.measure("layout.document", {
+                box.tree.layoutDocument(
+                    availableWidth: frameWidth,
+                    zoom: 1.0,
+                    pageZoom: pageZoom
+                )
+            })
             profiler.measure("layout.effects", {
                 applyLayoutEffects(box.tree.takeEffects())
             })

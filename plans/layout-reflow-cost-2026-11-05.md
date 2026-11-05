@@ -40,7 +40,7 @@ Target akhir tetap **layout < 16 ms**. Urutan kerja:
    Target: 20.672 `measureCalls` dan `text.measure` 18 ms turun.
 4. **Kurangi churn dependency field** (sebagian).
    `layout.field.mark/set` 11k–89k dan `line.children.deps` 8–14 ms.
-5. **Instrumentasi orkestrasi `layoutDocument`.**
+5. **Instrumentasi orkestrasi `layoutDocument`** (selesai).
    Selisih `BrowserTab.layout` vs `layout.visit` masih 70–80 ms.
 
 Plan ini mengerjakan langkah 1 dan 2. Langkah 3–5 menjadi plan terpisah agar
@@ -671,3 +671,71 @@ Sisa biaya langkah 4 kecil: sekitar 1,25 ms per style flip. `field.mark/set`
 tidak berubah dan `line.children.deps` masih 13–16 ms pada font flip.
 
 `swift test`: **234 tes / 39 suite lulus**.
+
+## 13. Langkah 5 — instrumentasi orkestrasi layout
+
+Span baru:
+
+| Span | Cakupan |
+|---|---|
+| `layout.prepare` | pilih/buat box, set `dom.layoutBox`, `refreshInputs` |
+| `layout.document` | seluruh `layoutDocument` |
+| `layout.document.needed` | `documentLayoutNeeded(root)` |
+| `layout.document.root` | field root, child root, tinggi root |
+| `layout.document.child` | panggilan `layout(child)` |
+| `layout.visit.children` | loop child di dalam block |
+
+### Hasil headless debug
+
+Halaman 5.000 blok, resize 800 → 700 → 400:
+
+| Metrik | Frame 3 (width-only) | Frame 5 (font flip) |
+|---|---:|---:|
+| `layout.inputs.build` | 0 ms | 33,4 ms |
+| `layout.prepare` | 0 ms | 0 ms |
+| `layout.document` | 610,2 ms | 2.136,1 ms |
+| `layout.document.child` | 610,2 ms | 2.062,3 ms |
+| `layout.visit` (jumlah) | 288,9 ms | 1.190,4 ms |
+| `layout.height` | 50,7 ms | 53,4 ms |
+| `layout.sweep` | 41,6 ms | 41,3 ms |
+| `consumeStyleChanges` | 0 ms | 73,8 ms |
+
+`layout.visit.children` bernilai lebih besar dari `layout.document` karena span
+itu bersarang: parent mencakup child. Jangan menjumlahkannya. Di trace viewer,
+bandingkan `layout.document.child` dengan `layout.visit` pada level yang sama.
+
+Sisa selisih `layout.document.child` vs `layout.visit` adalah pemanggilan
+rekursif, dispatch `layout(id)`, guard per node, dan `layout.height`. Instrumentasi
+ini membuat bagian itu terlihat, tetapi belum menghilangkannya.
+
+`swift test`: **234 tes / 39 suite lulus**.
+
+### Trace GUI langkah 5
+
+Trace: 11.300 event.
+
+| Metrik | Width-only (74) | Font flip (78) |
+|---|---:|---:|
+| `layout.inputs.build` | 17,2 ms | 10,9 ms |
+| `layout.prepare` | 0,1 ms | 0,8 ms |
+| `layout.document` | 92,1 ms | 168,2 ms |
+| `layout.document.child` | 92,1 ms | 160,8 ms |
+| `layout.visit` (jumlah span) | 57,7 ms | 108,1 ms |
+| `layout.height` | 1,1 ms | 1,0 ms |
+| `layout.sweep` | 2,7 ms | 2,6 ms |
+| `consumeStyleChanges` | 0 ms | 7,3 ms |
+| `BrowserTab.layout` | 112,1 ms | 182,6 ms |
+
+Selisih `layout.document.child` − `layout.visit`:
+
+- Width-only: **34,4 ms**
+- Font flip: **52,7 ms**
+
+Setelah dikurangi `layout.height` (~1 ms), `layout.sweep` (~2,6 ms), dan
+`consumeStyleChanges` (7,3 ms pada font flip), sisa 30–45 ms adalah biaya
+rekursi `layout(id)`, dispatch `kind(id)`, dan guard per node. Bukan
+orkestrasi `layoutDocument` yang belum terukur.
+
+Jadi langkah 5 selesai: gap 70–80 ms sekarang bisa dipecah. Optimasi berikutnya
+harus menyasar biaya per-node/recursion, atau memindahkan layout dari main
+thread.

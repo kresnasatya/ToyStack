@@ -33,36 +33,43 @@ extension LayoutTree {
         defer {
             clearStyleChanges()
         }
-        guard documentLayoutNeeded(root) else { return }
+        let needed: Bool = profiler.measure("layout.document.needed", {
+            documentLayoutNeeded(root)
+        })
+        guard needed else { return }
         defer {
             setDirtyDescendants(false, at: root)
         }
 
-        setField(.zoom, zoom, for: root)
-        var data: DocumentData = documentData(root)
-        data.pageZoom = pageZoom
-        setKind(.document(data), at: root)
+        profiler.measure("layout.document.root", {
+            setField(.zoom, zoom, for: root)
+            var data: DocumentData = documentData(root)
+            data.pageZoom = pageZoom
+            setKind(.document(data), at: root)
 
-        let dom: NodeID = domID(of: root)
-        let child: LayoutID
-        if let existing: LayoutID = childrenIDs(of: root).first,
-            isBlock(existing),
-            domID(of: existing) == dom
-        {
-            child = existing
-        } else {
-            child = makeBlock(dom: dom, parent: root, previous: nil)
-        }
-        setChildrenField([child], of: root)
+            let dom: NodeID = domID(of: root)
+            let child: LayoutID
+            if let existing: LayoutID = childrenIDs(of: root).first,
+                isBlock(existing),
+                domID(of: existing) == dom
+            {
+                child = existing
+            } else {
+                child = makeBlock(dom: dom, parent: root, previous: nil)
+            }
+            setChildrenField([child], of: root)
 
-        let rootZoom: CGFloat = zoom
-        setField(.width, availableWidth - 2 * HSTEP * rootZoom, for: root)
-        setField(.x, HSTEP * rootZoom, for: root)
-        setField(.y, VSTEP * rootZoom, for: root)
+            let rootZoom: CGFloat = zoom
+            setField(.width, availableWidth - 2 * HSTEP * rootZoom, for: root)
+            setField(.x, HSTEP * rootZoom, for: root)
+            setField(.y, VSTEP * rootZoom, for: root)
 
-        layout(child)
+            profiler.measure("layout.document.child", {
+                layout(child)
+            })
 
-        markUsed(.height, at: root)
-        setField(.height, boxHeight(child), for: root)
+            markUsed(.height, at: root)
+            setField(.height, boxHeight(child), for: root)
+        })
     }
 }

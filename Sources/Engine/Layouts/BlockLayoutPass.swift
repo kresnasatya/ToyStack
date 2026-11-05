@@ -385,7 +385,9 @@ extension LayoutTree {
             }
         }
 
-        for child in childrenIDs(of: id) { layout(child) }
+        profiler.measure("layout.visit.children", {
+            for child in childrenIDs(of: id) { layout(child) }
+        })
 
         setHeightInputs(id)
         let heightChildren: [LayoutID] = childrenIDs(of: id)
