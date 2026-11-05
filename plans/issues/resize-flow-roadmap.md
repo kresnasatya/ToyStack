@@ -1,0 +1,95 @@
+# Resize Flow Roadmap
+
+Reference for executing the resize-flow work. One step at a time; update the
+status after every measured change.
+
+## Current state
+
+| Area | Cost | Evidence |
+|---|---|---|
+| Scroll input | p95 0.64 ms | `browser.trace`, 230 `BrowserTab.scrollAt` |
+| Scroll paint | up to 12.8 ms | `browser.trace` |
+| Scroll present commit | up to 14.9 ms | `browser.trace` |
+| Resize layout | 30.6-191.9 ms | frames 74-100 |
+| Resize breakpoint | 211 ms frame, 191.9 ms layout | frame 90 |
+| Resize present commit | 17.8-42.3 ms | 50-120 layers, up to 7.9 MP |
+| Initial load | 414 ms | frame 46 |
+
+## What is already done
+
+- Preview is driven by the frame clock, not by every resize event.
+- Content revision and present sequence are separate.
+- Preview is idempotent from the base view size and uses a transform, so text is
+  not distorted while the pointer moves.
+- Width-only reflow has a fast path; lines are reused; child layout and the
+  reachability sweep are skipped when possible.
+- One text fragment per font run, line-owned inline widths, fragment reuse pool,
+  shared `TextRun`, and font-only run reuse.
+- Cheaper item placement and per-node font resolution.
+- Scroll repaint has a complete compositor generation; a paint-window change
+  forces a composite.
+- Keyboard scroll is time-based.
+
+Attempted and reverted:
+
+- Fragment model without a reuse pool: wins on dense lines, loses on pages with
+  two or three words per line.
+- Deferred scroll repaint before the generation contract: missing list text.
+- Removing the line text layout node is still unproven.
+
+## Blockers
+
+1. Preview presentation still waits for `animationTick` on the main thread.
+   A long layout blocks the next preview.
+2. Layout rebuilds all 1773 blocks on width changes; there is no pending
+   layout tree and no incremental layout across a drag.
+3. A media-query font-size flip is a cliff: style 43-48 ms, layout 192 ms,
+   `field.set` 75k.
+4. A new composite binds 50-120 CALayers at once; `view.commit` reaches 42 ms.
+5. The engine has no independent compositor loop. `ContentPresenter` is on a
+   separate queue, but present is still triggered from the main thread.
+
+## Execution order
+
+### Step 1: presentation-first resize
+
+Status: **applied** (2026-11-06).
+
+- `Browser.resize` calls `resizePreview.presentPreview` immediately and
+  dispatches the scaled frame, instead of waiting for `animationTick`.
+- The animation tick still owns the reflow deadline; because the policy marks
+  the size as presented, the tick does not enqueue it again.
+- Fast frames still skip the preview and lay out on the next tick.
+
+Verification: `swift test` 247 tests / 41 suites, `swift build` succeeds, six
+`ResizePreviewPolicyTests` pass. GUI trace still required to confirm the preview
+keeps moving while a 100-192 ms reflow runs.
+
+### Step 2: incremental resize layout
+
+- Skip layout when the effective content width of a subtree did not change.
+- Reuse line plan and placement for unchanged inline contexts.
+- Add a breakpoint path that updates text metrics without rebuilding every item.
+- Target: 100-192 ms -> below 60 ms.
+
+### Step 3: present budget
+
+- Reduce layer count (start with 128 px -> 256 px tiles).
+- Bind only layers whose image changed.
+- Keep the old complete generation visible while a new one is uploading.
+- Target: `view.commit` below 10 ms.
+
+### Step 4: long-term pipeline
+
+- Pending/active layout tree.
+- Layout work outside the main thread for safe subtrees.
+- A compositor loop that can scroll and resize without the main thread.
+
+## Execution protocol
+
+1. Read the current code and the latest trace before changing anything.
+2. Change one step only; do not mix layout and presenter work.
+3. Run `swift test` and `swift build` after the change.
+4. Exercise the changed path with a headless screenshot or a GUI trace.
+5. Update this file with measured before/after numbers.
+6. If the change regresses visible output, revert it immediately and record why.

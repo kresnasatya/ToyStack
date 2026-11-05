@@ -155,11 +155,16 @@ public class Browser: ObservableObject {
             resizePreview.cancel()
             return
         }
-        // Hold the old content visible while the pointer moves. The animation
-        // tick presents it once per frame and lays out one beat after the last
-        // event, so a slow page never lays out a size that is already stale.
+        // Hold the old content visible while the pointer moves. Present the
+        // scaled preview from the resize event itself so a long layout cannot
+        // postpone the next preview. The animation tick still owns the final
+        // reflow deadline.
+        let now: Date = Date()
         let requiresPreview: Bool = estimatedFrameTime > FRAME_BUDGET * 2.0
-        resizePreview.resize(now: Date(), requiresPreview: requiresPreview)
+        resizePreview.resize(now: now, requiresPreview: requiresPreview)
+        if requiresPreview, resizePreview.presentPreview(size: windowSize, now: now) {
+            dispatchPresent(frameID: currentFrameID)
+        }
         if let tab: BrowserTab = activeTab {
             setNeedsAnimationFrame(tab)
         }
