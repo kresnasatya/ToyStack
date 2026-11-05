@@ -48,6 +48,22 @@ extension LayoutTree {
         return oldPrevious != previous
     }
 
+    /// Keeps the line's placement data when only its frame moves. The
+    /// vertical-only path then shifts `inlineYOffset` instead of writing a
+    /// position for every text child.
+    @discardableResult
+    mutating func reuseLine(_ id: LayoutID, previous: LayoutID?) -> Bool {
+        let oldPrevious: LayoutID? = previousID(of: id)
+        var data: LineData = lineData(id)
+        data.paint.generation += 1
+        setKind(.line(data), at: id)
+        setPrevious(previous, of: id)
+        for field in [LayoutField.width, .y] {
+            markField(field, at: id)
+        }
+        return oldPrevious != previous
+    }
+
     func lineLayoutNeeded(_ id: LayoutID) -> Bool {
         if hasDirtyDescendants(at: id) {
             profiler.count("layout.dirtyDescendants")
@@ -91,8 +107,6 @@ extension LayoutTree {
             for: id
         )
 
-        for child in children { layout(child) }
-
         if children.count != data.placement.declaredInlineChildCount {
             var updated: LineData = lineData(id)
             updated.placement.declaredInlineChildCount = children.count
@@ -132,6 +146,8 @@ extension LayoutTree {
             profiler.count("layout.line.place.skipped")
             return
         }
+
+        for child in children { layout(child) }
 
         profiler.count("layout.line.place.placed")
         profiler.measure("layout.line.place", {

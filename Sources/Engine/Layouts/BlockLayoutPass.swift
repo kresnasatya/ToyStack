@@ -250,6 +250,11 @@ extension LayoutTree {
         defer { setDirtyDescendants(false, at: id) }
         profiler.count("layout.visited")
         let style: BlockStyle = profiler.measure("layout.blockStyle", { blockStyle(id) })
+        var skipInlineChildren: Bool = false
+        let frameWasClean: Bool = !isDirty(.x, at: id) && !isDirty(.y, at: id)
+        let oldFrameX: CGFloat = frameWasClean ? x(id) : 0
+        let oldFrameY: CGFloat = frameWasClean ? y(id) : 0
+        let widthWasDirty: Bool = isDirty(.width, at: id)
         profiler.measure("layout.visit") {
             profiler.count("layout.rebuilt")
             profiler.measure("layout.visit.geometry", {
@@ -319,6 +324,8 @@ extension LayoutTree {
                 for: id
             )
             })
+            let frameMoved: Bool = !frameWasClean || x(id) != oldFrameX || y(id) != oldFrameY
+            let widthChanged: Bool = widthWasDirty
 
             let mode: String = profiler.measure("layout.mode", { layoutMode(id) })
             if mode == "block" {
@@ -368,6 +375,13 @@ extension LayoutTree {
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
                     || plan != oldPlan
+                if !shouldPlace, widthChanged, !frameMoved,
+                    !isDirty(.height, at: id),
+                    canSkipInlineChildren(id)
+                {
+                    updateInlineLineFrames(id)
+                    skipInlineChildren = true
+                }
                 if shouldPlace {
                     if !inlineContentChanged, let plan, let oldPlan {
                         profiler.measure("layout.inline.place", {
@@ -385,35 +399,41 @@ extension LayoutTree {
             }
         }
 
-        profiler.measure("layout.visit.children", {
-            for child in childrenIDs(of: id) { layout(child) }
-        })
+        var measuredHeight: CGFloat? = nil
+        if !skipInlineChildren {
+            profiler.measure("layout.visit.children", {
+                for child in childrenIDs(of: id) { layout(child) }
+            })
 
-        setHeightInputs(id)
-        let heightChildren: [LayoutID] = childrenIDs(of: id)
-        let sumHeight: Double = profiler.measure("layout.height", {
-            heightChildren.reduce(0) { total, childID in
-                let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
-                if position == .absolute { return total }
-                var h: CGFloat = height(childID)
-                if isBlock(childID) {
-                    let childStyle: BlockStyle = blockStyle(childID)
-                    let childZoom: CGFloat = zoom(childID)
-                    h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
-                    h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
+            setHeightInputs(id)
+            let heightChildren: [LayoutID] = childrenIDs(of: id)
+            measuredHeight = profiler.measure("layout.height", {
+                heightChildren.reduce(0) { total, childID in
+                    let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
+                    if position == .absolute { return total }
+                    var h: CGFloat = height(childID)
+                    if isBlock(childID) {
+                        let childStyle: BlockStyle = blockStyle(childID)
+                        let childZoom: CGFloat = zoom(childID)
+                        h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
+                        h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
+                    }
+                    return total + h
                 }
-                return total + h
-            }
-        })
+            })
+        } else {
+            profiler.count("layout.inline.children.skipped")
+        }
 
         var scroll: BlockScroll = blockData(id).scroll
-        if let h: CGFloat = domView(id).style.computed.box.size.height {
+        if let sumHeight = measuredHeight {
             scroll.contentHeight = sumHeight
-            let styleHeightZoom: CGFloat = zoom(id)
-            setField(.height, h * styleHeightZoom, for: id)
-        } else {
-            scroll.contentHeight = sumHeight
-            setField(.height, sumHeight, for: id)
+            if let h: CGFloat = domView(id).style.computed.box.size.height {
+                let styleHeightZoom: CGFloat = zoom(id)
+                setField(.height, h * styleHeightZoom, for: id)
+            } else {
+                setField(.height, sumHeight, for: id)
+            }
         }
 
         if let el = domView(id).element, el.attributes["id"] == "toc" {
@@ -440,6 +460,39 @@ extension LayoutTree {
             return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? "block" : "inline"
         }
         return "inline"
+    }
+
+    /// A width-only change that keeps the break plan leaves line contents and
+    /// heights intact. Left-to-right text with no embeds only needs new line
+    /// widths, so its line children do not have to be visited again.
+    private func canSkipInlineChildren(_ id: LayoutID) -> Bool {
+        guard inputs.style(domID(of: id)).text.direction == .ltr else {
+            return false
+        }
+        let items: [InlineItem] = blockData(id).content.inlineItems
+        guard items.allSatisfy({ item in
+            if case .text = item { return true }
+            return false
+        }) else {
+            return false
+        }
+        let children: [LayoutID] = childrenIDs(of: id)
+        guard !children.isEmpty, children.allSatisfy({ isLine($0) }) else {
+            return false
+        }
+        return children.allSatisfy({ !lineData($0).content.centered })
+    }
+
+    private mutating func updateInlineLineFrames(_ id: LayoutID) {
+        let frameX: CGFloat = x(id)
+        let frameWidth: CGFloat = width(id)
+        let frameZoom: CGFloat = zoom(id)
+        for line in childrenIDs(of: id) where isLine(line) {
+            setFrame(
+                (zoom: frameZoom, x: frameX, y: y(line), width: frameWidth),
+                for: line
+            )
+        }
     }
 
     mutating private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
@@ -802,7 +855,7 @@ extension LayoutTree {
         var previous: LayoutID? = nil
         for (index, range) in plan.enumerated() {
             if let line: LayoutID = reusable[index] {
-                let previousChanged: Bool = resetLine(line, previous: previous)
+                let previousChanged: Bool = reuseLine(line, previous: previous)
                 setLineChildrenField(
                     childrenIDs(of: line),
                     of: line,

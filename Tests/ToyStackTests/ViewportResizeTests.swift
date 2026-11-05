@@ -229,6 +229,7 @@ struct ViewportResizeTests {
         #expect(linesAfter.first == firstLine)
         #expect((metrics["layout.inline.place.reusedLines"]?.count ?? 0) > 0)
         #expect((metrics["layout.inline.place.rebuiltLines"]?.count ?? 0) > 0)
+        #expect((metrics["layout.line.place.verticalOnly"]?.count ?? 0) > 0)
         expectIncrementalMatchesFull(page)
     }
 
@@ -255,6 +256,7 @@ struct ViewportResizeTests {
         let profile = profiler.snapshot()
         #expect((profile["layout.line.place.skipped"]?.count ?? 0) > 0)
         #expect((profile["layout.line.place.placed"]?.count ?? 0) == 0)
+        #expect((profile["layout.sweep.skipped"]?.count ?? 0) == 1)
         expectIncrementalMatchesFull(page)
     }
 

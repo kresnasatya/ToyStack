@@ -984,9 +984,15 @@ class Frame {
             profiler.measure("layout.effects", {
                 applyLayoutEffects(box.tree.takeEffects())
             })
-            let removed: Set<LayoutID> = profiler.measure("layout.sweep", {
-                box.tree.sweepUnreachable()
-            })
+            let removed: Set<LayoutID>
+            if box.tree.needsSweep {
+                removed = profiler.measure("layout.sweep", {
+                    box.tree.sweepUnreachable()
+                })
+            } else {
+                profiler.count("layout.sweep.skipped")
+                removed = []
+            }
             if !removed.isEmpty {
                 state.display.composite.updates = state.display.composite.updates
                     .filter({ box.tree.primaryLayout(for: $0.key) != nil })

@@ -305,6 +305,8 @@ a test that runs the style phase without `render()`.
 | `scrollTargets.reused` | count | layout pass that reused the target list and only refreshed rects |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
 | `layout.lines.total` | count | lines placed |
+| `layout.sweep.skipped` | count | geometry pass that did not need the reachability sweep |
+| `layout.inline.children.skipped` | count | inline block that only updated line widths; line subtree and height sum skipped |
 | `text.measureCalls`, `text.measureMisses` | count | font width calls and cache misses |
 | `text.measure` | duration | `CTLine` creation per miss |
 | `text.fontRequests`, `text.font` | count/duration | font resolution |

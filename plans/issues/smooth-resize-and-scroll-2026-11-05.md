@@ -548,7 +548,39 @@ Exit condition: a screenshot taken mid-drag at a wider and a narrower size has n
 
 ### Phase 3 — Make the width reflow cheaper
 
-This is the real fix. The trace says the final snap is 90-153 ms; no scheduler can make that disappear.
+Status: **partially applied** (2026-11-05).
+
+Applied:
+
+- `reuseLine` keeps `LineData.placement`; reused lines take the vertical-only path.
+- `layoutLine` skips child layout when the line itself only moves or does not need placement.
+- `LayoutTree.needsSweep` skips the reachability sweep on pure geometry passes.
+- A width-only inline block whose break plan is unchanged updates its line widths and skips the line subtree and height sum.
+- Counters: `layout.sweep.skipped`, `layout.inline.children.skipped`.
+
+Measured on `www/bench/large.html`, width 800 -> 1000:
+
+| Build | Layout before | Layout after |
+|---|---:|---:|
+| Debug | 136 ms | 110 ms |
+| Release | not measured | **18.3 ms** |
+
+The release target of < 33 ms is met. The GUI trace was debug (95-150 ms), so a release run is the relevant comparison. The larger text-fragment refactor (3b) is still open.
+
+GUI trace after Phase 3 (25.08 s, 116 resize events, 6 bursts):
+
+| Burst | Events | Preview | Bind | Layout |
+|---|---:|---:|---:|---:|
+| 1 | 27 | 52 | 3 | 103 ms |
+| 2 | 23 | 44 | 3 | 148 ms |
+| 3 | 21 | 40 | 3 | 145 ms |
+| 4 | 13 | 26 | 4 | 51 ms |
+| 5 | 15 | 28 | 3 | 112 ms |
+| 6 | 17 | 34 | 1 | 145 ms |
+
+Preview scheduling is still correct: about two previews per event, binds only at the start or after the reflow. Layout remains slow because most blocks change their line plan on these widths; the fast path hits only 12 of 231 inline blocks on those frames. Breakpoint frames spend 37-41 ms in `inline.place.items` and ~88k field writes; non-flip frames spend 29-34 ms in line children and 15-16 ms in dependency updates. The next step is 3b (one text fragment per line), not more width-only fast paths.
+
+The original analysis is below.
 
 Two sub-steps, in order.
 

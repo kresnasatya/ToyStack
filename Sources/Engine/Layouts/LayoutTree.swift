@@ -12,6 +12,9 @@ struct LayoutTree {
     private(set) var primaryByNode: [NodeID: LayoutID]
     var dependencies: DependencyIndex
     private var source: LayoutTreeSource
+    /// Set when layout adds or re-links nodes. A pure width/geometry pass
+    /// leaves it false and can skip the reachability sweep.
+    private(set) var needsSweep: Bool = false
 
     private var storageEffects: [LayoutEffect] {
         get { source.effects }
@@ -109,6 +112,7 @@ struct LayoutTree {
             hasDirtyDescendants: false
         )
         nodes.append(LayoutNode(kind: kind, dom: dom, links: links, state: state))
+        needsSweep = true
         return id
     }
 
@@ -176,6 +180,9 @@ struct LayoutTree {
 
     mutating func setChildren(_ children: [LayoutID], of id: LayoutID) {
         var parent: LayoutNode = node(id)
+        if parent.links.children != children {
+            needsSweep = true
+        }
         parent.links.children = children
         parent.links.versions.children += 1
         nodes[id.raw] = parent
@@ -288,6 +295,7 @@ struct LayoutTree {
                 nodes[id.raw] = nil
             }
         })
+        needsSweep = false
         return removed
     }
 
