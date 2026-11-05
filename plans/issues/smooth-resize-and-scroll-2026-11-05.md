@@ -711,6 +711,8 @@ GUI trace after 3e (39.15 s, 391 resize events, 18 bursts; the first four are lo
 
 Applied follow-up: a font-only refresh keeps the existing run's text and ranges instead of rebuilding it. On the font-flip page, `inline.refresh` fell from 30.2 to 25.2 ms and resize from 198 to 196 ms. The run is still rebuilt when items are reconstructed from DOM text, where white-space or node changes can alter the ranges.
 
+Latest GUI trace (16.3 s, 164 resize events, 9 bursts) was a **debug build**: `jsc.context` was 48.8 ms and `load.jsInit` 58.4 ms, versus ~1 ms and ~2.7 ms in the release traces. Resize layout was 76-121 ms. Preview/bind scheduling was still correct, but these absolute numbers cannot be compared with release. Run `swift run -c release ToyStack` for the target measurement.
+
 GUI trace after 3d (35.2 s, 261 resize events, 16 bursts):
 
 | Burst | Events | Preview | Bind | Layout |
