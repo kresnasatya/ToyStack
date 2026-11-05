@@ -1,34 +1,47 @@
 import CoreGraphics
+import Foundation
 
 class ScrollTween {
     private var start: CGFloat
     private var target: CGFloat
-    private let totalFrames: Int
+    private let duration: TimeInterval
     private let easing: Easing
-    private var currentFrame: Int = 0
+    private var startedAt: Date
+    private var finished: Bool = false
 
     init(
         from start: CGFloat,
         to target: CGFloat,
-        totalFrames: Int = 12,
-        easing: Easing = .easeOut
+        duration: TimeInterval = 0.2,
+        easing: Easing = .easeOut,
+        now: Date = Date()
     ) {
         self.start = start
         self.target = target
-        self.totalFrames = totalFrames
+        self.duration = max(duration, 1.0 / 60.0)
         self.easing = easing
+        self.startedAt = now
     }
 
-    func aim(from current: CGFloat, by delta: CGFloat, within bounds: ClosedRange<CGFloat>) {
+    func aim(
+        from current: CGFloat,
+        by delta: CGFloat,
+        within bounds: ClosedRange<CGFloat>,
+        now: Date = Date()
+    ) {
         start = current
         target = min(max(target + delta, bounds.lowerBound), bounds.upperBound)
-        currentFrame = 0
+        startedAt = now
+        finished = false
     }
 
-    func nextValue() -> CGFloat? {
-        currentFrame += 1
-        if currentFrame > totalFrames { return nil }
-        let t: Double = Double(currentFrame) / Double(totalFrames)
+    func nextValue(now: Date = Date()) -> CGFloat? {
+        if finished { return nil }
+        let elapsed: TimeInterval = now.timeIntervalSince(startedAt)
+        let t: Double = min(max(elapsed / duration, 0), 1)
+        if t >= 1 {
+            finished = true
+        }
         let eased: Double = easing.apply(t)
         return start + (target - start) * CGFloat(eased)
     }

@@ -866,7 +866,11 @@ Long-term:
 
 ### Phase 6 — Animate keyboard scroll by time, not by frame count
 
-`ScrollTween` counts 12 frames (`ScrollTween.swift`), and `aim` resets the count on every key repeat. Two consequences:
+Status: **applied** (2026-11-05).
+
+`ScrollTween` now uses a 0.2 s duration and elapsed time instead of 12 frames. `aim` restarts from the current clock and keeps accumulating the target. A slow tick jumps to the correct position instead of stretching the animation. Tests cover elapsed progress, a slow tick, re-aiming, and bounds.
+
+The original analysis is below.
 
 - The duration follows the tick rate, not the clock. A slow tick stretches the scroll; a faster clock shortens it.
 - Repeating an arrow key restarts the ease-out from zero, so held keys feel like a series of small decelerations.
