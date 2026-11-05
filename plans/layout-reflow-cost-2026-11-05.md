@@ -36,7 +36,7 @@ Target akhir tetap **layout < 16 ms**. Urutan kerja:
    style-nya tidak berubah.
 2. **Hentikan penempatan ulang baris yang tidak berubah** (selesai).
    Target: `inline.place` dan `line.children.deps` turun pada width-only reflow.
-3. **Cache pengukuran teks per item saat `font-size` berubah.**
+3. **Cache pengukuran teks per item saat `font-size` berubah** (selesai).
    Target: 20.672 `measureCalls` dan `text.measure` 18 ms turun.
 4. **Kurangi churn dependency field.**
    `layout.field.mark/set` 11k–89k dan `line.children.deps` 8–14 ms.
@@ -584,3 +584,61 @@ Biaya frame:
 Kesimpulan: langkah 2 mengurangi pekerjaan line placement pada width-only,
 tetapi belum mengubah gambaran besar. Bottleneck berikutnya adalah style pass
 saat font flip dan `layout.visit`/inline placement pada blok besar.
+
+## 11. Langkah 3 — ukuran teks tidak diukur dua kali
+
+Saat `font-size` berubah, `inlineTextLinePlan` sudah mengukur setiap word untuk
+memutuskan line break. `TextLayoutPass` lalu mengukur word yang sama lagi untuk
+mengisi metrics text node. Itu sebabnya `text.measureCalls` = 20.672
+(10.336 word × 2).
+
+Perubahan:
+
+- `TextMetrics` mendapat flag `measured`.
+- `appendToLine` menyalin `InlineTextItem.measuredWidth` ke `TextData.metrics`
+  saat text node dibuat atau dipakai ulang.
+- `TextLayoutPass.layoutText` memakai `metrics.width` bila `measured`, dan hanya
+  memanggil `BrowserFont.measure` bila belum ada.
+- Counter baru `text.measureReused`.
+
+### Hasil headless debug
+
+Halaman 5.000 blok, breakpoint mengubah `body font-size`:
+
+| Metrik | Sebelum | Sesudah |
+|---|---:|---:|
+| `text.measureCalls` | 60.000 | **30.000** |
+| `text.measureReused` | — | 30.000 |
+| `text.measure` (miss) | 27,8 ms | 23,5 ms |
+| `layout.text` | 215,4 ms | **191,9 ms** |
+
+Panggilan ukur turun setengah dan `layout.text` turun sekitar 11%.
+`text.measure` hanya menghitung cache miss; sisa biaya ada di set metrics dan
+field update, bukan pengukuran font.
+
+`swift test`: **234 tes / 39 suite lulus**.
+
+### Trace GUI langkah 3
+
+Trace: 14.910 event.
+
+| Rezim | Frame | `text.measureCalls` | `text.measureReused` | `text.measure` | `layout.text` |
+|---|---:|---:|---:|---:|---:|
+| Style-only | 86, 93, 99, 103, 105, 107, 109, 113, 119, 123 | 10.336 | 10.336 | 0–9,1 ms | 13,4–14,8 ms |
+| Width-only | 82, 84, 91, 95, 97, 101, 111, 115, 117, 121 | 11 | — | — | — |
+
+Panggilan ukur teks turun dari 20.672 menjadi 10.336 pada setiap font flip.
+`text.measureReused` = 10.336. Hanya frame pertama yang membayar miss
+(9,1 ms); frame berikutnya memakai cache font.
+
+`layout.text` turun dari 16,4–16,8 ms ke 13,4–14,8 ms.
+
+Biaya frame setelah langkah 3:
+
+| Rezim | Style | Layout | AnimFrame |
+|---|---:|---:|---:|
+| Width-only | 0 ms | 50–110 ms | 51–115 ms |
+| Style-only | 23,2–30,0 ms | 140,8–179,4 ms | 170,4–205,3 ms |
+
+Sisa bottleneck: `inline.place` 38–70 ms pada style-only dan 4–52 ms pada
+width-only, plus dependency/field updates.

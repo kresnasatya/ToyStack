@@ -625,6 +625,14 @@ struct LayoutTree {
         markClean(.font, at: id)
     }
 
+    mutating func setTextMeasuredWidth(_ width: CGFloat, for id: LayoutID) {
+        var data: TextData = textData(id)
+        guard data.metrics.width != width || !data.metrics.measured else { return }
+        data.metrics.width = width
+        data.metrics.measured = true
+        setKind(.text(data), at: id)
+    }
+
     mutating func setTextMetrics(
         _ id: LayoutID,
         width: CGFloat,

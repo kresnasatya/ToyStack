@@ -63,10 +63,17 @@ extension LayoutTree {
             {
                 let measuredFont: BrowserFont = font(id)
                 let data: TextData = textData(id)
-                let measured: CGFloat = measuredFont.measure(data.display ?? data.word)
-                var updated: TextData = data
-                updated.metrics.width = measured
-                setKind(.text(updated), at: id)
+                let measured: CGFloat
+                if data.metrics.measured {
+                    profiler.count("text.measureReused")
+                    measured = data.metrics.width
+                } else {
+                    measured = measuredFont.measure(data.display ?? data.word)
+                    var updated: TextData = data
+                    updated.metrics.width = measured
+                    updated.metrics.measured = true
+                    setKind(.text(updated), at: id)
+                }
                 setTextMetrics(
                     id,
                     width: measured + measuredFont.spaceWidth,

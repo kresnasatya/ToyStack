@@ -15,4 +15,5 @@ struct TextData {
 struct TextMetrics {
     var width: CGFloat
     var whiteSpace: WhiteSpaceMode
+    var measured: Bool = false
 }

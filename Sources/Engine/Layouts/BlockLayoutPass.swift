@@ -1054,8 +1054,12 @@ extension LayoutTree {
         })
         if brokeEarly { return }
 
+        var measuredItem: InlineTextItem = item
+        if measuredItem.measuredWidth == nil {
+            measuredItem.measuredWidth = measured
+        }
         profiler.measure("layout.inline.place.text.append", {
-            appendToLine(id, item, index: index, into: &placement)
+            appendToLine(id, measuredItem, index: index, into: &placement)
         })
         placement.cursorX += w
     }
@@ -1077,6 +1081,9 @@ extension LayoutTree {
             text = cached
             profiler.count("layout.inline.text.cached")
             setFontAndPrevious(font, previous: previous, for: text)
+            if let measuredWidth: CGFloat = item.measuredWidth {
+                setTextMeasuredWidth(measuredWidth, for: text)
+            }
         } else {
             profiler.count("layout.inline.text.new")
             text = makeText(
@@ -1084,7 +1091,11 @@ extension LayoutTree {
                     word: item.word,
                     display: item.display,
                     fontOverride: item.fontOverride,
-                    metrics: TextMetrics(width: 0, whiteSpace: item.run.whiteSpace)
+                    metrics: TextMetrics(
+                        width: item.measuredWidth ?? 0,
+                        whiteSpace: item.run.whiteSpace,
+                        measured: item.measuredWidth != nil
+                    )
                 ),
                 dom: item.run.node.id,
                 parent: lineID,
