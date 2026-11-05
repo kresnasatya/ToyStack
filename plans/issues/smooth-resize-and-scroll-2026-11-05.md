@@ -833,7 +833,9 @@ Risk: each render blocks input for 100 ms today. Gate it behind the layout-cost 
 
 ### Phase 5 — Decouple scroll from layout
 
-Status: **reverted** (2026-11-05).
+Status: Phase 5 reverted; Phase 5b applied (2026-11-06).
+
+Phase 5b: the input path no longer publishes a new offset that needs a paint. It stores the target and returns; the next tick paints, commits, and lets the raster callback present once. If the painted window already covers the viewport, the input path still presents immediately. The sync fallback remains for a target that no longer needs paint.
 
 The deferred repaint made deep scrolling faster on the input path, but text in list items disappeared after scrolling on a real page. The regression appeared with commit `c7dc171`, so `Browser.applyScroll` and `applyScrollAndUpdateInterest` are back to synchronous `repaintForScroll` until a version with correct repaint ordering is tested in the GUI.
 
