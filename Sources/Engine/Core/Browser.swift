@@ -93,6 +93,8 @@ public class Browser: ObservableObject {
     private var needsRaster: Bool = false
     private var needsDraw: Bool = false
     private var needsAnimationFrame: Bool = true
+    private var needsScrollPaint: Bool = false
+    private var pendingScrollTarget: CGFloat? = nil
     private var compositeInFlight: Bool = false
     private var currentFrameID: Int = 0
     private var needsTileContinuation: Bool = false
@@ -198,6 +200,17 @@ public class Browser: ObservableObject {
     private func animationTick() {
         guard needsAnimationFrame else {
             return
+        }
+        if needsScrollPaint {
+            needsScrollPaint = false
+            let target: CGFloat = pendingScrollTarget ?? activeTab?.rootFrame.scroll ?? 0
+            pendingScrollTarget = nil
+            let repainted: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
+            if repainted {
+                return
+            }
+            activePresentation.scroll.scroll = target
+            dispatchPresent(frameID: currentFrameID)
         }
         let now: Date = Date()
         if resizePreview.presentPreview(size: windowSize, now: now) {
@@ -644,14 +657,19 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
+        let needsPaint: Bool = activeTab?.rootFrame.scrollNeedsPaint() ?? false
+        if needsPaint {
+            pendingScrollTarget = scroll
+            needsScrollPaint = true
+            needsAnimationFrame = true
+            return
+        }
+
+        needsScrollPaint = false
+        pendingScrollTarget = nil
         activePresentation.scroll.scroll = scroll
 
-        let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
-
         if activePresentation.render.content.usesSublayers {
-            if didRepaint {
-                setNeedsComposite()
-            }
             dispatchPresent(frameID: currentFrameID)
             let step: CGFloat = RasterLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
@@ -666,13 +684,19 @@ public class Browser: ObservableObject {
     }
 
     public func applyScrollAndUpdateInterest(scroll: CGFloat, interestTop: CGFloat, interestBottom: CGFloat) {
+        let needsPaint: Bool = activeTab?.rootFrame.scrollNeedsPaint() ?? false
+        if needsPaint {
+            pendingScrollTarget = scroll
+            needsScrollPaint = true
+            needsAnimationFrame = true
+            return
+        }
+
+        needsScrollPaint = false
+        pendingScrollTarget = nil
         activePresentation.scroll.scroll = scroll
         activePresentation.scroll.interestTop = interestTop
         activePresentation.scroll.interestBottom = interestBottom
-        let didRepaint: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
-        if didRepaint && activePresentation.render.content.usesSublayers {
-            setNeedsComposite()
-        }
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
