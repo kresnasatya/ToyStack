@@ -62,6 +62,6 @@ final class Profiler: @unchecked Sendable {
     }
 }
 
-nonisolated(unsafe) let profiler: Profiler = Profiler(
+let profiler: Profiler = Profiler(
     enabled: !ProcessInfo.processInfo.arguments.contains("--no-profile")
 )

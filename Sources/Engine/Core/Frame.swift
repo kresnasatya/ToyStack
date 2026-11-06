@@ -1255,13 +1255,14 @@ class Frame {
         let width: CGFloat = frameWidth
         let pageZoom: CGFloat = self.pageZoom
         Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID] in
-            var result: LayoutTree = tree
-            result.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
-            let effects: [LayoutEffect] = result.takeEffects()
-            let removed: Set<LayoutID> = result.needsSweep ? result.sweepUnreachable() : []
+            var tree: LayoutTree = tree
+            tree.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
+            let effects: [LayoutEffect] = tree.takeEffects()
+            let removed: Set<LayoutID> = tree.needsSweep ? tree.sweepUnreachable() : []
+            let completed: LayoutTree = tree
             await MainActor.run { [weak self] in
                 self?.finishAsyncLayout(
-                    result,
+                    completed,
                     effects: effects,
                     removed: removed,
                     jobID: jobID
