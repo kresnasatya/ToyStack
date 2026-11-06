@@ -56,8 +56,6 @@ final class StyleCascade {
         guard let old: ComputedStyle = oldStyles[node.id] else {
             return true
         }
-        return StyleProperty.inherited.contains {
-            !old.matches(node.style.computed, for: $0)
-        }
+        return old.text != node.style.computed.text
     }
 }

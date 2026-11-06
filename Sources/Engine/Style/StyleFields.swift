@@ -105,7 +105,6 @@ final class StyleFields {
         let newText: TextStyle
         if inheritedText.isEmpty {
             newText = ComputedStyle.inheritingText(from: parent)
-            profiler.count("style.reapplyInherited.empty")
         } else {
             newText = ComputedStyleParser.parseText(inheritedText, parent: parent)
         }
@@ -116,7 +115,6 @@ final class StyleFields {
             changedCount += 1
             layoutChanges.insert(property)
             invalidation.dirtyKeys.remove(property)
-            profiler.count("style.changed.\(property.cssName)")
         }
         guard changedCount > 0 else { return false }
 
@@ -124,8 +122,6 @@ final class StyleFields {
         invalidation.needsRestyle = false
         revision += 1
         StyleRevision.bump()
-        profiler.count("style.fields.changed", by: changedCount)
-        profiler.count("style.apply.inherited", by: 1)
         return true
     }
 

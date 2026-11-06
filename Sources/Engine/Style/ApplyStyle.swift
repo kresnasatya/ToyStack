@@ -32,8 +32,7 @@ private func applyStyle(
     }
     defer { node.style.clearDirtyDescendants() }
 
-    let index: Int = snapshot.index(of: node.id) ?? 0
-    let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
+    let direct: Bool = force ? false : (cascade.scope.map({ $0.matches(node) }) ?? true)
     let applies: Bool = force || direct || node.style.isDirty
     if applies {
         if force {
@@ -46,11 +45,10 @@ private func applyStyle(
         let forceOnly: Bool = force && !direct && !node.style.isDirty
         if forceOnly {
             let old: ComputedStyle = node.style.computed
-            let changed: Bool? = profiler.measure("style.reapplyInherited", {
-                node.style.reapplyInherited(parent: node.parent?.style.computed)
-            })
+            let changed: Bool? = node.style.reapplyInherited(
+                parent: node.parent?.style.computed
+            )
             if let changed {
-                profiler.count("style.apply.inheritedOnly")
                 if changed {
                     cascade.record(node, old: old)
                 } else {
@@ -58,21 +56,27 @@ private func applyStyle(
                 }
             } else {
                 cascade.record(node)
+                let index: Int = snapshot.index(of: node.id) ?? 0
                 profiler.measure("style.apply.node", {
                     applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
                 })
             }
         } else {
             cascade.record(node)
+            let index: Int = snapshot.index(of: node.id) ?? 0
             profiler.measure("style.apply.node", {
                 applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
             })
         }
     }
 
-    let pushedKeys: [SelectorKey]? = node.element.map({ _ in
-        profiler.measure("style.apply.push", { cascade.ancestorKeys.push(snapshot, index) })
-    })
+    let needsAncestorKeys: Bool = !force || node.style.isDirty
+    let pushedKeys: [SelectorKey]? = needsAncestorKeys
+        ? node.element.map({ _ in
+            let index: Int = snapshot.index(of: node.id) ?? 0
+            return profiler.measure("style.apply.push", { cascade.ancestorKeys.push(snapshot, index) })
+        })
+        : nil
     defer {
         if let pushedKeys {
             profiler.measure("style.apply.pop", { cascade.ancestorKeys.pop(pushedKeys) })

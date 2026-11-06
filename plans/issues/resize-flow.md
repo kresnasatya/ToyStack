@@ -266,3 +266,35 @@ A new text fragment was built with several separate field writes, and each write
 Applied: construct the initial `LayoutNodeSeed` once, then append it. The text fields, used/dirty bits, child version, and dependency edges are set in one place instead of repeated `markUsed`/`setFieldClean` calls. Baseline median `layout.document` **73.1 ms** -> **71.9 ms** (three runs each); screenshots are byte-identical and 270 tests pass.
 
 This is not enough for the 60 ms target. The remaining cost is in the per-line placement pipeline and text runs, not only node initialization. The next change needs to remove work per line, not shave another field write.
+
+### Style breakpoint pass (2026-11-06)
+
+`browser.trace` showed resize `animFrame` spikes up to 42.9 ms, while the
+resize frames' style passes were 19.5-42.7 ms and preview commits stayed below
+0.3 ms. The remaining resize stall is style propagation, not layout or present.
+
+The scoped style walk was doing selector-scope matching and ancestor-key pushes
+for every descendant even when `force` was already propagating an inherited
+style change. `ApplyStyle` now skips both for force-only inherited nodes; a
+body font-size media flip on a 1,500-paragraph page dropped `BrowserTab.style`
+from 8.9 ms to 8.3 ms in the headless reproduction, with the large-page
+screenshot byte-identical and 278 tests passing.
+
+This is a traversal reduction, not a full fix for the 42 ms GUI frame. The next
+step is to profile the remaining `reapplyInherited`/style-diff work per node.
+
+### Style inheritance hot path (2026-11-06)
+
+The GUI trace with style counters showed resize styles at 17.8-37.2 ms while
+preview commits stayed below 0.3 ms. On a media flip the pass visited 5,509
+nodes, with only 4 elements direct-matching; 5,633 nodes took the inherited-only
+path. `reapplyInherited` was dominated by per-node profiler lock/measure calls,
+and `inheritedChanged` compared seven properties individually.
+
+Applied: compare `TextStyle` once in `inheritedChanged`; remove per-node
+`profiler.measure`/`count` calls from the inherited-only hot path. The
+1,500-paragraph headless media flip dropped `BrowserTab.style` from 8.3 ms to
+**5.0 ms** (apply 6.6 -> 3.3 ms, traverse 6.3 -> 3.1 ms). 278 tests pass.
+
+Frame 498 (121.8 ms) is a large style/load pass, not a resize frame; it remains
+in the load path and should be profiled separately.

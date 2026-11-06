@@ -916,6 +916,7 @@ class Frame {
             browser?.measure.stop("BrowserTab.style.visited")
 
             loadBackgroundImages(cascade.appliedNodes)
+            emitStyleProfileCounters()
         }
 
         if state.layout.tree.isDirty && !layoutChanged && !viewportStyle
@@ -2074,6 +2075,18 @@ class Frame {
             }
         }
         setNeedsViewportResize()
+    }
+
+    /// The normal profiler bundle is diagnostic, but the GUI trace needs the
+    /// style phase breakdown even when the profiler bundle is unavailable.
+    private func emitStyleProfileCounters() {
+        for (name, metric) in profiler.snapshot() where name.hasPrefix("style.") {
+            guard metric.nanos > 0 || metric.count > 0 else { continue }
+            browser?.measure.counter(
+                name,
+                ["us": Int(metric.nanos / 1_000), "count": metric.count]
+            )
+        }
     }
 
     private func currentMedia() -> MediaFeatures {
