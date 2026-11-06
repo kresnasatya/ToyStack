@@ -83,6 +83,12 @@ coalesced to the latest size.
 Conclusion: Step 1 is applied but **not sufficient for the perceived goal**.
 Keep it, add preview coalescing, and proceed to Step 2.
 
+Preview geometry follow-up: the old complete frame was clipped when the window
+shrank because only `contentLayer.frame` changed. `PreviewFit` now computes a
+uniform fit from the previous view size to the new viewport, and the presenter
+applies that scale to the old layers. Tests cover wide-to-narrow, height-room,
+and invalid previous-size cases. GUI verification is still required.
+
 ### Step 1b: coalesce preview presents
 
 Status: **superseded by Step 1c** (2026-11-06).
