@@ -843,6 +843,12 @@ class Frame {
                 applyStyle(node: nodes, cascade: cascade, snapshot: snapshot)
             }
             profiler.count("style.applied", by: cascade.appliedNodes.count)
+            StyleDiagnostics.begin(
+                width: frameWidth,
+                viewport: viewportStyle,
+                flipped: flipped.count,
+                applied: cascade.appliedNodes.count
+            )
             browser?.measure.stop("BrowserTab.style.apply")
 
             browser?.measure.start("BrowserTab.style.diff")
@@ -850,6 +856,17 @@ class Frame {
             var paintedChanged: Bool = false
             for node in cascade.appliedNodes {
                 guard let old: ComputedStyle = cascade.oldStyle(for: node) else { continue }
+                if old.text.font.size != node.style.computed.text.font.size {
+                    StyleDiagnostics.fontChange(
+                        node: node,
+                        from: old.text.font.size,
+                        to: node.style.computed.text.font.size
+                    )
+                    browser?.measure.counter(
+                        "style.font-size.changed.\(node.element?.tag ?? "text")",
+                        ["count": 1]
+                    )
+                }
                 if Self.paintStyleChanged(old: old, new: node.style.computed) {
                     paintedChanged = true
                 }
