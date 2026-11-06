@@ -62,8 +62,26 @@ Status: **applied** (2026-11-06).
 - Fast frames still skip the preview and lay out on the next tick.
 
 Verification: `swift test` 247 tests / 41 suites, `swift build` succeeds, six
-`ResizePreviewPolicyTests` pass. GUI trace still required to confirm the preview
-keeps moving while a 100-192 ms reflow runs.
+`ResizePreviewPolicyTests` pass.
+
+GUI trace after the change (`browser.trace`, 138 frames, 229 resize events):
+
+| Measure | Result |
+|---|---|
+| Resize layouts | 11 passes, **76.4-157.5 ms** |
+| Layout frames | 111, 113, 115, 117, 119, 121, 123, 125, 127 |
+| Preview frames | 110, 112, 114, 116, 118, 120, 122, 124, 126 |
+| Previews in frame 110 | **143 `view.apply`**, 18.5 ms of `view.commit` |
+| Preview gap after a layout | **96-149 ms** |
+
+The preview is now enqueued from the resize event, but it is still not continuous
+during a layout: the main thread owns both layout and resize delivery. The
+158 ms worst frame still produces a 149 ms gap before the next preview. Also,
+a burst of resize events can enqueue 143 previews in one frame; those should be
+coalesced to the latest size.
+
+Conclusion: Step 1 is applied but **not sufficient for the perceived goal**.
+Keep it, add preview coalescing, and proceed to Step 2.
 
 ### Step 2: incremental resize layout
 
