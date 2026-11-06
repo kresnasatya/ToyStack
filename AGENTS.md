@@ -51,6 +51,8 @@ For multi-file changes, group the diffs by file and include the file path before
 
 10. Save it in markdown file in the `plans` directory.
 
+11. Every fix or feature starts with a test in `Tests/`. Write the failing test first, confirm it fails for the intended reason, then implement in `Sources/` until it passes. Tests are the blood contract; do not implement behavior that has no test.
+
 ## Commit Style
 
 Write the message for someone who forgot this code, not for the compiler. Lead with the
