@@ -17,6 +17,10 @@ class JSRuntime: @unchecked Sendable {
         profiler.measure("jsc.runtime", { loadRuntime() })
     }
 
+    func evaluate(_ code: String) -> JSValue? {
+        return jsContext.evaluateScript(code)
+    }
+
     func run(script: String, code: String) {
         jsContext.exceptionHandler = { _, exception in
             print("Script", script, "crashed:", exception?.toString() ?? "unknown error")

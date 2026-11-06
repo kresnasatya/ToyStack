@@ -99,7 +99,20 @@ Preview policy follow-up: when background layout is enabled, every resize now
 previews the last complete frame instead of waiting for a slow-frame estimate.
 `PreviewFit` also refuses to magnify the old frame when the viewport grows
 (`scale <= 1`). Tests cover async preview scheduling and no-magnify geometry.
-GUI verification is still required.
+
+Latest GUI trace after the preview fixes (563 frames):
+
+| Measure | Result |
+|---|---|
+| `view.commit` | p95 4.5 ms, max 47.3 ms |
+| `view.updateSublayers` | p95 0.41 ms |
+| Main `animFrame` | p95 18.2 ms |
+| Scroll input | p95 0.64 ms |
+| Main layout | absent; background layout active |
+
+Some stale content during a drag is the preview contract: the last complete
+frame stays until the new layout and raster generation are ready. The preview is
+now fitted and never magnified.
 
 ### Step 1b: coalesce preview presents
 

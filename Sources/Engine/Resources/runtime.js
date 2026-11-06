@@ -423,6 +423,7 @@ WINDOWS[window._id] = window;
 
 window.console = console;
 window.document = document;
+window.location = location;
 window.Node = Node;
 window.Event = Event;
 window.XMLHttpRequest = XMLHttpRequest;
