@@ -124,6 +124,7 @@ extension LayoutTree {
             || widthMovesChildren
 
         let textOnly: Bool = children.allSatisfy({ isText($0) })
+        let hasBoxes: Bool = !lineData(id).content.boxes.isEmpty
         let verticalOnly: Bool = yWasDirty && !xWasDirty && !zoomWasDirty
             && !childCountChanged && !childWidthChanged && !widthMovesChildren
             && !isDirty(.ascent, at: id)
@@ -139,6 +140,7 @@ extension LayoutTree {
                 updated.placement.inlineYOffset = y(id) - childOriginY
                 setKind(.line(updated), at: id)
             })
+            syncInlineBoxes(id)
             return
         }
 
@@ -151,6 +153,10 @@ extension LayoutTree {
 
         profiler.count("layout.line.place.placed")
         profiler.measure("layout.line.place", {
+            if hasBoxes, children.isEmpty {
+                layoutLineBoxes(id)
+                return
+            }
             guard !children.isEmpty else {
                 setField(.ascent, 0, for: id)
                 setField(.descent, 0, for: id)
@@ -207,7 +213,49 @@ extension LayoutTree {
             updated.placement.childOriginY = y(id)
             updated.placement.inlineYOffset = 0
             setKind(.line(updated), at: id)
+            syncInlineBoxes(id)
         })
+    }
+
+    /// Shadow values for the fragment-node migration. Paint and hit-test still
+    /// read the text children until the value path is complete.
+    mutating private func syncInlineBoxes(_ id: LayoutID) {
+        guard collectsInlineBoxes else { return }
+        guard !lineData(id).content.hasEmbed else { return }
+        let children: [LayoutID] = childrenIDs(of: id)
+        var boxes: [InlineBox] = []
+        boxes.reserveCapacity(children.count)
+        for child in children where isText(child) {
+            let data: TextData = textData(child)
+            boxes.append(
+                InlineBox(
+                    dom: domID(of: child),
+                    fragment: data.fragment,
+                    geometry: InlineBoxGeometry(
+                        x: x(child),
+                        y: textAbsoluteY(child) - y(id),
+                        width: textTextWidth(child)
+                    ),
+                    text: InlineBoxText(
+                        payload: data.payload,
+                        font: font(child),
+                        ascent: ascent(child),
+                        descent: descent(child)
+                    )
+                )
+            )
+        }
+        var line: LineData = lineData(id)
+        if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
+            line.paint.boxRevision = revision
+        }
+        guard line.content.boxes != boxes else {
+            setKind(.line(line), at: id)
+            return
+        }
+        line.content.boxes = boxes
+        line.paint.generation += 1
+        setKind(.line(line), at: id)
     }
 
     mutating private func shiftChildren(_ id: LayoutID, by offset: CGFloat) {
@@ -240,5 +288,82 @@ extension LayoutTree {
 
     func lineCanCachePaint(_ id: LayoutID) -> Bool {
         return !lineData(id).content.hasEmbed
+    }
+
+    private func boxRevision(_ id: LayoutID) -> UInt64? {
+        guard isBlock(id), isUsed(.inlineContent, at: id),
+            !isDirty(.inlineContent, at: id)
+        else { return nil }
+        return inlineContent(id)
+    }
+
+    mutating private func layoutLineBoxes(_ id: LayoutID) {
+        let data: LineData = lineData(id)
+        guard !data.content.boxes.isEmpty else { return }
+        let maxAscent: CGFloat = data.content.boxes.map({ $0.text.ascent }).max() ?? 0
+        let maxDescent: CGFloat = data.content.boxes.map({ $0.text.descent }).max() ?? 0
+        setField(.ascent, maxAscent, for: id)
+        setField(.descent, maxDescent, for: id)
+        let baseline: CGFloat = maxAscent
+        let usedWidth: CGFloat = data.content.boxes.reduce(0) { $0 + $1.geometry.width }
+        var cursorX: CGFloat = x(id)
+        if inputs.style(domID(of: id)).text.direction == .rtl {
+            cursorX += width(id) - usedWidth
+        }
+        if data.content.centered {
+            cursorX += (width(id) - usedWidth) / 2
+        }
+        var boxes: [InlineBox] = data.content.boxes
+        for index in boxes.indices {
+            let box: InlineBox = boxes[index]
+            boxes[index] = InlineBox(
+                dom: box.dom,
+                fragment: box.fragment,
+                geometry: InlineBoxGeometry(
+                    x: cursorX,
+                    y: baseline - box.text.ascent,
+                    width: box.geometry.width
+                ),
+                text: box.text
+            )
+            cursorX += box.geometry.width
+        }
+        var updated: LineData = data
+        updated.content.boxes = boxes
+        updated.content.inlineWidths = boxes.map({ $0.geometry.width })
+        if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
+            updated.paint.boxRevision = revision
+        }
+        updated.paint.generation += 1
+        updated.placement.childOriginY = y(id)
+        updated.placement.inlineYOffset = 0
+        setKind(.line(updated), at: id)
+        setField(.height, maxAscent + maxDescent, for: id)
+    }
+
+    /// Boxes are only current when they still describe the live text
+    /// children. Incremental text edits can replace a child without forcing a
+    /// fresh line placement, in which case callers must fall back to nodes.
+    func currentInlineBoxes(_ id: LayoutID) -> [InlineBox]? {
+        let data: LineData = lineData(id)
+        guard !data.content.hasEmbed, !data.content.boxes.isEmpty else { return nil }
+        let block: LayoutID? = parentID(of: id)
+        guard let block, let revision: UInt64 = boxRevision(block),
+            data.paint.boxRevision == revision
+        else { return nil }
+        let children: [LayoutID] = childrenIDs(of: id).filter({ isText($0) })
+        if children.isEmpty { return data.content.boxes }
+        guard children.count == data.content.boxes.count else { return nil }
+        for (box, child) in zip(data.content.boxes, children) {
+            let text: TextData = textData(child)
+            guard box.dom == domID(of: child),
+                box.fragment == text.fragment,
+                box.geometry.x == x(child),
+                box.geometry.y + y(id) == textAbsoluteY(child),
+                box.geometry.width == textTextWidth(child),
+                inlineText(box) == textString(child)
+            else { return nil }
+        }
+        return data.content.boxes
     }
 }

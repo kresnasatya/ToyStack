@@ -89,7 +89,7 @@ struct PaddingLayoutTests {
         let box: ElementRef = try #require(page.firstElement(tag: "div"))
         let layout: LayoutID = try #require(page.ref(of: box).layoutID)
 
-        #expect(page.tree.hitTest(layout, x: page.tree.x(layout) - 5, y: page.tree.y(layout) + 5).map({ page.tree.domID(of: $0) }) == box.id)
+        #expect(page.tree.hitTest(layout, x: page.tree.x(layout) - 5, y: page.tree.y(layout) + 5)?.dom == box.id)
     }
 
     @Test func backgroundCoversPadding() throws {

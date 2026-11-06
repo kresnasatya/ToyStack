@@ -21,11 +21,13 @@ struct LineContent {
     var centered: Bool
     var hasEmbed: Bool
     var inlineWidths: [CGFloat]
+    var boxes: [InlineBox]
 
     init() {
         self.centered = false
         self.hasEmbed = false
         self.inlineWidths = []
+        self.boxes = []
     }
 }
 
@@ -34,10 +36,12 @@ struct LineContent {
 struct LinePaint {
     var generation: UInt
     var paintedChildCount: Int
+    var boxRevision: UInt64
 
     init() {
         self.generation = 0
         self.paintedChildCount = -1
+        self.boxRevision = 0
     }
 }
 

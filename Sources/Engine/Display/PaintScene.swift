@@ -79,6 +79,14 @@ struct PaintLine {
     var canCache: Bool
     var generation: UInt
     var focusRing: [DisplayOp]
+    var inlineText: [PaintInlineText]
+}
+
+struct PaintInlineText {
+    var string: String
+    var font: BrowserFont
+    var color: BrowserColor
+    var rect: Rect
 }
 
 struct PaintText {

@@ -9,21 +9,40 @@ extension LayoutTree {
         parent: LayoutID?,
         previous: LayoutID?
     ) -> LayoutID {
-        let kind: LayoutKind = .text(text)
-        let id: LayoutID = append(kind: kind, dom: dom, parent: parent, previous: previous)
-        setPrimary(id, for: dom)
+        var fields: LayoutFieldStore = LayoutFieldStore()
+        fields.inlineText.font = inlineDefaultFont
+        fields.inlineText.ascent = inlineDefaultFont.ascent
+        fields.inlineText.descent = inlineDefaultFont.descent
+        let used: [LayoutField] = [
+            .children, .font, .ascent, .descent,
+            .zoom, .width, .height, .x, .y,
+        ]
+        fields.state.usedBits = used.reduce(0) { mask, field in mask | field.mask }
+        fields.state.dirtyBits =
+            LayoutField.allMask
+            & ~(LayoutField.ascent.mask | LayoutField.descent.mask | LayoutField.children.mask)
 
-        setChildrenClean([], of: id)
-        setFontClean(inlineDefaultFont, for: id)
-        setFieldClean(.ascent, inlineDefaultFont.ascent, for: id)
-        setFieldClean(.descent, inlineDefaultFont.descent, for: id)
-        for field in [
-            LayoutField.zoom, .width, .height, .font, .x, .y,
-        ] {
-            markUsed(field, at: id)
+        let links: LayoutLinks = LayoutLinks(
+            parent: parent,
+            previous: previous,
+            children: [],
+            versions: LinkVersions(children: 1, previous: 0)
+        )
+        let state: LayoutState = LayoutState(
+            fields: fields,
+            hasDirtyDescendants: false
+        )
+        let id: LayoutID = append(
+            LayoutNodeSeed(kind: .text(text), dom: dom, links: links, state: state)
+        )
+        setPrimary(id, for: dom)
+        for field in used {
+            let dependent: FieldKey = .layout(id, field)
+            for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
+                dependencies.add(dependent, for: input)
+            }
         }
         markAncestorsDirty(from: id)
-        markField(.font, at: id)
         return id
     }
 

@@ -20,29 +20,39 @@ class AccessibilityNode {
     }
 
     private static func computeBounds(for node: DOMRef) -> Rect {
-        guard let tree: LayoutTree = node.dom.layoutBox?.tree,
-            let id: LayoutID = node.layoutID
-        else {
+        guard let tree: LayoutTree = node.dom.layoutBox?.tree else {
             return Rect(left: 0, top: 0, right: 0, bottom: 0)
         }
 
-        if tree.isText(id),
-            let line: LayoutID = tree.parentID(of: id),
-            let block: LayoutID = tree.parentID(of: line),
-            tree.isBlock(block)
-        {
+        if node.text != nil {
             var result: Rect? = nil
-            for lineLayout in tree.childrenIDs(of: block) {
-                for item in tree.childrenIDs(of: lineLayout)
-                where tree.domID(of: item) == node.id {
-                    let x: CGFloat = tree.x(item)
-                    let y: CGFloat = tree.y(item)
-                    let r: Rect = Rect(
-                        left: x, top: y,
-                        right: x + tree.textTextWidth(item), bottom: y + tree.height(item)
-                    )
-                    result = result.map { union($0, r) } ?? r
-                }
+            for box in tree.inlineBoxes(for: node.id) {
+                let r: Rect = Rect(
+                    left: box.geometry.x,
+                    top: box.geometry.y,
+                    right: box.geometry.x + box.geometry.width,
+                    bottom: box.geometry.y + box.text.font.linespace
+                )
+                result = result.map { union($0, r) } ?? r
+            }
+            if let r = result { return r }
+        }
+
+        guard let id: LayoutID = node.layoutID else {
+            return Rect(left: 0, top: 0, right: 0, bottom: 0)
+        }
+
+        if tree.isText(id), let line: LayoutID = tree.parentID(of: id) {
+            var result: Rect? = nil
+            for box in tree.currentInlineBoxes(line) ?? []
+            where box.dom == node.id {
+                let r: Rect = Rect(
+                    left: box.geometry.x,
+                    top: box.geometry.y,
+                    right: box.geometry.x + box.geometry.width,
+                    bottom: box.geometry.y + box.text.font.linespace
+                )
+                result = result.map { union($0, r) } ?? r
             }
             if let r = result { return r }
         }

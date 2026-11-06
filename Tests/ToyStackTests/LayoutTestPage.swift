@@ -97,10 +97,15 @@ struct LayoutTestPage {
     }
 
     func textWidthID(in element: ElementRef) -> CGFloat {
-        guard var tree: LayoutTree = frame.document,
-            let primary: LayoutID = element.ref.layoutID
+        guard let tree: LayoutTree = frame.document,
+            let block: LayoutID = firstBlockID(in: element)
         else { return 0 }
-        return treeToList(tree, primary)
+        let lines: [LayoutID] = tree.childrenIDs(of: block).filter({ tree.isLine($0) })
+        let fromBoxes: CGFloat = lines.reduce(0) { total, line in
+            total + tree.lineData(line).content.boxes.reduce(0) { $0 + $1.geometry.width }
+        }
+        if fromBoxes > 0 { return fromBoxes }
+        return treeToList(tree, block)
             .filter({ tree.isText($0) })
             .reduce(0, { $0 + tree.textData($1).metrics.width })
     }

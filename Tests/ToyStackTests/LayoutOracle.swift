@@ -73,7 +73,8 @@ private func appendLayoutSignature(
     path: String,
     into parts: inout [String]
 ) {
-    let children: [LayoutID] = tree.childrenIDs(of: id)
+    if tree.isText(id) { return }
+    let children: [LayoutID] = tree.childrenIDs(of: id).filter({ !tree.isText($0) })
     var line: String =
         "\(path) \(layoutKindName(tree.kind(id))) \(tree.selfRect(id)) children=\(children.count)"
     if tree.isText(id) {

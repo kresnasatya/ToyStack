@@ -258,3 +258,11 @@ Profile of `www/bench/large.html` resized 450 -> 300, release headless, frame 3:
 The line-plan index is negligible (0.3 ms). The useful target is the per-line text commit in `flushText`, not re-breaking or text measurement. A first attempt to skip unchanged child-field writes was measured at 72.5 -> 72.5 ms and reverted; the cost is constructing/reusing the text nodes and their field writes, not the unchanged-array checks.
 
 Next experiment: batch line text/font commit so placement does not write a node and field state per line, then verify the large-page screenshot is byte-identical and the 450 -> 300 document time drops below 60 ms. Do not change the line-plan algorithm in the same step.
+
+### Phase 11 applied: prepared line text nodes
+
+A new text fragment was built with several separate field writes, and each write copied the whole `LayoutNode` (`kind`, links, children, dirty state). On the 450 -> 300 reflow, 1,000 new text nodes spent **10.4 ms** in initialization; reused nodes spent 0.8 ms.
+
+Applied: construct the initial `LayoutNodeSeed` once, then append it. The text fields, used/dirty bits, child version, and dependency edges are set in one place instead of repeated `markUsed`/`setFieldClean` calls. Baseline median `layout.document` **73.1 ms** -> **71.9 ms** (three runs each); screenshots are byte-identical and 270 tests pass.
+
+This is not enough for the 60 ms target. The remaining cost is in the per-line placement pipeline and text runs, not only node initialization. The next change needs to remove work per line, not shave another field write.

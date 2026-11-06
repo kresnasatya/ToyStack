@@ -54,7 +54,10 @@ struct PaintSceneBuilder {
         let index: Int = nodes.count
         nodes.append(placeholder(id: id, dom: tree.domID(of: id)))
         var children: [Int] = []
-        let childIDs: [LayoutID] = tree.childrenIDs(of: id)
+        var childIDs: [LayoutID] = tree.childrenIDs(of: id)
+        if tree.isLine(id), tree.currentInlineBoxes(id) != nil {
+            childIDs.removeAll(where: { tree.isText($0) })
+        }
         children.reserveCapacity(childIDs.count)
         for child in childIDs {
             if let childIndex: Int = appendNode(tree, child, parent: index, nodes: &nodes) {
@@ -152,10 +155,12 @@ struct PaintSceneBuilder {
                 )
             ))
         case .line:
+            let boxes: [InlineBox]? = tree.currentInlineBoxes(id)
             return .line(PaintLine(
-                canCache: tree.lineCanCachePaint(id),
+                canCache: tree.lineCanCachePaint(id) && tree.currentInlineBoxes(id) != nil,
                 generation: tree.lineData(id).paint.generation,
-                focusRing: lineFocusRing(tree, id)
+                focusRing: lineFocusRing(tree, id),
+                inlineText: boxes.map({ lineInlineText(tree, id, $0) }) ?? []
             ))
         case .text:
             return .text(PaintText(
@@ -166,6 +171,27 @@ struct PaintSceneBuilder {
             ))
         case .embed(let data):
             return .embed(makeEmbed(tree, id, data))
+        }
+    }
+
+    private func lineInlineText(
+        _ tree: LayoutTree,
+        _ id: LayoutID,
+        _ boxes: [InlineBox]
+    ) -> [PaintInlineText] {
+        return boxes.map { box in
+            let ref: DOMRef = DOMRef(id: box.dom, dom: tree.dom)
+            return PaintInlineText(
+                string: tree.inlineText(box),
+                font: box.text.font,
+                color: ref.inheritedStyleOwner.style.computed.text.color,
+                rect: Rect(
+                    left: box.geometry.x,
+                    top: tree.y(id) + box.geometry.y,
+                    right: box.geometry.x + box.geometry.width,
+                    bottom: tree.y(id) + box.geometry.y + box.text.font.linespace
+                )
+            )
         }
     }
 

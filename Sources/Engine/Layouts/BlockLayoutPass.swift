@@ -331,6 +331,11 @@ extension LayoutTree {
             let frameMoved: Bool = geometryDirty
                 && (!frameWasClean || x(id) != oldFrameX || y(id) != oldFrameY)
             let widthChanged: Bool = geometryDirty && widthWasDirty
+            if frameMoved {
+                for child in childrenIDs(of: id) where isLine(child) {
+                    markField(.y, at: child)
+                }
+            }
 
             let mode: LayoutMode = profiler.measure("layout.mode", { layoutMode(id) })
             if mode == .block {
@@ -904,16 +909,22 @@ extension LayoutTree {
             guard let start: Int = plan[index].first,
                 let old: (line: LayoutID, count: Int) = oldLineByStart[start],
                 old.count == plan[index].count,
+                childrenIDs(of: old.line).contains(where: { isText($0) }),
                 !used.contains(old.line)
             else { continue }
             reusable[index] = old.line
             used.insert(old.line)
         }
         var free: [LayoutID] = oldLines.filter({ !used.contains($0) })
+        let collectsBoxes: Bool = !items.contains(where: { item in
+            if case .embed = item { return true }
+            return false
+        })
         var placement: InlinePlacement = InlinePlacement(
             parent: id,
             reusableLines: [],
-            objects: data.content.inlineObjects
+            objects: data.content.inlineObjects,
+            collectsBoxes: collectsBoxes
         )
         var lines: [LayoutID] = []
         var previous: LayoutID? = nil
@@ -1691,6 +1702,7 @@ private struct InlineLineContent {
     var pending: PendingText? = nil
     var reuseText: [LayoutID] = []
     var widths: [CGFloat] = []
+    var boxes: [InlineBox] = []
 }
 
 private struct InlinePlacementState {
@@ -1721,15 +1733,23 @@ struct InlinePlacement {
     private var state: InlinePlacementState = InlinePlacementState()
     private var pool: LinePool
     private var previousChanged: Bool = false
+    private let collectsBoxes: Bool
 
-    init(parent: LayoutID, reusableLines: [LayoutID], objects: [Int: LayoutID]) {
+    init(
+        parent: LayoutID,
+        reusableLines: [LayoutID],
+        objects: [Int: LayoutID],
+        collectsBoxes: Bool = false
+    ) {
         self.context = InlinePlacementContext(parent: parent, objects: objects)
         self.pool = LinePool(reusableLines)
+        self.collectsBoxes = collectsBoxes
     }
 
     var lines: [LayoutID] { state.lines }
     var currentLine: LayoutID? { state.currentLine }
     var children: [LayoutID] { state.content.children }
+    var buildsBoxes: Bool { collectsBoxes }
     var objects: [Int: LayoutID] { context.objects }
     var objectsChanged: Bool { context.objectsChanged }
 
@@ -1829,6 +1849,24 @@ struct InlinePlacement {
             start: pending.start,
             count: pending.count
         )
+        if collectsBoxes {
+            state.content.boxes.append(
+                InlineBox(
+                    dom: pending.style.node,
+                    fragment: fragment,
+                    geometry: InlineBoxGeometry(x: 0, y: 0, width: pending.width),
+                    text: InlineBoxText(
+                        payload: TextPayload(word: "", display: nil, fontOverride: nil),
+                        font: pending.style.font,
+                        ascent: pending.style.font.ascent,
+                        descent: pending.style.font.descent
+                    )
+                )
+            )
+            state.content.widths.append(pending.width)
+            state.content.pending = nil
+            return
+        }
         let text: LayoutID
         if state.content.reuseText.isEmpty {
             text = tree.makeText(
@@ -1870,6 +1908,7 @@ struct InlinePlacement {
     private mutating func commitLine(_ line: LayoutID, in tree: inout LayoutTree) {
         var data: LineData = tree.lineData(line)
         data.content.inlineWidths = state.content.widths
+        data.content.boxes = state.content.boxes
         tree.setKind(.line(data), at: line)
         profiler.measure("layout.inline.place.lineChildren", {
             tree.setLineChildrenField(

@@ -10,6 +10,14 @@ func emit(_ node: PaintNode, into items: inout [DisplayOp]) {
         emitBlock(node, block: block, into: &items)
     case .line(let line):
         items.append(contentsOf: line.focusRing)
+        for text in line.inlineText {
+            items.append(.text(
+                text: text.string,
+                font: text.font,
+                color: text.color,
+                rect: text.rect
+            ))
+        }
     case .text(let text):
         emitText(node, text: text, into: &items)
     case .embed(let embed):

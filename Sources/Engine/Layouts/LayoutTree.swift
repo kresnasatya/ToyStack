@@ -16,6 +16,8 @@ struct LayoutTree: @unchecked Sendable {
     /// leaves it false and can skip the reachability sweep.
     private(set) var needsSweep: Bool = false
     var textRuns: [LayoutID: TextRun] = [:]
+    /// Fragment values are collected while paint migrates off text nodes.
+    var collectsInlineBoxes: Bool = true
 
     private var storageEffects: [LayoutEffect] {
         get { source.effects }
@@ -101,7 +103,6 @@ struct LayoutTree: @unchecked Sendable {
         parent: LayoutID?,
         previous: LayoutID?
     ) -> LayoutID {
-        let id: LayoutID = LayoutID(raw: nodes.count)
         let links: LayoutLinks = LayoutLinks(
             parent: parent,
             previous: previous,
@@ -112,7 +113,21 @@ struct LayoutTree: @unchecked Sendable {
             fields: LayoutFieldStore(),
             hasDirtyDescendants: false
         )
-        nodes.append(LayoutNode(kind: kind, dom: dom, links: links, state: state))
+        return append(
+            LayoutNodeSeed(kind: kind, dom: dom, links: links, state: state)
+        )
+    }
+
+    mutating func append(_ seed: LayoutNodeSeed) -> LayoutID {
+        let id: LayoutID = LayoutID(raw: nodes.count)
+        nodes.append(
+            LayoutNode(
+                kind: seed.kind,
+                dom: seed.dom,
+                links: seed.links,
+                state: seed.state
+            )
+        )
         needsSweep = true
         return id
     }
@@ -980,6 +995,36 @@ extension LayoutTree {
             return run.string(start: fragment.start, count: fragment.count)
         }
         return data.payload.display ?? data.payload.word
+    }
+
+    func inlineBoxes(for dom: NodeID) -> [InlineBox] {
+        var result: [InlineBox] = []
+        for id in liveIDs where isLine(id) {
+            let boxes: [InlineBox] = currentInlineBoxes(id)
+                ?? lineData(id).content.boxes
+            for box in boxes where box.dom == dom {
+                result.append(
+                    InlineBox(
+                        dom: box.dom,
+                        fragment: box.fragment,
+                        geometry: InlineBoxGeometry(
+                            x: box.geometry.x,
+                            y: y(id) + box.geometry.y,
+                            width: box.geometry.width
+                        ),
+                        text: box.text
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    func inlineText(_ box: InlineBox) -> String {
+        if let fragment = box.fragment, let run: TextRun = textRuns[fragment.block] {
+            return run.string(start: fragment.start, count: fragment.count)
+        }
+        return box.text.payload.display ?? box.text.payload.word
     }
 
     func embedData(_ id: LayoutID) -> EmbedData {

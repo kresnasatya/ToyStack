@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - LayoutPaintPass
 
 extension LayoutTree {
-    func hitTest(_ id: LayoutID, x: CGFloat, y: CGFloat) -> LayoutID? {
+    func hitTest(_ id: LayoutID, x: CGFloat, y: CGFloat) -> LayoutHit? {
         var x: CGFloat = x
         var y: CGFloat = y
 
@@ -12,21 +12,39 @@ extension LayoutTree {
             y -= t.y
         }
 
-        for child in paintOrder(childrenIDs(of: id)).reversed() {
-            if let hit: LayoutID = hitTest(child, x: x, y: y) {
+        let boxes: [InlineBox]? = isLine(id) ? currentInlineBoxes(id) : nil
+        let childIDs: [LayoutID] = boxes == nil
+            ? childrenIDs(of: id)
+            : childrenIDs(of: id).filter({ !isText($0) })
+        for child in paintOrder(childIDs).reversed() {
+            if let hit: LayoutHit = hitTest(child, x: x, y: y) {
                 return hit
             }
         }
 
+        if let boxes {
+            for box in boxes.reversed() {
+                let rect: Rect = Rect(
+                    left: box.geometry.x,
+                    top: self.y(id) + box.geometry.y,
+                    right: box.geometry.x + box.geometry.width,
+                    bottom: self.y(id) + box.geometry.y + box.text.font.linespace
+                )
+                if rect.containsPoint(x, y) {
+                    return LayoutHit(layout: id, dom: box.dom)
+                }
+            }
+        }
+
         if selfRect(id).containsPoint(x, y) {
-            return id
+            return LayoutHit(layout: id, dom: domID(of: id))
         }
 
         return nil
     }
 
     func linkHref(_ id: LayoutID, x: CGFloat, y: CGFloat) -> String? {
-        var current: NodeID? = hitTest(id, x: x, y: y).map({ domID(of: $0) })
+        var current: NodeID? = hitTest(id, x: x, y: y)?.dom
         while let node = current {
             if inputs.tag(node) == "a", let href = inputs.attributes(node)["href"] {
                 return href

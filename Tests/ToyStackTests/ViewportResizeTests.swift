@@ -177,8 +177,7 @@ struct ViewportResizeTests {
             .filter({ page.tree.isLine($0) })
         #expect(!lines.isEmpty)
         for line in lines {
-            let fragments: [LayoutID] = page.tree.childrenIDs(of: line)
-                .filter({ page.tree.isText($0) })
+            let fragments: [InlineBox] = page.tree.lineData(line).content.boxes
             #expect(fragments.count == 1)
         }
         expectIncrementalMatchesFull(page)

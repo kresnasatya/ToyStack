@@ -43,7 +43,7 @@ final class TextRun {
     }
 }
 
-struct TextFragment {
+struct TextFragment: Equatable {
     let block: LayoutID
     let start: Int
     let count: Int

@@ -1662,7 +1662,7 @@ class Frame {
 
         var chain: [NodeID] = []
         var current: DOMRef? = doc.hitTest(doc.rootID, x: pending.x, y: pending.y + scroll)
-            .map({ doc.domRef($0) })
+            .map({ DOMRef(id: $0.dom, dom: doc.dom) })
         while let node = current {
             if node.element != nil {
                 chain.append(node.id)
@@ -1776,18 +1776,19 @@ class Frame {
         let clickY: CGFloat = y + scroll
 
         guard let doc = document,
-            let source: LayoutID = doc.hitTest(doc.rootID, x: x, y: clickY)
+            let hit: LayoutHit = doc.hitTest(doc.rootID, x: x, y: clickY)
         else {
             setNeedsPaint()
             return
         }
 
-        state.runtime.interaction.scrollFocus = scrollableAncestor(of: source, in: doc)
+        state.runtime.interaction.scrollFocus = scrollableAncestor(of: hit.layout, in: doc)
 
-        let prevented: Bool = js.dispatchEvent(type: "click", el: doc.domRef(source))
+        let source: DOMRef = DOMRef(id: hit.dom, dom: doc.dom)
+        let prevented: Bool = js.dispatchEvent(type: "click", el: source)
 
         if !prevented {
-            var elt: DOMRef? = doc.domRef(source)
+            var elt: DOMRef? = source
             while let node = elt {
                 if node.text != nil {
 
