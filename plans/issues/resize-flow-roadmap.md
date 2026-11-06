@@ -83,6 +83,18 @@ coalesced to the latest size.
 Conclusion: Step 1 is applied but **not sufficient for the perceived goal**.
 Keep it, add preview coalescing, and proceed to Step 2.
 
+### Step 1b: coalesce preview presents
+
+Status: **applied** (2026-11-06).
+
+- A resize event schedules one main-actor task per run-loop turn.
+- Further events in that turn only update `windowSize`; the task dispatches the
+  latest size once.
+- A frame-clock layout or a switch back to the fast path cancels the pending
+  preview with a generation token, so a preview cannot overwrite a fresh frame.
+- Expected trace change: one preview per resize turn instead of 143; measure
+  `view.apply`/`view.commit` counts in the next GUI trace.
+
 ### Step 2: incremental resize layout
 
 - Skip layout when the effective content width of a subtree did not change.

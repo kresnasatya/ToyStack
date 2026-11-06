@@ -101,6 +101,8 @@ public class Browser: ObservableObject {
     private var needsTileContinuation: Bool = false
     private var tileContinuationPasses: UInt = 0
     private var resizePreview: ResizePreviewPolicy = ResizePreviewPolicy()
+    private var previewPresentScheduled: Bool = false
+    private var previewPresentID: UInt = 0
 
     @Published public var prefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
@@ -153,6 +155,7 @@ public class Browser: ObservableObject {
         }
         guard deferLayout, activeTab != nil else {
             resizePreview.cancel()
+            cancelPreviewPresent()
             return
         }
         // Hold the old content visible while the pointer moves. Present the
@@ -162,12 +165,36 @@ public class Browser: ObservableObject {
         let now: Date = Date()
         let requiresPreview: Bool = estimatedFrameTime > FRAME_BUDGET * 2.0
         resizePreview.resize(now: now, requiresPreview: requiresPreview)
-        if requiresPreview, resizePreview.presentPreview(size: windowSize, now: now) {
-            dispatchPresent(frameID: currentFrameID)
+        if requiresPreview {
+            if resizePreview.presentPreview(size: windowSize, now: now) {
+                schedulePreviewPresent()
+            }
+        } else {
+            cancelPreviewPresent()
         }
         if let tab: BrowserTab = activeTab {
             setNeedsAnimationFrame(tab)
         }
+    }
+
+    /// Coalesce all resize events processed in one main-run-loop turn into one
+    /// preview. The presenter only needs the latest size; sending every event
+    /// makes it bind a whole preview frame per event.
+    private func schedulePreviewPresent() {
+        guard !previewPresentScheduled else { return }
+        previewPresentScheduled = true
+        let id: UInt = previewPresentID
+        Task { @MainActor [weak self] in
+            guard let self, self.previewPresentID == id else { return }
+            self.previewPresentScheduled = false
+            self.dispatchPresent(frameID: self.currentFrameID)
+        }
+    }
+
+    /// Drops a queued preview when the frame clock takes over with a real frame.
+    private func cancelPreviewPresent() {
+        previewPresentID &+= 1
+        previewPresentScheduled = false
     }
 
     public func startAnimationTimer() {
@@ -220,12 +247,14 @@ public class Browser: ObservableObject {
         }
         let now: Date = Date()
         if resizePreview.presentPreview(size: windowSize, now: now) {
+            cancelPreviewPresent()
             dispatchPresent(frameID: currentFrameID)
             return
         }
         guard resizePreview.allowsLayout(now: now) else {
             return
         }
+        cancelPreviewPresent()
         needsAnimationFrame = false
         frameStartTime = Date()
         activeTab?.runAnimationFrame()
