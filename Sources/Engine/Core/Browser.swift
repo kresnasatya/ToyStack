@@ -9,6 +9,7 @@ public class Browser: ObservableObject {
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
+    public var usesAsyncLayout: Bool = false
     private var animationTimer: Timer?
     private var nextFrameTime: Date = .distantPast
     private let FRAME_BUDGET: TimeInterval = 1.0 / 60.0
@@ -128,6 +129,7 @@ public class Browser: ObservableObject {
 
     public init(tracePath: String? = nil) {
         measure = MeasureTime(path: tracePath)
+        usesAsyncLayout = ProcessInfo.processInfo.environment["TOYSTACK_ASYNC_LAYOUT"] == "1"
         rasterScheduler.measure = measure
         measure.noteThread("main")
     }
@@ -281,7 +283,9 @@ public class Browser: ObservableObject {
     }
 
     public var isRenderIdle: Bool {
-        return !compositeInFlight && !needsComposite && !needsRaster && !needsDraw && !needsTileContinuation
+        let layoutInFlight: Bool = activeTab?.allFrames.contains(where: { $0.isLayoutInFlight }) ?? false
+        return !compositeInFlight && !needsComposite && !needsRaster && !needsDraw
+            && !needsTileContinuation && !layoutInFlight
     }
 
     func commit(tab: BrowserTab, data: FrameSnapshot) {

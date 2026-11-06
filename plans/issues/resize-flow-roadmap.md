@@ -180,8 +180,12 @@ thread. Do not add a width guard without measuring `layout.width.changed`.
 - A compositor loop that can scroll and resize without the main thread.
 
 Thread-safety prerequisite **applied** (2026-11-06): the global font cache and
-profiler now use locks. The background layout test runs without an environment
-gate and passes in the full parallel suite (250 tests / 43 suites).
+profiler now use locks. Background layout is integrated behind
+`Browser.usesAsyncLayout`; the GUI enables it. The geometry/integration tests
+are opt-in with `TOYSTACK_BACKGROUND_LAYOUT_TEST=1` because they record into the
+process-wide profiler while other suites assert profiler counts. Full default
+suite: 251 tests / 43 suites. Opt-in suite: 2 background tests pass. GUI trace
+still needed.
 
 ## Execution protocol
 

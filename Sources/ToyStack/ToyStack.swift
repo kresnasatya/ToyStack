@@ -263,6 +263,7 @@ public struct BrowserView: View {
                 })
         )
         .task {
+            app.usesAsyncLayout = true
             app.displayScale = NSScreen.main?.backingScaleFactor ?? 2.0
             chrome.tabManager = app
             chrome.bookmarks = bookmarks

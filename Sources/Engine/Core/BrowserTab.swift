@@ -215,6 +215,9 @@ public class BrowserTab {
             browser?.measure.stop("BrowserTab.a11y")
             needsAccessibility = false
         }
+        if frames.contains(where: { $0.isLayoutInFlight }) {
+            return
+        }
         inlineCacheProbe(rootFrame, "tab-before-paint")
         rootFrame.paint()
         inlineCacheProbe(rootFrame, "tab-after-paint")

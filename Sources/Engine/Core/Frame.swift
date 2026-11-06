@@ -20,6 +20,9 @@ class Frame {
     private var styleSnapshotCache: StyleSnapshot?
     private var styleSnapshotRevision: UInt64 = .max
     private var layoutInputsKey: LayoutInputsKey?
+    private var layoutInFlight: Bool = false
+    private var layoutInFlightDirty: Bool = false
+    private var layoutJobID: UInt = 0
 
     var tab: BrowserTab? { links.tab }
     var parentFrame: Frame? { tab?.frame(links.parent) }
@@ -778,6 +781,8 @@ class Frame {
 
     // MARK: - Render
 
+    var isLayoutInFlight: Bool { layoutInFlight }
+
     func render() {
         if !state.document.sheets.pending.counters.isEmpty {
             browser?.measure.counter("style.invalidation", state.document.sheets.pending.counters)
@@ -916,6 +921,13 @@ class Frame {
             // The pass was scheduled by a style change that only touches paint.
             state.layout.tree.isDirty = false
             state.layout.tree.forced = false
+        }
+
+        if state.layout.tree.isDirty, browser?.usesAsyncLayout == true {
+            if !layoutInFlight {
+                startAsyncLayout()
+            }
+            return
         }
 
         if state.layout.tree.isDirty {
@@ -1217,6 +1229,80 @@ class Frame {
         if needsAnotherFrame {
             requestAnimationFrame()
         }
+    }
+
+    /// Runs the layout pass on a background worker. The main thread keeps the
+    /// previous tree for previews; the completed tree is installed atomically.
+    private func startAsyncLayout() {
+        layoutJobID &+= 1
+        let jobID: UInt = layoutJobID
+        layoutInFlight = true
+        layoutInFlightDirty = false
+
+        let inputs: LayoutInputs = LayoutInputsBuilder.build(dom: dom)
+        let box: LayoutBox
+        if let existing: LayoutBox = state.layout.tree.box, existing.tree.dom === dom {
+            box = existing
+        } else {
+            box = LayoutBox(LayoutTree(dom: dom, root: dom.root, inputs: inputs))
+            state.layout.targets.isValid = false
+        }
+        state.layout.tree.box = box
+        dom.layoutBox = box
+        box.tree.refreshInputs(inputs)
+
+        let tree: LayoutTree = box.tree
+        let width: CGFloat = frameWidth
+        let pageZoom: CGFloat = self.pageZoom
+        Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID] in
+            var result: LayoutTree = tree
+            result.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
+            let effects: [LayoutEffect] = result.takeEffects()
+            let removed: Set<LayoutID> = result.needsSweep ? result.sweepUnreachable() : []
+            await MainActor.run { [weak self] in
+                self?.finishAsyncLayout(
+                    result,
+                    effects: effects,
+                    removed: removed,
+                    jobID: jobID
+                )
+            }
+        }
+    }
+
+    private func finishAsyncLayout(
+        _ tree: LayoutTree,
+        effects: [LayoutEffect],
+        removed: Set<LayoutID>,
+        jobID: UInt
+    ) {
+        guard layoutInFlight, layoutJobID == jobID else { return }
+        layoutInFlight = false
+        guard let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
+            return
+        }
+        box.tree = tree
+        if !effects.isEmpty {
+            applyLayoutEffects(effects)
+        }
+        if !removed.isEmpty {
+            state.display.composite.updates = state.display.composite.updates
+                .filter({ box.tree.primaryLayout(for: $0.key) != nil })
+            state.display.caches.prune(removing: removed)
+        }
+        state.layout.targets.isValid = false
+        state.layout.targets.needsRebuild = true
+        rebuildScrollTargets(box.tree)
+        state.layout.targets.isValid = true
+        state.layout.targets.needsRebuild = false
+        tab?.needsAccessibility = true
+
+        let changedAgain: Bool = layoutInFlightDirty
+        layoutInFlightDirty = false
+        state.layout.tree.isDirty = changedAgain
+        state.layout.tree.forced = changedAgain
+        state.display.paint.isNeeded = true
+        requestAnimationFrame()
     }
 
     func makeSnapshot() -> FrameSnapshot {
@@ -1823,6 +1909,7 @@ class Frame {
     }
 
     private func markDocumentDirty() {
+        if layoutInFlight { layoutInFlightDirty = true }
         state.layout.tree.isDirty = true
     }
 

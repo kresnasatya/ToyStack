@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Nodes are append-only: removing a subtree writes `nil` into the hole and
 /// never reuses the ID, so a stale `LayoutID` cannot point at another node.
-struct LayoutTree {
+struct LayoutTree: @unchecked Sendable {
     private(set) var nodes: [LayoutNode?]
     private(set) var primaryByNode: [NodeID: LayoutID]
     var dependencies: DependencyIndex
