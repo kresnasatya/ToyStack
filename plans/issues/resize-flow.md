@@ -298,3 +298,17 @@ Applied: compare `TextStyle` once in `inheritedChanged`; remove per-node
 
 Frame 498 (121.8 ms) is a large style/load pass, not a resize frame; it remains
 in the load path and should be profiled separately.
+
+### Hover link typography fix (2026-11-06)
+
+The style fast path skipped direct matching and ancestor selector-key pushes
+for force-only nodes. Hovering an ancestor forced a descendant link down the
+inherited path; `.main li a` needs the `.main li` ancestor keys, so the link
+lost its own 125%/normal rule and inherited the `li` 80%/italic rule. The book
+page reproduced as 18 px normal -> 17.28 px italic on hover.
+
+ApplyStyle now always resolves the scope for direct matches and always pushes
+ancestor keys for element nodes while applying. Regression tests:
+`ancestorHoverKeepsDescendantLinkTypography` and
+`hoverDoesNotDropLinkTypographyInsideListItem`. Full suite: 280 tests.
+The large-page screenshot is unchanged.

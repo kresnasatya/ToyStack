@@ -56,6 +56,62 @@ struct HoverTests {
         #expect(!a.style.isDirty)
     }
 
+    @Test func ancestorHoverKeepsDescendantLinkTypography() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div class="main"><h1 id="heading">Heading</h1><ul><li><a id="link" href="/x">Link text</a><br>description</li></ul></div>"#,
+            rules: """
+                html { width: 600px; font-size: 20px; }
+                body { display: block; }
+                h1, ul, li { display: block; }
+                .main li { font-size: 80%; font-style: italic; }
+                .main li a { font-size: 125%; font-style: normal; }
+                h1:hover { color: #08f; }
+                """
+        )
+        let heading: ElementRef = try #require(page.firstElement(id: "heading"))
+        let link: ElementRef = try #require(page.firstElement(id: "link"))
+        let headingText: LayoutID = try textLayout(of: heading, in: page)
+        let point: CGPoint = center(page.tree.absoluteBounds(headingText))
+        let beforeSize: CGFloat = link.style.computed.text.font.size
+        let beforeStyle: TextStyle.Style = link.style.computed.text.font.style
+        #expect(beforeStyle == .normal)
+
+        page.tab.hover(x: point.x, y: point.y)
+        page.frame.render()
+        page.frame.render()
+
+        #expect(link.style.computed.text.font.size == beforeSize)
+        #expect(link.style.computed.text.font.style == beforeStyle)
+    }
+
+    @Test func hoverDoesNotDropLinkTypographyInsideListItem() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div class="main"><ul><li><a id="link" href="/x">Link text</a><br>description</li></ul>"#,
+            rules: """
+                html { width: 600px; font-size: 20px; }
+                body { display: block; }
+                ul, li { display: block; }
+                body.main li { font-size: 80%; font-style: italic; }
+                body.main li a { font-size: 125%; font-style: normal; }
+                a:hover { color: #08f; }
+                """
+        )
+        let link: ElementRef = try #require(page.firstElement(id: "link"))
+        let textID: LayoutID = try textLayout(of: link, in: page)
+        let point: CGPoint = center(page.tree.absoluteBounds(textID))
+        let beforeSize: CGFloat = link.style.computed.text.font.size
+        let beforeStyle: TextStyle.Style = link.style.computed.text.font.style
+        #expect(beforeSize == 20)
+        #expect(beforeStyle == .normal)
+
+        page.tab.hover(x: point.x, y: point.y)
+        page.frame.render()
+        page.frame.render()
+
+        #expect(link.style.computed.text.font.size == beforeSize)
+        #expect(link.style.computed.text.font.style == beforeStyle)
+    }
+
     @Test func movingThePointerMovesTheHoverState() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: """

@@ -32,7 +32,7 @@ private func applyStyle(
     }
     defer { node.style.clearDirtyDescendants() }
 
-    let direct: Bool = force ? false : (cascade.scope.map({ $0.matches(node) }) ?? true)
+    let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
     let applies: Bool = force || direct || node.style.isDirty
     if applies {
         if force {
@@ -70,13 +70,10 @@ private func applyStyle(
         }
     }
 
-    let needsAncestorKeys: Bool = !force || node.style.isDirty
-    let pushedKeys: [SelectorKey]? = needsAncestorKeys
-        ? node.element.map({ _ in
-            let index: Int = snapshot.index(of: node.id) ?? 0
-            return profiler.measure("style.apply.push", { cascade.ancestorKeys.push(snapshot, index) })
-        })
-        : nil
+    let pushedKeys: [SelectorKey]? = node.element.map({ _ in
+        let index: Int = snapshot.index(of: node.id) ?? 0
+        return profiler.measure("style.apply.push", { cascade.ancestorKeys.push(snapshot, index) })
+    })
     defer {
         if let pushedKeys {
             profiler.measure("style.apply.pop", { cascade.ancestorKeys.pop(pushedKeys) })
