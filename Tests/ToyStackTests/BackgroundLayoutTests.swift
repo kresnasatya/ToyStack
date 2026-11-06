@@ -104,4 +104,55 @@ struct BackgroundLayoutTests {
         let main: String = renderSignature(control.frame)
         #expect(background == main, "async frame diverged from main-thread layout")
     }
+
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func asyncBreakpointFlipRefreshesLineBoxFonts() async throws {
+        let paragraph: String = String(
+            repeating: "alpha beta gamma delta epsilon zeta eta theta ",
+            count: 20
+        )
+        let page: LayoutTestPage = LayoutTestPage(
+            html: "<p id=\"p\">\(paragraph)</p>",
+            rules: """
+                html { width: 600px; font-size: 24px; }
+                @media (max-width: 800px) { html { font-size: 18px; } }
+                body { display: block; }
+                p { display: block; }
+                """
+        )
+        let browser: Browser = Browser()
+        browser.usesAsyncLayout = true
+        page.tab.browser = browser
+
+        func settle() async throws {
+            page.frame.render()
+            for _ in 0..<400 where page.frame.isLayoutInFlight {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+            #expect(!page.frame.isLayoutInFlight)
+        }
+
+        page.tab.resize(width: 400, height: page.frame.frameHeight)
+        try await settle()
+        page.tab.resize(width: 1192, height: page.frame.frameHeight)
+        try await settle()
+
+        let doc: LayoutTree = try #require(page.frame.document)
+        var stale: [String] = []
+        for line in treeToList(doc, doc.rootID) where doc.isLine(line) {
+            guard let boxes: [InlineBox] = doc.currentInlineBoxes(line) else { continue }
+            for box in boxes {
+                let owner: DOMRef = DOMRef(id: box.dom, dom: doc.dom).inheritedStyleOwner
+                let expected: CGFloat = owner.style.computed.text.font.size
+                if abs(box.text.font.size - expected) > 0.01 {
+                    stale.append("\(Int(box.text.font.size)) vs \(Int(expected))")
+                }
+            }
+        }
+        #expect(stale.isEmpty, "async flip left stale boxes \(stale)")
+    }
 }

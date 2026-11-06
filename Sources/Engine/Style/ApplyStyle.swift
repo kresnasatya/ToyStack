@@ -172,11 +172,11 @@ private func applyNodeStyle(
             inheritedTextKeys.contains($0.key)
         })
 
-        if let fontSize = newStyle["font-size"], fontSize.hasSuffix("%") {
-            let percentage: Double = Double(fontSize.dropLast()) ?? 100.0
-            let parentPx: CGFloat = node.parent?.style.computed.text.font.size ?? 16
-            newStyle["font-size"] = "\(percentage / 100.0 * Double(parentPx))px"
-        }
+        // Percentages are resolved in exactly one place: the parser's
+        // `fontSize`, from the numeric parent. Pre-converting to a px string
+        // here used a different arithmetic order and produced a value one ULP
+        // away from the parser's, so a re-apply (hover) looked like a real
+        // font-size change.
 
         node.style.apply(
             newStyle,
