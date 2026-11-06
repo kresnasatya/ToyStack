@@ -104,6 +104,21 @@ Status: **applied** (2026-11-06).
 - Expected trace change: at most one `view.apply` per 16.7 ms instead of 281
   dispatches for 281 events. Verify in the next GUI trace.
 
+Measured on the next GUI trace (158 frames, 212 resize events):
+
+| Measure | Result |
+|---|---|
+| Resize event spacing | about **17 ms** |
+| `present.main` dispatches | 326 |
+| `view.commit` preview | median 0.10 ms, p95 3.49 ms |
+| Resize layout | **79.1-149.4 ms** |
+| Preview gap during layout | one frame is blocked for the whole layout |
+
+The earlier "143 previews in one frame" was a trace artifact: a frame ID can
+span 0.5-2.4 s while no animation tick runs, so it contained many 17 ms events.
+At 17 ms spacing the throttle correctly allows one preview per event. The
+remaining gap is not preview coalescing; it is the main-thread layout itself.
+
 ### Step 2: incremental resize layout
 
 - Skip layout when the effective content width of a subtree did not change.
