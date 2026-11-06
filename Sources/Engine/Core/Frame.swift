@@ -23,6 +23,7 @@ class Frame {
     private var layoutInFlight: Bool = false
     private var layoutInFlightDirty: Bool = false
     private var layoutJobID: UInt = 0
+    private var layoutJobKey: LayoutJobKey?
 
     var tab: BrowserTab? { links.tab }
     var parentFrame: Frame? { tab?.frame(links.parent) }
@@ -1254,6 +1255,7 @@ class Frame {
         let tree: LayoutTree = box.tree
         let width: CGFloat = frameWidth
         let pageZoom: CGFloat = self.pageZoom
+        layoutJobKey = LayoutJobKey(width: width, zoom: pageZoom)
         Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID] in
             var tree: LayoutTree = tree
             tree.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
@@ -1279,6 +1281,16 @@ class Frame {
     ) {
         guard layoutInFlight, layoutJobID == jobID else { return }
         layoutInFlight = false
+        if let key: LayoutJobKey = layoutJobKey,
+            key.isStale(currentWidth: frameWidth, currentZoom: pageZoom)
+        {
+            layoutJobKey = nil
+            layoutInFlightDirty = false
+            state.layout.tree.isDirty = true
+            requestAnimationFrame()
+            return
+        }
+        layoutJobKey = nil
         guard let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
             return
         }

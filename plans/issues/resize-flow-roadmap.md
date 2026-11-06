@@ -87,7 +87,14 @@ Preview geometry follow-up: the old complete frame was clipped when the window
 shrank because only `contentLayer.frame` changed. `PreviewFit` now computes a
 uniform fit from the previous view size to the new viewport, and the presenter
 applies that scale to the old layers. Tests cover wide-to-narrow, height-room,
-and invalid previous-size cases. GUI verification is still required.
+and invalid previous-size cases.
+
+Async layout stale-result guard: a background pass started at an old width could
+finish after another resize and be installed as new content at the new window
+size, showing clipped old-width layout. `LayoutJobKey` records the width and
+zoom; `finishAsyncLayout` discards a result whose key is stale and starts a new
+pass for the current viewport. Tests cover width/zoom invalidation. GUI trace is
+still required.
 
 ### Step 1b: coalesce preview presents
 
