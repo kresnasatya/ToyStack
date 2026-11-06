@@ -232,3 +232,29 @@ Applied: `Frame` records the viewport of the layout that produced the current di
 Evidence: regression `newRevisionPreviewsUntilLayoutMatchesViewport` fails before the change and passes after; 267 tests pass. The window capture could not be automated on this machine (Screen Recording and Accessibility are denied), so the visual proof remains the user's recording plus the traced `preview=1` path.
 
 Correction after the 11.16 recording: the first pass compared the whole `layoutSize` to the whole `viewSize`. The content view is 766 px tall while the layout viewport is 700 px (the toolbar inset), so every presentation looked like a resize, including the first one. `applySublayers` returns before installing placements when previewing, so the page stayed blank. The decision now compares **width only**, uses physical layout width (`layoutSize.width * pageZoom`), and previews with the new view height so the toolbar cannot skew `PreviewFit`. Initial trace after the fix: `view.presentation preview=0`; 269 tests pass.
+
+### Phase 10: preview zoom units (2026-11-06)
+
+`PresentedFrame.layoutSize` now stays in CSS pixels, the units of `Frame.frameWidth`, and `displayedLayoutSize` multiplies it by `pageZoom` at present time. Before this, the painted size was converted with the page zoom that happened to be current during the snapshot; a later zoom change could compare old CSS geometry against the new physical width and bind the old layout. At zoom 1 the behavior is unchanged; the initial launch trace still shows `view.presentation preview=0`.
+
+The GUI already sets `usesAsyncLayout = true` before its first tab (`Sources/ToyStack/ToyStack.swift`), so the async-layout step was already active. A local six-step resize harness confirmed previews on the resize frame, no main-thread `BrowserTab.layout`, and `composite_raster_and_draw` p95 6.4 ms. The reflow itself is still the next wall: on `www/bench/large.html`, 450 -> 300 costs **72.8 ms** (`layout.visit` 49.1 ms, `inline.place` 35.0 ms), while 1000 -> 700 costs **17.6 ms**.
+
+### Phase 11: inline placement profile (2026-11-06)
+
+Profile of `www/bench/large.html` resized 450 -> 300, release headless, frame 3:
+
+| Stage | Time |
+|---|---:|
+| `layout.document` | **72.5 ms** |
+| `layout.visit` | 48.9 ms |
+| `layout.inline.place` | 34.8 ms |
+| — `place.finish` | 16.7 ms |
+| — `place.flush` (text node commit) | 12.5 ms |
+| — `place.parent` (`setInlineChildrenField`) | 4.3 ms |
+| — `place.commit` (`setLineChildrenField`) | 3.7 ms |
+| — `place.start` | 2.9 ms |
+| — `place.items` | 2.5 ms |
+
+The line-plan index is negligible (0.3 ms). The useful target is the per-line text commit in `flushText`, not re-breaking or text measurement. A first attempt to skip unchanged child-field writes was measured at 72.5 -> 72.5 ms and reverted; the cost is constructing/reusing the text nodes and their field writes, not the unchanged-array checks.
+
+Next experiment: batch line text/font commit so placement does not write a node and field state per line, then verify the large-page screenshot is byte-identical and the 450 -> 300 document time drops below 60 ms. Do not change the line-plan algorithm in the same step.

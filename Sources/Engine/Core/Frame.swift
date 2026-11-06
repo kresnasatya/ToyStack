@@ -1325,10 +1325,7 @@ class Frame {
     }
 
     func makeSnapshot() -> FrameSnapshot {
-        paintedLayoutSize = CGSize(
-            width: layoutSize.width * pageZoom,
-            height: layoutSize.height * pageZoom
-        )
+        paintedLayoutSize = layoutSize
         let display: FrameDisplayState = state.display
         let updates: [NodeID: EffectUpdate]? =
             (display.composite.isNeeded || display.composite.isNeededForPaint)
