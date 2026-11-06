@@ -222,3 +222,13 @@ Applied. Bench 300 ↔ 450 px reflow: layout wall 324 → **264 ms**, `layout.vi
 ### Phase 8 measured (2026-11-01)
 
 Applied. Bench 300 ↔ 450 px reflow: layout wall 264 → **183 ms** (median), `layout.visit.us` 118–129 → **58–68 ms**, `inline.place` 90–100 → **29–40 ms** (target met), `text.count` 10,018 → **0** (target met), `field.mark` 29–31k → **9–11k** (the graph win: no per-word edges), while `field.set` stays 29–36k because the line writes x and y for every moved word. 47 tests pass; incremental and full-layout screenshots are identical after two resizes. Remaining on the bench: line placement 46–52 ms and paint; on the traced page, line placement dominates height-only drags.
+
+### Phase 9: preview from the painted layout size (2026-11-06)
+
+A live drag to 508 px left the old 1568 px layout visible, unscaled and clipped at the window edge. The trace showed `view.presentation preview=1` during the drag, so the preview path was running; the scale was 1 because `ContentPresentationState` only knew the **last bind size**. Any new content revision from paint/scroll re-bound the old layout at the new window size and reset the preview base.
+
+Applied: `Frame` records the viewport of the layout that produced the current display (`paintedLayoutSize`, set in `makeSnapshot()`). `PresentedFrame` carries it, and `ContentPresentationState` previews whenever that size differs from the window, regardless of content revision. A revision change no longer promotes stale geometry to a full-size bind.
+
+Evidence: regression `newRevisionPreviewsUntilLayoutMatchesViewport` fails before the change and passes after; 267 tests pass. The window capture could not be automated on this machine (Screen Recording and Accessibility are denied), so the visual proof remains the user's recording plus the traced `preview=1` path.
+
+Correction after the 11.16 recording: the first pass compared the whole `layoutSize` to the whole `viewSize`. The content view is 766 px tall while the layout viewport is 700 px (the toolbar inset), so every presentation looked like a resize, including the first one. `applySublayers` returns before installing placements when previewing, so the page stayed blank. The decision now compares **width only**, uses physical layout width (`layoutSize.width * pageZoom`), and previews with the new view height so the toolbar cannot skew `PreviewFit`. Initial trace after the fix: `view.presentation preview=0`; 269 tests pass.

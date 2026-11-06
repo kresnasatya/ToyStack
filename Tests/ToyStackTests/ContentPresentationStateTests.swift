@@ -107,6 +107,55 @@ struct ContentPresentationStateTests {
         #expect(state.baseViewSize == CGSize(width: 120, height: 50))
     }
 
+    @Test func newRevisionPreviewsUntilLayoutMatchesViewport() {
+        var state = ContentPresentationState()
+        let first: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 100, height: 50),
+            layoutSize: CGSize(width: 100, height: 50)
+        )
+        #expect(first == .bind)
+
+        let whileResizing: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 2, sequence: 2),
+            viewSize: CGSize(width: 120, height: 50),
+            layoutSize: CGSize(width: 100, height: 50)
+        )
+        #expect(whileResizing == .preview(from: CGSize(width: 100, height: 50)))
+
+        let finished: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 2, sequence: 3),
+            viewSize: CGSize(width: 120, height: 50),
+            layoutSize: CGSize(width: 120, height: 50)
+        )
+        #expect(finished == .bind)
+    }
+
+    @Test func sameWidthDifferentHeightBinds() {
+        var state = ContentPresentationState()
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 900, height: 766),
+            layoutSize: CGSize(width: 900, height: 700)
+        )
+        #expect(decision == .bind)
+    }
+
+    @Test func widthChangeIgnoresToolbarHeightDifference() {
+        var state = ContentPresentationState()
+        _ = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 900, height: 766),
+            layoutSize: CGSize(width: 900, height: 700)
+        )
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 2, sequence: 2),
+            viewSize: CGSize(width: 500, height: 766),
+            layoutSize: CGSize(width: 900, height: 700)
+        )
+        #expect(decision == .preview(from: CGSize(width: 900, height: 766)))
+    }
+
     @Test func newContentRevisionAtNewSizeBindsThere() {
         var state = ContentPresentationState()
         _ = state.decide(

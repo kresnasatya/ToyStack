@@ -60,7 +60,8 @@ public class Browser: ObservableObject {
                 scale: ContentScale(display: displayScale, page: pageZoom),
                 canvasColor: canvasColor,
                 scrollbar: activeSidebar
-            )
+            ),
+            layoutSize: activeTab?.rootFrame.paintedLayoutSize ?? .zero
         )
     }
 

@@ -19,6 +19,25 @@ public struct ContentPresentationState {
 
     public init() {}
 
+    public mutating func decide(
+        revision: PresentedRevision,
+        viewSize: CGSize,
+        layoutSize: CGSize
+    ) -> Decision {
+        let contentWidth: CGFloat = layoutSize.width > 0
+            ? layoutSize.width
+            : viewSize.width
+        if contentWidth != viewSize.width {
+            lastRevision = revision
+            return .preview(
+                from: CGSize(width: contentWidth, height: viewSize.height)
+            )
+        }
+        lastRevision = revision
+        baseViewSize = viewSize
+        return .bind
+    }
+
     public mutating func decide(revision: PresentedRevision, viewSize: CGSize) -> Decision {
         let sameContent: Bool = lastRevision?.content == revision.content
         if sameContent, let baseViewSize, baseViewSize != viewSize {

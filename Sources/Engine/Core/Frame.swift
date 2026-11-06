@@ -24,6 +24,9 @@ class Frame {
     private var layoutInFlightDirty: Bool = false
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
+    private var layoutJobSize: CGSize = .zero
+    private var layoutSize: CGSize = .zero
+    private(set) var paintedLayoutSize: CGSize = .zero
 
     var tab: BrowserTab? { links.tab }
     var parentFrame: Frame? { tab?.frame(links.parent) }
@@ -994,6 +997,7 @@ class Frame {
                     pageZoom: pageZoom
                 )
             })
+            layoutSize = CGSize(width: frameWidth, height: frameHeight)
             profiler.measure("layout.effects", {
                 applyLayoutEffects(box.tree.takeEffects())
             })
@@ -1256,6 +1260,7 @@ class Frame {
         let width: CGFloat = frameWidth
         let pageZoom: CGFloat = self.pageZoom
         layoutJobKey = LayoutJobKey(width: width, zoom: pageZoom)
+        layoutJobSize = CGSize(width: width, height: frameHeight)
         Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID] in
             var tree: LayoutTree = tree
             tree.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
@@ -1294,6 +1299,7 @@ class Frame {
         guard let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
             return
         }
+        layoutSize = layoutJobSize
         box.tree = tree
         if !effects.isEmpty {
             applyLayoutEffects(effects)
@@ -1319,6 +1325,10 @@ class Frame {
     }
 
     func makeSnapshot() -> FrameSnapshot {
+        paintedLayoutSize = CGSize(
+            width: layoutSize.width * pageZoom,
+            height: layoutSize.height * pageZoom
+        )
         let display: FrameDisplayState = state.display
         let updates: [NodeID: EffectUpdate]? =
             (display.composite.isNeeded || display.composite.isNeededForPaint)

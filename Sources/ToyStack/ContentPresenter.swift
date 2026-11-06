@@ -130,7 +130,8 @@ final class ContentPresenter: @unchecked Sendable {
         lock.unlock()
         let decision: ContentPresentationState.Decision = presentationState.decide(
             revision: frame.revision,
-            viewSize: viewSize
+            viewSize: viewSize,
+            layoutSize: frame.layoutSize
         )
         let preview: Bool
         let previousSize: CGSize?
