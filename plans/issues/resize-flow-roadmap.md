@@ -198,8 +198,23 @@ stays visible until the swap. The target below 10 ms is not met yet; the first
 4 MP batch costs about 16 ms.
 
 Budget lowered to **2,000,000 pixels** (`PresentUploadBudget.generationPixels`)
-after a test-first change. Tests: 254 / 44 suites. GUI trace is still required;
-the expected first batch is about 8 ms.
+after a test-first change. Tests: 254 / 44 suites.
+
+GUI trace after the 2 MP change (537 frames):
+
+| Measure | Result |
+|---|---|
+| Tiles per batch | 30 |
+| `contentsPixels` per present | 1.97 MP |
+| `view.commit` first batch | **11-14 ms**, p95 12.4 ms |
+| `view.commit` completion batch | 3-14 ms |
+| Main `animFrame` | p95 13.1 ms |
+| Scroll input | p95 0.51 ms |
+
+The 4 MP -> 2 MP change reduced the first batch from about 16 ms to 12 ms,
+not below 10 ms. The commit scales with layer count as well as pixels: 30 tiles
+still cost roughly 0.4 ms each. Next: try a 1.2 MP budget (about 18 tiles), or
+move the tile binding off the present commit path.
 
 ### Step 4: long-term pipeline
 
