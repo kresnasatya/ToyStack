@@ -103,6 +103,7 @@ public class Browser: ObservableObject {
     private var resizePreview: ResizePreviewPolicy = ResizePreviewPolicy()
     private var previewPresentScheduled: Bool = false
     private var previewPresentID: UInt = 0
+    private var lastPreviewPresentTime: Date = .distantPast
 
     @Published public var prefersDark: Bool = false
     @Published public private(set) var commitedPrefersDark: Bool = false
@@ -166,9 +167,7 @@ public class Browser: ObservableObject {
         let requiresPreview: Bool = estimatedFrameTime > FRAME_BUDGET * 2.0
         resizePreview.resize(now: now, requiresPreview: requiresPreview)
         if requiresPreview {
-            if resizePreview.presentPreview(size: windowSize, now: now) {
-                schedulePreviewPresent()
-            }
+            requestPreview(now: now)
         } else {
             cancelPreviewPresent()
         }
@@ -177,18 +176,35 @@ public class Browser: ObservableObject {
         }
     }
 
-    /// Coalesce all resize events processed in one main-run-loop turn into one
-    /// preview. The presenter only needs the latest size; sending every event
-    /// makes it bind a whole preview frame per event.
-    private func schedulePreviewPresent() {
+    /// Present at most one resize preview per display frame. AppKit can deliver
+    /// many resize events in one trace frame; each event must update the target
+    /// size, not enqueue another preview.
+    private func requestPreview(now: Date) {
+        let elapsed: TimeInterval = now.timeIntervalSince(lastPreviewPresentTime)
+        if !previewPresentScheduled, elapsed >= FRAME_BUDGET {
+            presentLatestPreview(now: now)
+            return
+        }
         guard !previewPresentScheduled else { return }
         previewPresentScheduled = true
         let id: UInt = previewPresentID
+        let delay: TimeInterval = max(0, FRAME_BUDGET - elapsed)
         Task { @MainActor [weak self] in
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
             guard let self, self.previewPresentID == id else { return }
             self.previewPresentScheduled = false
-            self.dispatchPresent(frameID: self.currentFrameID)
+            self.presentLatestPreview(now: Date())
         }
+    }
+
+    private func presentLatestPreview(now: Date) {
+        guard resizePreview.presentPreview(size: windowSize, now: now) else {
+            return
+        }
+        lastPreviewPresentTime = now
+        dispatchPresent(frameID: currentFrameID)
     }
 
     /// Drops a queued preview when the frame clock takes over with a real frame.

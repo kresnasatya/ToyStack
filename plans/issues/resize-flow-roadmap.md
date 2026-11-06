@@ -85,15 +85,24 @@ Keep it, add preview coalescing, and proceed to Step 2.
 
 ### Step 1b: coalesce preview presents
 
+Status: **superseded by Step 1c** (2026-11-06).
+
+A run-loop-turn task did not coalesce the events: AppKit delivered 281 resize
+events as 281 dispatches, and frame 79 still applied 144 previews. The trace
+shows the event handler and the task alternate, not batch.
+
+### Step 1c: throttle previews to the display rate
+
 Status: **applied** (2026-11-06).
 
-- A resize event schedules one main-actor task per run-loop turn.
-- Further events in that turn only update `windowSize`; the task dispatches the
-  latest size once.
+- A resize event updates only `windowSize`.
+- At most one preview is presented per `FRAME_BUDGET` (1/60 s).
+- If the interval has elapsed, the latest size presents immediately; otherwise
+  one delayed task presents the latest size when the interval ends.
 - A frame-clock layout or a switch back to the fast path cancels the pending
   preview with a generation token, so a preview cannot overwrite a fresh frame.
-- Expected trace change: one preview per resize turn instead of 143; measure
-  `view.apply`/`view.commit` counts in the next GUI trace.
+- Expected trace change: at most one `view.apply` per 16.7 ms instead of 281
+  dispatches for 281 events. Verify in the next GUI trace.
 
 ### Step 2: incremental resize layout
 
