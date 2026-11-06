@@ -181,8 +181,22 @@ Applied: `PresentUploadBudget` caps a present at 4,000,000 pixels. A new
 generation is now built on hidden pending layers behind the still-visible old
 generation; only a fully bound generation is unhidden and swapped in. A single
 oversized tile still makes progress. Tests cover the budget boundary and the
-oversized-first-tile rule; full suite: 253 tests / 44 suites. GUI trace is still
-required to confirm the commit drop.
+oversized-first-tile rule; full suite: 253 tests / 44 suites.
+
+GUI trace after staging (574 frames):
+
+| Measure | Result |
+|---|---|
+| Resize `view.commit`, first batch | about **16 ms** |
+| Resize `view.commit`, completion batch | **7-13 ms** |
+| `contentsPixels` per present | capped at **3.99 MP** |
+| Deferred tiles | 18-60, completed by the next present |
+| Main `animFrame` | p95 **13.8 ms** |
+
+The cap works: no resize present exceeds the 4 MP budget, and the old frame
+stays visible until the swap. The target below 10 ms is not met yet; the first
+4 MP batch costs about 16 ms. Next: lower the generation budget to 2 MP and
+measure the second batch, or budget by upload bytes rather than pixels.
 
 ### Step 4: long-term pipeline
 
