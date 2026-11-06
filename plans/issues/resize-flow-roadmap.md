@@ -195,8 +195,11 @@ GUI trace after staging (574 frames):
 
 The cap works: no resize present exceeds the 4 MP budget, and the old frame
 stays visible until the swap. The target below 10 ms is not met yet; the first
-4 MP batch costs about 16 ms. Next: lower the generation budget to 2 MP and
-measure the second batch, or budget by upload bytes rather than pixels.
+4 MP batch costs about 16 ms.
+
+Budget lowered to **2,000,000 pixels** (`PresentUploadBudget.generationPixels`)
+after a test-first change. Tests: 254 / 44 suites. GUI trace is still required;
+the expected first batch is about 8 ms.
 
 ### Step 4: long-term pipeline
 

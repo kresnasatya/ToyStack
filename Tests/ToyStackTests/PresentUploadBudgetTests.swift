@@ -15,6 +15,17 @@ struct PresentUploadBudgetTests {
         #expect(budget.usedPixels == 3_000_000)
     }
 
+    @Test func generationBudgetAllowsTwoMegapixels() {
+        var budget: PresentUploadBudget = PresentUploadBudget(
+            pixels: PresentUploadBudget.generationPixels
+        )
+        let first: Bool = budget.take(pixels: 1_500_000)
+        let second: Bool = budget.take(pixels: 1_000_000)
+        #expect(first)
+        #expect(!second)
+        #expect(budget.usedPixels == 1_500_000)
+    }
+
     @Test func oversizedFirstTileStillMakesProgress() {
         var budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
         let oversized: Bool = budget.take(pixels: 6_000_000)

@@ -3,6 +3,9 @@ import Foundation
 /// Caps the pixels one present may upload so a new layout generation can be
 /// staged across several composites without exposing an incomplete frame.
 public struct PresentUploadBudget: Sendable {
+    /// Pixel budget for staging one new layer generation.
+    public static let generationPixels: Int = 2_000_000
+
     public let pixels: Int
     public private(set) var usedPixels: Int = 0
 

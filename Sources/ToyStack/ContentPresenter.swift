@@ -31,7 +31,7 @@ final class ContentPresenter: @unchecked Sendable {
     /// 12-24 new tiles blows the frame budget. Incremental arrivals are spread.
     private static let uploadsPerPresent: Int = 6
     private static let pixelsPerPresent: Int = 400_000
-    private static let generationPixelsPerPresent: Int = 4_000_000
+    private static let generationPixelsPerPresent: Int = PresentUploadBudget.generationPixels
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: PresentedRevision, size: CGSize)?
