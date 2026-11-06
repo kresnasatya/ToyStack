@@ -873,7 +873,9 @@ class Frame {
                 }
             }
             if paintedChanged {
-                state.display.paint.epoch += 1
+                // The paint caches are keyed by the changed node's style
+                // revision, so one element's colour change no longer has to
+                // invalidate every block and line on the page.
                 state.display.paint.isNeeded = true
             }
             browser?.measure.stop("BrowserTab.style.diff")

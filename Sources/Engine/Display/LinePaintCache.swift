@@ -5,9 +5,9 @@ struct LinePaintCache: Sendable {
     private var key: LinePaintKey? = nil
     private var valid: Bool = false
 
-    func canReuse(epoch: UInt, generation: UInt) -> Bool {
+    func canReuse(epoch: UInt, version: LinePaintVersion) -> Bool {
         guard valid, let key else { return false }
-        return key.epoch == epoch && key.generation == generation
+        return key.epoch == epoch && key.version == version
     }
 
     mutating func store(items: [DisplayOp], key: LinePaintKey) {

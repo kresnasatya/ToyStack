@@ -17,6 +17,10 @@ struct PaintScene {
 struct PaintFrame {
     var nodes: [PaintNode]
     var epoch: UInt
+    /// Per-node cache revision, aligned with `nodes`. A block uses the style
+    /// revision of its own DOM node; a line uses its generation combined with
+    /// the style revisions of its box owners.
+    var revisions: [UInt64]
 }
 
 // MARK: - PaintNode

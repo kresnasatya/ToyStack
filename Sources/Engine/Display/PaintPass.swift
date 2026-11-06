@@ -29,6 +29,7 @@ struct PaintPass {
         let node: PaintNode = scene.frames[frame].nodes[index]
         let rect: Rect = node.geometry.rect
         let epoch: UInt = session.epoch
+        let styleRevision: UInt64 = scene.frames[frame].revisions[index]
 
         switch node.content {
         case .line, .text:
@@ -45,7 +46,11 @@ struct PaintPass {
 
         if case .line(let line) = node.content, line.canCache {
             let cache: LinePaintCache = caches[frame].line(node.links.id)
-            if cache.canReuse(epoch: epoch, generation: line.generation) {
+            let version: LinePaintVersion = LinePaintVersion(
+                generation: line.generation,
+                style: styleRevision
+            )
+            if cache.canReuse(epoch: epoch, version: version) {
                 cache.append(
                     to: &ops,
                     currentX: node.geometry.frame.left,
@@ -65,7 +70,8 @@ struct PaintPass {
                 let key: PaintKey = PaintKey(
                     width: node.geometry.frame.right - node.geometry.frame.left,
                     height: node.geometry.frame.bottom - node.geometry.frame.top,
-                    epoch: epoch
+                    epoch: epoch,
+                    revision: styleRevision
                 )
                 let cache: PaintCache = caches[frame].block(node.links.id)
                 if cache.canReuse(key: key) {
@@ -97,7 +103,10 @@ struct PaintPass {
                 x: node.geometry.frame.left,
                 y: node.geometry.frame.top,
                 epoch: epoch,
-                generation: line.generation
+                version: LinePaintVersion(
+                    generation: line.generation,
+                    style: styleRevision
+                )
             )
             var cache: LinePaintCache = caches[frame].line(node.links.id)
             cache.store(items: Array(ops[start...]), key: key)

@@ -32,12 +32,20 @@ struct PaintSceneBuilder {
         self.window = window
         let index: Int = sink.scenes.count
         sink.owners.append(frame)
-        sink.scenes.append(PaintFrame(nodes: [], epoch: frame.paintEpoch))
+        sink.scenes.append(PaintFrame(nodes: [], epoch: frame.paintEpoch, revisions: []))
 
         var nodes: [PaintNode] = []
         nodes.reserveCapacity(64)
-        _ = appendNode(tree, root, parent: nil, nodes: &nodes)
-        sink.scenes[index] = PaintFrame(nodes: nodes, epoch: frame.paintEpoch)
+        // A local array: an iframe scene is built recursively while this one
+        // is still in progress, so a builder-wide array would be reset.
+        var revisions: [UInt64] = []
+        revisions.reserveCapacity(64)
+        _ = appendNode(tree, root, parent: nil, nodes: &nodes, revisions: &revisions)
+        sink.scenes[index] = PaintFrame(
+            nodes: nodes,
+            epoch: frame.paintEpoch,
+            revisions: revisions
+        )
         return index
     }
 
@@ -48,24 +56,58 @@ struct PaintSceneBuilder {
         _ tree: LayoutTree,
         _ id: LayoutID,
         parent: Int?,
-        nodes: inout [PaintNode]
+        nodes: inout [PaintNode],
+        revisions: inout [UInt64]
     ) -> Int? {
         guard !culledAtBuild(tree, id) else { return nil }
+        let boxes: [InlineBox]? = tree.isLine(id) ? tree.currentInlineBoxes(id) : nil
         let index: Int = nodes.count
         nodes.append(placeholder(id: id, dom: tree.domID(of: id)))
+        revisions.append(0)
         var children: [Int] = []
         var childIDs: [LayoutID] = tree.childrenIDs(of: id)
-        if tree.isLine(id), tree.currentInlineBoxes(id) != nil {
+        if boxes != nil {
             childIDs.removeAll(where: { tree.isText($0) })
         }
         children.reserveCapacity(childIDs.count)
         for child in childIDs {
-            if let childIndex: Int = appendNode(tree, child, parent: index, nodes: &nodes) {
+            if let childIndex: Int = appendNode(
+                tree,
+                child,
+                parent: index,
+                nodes: &nodes,
+                revisions: &revisions
+            ) {
                 children.append(childIndex)
             }
         }
-        nodes[index] = makeNode(tree, id, parent: parent, children: children)
+        nodes[index] = makeNode(tree, id, parent: parent, children: children, boxes: boxes)
+        revisions[index] = paintRevision(tree, id, boxes: boxes)
         return index
+    }
+
+    /// Style input of everything paint caches for this node.
+    ///
+    /// A block caches its own emitted ops, so its own style revision is the
+    /// whole input. A line caches its text ops, whose colours come from the
+    /// inherited style owner of each box; the line generation is compared
+    /// separately in `LinePaintVersion`. Using the global paint epoch here
+    /// made one hovered link re-emit every line and block on the page.
+    private func paintRevision(
+        _ tree: LayoutTree,
+        _ id: LayoutID,
+        boxes: [InlineBox]?
+    ) -> UInt64 {
+        guard tree.isLine(id), let boxes else {
+            return tree.domRef(id).style.revision
+        }
+        var style: UInt64 = 0xcbf2_9ce4_8422_2325
+        for (index, box) in boxes.enumerated() {
+            let owner: DOMRef = DOMRef(id: box.dom, dom: tree.dom).inheritedStyleOwner
+            style ^= owner.style.revision &+ UInt64(index) &* 0x9E37_79B9_7F4A_7C15
+            style = style &* 0x0000_0100_0000_01B3
+        }
+        return style
     }
 
     /// The same rule the paint pass applies: only line and text nodes are
@@ -84,7 +126,8 @@ struct PaintSceneBuilder {
         _ tree: LayoutTree,
         _ id: LayoutID,
         parent: Int?,
-        children: [Int]
+        children: [Int],
+        boxes: [InlineBox]?
     ) -> PaintNode {
         let node: DOMRef = tree.domRef(id)
         let style: ComputedStyle = node.style.computed
@@ -117,7 +160,7 @@ struct PaintSceneBuilder {
                     isFocused: node.element?.isFocused ?? false
                 )
             ),
-            content: makeContent(tree, id),
+            content: makeContent(tree, id, boxes: boxes),
             links: PaintLinks(
                 id: id,
                 dom: node.id,
@@ -137,7 +180,11 @@ struct PaintSceneBuilder {
         }
     }
 
-    private mutating func makeContent(_ tree: LayoutTree, _ id: LayoutID) -> PaintContent {
+    private mutating func makeContent(
+        _ tree: LayoutTree,
+        _ id: LayoutID,
+        boxes: [InlineBox]?
+    ) -> PaintContent {
         switch tree.kind(id) {
         case .document:
             return .document
@@ -155,9 +202,8 @@ struct PaintSceneBuilder {
                 )
             ))
         case .line:
-            let boxes: [InlineBox]? = tree.currentInlineBoxes(id)
             return .line(PaintLine(
-                canCache: tree.lineCanCachePaint(id) && tree.currentInlineBoxes(id) != nil,
+                canCache: tree.lineCanCachePaint(id) && boxes != nil,
                 generation: tree.lineData(id).paint.generation,
                 focusRing: lineFocusRing(tree, id),
                 inlineText: boxes.map({ lineInlineText(tree, id, $0) }) ?? []
