@@ -51,7 +51,7 @@ For multi-file changes, group the diffs by file and include the file path before
 
 10. Save it in markdown file in the `plans` directory.
 
-11. Every fix or feature starts with a test in `Tests/`. Write the failing test first, confirm it fails for the intended reason, then implement in `Sources/` until it passes. Tests are the blood contract; do not implement behavior that has no test.
+11. Every fix or feature starts with a test in `Tests/`. Write the failing test first, confirm it fails for the intended reason, then implement in `Sources/` until it passes. Tests are the blood contract and the simulation harness: cover the failure paths, not only the happy path. Exercise malformed input, I/O errors, cancellation, stale async results, and resource pressure where the code can encounter them. Do not implement behavior that has no test.
 
 ## Commit Style
 
