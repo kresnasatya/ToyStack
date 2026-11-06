@@ -158,6 +158,14 @@ GUI trace after the change (334 frames, 4 loads, 73 scroll events):
 The line-plan reuse is a real win on font-breakpoint frames, but it does not
 move the heavy page below 90 ms. `layout.visit` is now the target for Step 2b.
 
+Step 2b investigation: the heavy page still reports `layout.visited.count` and
+`layout.rebuilt.count` = **1773** on every resize, and
+`layout.visit.geometry.count` = **1773**. The widths are not staying unchanged
+for a subset that could be skipped; a simple per-block width guard would not
+remove the traversal. The next viable step is a vertical subtree offset (so a
+moved block does not visit its descendants), or moving layout off the main
+thread. Do not add a width guard without measuring `layout.width.changed`.
+
 ### Step 3: present budget
 
 - Reduce layer count (start with 128 px -> 256 px tiles).
