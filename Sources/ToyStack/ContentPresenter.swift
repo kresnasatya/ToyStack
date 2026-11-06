@@ -31,6 +31,7 @@ final class ContentPresenter: @unchecked Sendable {
     /// 12-24 new tiles blows the frame budget. Incremental arrivals are spread.
     private static let uploadsPerPresent: Int = 6
     private static let pixelsPerPresent: Int = 400_000
+    private static let generationPixelsPerPresent: Int = 4_000_000
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: PresentedRevision, size: CGSize)?
@@ -42,6 +43,8 @@ final class ContentPresenter: @unchecked Sendable {
     private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
     private var lastDeferred: Int = 0
     private var lastBoundGeneration: UInt64 = 0
+    private var pendingGeneration: UInt64? = nil
+    private var pendingLayers: [LayerPlacementKey: Slot] = [:]
     private var drainScheduled: Bool = false
 
     init(contentLayer: CALayer, scrollbarLayer: CALayer, measure: MeasureTime) {
@@ -210,6 +213,10 @@ final class ContentPresenter: @unchecked Sendable {
             width: viewSize.width,
             height: viewSize.height
         )
+        if frame.content.generation != lastBoundGeneration, !layersByPlacement.isEmpty {
+            applyPendingGeneration(frame, viewSize: viewSize, scale: scale)
+            return
+        }
         let placements = frame.content.placements
         measure.start("view.updateSublayers", category: .present, frame: frame.frameID)
         let previous: Set<LayerPlacementKey> = Set(layersByPlacement.keys)
@@ -319,6 +326,111 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
     }
 
+    /// Stages a new layer generation behind the still-visible previous one.
+    /// The old frame stays complete while a fixed pixel budget binds new tiles;
+    /// only a fully bound generation replaces it.
+    private func applyPendingGeneration(
+        _ frame: PresentedFrame,
+        viewSize: CGSize,
+        scale: ContentScale
+    ) {
+        let generation: UInt64 = frame.content.generation
+        if pendingGeneration != generation {
+            discardPendingGeneration()
+            pendingGeneration = generation
+        }
+        let placements = frame.content.placements
+        measure.start("view.updateSublayers", category: .present, frame: frame.frameID)
+        let offset: CGFloat = frame.viewport.contentOffset
+        let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
+        var added: Int = 0
+        var contents: Int = 0
+        var contentsPixels: Int = 0
+        var rebinds: [LayerRebind] = []
+        for placed in placements {
+            let layer: CALayer
+            if let slot: Slot = pendingLayers[placed.key] {
+                layer = slot.layer
+            } else {
+                layer = makeSublayer(scale: scale.effective)
+                layer.isHidden = true
+                pendingLayers[placed.key] = Slot(
+                    layer: layer,
+                    lastSeen: frameNumber,
+                    hidden: true
+                )
+                added += 1
+            }
+            updateSublayer(layer, with: placed, scale: scale.effective)
+            if (layer.contents as AnyObject?) !== placed.image {
+                rebinds.append(
+                    LayerRebind(
+                        distance: abs(placed.frame.midY - centerY),
+                        layer: layer,
+                        image: placed.image
+                    )
+                )
+            }
+        }
+        rebinds.sort(by: { $0.distance < $1.distance })
+        var budget: PresentUploadBudget = PresentUploadBudget(
+            pixels: Self.generationPixelsPerPresent
+        )
+        for rebind in rebinds {
+            let pixels: Int = rebind.image.width * rebind.image.height
+            guard budget.take(pixels: pixels) else { continue }
+            rebind.layer.contents = rebind.image
+            contents += 1
+            contentsPixels += pixels
+        }
+        let deferred: Int = rebinds.count - contents
+        let complete: Bool = placements.allSatisfy {
+            guard let slot: Slot = pendingLayers[$0.key] else { return false }
+            return slot.layer.contents != nil
+        }
+        if complete {
+            for slot in layersByPlacement.values {
+                slot.layer.removeFromSuperlayer()
+            }
+            var active: [LayerPlacementKey: Slot] = pendingLayers
+            for key in active.keys {
+                guard var slot: Slot = active[key] else { continue }
+                slot.hidden = false
+                slot.layer.isHidden = false
+                active[key] = slot
+            }
+            layersByPlacement = active
+            pendingLayers.removeAll(keepingCapacity: true)
+            pendingGeneration = nil
+            lastBoundGeneration = generation
+            lastDeferred = 0
+        } else {
+            lastDeferred = deferred
+        }
+        measure.stop("view.updateSublayers")
+        measure.counter("view", [
+            "placements": placements.count,
+            "added": added,
+            "contents": contents,
+            "contentsPixels": contentsPixels,
+            "deferred": deferred,
+            "kept": 0,
+            "hidden": layersByPlacement.values.filter(\.hidden).count,
+            "unhidden": 0,
+            "purged": 0,
+            "pool": layersByPlacement.count + pendingLayers.count,
+            "sublayers": contentLayer.sublayers?.count ?? 0,
+        ], frame: frame.frameID)
+    }
+
+    private func discardPendingGeneration() {
+        for slot in pendingLayers.values {
+            slot.layer.removeFromSuperlayer()
+        }
+        pendingLayers.removeAll(keepingCapacity: true)
+        pendingGeneration = nil
+    }
+
     private func makeSublayer(scale: CGFloat) -> CALayer {
         let layer = CALayer()
         layer.contentsGravity = .resize
@@ -395,6 +507,7 @@ final class ContentPresenter: @unchecked Sendable {
     ) {
         let scale: ContentScale = frame.viewport.scale
         lastDeferred = 0
+        discardPendingGeneration()
         lastBoundGeneration = frame.content.generation
         for key in Array(layersByPlacement.keys) {
             guard var slot = layersByPlacement[key] else { continue }

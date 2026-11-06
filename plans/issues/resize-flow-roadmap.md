@@ -177,8 +177,12 @@ tiles upload more device pixels (up to 12.6 MP from 10.5 MP) because edges are
 rounded to 512-device-pixel tiles. The optimization was reverted and its
 layer-count test removed; layer count was not the limiting metric.
 
-Remaining: bind only pixels that changed, and stage a new generation while the
-old complete frame stays visible. Measure uploaded pixels, not layer count.
+Applied: `PresentUploadBudget` caps a present at 4,000,000 pixels. A new
+generation is now built on hidden pending layers behind the still-visible old
+generation; only a fully bound generation is unhidden and swapped in. A single
+oversized tile still makes progress. Tests cover the budget boundary and the
+oversized-first-tile rule; full suite: 253 tests / 44 suites. GUI trace is still
+required to confirm the commit drop.
 
 ### Step 4: long-term pipeline
 
