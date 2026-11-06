@@ -24,6 +24,15 @@ struct PreviewFitTests {
         #expect(fit.scaledSize == CGSize(width: 1000, height: 700))
     }
 
+    @Test func doesNotMagnifyWhenViewportGrows() {
+        let fit: PreviewFit = PreviewFit(
+            old: CGSize(width: 1000, height: 700),
+            new: CGSize(width: 1600, height: 1000)
+        )
+        #expect(fit.scale == 1)
+        #expect(fit.scaledSize == CGSize(width: 1000, height: 700))
+    }
+
     @Test func ignoresInvalidPreviousSize() {
         let fit: PreviewFit = PreviewFit(
             old: .zero,

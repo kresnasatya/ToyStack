@@ -93,8 +93,13 @@ Async layout stale-result guard: a background pass started at an old width could
 finish after another resize and be installed as new content at the new window
 size, showing clipped old-width layout. `LayoutJobKey` records the width and
 zoom; `finishAsyncLayout` discards a result whose key is stale and starts a new
-pass for the current viewport. Tests cover width/zoom invalidation. GUI trace is
-still required.
+pass for the current viewport. Tests cover width/zoom invalidation.
+
+Preview policy follow-up: when background layout is enabled, every resize now
+previews the last complete frame instead of waiting for a slow-frame estimate.
+`PreviewFit` also refuses to magnify the old frame when the viewport grows
+(`scale <= 1`). Tests cover async preview scheduling and no-magnify geometry.
+GUI verification is still required.
 
 ### Step 1b: coalesce preview presents
 

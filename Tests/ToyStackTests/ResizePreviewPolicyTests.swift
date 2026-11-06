@@ -76,6 +76,26 @@ struct ResizePreviewPolicyTests {
         #expect(allowed)
     }
 
+    @Test func asyncLayoutAlwaysNeedsPreview() {
+        #expect(
+            ResizePreviewPolicy.shouldPreview(
+                estimatedFrameTime: 0.001,
+                frameBudget: 1.0 / 60.0,
+                asyncLayout: true
+            )
+        )
+    }
+
+    @Test func fastSyncFrameDoesNotNeedPreview() {
+        #expect(
+            !ResizePreviewPolicy.shouldPreview(
+                estimatedFrameTime: 0.001,
+                frameBudget: 1.0 / 60.0,
+                asyncLayout: false
+            )
+        )
+    }
+
     @Test func cancelClearsPreviewAndPresentedSize() {
         var policy: ResizePreviewPolicy = ResizePreviewPolicy()
         policy.resize(now: start, requiresPreview: true)

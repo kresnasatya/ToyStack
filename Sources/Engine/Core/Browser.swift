@@ -166,7 +166,11 @@ public class Browser: ObservableObject {
         // postpone the next preview. The animation tick still owns the final
         // reflow deadline.
         let now: Date = Date()
-        let requiresPreview: Bool = estimatedFrameTime > FRAME_BUDGET * 2.0
+        let requiresPreview: Bool = ResizePreviewPolicy.shouldPreview(
+            estimatedFrameTime: estimatedFrameTime,
+            frameBudget: FRAME_BUDGET,
+            asyncLayout: usesAsyncLayout
+        )
         resizePreview.resize(now: now, requiresPreview: requiresPreview)
         if requiresPreview {
             requestPreview(now: now)

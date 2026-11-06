@@ -12,7 +12,7 @@ public struct PreviewFit: Equatable, Sendable {
             self.scaledSize = old
             return
         }
-        let scale: CGFloat = min(new.width / old.width, new.height / old.height)
+        let scale: CGFloat = min(1, min(new.width / old.width, new.height / old.height))
         self.scale = scale
         self.scaledSize = CGSize(width: old.width * scale, height: old.height * scale)
     }

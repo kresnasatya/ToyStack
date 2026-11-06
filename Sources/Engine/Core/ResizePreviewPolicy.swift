@@ -5,6 +5,14 @@ import Foundation
 /// content. The policy is frame-driven and owns no timer, so a queued resize
 /// event cannot postpone the layout indefinitely.
 struct ResizePreviewPolicy {
+    static func shouldPreview(
+        estimatedFrameTime: TimeInterval,
+        frameBudget: TimeInterval,
+        asyncLayout: Bool
+    ) -> Bool {
+        return asyncLayout || estimatedFrameTime > frameBudget * 2.0
+    }
+
     private let delay: TimeInterval
     private var deadline: Date?
     private var presentedSize: CGSize?
