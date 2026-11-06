@@ -268,13 +268,20 @@ public class Browser: ObservableObject {
             dispatchPresent(frameID: currentFrameID)
         }
         let now: Date = Date()
+        let allowsDuringPreview: Bool = ResizePreviewPolicy.allowsLayoutDuringPreview(
+            asyncLayout: usesAsyncLayout
+        )
         if resizePreview.presentPreview(size: windowSize, now: now) {
             cancelPreviewPresent()
             dispatchPresent(frameID: currentFrameID)
-            return
+            if !allowsDuringPreview {
+                return
+            }
         }
-        guard resizePreview.allowsLayout(now: now) else {
-            return
+        if !allowsDuringPreview {
+            guard resizePreview.allowsLayout(now: now) else {
+                return
+            }
         }
         cancelPreviewPresent()
         needsAnimationFrame = false

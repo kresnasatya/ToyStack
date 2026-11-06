@@ -76,6 +76,14 @@ struct ResizePreviewPolicyTests {
         #expect(allowed)
     }
 
+    @Test func asyncLayoutRunsDuringPreview() {
+        #expect(ResizePreviewPolicy.allowsLayoutDuringPreview(asyncLayout: true))
+    }
+
+    @Test func syncLayoutWaitsForPreviewDeadline() {
+        #expect(!ResizePreviewPolicy.allowsLayoutDuringPreview(asyncLayout: false))
+    }
+
     @Test func asyncLayoutAlwaysNeedsPreview() {
         #expect(
             ResizePreviewPolicy.shouldPreview(

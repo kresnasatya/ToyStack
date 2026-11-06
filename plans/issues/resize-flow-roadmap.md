@@ -114,6 +114,14 @@ Some stale content during a drag is the preview contract: the last complete
 frame stays until the new layout and raster generation are ready. The preview is
 now fitted and never magnified.
 
+Continuous async layout **applied**: while async layout is enabled, the frame
+clock no longer waits for the 120 ms preview deadline. It presents the fitted
+preview and lets the next animation frame start a background layout for the
+latest width. One job stays in flight; stale-width results are discarded. Sync
+layout still waits for the preview deadline. Tests cover both policies; async
+vs sync headless screenshots remain identical after rapid resizes. GUI trace is
+still required.
+
 ### Step 1b: coalesce preview presents
 
 Status: **superseded by Step 1c** (2026-11-06).
