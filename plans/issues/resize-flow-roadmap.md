@@ -168,10 +168,15 @@ thread. Do not add a width guard without measuring `layout.width.changed`.
 
 ### Step 3: present budget
 
-- Reduce layer count (start with 128 px -> 256 px tiles).
-- Bind only layers whose image changed.
-- Keep the old complete generation visible while a new one is uploading.
-- Target: `view.commit` below 10 ms.
+Status: **partially applied** (2026-11-06).
+
+- Tile size changed from 128 px to 256 px. A 1000 x 700 layer now produces
+  **12 tiles instead of 48**; the regression test asserts at most 24.
+- The rendered screenshot is byte-identical.
+- GUI `view.commit` verification is still required; target below 10 ms.
+
+Remaining: bind only layers whose image changed, and stage a new generation
+while the old complete frame stays visible.
 
 ### Step 4: long-term pipeline
 

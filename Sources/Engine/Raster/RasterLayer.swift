@@ -7,7 +7,7 @@ public struct RasterLayer: Sendable {
     var effect: LayerEffectImage
     var tiles: [TileIndex: CGImage]
 
-    static let tileSize: CGFloat = 128
+    static let tileSize: CGFloat = 256
     static let rasterCapPerComposite: UInt = 300
 
     init(
