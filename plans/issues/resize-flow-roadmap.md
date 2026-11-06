@@ -144,6 +144,20 @@ Screenshots are byte-identical to the full rebuild; 247 tests pass. The win is
 Next sub-step: skip block visits whose effective width and inline plan did not
 change, and reduce `layout.visit.children`.
 
+GUI trace after the change (334 frames, 4 loads, 73 scroll events):
+
+- heavy-page resize frames 62-72: **91-113 ms**
+- font-breakpoint frames 64, 68: **113.5 / 110.3 ms** (previous trace:
+  136-149 ms)
+- later font-breakpoint frames 324, 328: **106.9 / 110.1 ms**
+- a simpler page after frame 73: resize layouts **5-15 ms**
+- `layout.visit` 49-65 ms, `inline.place` 27-42 ms, `inputs.build` 14-24 ms,
+  sweep 5-10 ms
+- `view.commit` p95 9.0 ms, max 37.6 ms
+
+The line-plan reuse is a real win on font-breakpoint frames, but it does not
+move the heavy page below 90 ms. `layout.visit` is now the target for Step 2b.
+
 ### Step 3: present budget
 
 - Reduce layer count (start with 128 px -> 256 px tiles).
