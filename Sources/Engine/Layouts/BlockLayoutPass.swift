@@ -367,10 +367,11 @@ extension LayoutTree {
                 setKind(.block(data), at: id)
                 _ = zoom(id)
                 
+                var preservedItems: Bool = false
                 if inlineContentChanged {
                     let preserveObjects: Bool = canRefreshFontsOnly(id)
                     profiler.measure("layout.inline.refresh", {
-                        refreshInlineItems(id, preservingObjects: preserveObjects)
+                        preservedItems = refreshInlineItems(id, preservingObjects: preserveObjects)
                     })
                 }
                 let oldPlan: [[Int]]? = blockData(id).content.inlineLinePlan
@@ -380,6 +381,7 @@ extension LayoutTree {
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
                     || plan != oldPlan
+                let canReusePlan: Bool = !inlineContentChanged || preservedItems
                 if !shouldPlace, widthChanged, !frameMoved,
                     !isDirty(.height, at: id),
                     canSkipInlineChildren(id)
@@ -388,9 +390,14 @@ extension LayoutTree {
                     skipInlineChildren = true
                 }
                 if shouldPlace {
-                    if !inlineContentChanged, let plan, let oldPlan {
+                    if canReusePlan, let plan, let oldPlan {
                         profiler.measure("layout.inline.place", {
-                            placeInlineItems(id, plan: plan, oldPlan: oldPlan)
+                            placeInlineItems(
+                                id,
+                                plan: plan,
+                                oldPlan: oldPlan,
+                                refreshMetrics: preservedItems
+                            )
                         })
                     } else {
                         profiler.measure("layout.inline.place", { placeInlineItems(id) })
@@ -835,12 +842,50 @@ extension LayoutTree {
         profiler.count("layout.lines.total", by: placement.lines.count)
     }
 
+    /// Updates a reused line's owned widths after a font/zoom refresh. The
+    /// text nodes keep their identity, but their metrics and line widths must
+    /// follow the newly measured items.
+    mutating private func refreshReusedLine(
+        _ line: LayoutID,
+        items: [InlineItem]
+    ) {
+        let children: [LayoutID] = childrenIDs(of: line)
+        var data: LineData = lineData(line)
+        guard data.content.inlineWidths.count == children.count else { return }
+        var widths: [CGFloat] = data.content.inlineWidths
+        for (index, child) in children.enumerated() where isText(child) {
+            let text: TextData = textData(child)
+            guard let fragment: TextFragment = text.fragment,
+                fragment.start >= 0,
+                fragment.start + fragment.count <= items.count
+            else { continue }
+            var width: CGFloat = 0
+            for itemIndex in fragment.start..<(fragment.start + fragment.count) {
+                guard case .text(let item) = items[itemIndex] else { continue }
+                let font: BrowserFont = item.fontOverride ?? item.run.font
+                let measured: CGFloat = item.measuredWidth
+                    ?? font.measure(item.display ?? item.word)
+                width += measured + font.spaceWidth
+            }
+            widths[index] = width
+            var updated: TextData = text
+            updated.metrics.width = width
+            updated.metrics.measured = true
+            setKind(.text(updated), at: child)
+            markField(.font, at: child)
+            markField(.width, at: child)
+        }
+        data.content.inlineWidths = widths
+        setKind(.line(data), at: line)
+    }
+
     /// Places a changed line plan. Lines whose item range is unchanged keep
     /// their existing children; only shifted or re-broken lines are rebuilt.
     mutating private func placeInlineItems(
         _ id: LayoutID,
         plan: [[Int]],
-        oldPlan: [[Int]]
+        oldPlan: [[Int]],
+        refreshMetrics: Bool
     ) {
         let data: BlockData = blockData(id)
         let items: [InlineItem] = data.content.inlineItems
@@ -874,6 +919,9 @@ extension LayoutTree {
         var previous: LayoutID? = nil
         for (index, range) in plan.enumerated() {
             if let line: LayoutID = reusable[index] {
+                if refreshMetrics {
+                    refreshReusedLine(line, items: items)
+                }
                 let previousChanged: Bool = reuseLine(line, previous: previous)
                 setLineChildrenField(
                     childrenIDs(of: line),
@@ -961,7 +1009,10 @@ extension LayoutTree {
         return true
     }
 
-    mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) {
+    /// Returns true when the existing inline item ranges are still valid and
+    /// the old line plan may be reused for placement.
+    @discardableResult
+    mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) -> Bool {
         var data: BlockData = blockData(id)
         if preservingObjects, !data.content.inlineItems.isEmpty {
             let zoom: CGFloat = zoom(id)
@@ -1011,10 +1062,14 @@ extension LayoutTree {
             }
             profiler.count("layout.inline.items.rebuilt", by: items.count)
         }
-        data.content.inlineLinePlan = nil
+        if !preservingObjects || data.content.inlineItems.isEmpty {
+            data.content.inlineLinePlan = nil
+        }
+        let reusablePlan: Bool = preservingObjects && !data.content.inlineItems.isEmpty
         setKind(.block(data), at: id)
         let revision: UInt64 = node(id).state.fields.inlineText.inlineContent + 1
         setInlineContent(revision, for: id)
+        return reusablePlan
     }
 
     private func collectLeaves(_ n: LayoutDOMView, into leaves: inout [LayoutDOMView]) {

@@ -121,10 +121,28 @@ remaining gap is not preview coalescing; it is the main-thread layout itself.
 
 ### Step 2: incremental resize layout
 
-- Skip layout when the effective content width of a subtree did not change.
-- Reuse line plan and placement for unchanged inline contexts.
-- Add a breakpoint path that updates text metrics without rebuilding every item.
-- Target: 100-192 ms -> below 60 ms.
+Status: **partially applied** (2026-11-06).
+
+Applied sub-step: after a font/zoom-only inline refresh, keep the old line plan
+and reuse lines whose item range is unchanged. Reused lines now refresh their
+owned widths and text metrics in place; previously the plan was discarded and
+every line was rebuilt.
+
+Benchmark, release, 1000 paragraphs, resize 1000 <-> 700 across a font breakpoint:
+
+| Build | Layout during resize |
+|---|---:|
+| Before | 77.5 ms |
+| After | **73.4 ms** |
+| Full rebuild | 183.6 ms |
+
+Screenshots are byte-identical to the full rebuild; 247 tests pass. The win is
+5%; the resize target of 60 ms is not met. Remaining on the same frames:
+`layout.visit` 55-64 ms, `inputs.build` 10-17 ms, `inline.refresh` 9-10 ms,
+`inline.place.items` 16-22 ms, sweep 4-12 ms.
+
+Next sub-step: skip block visits whose effective width and inline plan did not
+change, and reduce `layout.visit.children`.
 
 ### Step 3: present budget
 
