@@ -168,15 +168,17 @@ thread. Do not add a width guard without measuring `layout.width.changed`.
 
 ### Step 3: present budget
 
-Status: **partially applied** (2026-11-06).
+Status: **reverted** (2026-11-06).
 
-- Tile size changed from 128 px to 256 px. A 1000 x 700 layer now produces
-  **12 tiles instead of 48**; the regression test asserts at most 24.
-- The rendered screenshot is byte-identical.
-- GUI `view.commit` verification is still required; target below 10 ms.
+Tile size 128 -> 256 reduced the layer count from 48 to 12 for a 1000 x 700
+layer and kept screenshots identical, but the GUI trace got worse: `view.commit`
+rose from p95 6.3 ms / max 44.6 ms to p95 9.9 ms / max 59.3 ms. The larger
+tiles upload more device pixels (up to 12.6 MP from 10.5 MP) because edges are
+rounded to 512-device-pixel tiles. The optimization was reverted and its
+layer-count test removed; layer count was not the limiting metric.
 
-Remaining: bind only layers whose image changed, and stage a new generation
-while the old complete frame stays visible.
+Remaining: bind only pixels that changed, and stage a new generation while the
+old complete frame stays visible. Measure uploaded pixels, not layer count.
 
 ### Step 4: long-term pipeline
 
