@@ -1292,8 +1292,7 @@ class Frame {
         {
             layoutJobKey = nil
             layoutInFlightDirty = false
-            state.layout.tree.isDirty = true
-            requestAnimationFrame()
+            setNeedsLayout()
             return
         }
         layoutJobKey = nil

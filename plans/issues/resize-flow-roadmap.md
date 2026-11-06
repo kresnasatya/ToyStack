@@ -283,6 +283,26 @@ The main thread no longer runs the resize reflow. The remaining wall is the
 present commit on resize: binding the new tile generation still takes tens of
 milliseconds. Next: Step 3, present budget.
 
+### Step 4 follow-up: a stale async result restarts the pass
+
+Status: **applied** (2026-11-06).
+
+Releasing the pointer mid-drag left the final width unlaid out. A tick consumed
+the resize's render request while a job was in flight; when that job finished
+stale, `finishAsyncLayout` only requested an animation frame. The clock ticked
+with `needsRender == false`, so no new pass started and the presenter kept
+showing the fitted previous frame until the pointer moved and
+`setNeedsHoverCheck` revived the tree.
+
+`finishAsyncLayout` now calls `setNeedsLayout()` instead of
+`requestAnimationFrame()`, so the discarded result schedules the render pass the
+clock actually reads. Tests: `AsyncResizeRestartTests` (opt-in with the other
+background suites) fails with `restarted == false` before the change and passes
+after; full default suite 281 tests / 50 suites pass.
+
+Verification: `TOYSTACK_BACKGROUND_LAYOUT_TEST=1 swift test` — 3 tests in the
+two background suites pass.
+
 ## Execution protocol
 
 1. Read the current code and the latest trace before changing anything.
