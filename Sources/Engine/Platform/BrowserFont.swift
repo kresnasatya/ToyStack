@@ -71,6 +71,7 @@ public struct BrowserFont: @unchecked Sendable {
 }
 
 // MARK: - Font Cache
+private let fontCacheLock: NSLock = NSLock()
 nonisolated(unsafe) private var fontCache: [String: BrowserFont] = [:]
 let inlineDefaultFont: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
 
@@ -78,7 +79,12 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
     profiler.count("text.fontRequests")
     return profiler.measure("text.font", {
         let key: String = "\(size)-\(weight)-\(style)-\(family)"
-        if let cached = fontCache[key] { return cached }
+        fontCacheLock.lock()
+        if let cached: BrowserFont = fontCache[key] {
+            fontCacheLock.unlock()
+            return cached
+        }
+        fontCacheLock.unlock()
 
         var traits: CTFontSymbolicTraits = []
         if weight == "bold" { traits.insert(.traitBold) }
@@ -98,7 +104,13 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
         }
 
         let font: BrowserFont = BrowserFont(ctFont: ctFont)
+        fontCacheLock.lock()
+        if let existing: BrowserFont = fontCache[key] {
+            fontCacheLock.unlock()
+            return existing
+        }
         fontCache[key] = font
+        fontCacheLock.unlock()
         return font
     })
 }

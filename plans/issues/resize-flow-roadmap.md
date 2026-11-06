@@ -179,6 +179,10 @@ thread. Do not add a width guard without measuring `layout.width.changed`.
 - Layout work outside the main thread for safe subtrees.
 - A compositor loop that can scroll and resize without the main thread.
 
+Thread-safety prerequisite **applied** (2026-11-06): the global font cache and
+profiler now use locks. The background layout test runs without an environment
+gate and passes in the full parallel suite (250 tests / 43 suites).
+
 ## Execution protocol
 
 1. Read the current code and the latest trace before changing anything.

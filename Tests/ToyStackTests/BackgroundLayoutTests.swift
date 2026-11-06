@@ -16,12 +16,7 @@ private final class BackgroundLayoutTree: @unchecked Sendable {
 @Suite(.serialized)
 @MainActor
 struct BackgroundLayoutTests {
-    @Test(
-        .enabled(
-            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
-        )
-    )
-    func backgroundLayoutMatchesMainThread() async throws {
+    @Test func backgroundLayoutMatchesMainThread() async throws {
         let html: String = (0..<80).map { index in
             "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
         }.joined()

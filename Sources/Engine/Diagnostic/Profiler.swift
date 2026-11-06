@@ -5,8 +5,9 @@ struct ProfileMetric {
     var count: Int = 0
 }
 
-final class Profiler {
-    var enabled: Bool
+final class Profiler: @unchecked Sendable {
+    let enabled: Bool
+    private let lock: NSLock = NSLock()
     private var metrics: [String: ProfileMetric] = [:]
 
     init(enabled: Bool = true) {
@@ -15,15 +16,19 @@ final class Profiler {
 
     func reset() {
         guard enabled else { return }
+        lock.lock()
         metrics.removeAll(keepingCapacity: true)
+        lock.unlock()
     }
 
     func record(_ name: String, nanos: UInt64, count: Int = 1) {
         guard enabled else { return }
+        lock.lock()
         var metric: ProfileMetric = metrics[name] ?? ProfileMetric()
         metric.nanos += nanos
         metric.count += count
         metrics[name] = metric
+        lock.unlock()
     }
 
     @discardableResult
@@ -41,7 +46,9 @@ final class Profiler {
     }
 
     func snapshot() -> [String: ProfileMetric] {
-        metrics
+        lock.lock()
+        defer { lock.unlock() }
+        return metrics
     }
 
     func emitProfile(into measure: MeasureTime?, named event: String) {
