@@ -184,8 +184,22 @@ profiler now use locks. Background layout is integrated behind
 `Browser.usesAsyncLayout`; the GUI enables it. The geometry/integration tests
 are opt-in with `TOYSTACK_BACKGROUND_LAYOUT_TEST=1` because they record into the
 process-wide profiler while other suites assert profiler counts. Full default
-suite: 251 tests / 43 suites. Opt-in suite: 2 background tests pass. GUI trace
-still needed.
+suite: 251 tests / 43 suites. Opt-in suite: 2 background tests pass.
+
+GUI async trace (519 frames, 4 loads, 256 scroll events, resize bursts):
+
+| Measure | Result |
+|---|---|
+| Main `BrowserTab.layout` spans | none; layout is on the worker |
+| `BrowserTab.animFrame` | median 0.68 ms, p95 18.6 ms, max 138.7 ms |
+| Paint | median 3.2 ms, p95 7.0 ms |
+| `view.commit` | median 0.10 ms, p95 6.3 ms, max **44.6 ms** |
+| Resize present commits | many frames at 26-40 ms |
+| Scroll input | median 0.24 ms, p95 0.70 ms |
+
+The main thread no longer runs the resize reflow. The remaining wall is the
+present commit on resize: binding the new tile generation still takes tens of
+milliseconds. Next: Step 3, present budget.
 
 ## Execution protocol
 
