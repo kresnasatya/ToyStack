@@ -56,6 +56,13 @@ extension LayoutTree {
         let oldPrevious: LayoutID? = previousID(of: id)
         var data: LineData = lineData(id)
         data.paint.generation += 1
+        // The block's inline-content revision can advance (font refresh)
+        // while its lines are reused; the boxes stay valid but the revision
+        // they were built for must follow, or `currentInlineBoxes` rejects
+        // them and paint falls back to the absent text children.
+        if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
+            data.paint.boxRevision = revision
+        }
         setKind(.line(data), at: id)
         setPrevious(previous, of: id)
         for field in [LayoutField.width, .y] {
@@ -125,13 +132,17 @@ extension LayoutTree {
 
         let textOnly: Bool = children.allSatisfy({ isText($0) })
         let hasBoxes: Bool = !lineData(id).content.boxes.isEmpty
+        // Only lines backed by text children may take the child fast path.
+        // A value line has no children; it keeps its text in `content.boxes`,
+        // and this path used to rebuild those boxes from the empty child list.
         let verticalOnly: Bool = yWasDirty && !xWasDirty && !zoomWasDirty
             && !childCountChanged && !childWidthChanged && !widthMovesChildren
             && !isDirty(.ascent, at: id)
             && !isDirty(.descent, at: id)
             && !isDirty(.height, at: id)
             && !isDirty(.children, at: id)
-            && textOnly && lineData(id).placement.childOriginY != nil
+            && textOnly && !children.isEmpty
+            && lineData(id).placement.childOriginY != nil
 
         if verticalOnly, let childOriginY: CGFloat = lineData(id).placement.childOriginY {
             profiler.count("layout.line.place.verticalOnly")
@@ -223,6 +234,11 @@ extension LayoutTree {
         guard collectsInlineBoxes else { return }
         guard !lineData(id).content.hasEmbed else { return }
         let children: [LayoutID] = childrenIDs(of: id)
+        // A value line owns its text as boxes and has no text children;
+        // syncing from the child list would erase that text.
+        if children.isEmpty, !lineData(id).content.boxes.isEmpty {
+            return
+        }
         var boxes: [InlineBox] = []
         boxes.reserveCapacity(children.count)
         for child in children where isText(child) {
