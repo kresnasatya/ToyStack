@@ -11,6 +11,8 @@ This is a project to build a toy browser engine with Swift programming language.
 - One concept per file. Name each file after the main type it holds, don't leave a type inside a file named after something else (e.g. `BrowserFont` lives in `BrowserFont.swift`).
 - When a file grows several unrelated types, split each into its own file. A type belongs where its name says its belong, NOT where it happened to be first written.
 - Only small helpers that are truly support one type may share that type's file, grouped under a `// MARK: -` section (e.g. `ScrollbarGeometry` and `scrollbarBarRect` in `Scrollbar.swift`).
+- Use `+=` for counts, indexes, sizes, offsets, and quantities; overflow is a bug and must trap.
+- Use `&+=` only for generation, revision, or sequence tokens where wrapping is accepted and the value is used for equality or difference. Never use `&+=` to hide an overflow bug.
 
 ## Expected Result
 
