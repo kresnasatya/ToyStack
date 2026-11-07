@@ -216,7 +216,11 @@ public class BrowserTab {
             needsAccessibility = false
         }
         if frames.contains(where: { $0.isLayoutInFlight }) {
-            return
+            // A running pass holds paint back, except a pass that only moves
+            // the viewport: the installed tree still matches the document, so
+            // a newly installed tree reaches the screen while the next pass runs.
+            let installedTreesAreCurrent: Bool = !frames.contains(where: { $0.layoutBlocksPaint })
+            guard installedTreesAreCurrent, rootFrame.needsPaint else { return }
         }
         inlineCacheProbe(rootFrame, "tab-before-paint")
         rootFrame.paint()

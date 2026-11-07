@@ -5,18 +5,25 @@ import Testing
 
 @Suite
 struct LayoutJobKeyTests {
-    @Test func widthChangeInvalidatesAnInFlightLayout() {
-        let key: LayoutJobKey = LayoutJobKey(width: 800, zoom: 1)
-        #expect(key.isStale(currentWidth: 400, currentZoom: 1))
+    private static let key: LayoutJobKey = LayoutJobKey(
+        size: CGSize(width: 800, height: 600),
+        zoom: 1
+    )
+
+    @Test func widthChangeMakesAJobStale() {
+        #expect(Self.key.isStale(currentSize: CGSize(width: 400, height: 600), currentZoom: 1))
     }
 
-    @Test func sameViewportStaysValid() {
-        let key: LayoutJobKey = LayoutJobKey(width: 800, zoom: 1)
-        #expect(!key.isStale(currentWidth: 800, currentZoom: 1))
+    /// Height-only resizes during a pass must still be laid out after it.
+    @Test func heightChangeMakesAJobStale() {
+        #expect(Self.key.isStale(currentSize: CGSize(width: 800, height: 500), currentZoom: 1))
     }
 
-    @Test func zoomChangeInvalidatesAnInFlightLayout() {
-        let key: LayoutJobKey = LayoutJobKey(width: 800, zoom: 1)
-        #expect(key.isStale(currentWidth: 800, currentZoom: 2))
+    @Test func zoomChangeMakesAJobStale() {
+        #expect(Self.key.isStale(currentSize: CGSize(width: 800, height: 600), currentZoom: 2))
+    }
+
+    @Test func sameViewportStaysCurrent() {
+        #expect(!Self.key.isStale(currentSize: CGSize(width: 800, height: 600), currentZoom: 1))
     }
 }

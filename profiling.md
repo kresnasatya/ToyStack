@@ -378,6 +378,11 @@ Every `C` event is one sample for one frame.
 layout field, so the animation loop marked the nearest block as a fallback.
 Non-zero is a missing dependency edge and traps in debug builds.
 
+`layout.async.superseded` (`width`): a background layout finished after the
+viewport moved. Its tree is installed and painted as an intermediate layout,
+and the next pass lays out the current viewport. `width` is the CSS width the
+finished pass used. During a drag, expect roughly one sample per pass.
+
 `tiles`: one sample per composite, reset by `TileStore.beginComposite`.
 
 | Arg | Unit | Meaning |

@@ -47,6 +47,8 @@ struct BackgroundLayoutTests {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 var result: LayoutTree = box.tree
+                // A frame's pass applies the pending viewport geometry first.
+                result.markDocumentGeometryDirty()
                 result.layoutDocument(availableWidth: 220, zoom: 1, pageZoom: 1)
                 box.tree = result
                 continuation.resume()

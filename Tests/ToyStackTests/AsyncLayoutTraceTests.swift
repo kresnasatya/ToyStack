@@ -14,7 +14,7 @@ struct AsyncLayoutTraceTests {
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
         )
     )
-    func asyncLayoutAndStaleDiscardAppearInTheTrace() async throws {
+    func asyncLayoutPhasesAppearInTheTrace() async throws {
         let path: String = NSTemporaryDirectory() + "async-layout-trace-\(UUID().uuidString).trace"
         defer { try? FileManager.default.removeItem(atPath: path) }
         let html: String = (0..<40).map { index in
@@ -30,7 +30,7 @@ struct AsyncLayoutTraceTests {
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
         page.frame.clearPaintRequest()
 
-        // Start a pass, then change the width so its result is stale.
+        // Start a pass, then change the width while it runs.
         page.tab.resize(width: 400, height: 600)
         page.frame.runAnimationFrame()
         page.tab.resize(width: 300, height: 600)
@@ -48,7 +48,6 @@ struct AsyncLayoutTraceTests {
         #expect(trace.contains("\"name\": \"layout.async.start.refresh\""))
         #expect(trace.contains("\"name\": \"layout.async.document\""))
         #expect(trace.contains("\"name\": \"layout.async.finish\""))
-        #expect(trace.contains("\"name\": \"layout.async.discarded\""))
     }
 
     @Test(

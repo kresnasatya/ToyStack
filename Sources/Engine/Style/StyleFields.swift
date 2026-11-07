@@ -23,15 +23,6 @@ final class StyleFields {
         return changes
     }
 
-    /// Puts back the changes a background layout took before being discarded.
-    /// A job that never installs must not consume what the next pass needs to
-    /// know: without the change set, a width-only pass recomputes lines from
-    /// the old inline items and keeps their old fonts.
-    func requeueLayoutChanges(_ changes: Set<StyleProperty>) {
-        guard !changes.isEmpty else { return }
-        layoutChanges.formUnion(changes)
-    }
-
     /// True when a queued change can move geometry, not just pixels.
     ///
     /// Paint-only properties (color, opacity, transform, z-index, …) still land

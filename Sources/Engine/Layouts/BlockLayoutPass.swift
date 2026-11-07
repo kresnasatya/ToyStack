@@ -243,8 +243,6 @@ extension LayoutTree {
     }
 
     mutating func layoutBlock(_ id: LayoutID) {
-        // A cancelled pass is discarded whole, so stop at the next block.
-        guard !isCancelled else { return }
         guard blockLayoutNeeded(id) else {
             profiler.count("layout.skipped")
             return

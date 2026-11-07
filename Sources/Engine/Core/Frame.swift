@@ -21,14 +21,18 @@ class Frame {
     private var styleSnapshotRevision: UInt64 = .max
     private var layoutInputsKey: LayoutInputsKey?
     private var layoutInFlight: Bool = false
+    /// Set when the document changes while a background pass runs. A viewport
+    /// change does not set it; the pass's `LayoutJobKey` already records that.
     private var layoutInFlightDirty: Bool = false
-    private var layoutCancellation: LayoutCancellation?
+    /// True when the running pass reused the installed tree's inputs: the
+    /// document has not changed, and the pass only moves the viewport.
+    private var layoutJobMovesViewportOnly: Bool = false
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
-    /// Style changes the in-flight job consumed when it started. Restored if
-    /// the viewport moves on and the completed tree is dropped.
-    private var layoutJobStyleChanges: [NodeID: Set<StyleProperty>] = [:]
-    private var layoutJobSize: CGSize = .zero
+    /// The viewport moved since the last pass started. The next pass marks
+    /// the document geometry dirty on the tree it lays out; the installed tree
+    /// is never marked, so it stays paintable while that pass runs.
+    private var viewportGeometryPending: Bool = false
     private var layoutSize: CGSize = .zero
     private(set) var paintedLayoutSize: CGSize = .zero
 
@@ -87,7 +91,7 @@ class Frame {
         state.layout.viewport.width = width
         state.layout.viewport.height = height
         if oldWidth != width {
-            state.layout.tree.box?.tree.markDocumentWidthDirty()
+            viewportGeometryPending = true
         }
     }
 
@@ -790,8 +794,16 @@ class Frame {
     // MARK: - Render
 
     var isLayoutInFlight: Bool { layoutInFlight }
-    var isLayoutJobCancelled: Bool { layoutCancellation?.isCancelled ?? false }
     var installedLayoutSize: CGSize { layoutSize }
+    var needsPaint: Bool { state.display.paint.isNeeded }
+
+    /// True while a background pass runs for a document that changed since
+    /// the installed tree was built. A pass that only moves the viewport
+    /// leaves the installed tree a valid picture of the document, so the tab
+    /// may keep painting it.
+    var layoutBlocksPaint: Bool {
+        return layoutInFlight && (!layoutJobMovesViewportOnly || layoutInFlightDirty)
+    }
 
     func render() {
         if !state.document.sheets.pending.counters.isEmpty {
@@ -948,7 +960,7 @@ class Frame {
         }
 
         if state.layout.tree.isDirty && !layoutChanged && !viewportStyle
-            && !state.layout.tree.forced,
+            && !state.layout.tree.forced && !viewportGeometryPending,
             state.layout.tree.box?.tree.documentNeedsLayout(counting: false) == false
         {
             // The pass was scheduled by a style change that only touches paint.
@@ -972,7 +984,7 @@ class Frame {
                 stylesDirty: stylesDirty,
                 viewportStyle: viewportStyle,
                 incremental: true
-            )
+            ).inputs
             let box: LayoutBox = profiler.measure("layout.prepare", {
                 let box: LayoutBox
                 if let existing = state.layout.tree.box, existing.tree.dom === dom,
@@ -990,6 +1002,10 @@ class Frame {
                 state.layout.tree.box = box
                 dom.layoutBox = box
                 box.tree.refreshInputs(inputs)
+                if viewportGeometryPending {
+                    box.tree.markDocumentGeometryDirty()
+                    viewportGeometryPending = false
+                }
                 return box
             })
             profiler.measure("layout.document", {
@@ -1244,7 +1260,7 @@ class Frame {
         stylesDirty: Bool,
         viewportStyle: Bool,
         incremental: Bool
-    ) -> LayoutInputs {
+    ) -> (inputs: LayoutInputs, reused: Bool) {
         let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
         let pendingChanges: Bool = !(previousInputs?.styleChanges.isEmpty ?? true)
         let keyChanged: Bool = layoutInputsKey.map({ key in
@@ -1254,9 +1270,8 @@ class Frame {
                 || key.styleRevision != StyleRevision.epoch
         }) ?? true
         var reusable: LayoutInputs?
-        // A discarded background job leaves its changes in the inputs and also
-        // puts them back on the DOM, so the next job can reuse the inputs as
-        // they are. The synchronous path has no such job and stays strict.
+        // Reused inputs carry their pending style changes into the background
+        // job. The synchronous path stays strict.
         let blockedByPending: Bool = pendingChanges && incremental
         if !stylesDirty, !viewportStyle, !blockedByPending, !keyChanged, let previousInputs {
             reusable = previousInputs
@@ -1277,8 +1292,8 @@ class Frame {
             if let reusable {
                 return reusable
             }
-            // A background job may be discarded and its style changes requeued,
-            // so a rebuild there must look at every node, not only the new ones.
+            // The background path rebuilds every input; only the synchronous
+            // path patches the previous ones.
             if !incremental {
                 return LayoutInputsBuilder.build(dom: dom)
             }
@@ -1294,11 +1309,11 @@ class Frame {
             imageRevision: dom.side.images.revision,
             styleRevision: StyleRevision.epoch
         )
-        return inputs
+        return (inputs, reusable != nil)
     }
 
-    /// Runs the layout pass on a background worker. The main thread keeps the
-    /// previous tree for previews; the completed tree is installed atomically.
+    /// Runs the layout pass on a background worker. The installed tree stays
+    /// untouched for paint and hit testing; the completed tree replaces it.
     private func startAsyncLayout(stylesDirty: Bool, viewportStyle: Bool) {
         browser?.measure.start("layout.async.start")
         defer { browser?.measure.stop("layout.async.start") }
@@ -1308,39 +1323,46 @@ class Frame {
         layoutInFlightDirty = false
 
         browser?.measure.start("layout.async.start.inputs")
-        let inputs: LayoutInputs = resolveLayoutInputs(
+        let resolved: (inputs: LayoutInputs, reused: Bool) = resolveLayoutInputs(
             stylesDirty: stylesDirty,
             viewportStyle: viewportStyle,
             incremental: false
         )
         browser?.measure.stop("layout.async.start.inputs")
-        layoutJobStyleChanges = inputs.styleChanges
+        layoutJobMovesViewportOnly = resolved.reused
         browser?.measure.start("layout.async.start.tree")
         let box: LayoutBox
         if let existing: LayoutBox = state.layout.tree.box, existing.tree.dom === dom {
             box = existing
         } else {
-            box = LayoutBox(LayoutTree(dom: dom, root: dom.root, inputs: inputs))
+            box = LayoutBox(LayoutTree(dom: dom, root: dom.root, inputs: resolved.inputs))
             state.layout.targets.isValid = false
         }
         state.layout.tree.box = box
         dom.layoutBox = box
         browser?.measure.stop("layout.async.start.tree")
         browser?.measure.start("layout.async.start.refresh")
-        box.tree.refreshInputs(inputs)
+        // The job gets its own copy. Only the inputs are replaced here; the
+        // node storage stays shared until the worker writes to it, so the
+        // geometry mark is applied there and the main thread copies nothing.
+        var tree: LayoutTree = box.tree
+        tree.refreshInputs(resolved.inputs)
+        let marksGeometry: Bool = viewportGeometryPending
+        viewportGeometryPending = false
         browser?.measure.stop("layout.async.start.refresh")
 
-        let cancellation: LayoutCancellation = LayoutCancellation()
-        layoutCancellation = cancellation
-        box.tree.setCancellation(cancellation)
-        let tree: LayoutTree = box.tree
         let width: CGFloat = frameWidth
         let pageZoom: CGFloat = self.pageZoom
-        layoutJobKey = LayoutJobKey(width: width, zoom: pageZoom)
-        layoutJobSize = CGSize(width: width, height: frameHeight)
+        layoutJobKey = LayoutJobKey(
+            size: CGSize(width: width, height: frameHeight),
+            zoom: pageZoom
+        )
         let measure: MeasureTime? = browser?.measure
-        Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID, measure] in
+        Task.detached(priority: .userInitiated) { [tree, marksGeometry, width, pageZoom, jobID, measure] in
             var tree: LayoutTree = tree
+            if marksGeometry {
+                tree.markDocumentGeometryDirty()
+            }
             measure?.start("layout.async.document")
             tree.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
             let effects: [LayoutEffect] = tree.takeEffects()
@@ -1358,6 +1380,10 @@ class Frame {
         }
     }
 
+    /// Installs a finished pass. A pass that started before the viewport moved
+    /// is still a complete layout for the viewport it started with. Installing
+    /// it keeps a drag showing new layouts; the current viewport is laid out
+    /// next.
     private func finishAsyncLayout(
         _ tree: LayoutTree,
         effects: [LayoutEffect],
@@ -1368,29 +1394,20 @@ class Frame {
         browser?.measure.start("layout.async.finish")
         defer { browser?.measure.stop("layout.async.finish") }
         layoutInFlight = false
-        // A cancelled pass stopped early, so its tree is incomplete even if
-        // the width has since returned to the one it started with.
-        let wasCancelled: Bool = layoutCancellation?.isCancelled ?? false
-        layoutCancellation = nil
-        state.layout.tree.box?.tree.setCancellation(nil)
-        if wasCancelled
-            || layoutJobKey?.isStale(currentWidth: frameWidth, currentZoom: pageZoom) == true
-        {
-            browser?.measure.counter("layout.async.discarded", ["width": Int(layoutJobKey?.width ?? 0), "cancelled": wasCancelled ? 1 : 0])
-            layoutJobKey = nil
-            layoutInFlightDirty = false
-            requeueLayoutJobStyleChanges()
-            setNeedsLayout()
-            return
-        }
+        let job: LayoutJobKey? = layoutJobKey
         layoutJobKey = nil
-        layoutJobStyleChanges.removeAll(keepingCapacity: true)
-        guard let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
+        guard let job, let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
             return
         }
-        layoutSize = layoutJobSize
+        let viewportMoved: Bool = job.isStale(
+            currentSize: CGSize(width: frameWidth, height: frameHeight),
+            currentZoom: pageZoom
+        )
+        layoutSize = job.size
         box.tree = tree
-        box.tree.setCancellation(nil)
+        if viewportMoved {
+            browser?.measure.counter("layout.async.superseded", ["width": Int(job.size.width)])
+        }
         if !effects.isEmpty {
             applyLayoutEffects(effects)
         }
@@ -1406,24 +1423,15 @@ class Frame {
         state.layout.targets.needsRebuild = false
         tab?.needsAccessibility = true
 
-        let changedAgain: Bool = layoutInFlightDirty
+        let needsRelayout: Bool = layoutInFlightDirty || viewportMoved
         layoutInFlightDirty = false
-        state.layout.tree.isDirty = changedAgain
-        state.layout.tree.forced = changedAgain
+        state.layout.tree.isDirty = needsRelayout
+        state.layout.tree.forced = needsRelayout
+        if needsRelayout {
+            state.runtime.schedule.needsRender = true
+        }
         state.display.paint.isNeeded = true
         requestAnimationFrame()
-    }
-
-    /// A discarded job already took its style changes out of the DOM. Put them
-    /// back so the next job marks `.font` / `.inlineContent` and refreshes the
-    /// inline items instead of reusing the previous font.
-    private func requeueLayoutJobStyleChanges() {
-        guard !layoutJobStyleChanges.isEmpty else { return }
-        for (id, changes) in layoutJobStyleChanges {
-            guard dom.node(id) != nil else { continue }
-            dom.ref(id).style.requeueLayoutChanges(changes)
-        }
-        layoutJobStyleChanges.removeAll(keepingCapacity: true)
     }
 
     func makeSnapshot() -> FrameSnapshot {
@@ -2031,15 +2039,6 @@ class Frame {
         requestAnimationFrame()
     }
 
-    /// A running pass for an old width or zoom can only produce a result that
-    /// gets thrown away. Tell it to stop.
-    private func cancelLayoutJobIfStale() {
-        guard layoutInFlight, let key: LayoutJobKey = layoutJobKey,
-            key.isStale(currentWidth: frameWidth, currentZoom: pageZoom)
-        else { return }
-        layoutCancellation?.cancel()
-    }
-
     private func markDocumentDirty() {
         if layoutInFlight { layoutInFlightDirty = true }
         state.layout.tree.isDirty = true
@@ -2130,11 +2129,15 @@ class Frame {
     }
 
     func setNeedsViewportResize() {
-        cancelLayoutJobIfStale()
-        state.layout.tree.box?.tree.markDocumentGeometryDirty()
-        if !state.document.sheets.index.media.matches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
+        let mediaFlipped: Bool = !state.document.sheets.index.media.matches.isEmpty
+            && !flippedMediaQueries(currentMedia()).isEmpty
+        // A running pass finishes at the viewport it started with. Its install
+        // sees the moved viewport and schedules the next pass, which picks up
+        // the pending geometry.
+        viewportGeometryPending = true
+        if mediaFlipped {
             invalidateStyle(fromViewport: true)
-        } else {
+        } else if !layoutInFlight {
             setNeedsLayout()
         }
     }
@@ -2173,7 +2176,7 @@ class Frame {
     func setPageZoom(_ newZoom: CGFloat) {
         guard newZoom > 0, abs(newZoom - pageZoom) > 0.001 else { return }
         pageZoom = newZoom
-        state.layout.tree.box?.tree.markDocumentGeometryDirty()
+        viewportGeometryPending = true
         if parentFrame == nil, let tab {
             setViewport(
                 width: tab.tabWidth / newZoom,

@@ -303,6 +303,75 @@ after; full default suite 281 tests / 50 suites pass.
 Verification: `TOYSTACK_BACKGROUND_LAYOUT_TEST=1 swift test` — 3 tests in the
 two background suites pass.
 
+### Step 5: a resize never throws away a finished layout
+
+Status: **applied** (2026-11-08).
+
+Problem: every resize event cancelled the running background pass. Events
+arrive every 16.7 ms and a heavy page needs 45–65 ms, so passes almost never
+finished. GUI trace: 963 of 1013 passes discarded (95%), 0–2 new layouts per
+drag, the old picture stayed on screen for up to 1.74 s
+(`plans/issues/resize-smoothness-audit.md`).
+
+Change:
+
+- `LayoutCancellation` is removed. A pass started for an older viewport runs to
+  the end; `finishAsyncLayout` installs it as an intermediate layout, counts
+  `layout.async.superseded`, and schedules a pass for the current viewport.
+- `LayoutJobKey` holds the job's size (width and height) and zoom, so a
+  height-only resize during a pass is also laid out afterwards.
+- The installed tree is never marked while a pass runs. Viewport changes set
+  `Frame.viewportGeometryPending`; the next pass marks the document geometry
+  on its own copy (on the worker, so the main thread copies no node storage).
+- `BrowserTab.runAnimationFrame` paints a newly installed tree while the next
+  pass runs, if that pass only moves the viewport (`Frame.layoutBlocksPaint`:
+  inputs reused and no document change since). Any document change still holds
+  paint back until the pass finishes.
+- Removed with the discard path: style-change requeue
+  (`StyleFields.requeueLayoutChanges`) and `LayoutTree.markDocumentWidthDirty`.
+
+Tests (`AsyncResizeRestartTests`): the pass for 400 is installed after a resize
+to 300 and is followed by a pass for 300; a pass back at its starting width
+needs no follow-up; the tab paints the 400 layout while the 300 pass runs; a
+document change during a pass still holds paint back. The first three failed
+before the change. `LayoutJobKeyTests` covers the height boundary.
+
+Smoke (throwaway harness, debug build, 1500 paragraphs, 90 resizes 16.7 ms
+apart, tab tick driven):
+
+| Build | New layouts painted during drag | Longest without a new paint |
+|---|---:|---:|
+| Before | 0 | 1772 ms (whole drag) |
+| After | 41 | 186 ms |
+
+In that debug harness each intermediate paint costs about 86 ms on the main
+thread.
+
+GUI trace after the change (`browser.trace`, 45 drags, 27.3 s of dragging,
+1326 resize events):
+
+| Measure | Before (2026-11-07) | After |
+|---|---:|---:|
+| Passes thrown away | 963 of 1013 | 0 |
+| Passes installed as intermediate layouts | 0 | 425 of 506 |
+| New layouts painted during drags | 0–2 per drag | 407 (14.9 per second) |
+| Resize event → its layout painted | — | median 86 ms, p95 126 ms, max 195 ms |
+| Longest stretch without a new paint, per drag | up to 1.74 s | median 94 ms, max 320 ms (includes pointer pauses) |
+| Final width painted after release | 39–84 ms | median 29 ms, max 70 ms |
+| Paint per intermediate layout (main) | — | median 7.7 ms, p95 9.1 ms |
+
+Event → painted latency splits into: waiting for the running pass to finish
+(median 24 ms), the pass itself (median 42.5 ms), and finish → paint (median
+15.6 ms; the install waits for the next 60 Hz timer tick, then paints).
+Remaining walls: layout cost (Step 2b), the timer-tick wait after an install,
+and breakpoint style on the main thread (21–38 ms in drags).
+
+Verification: `swift test` (297 tests) and
+`TOYSTACK_BACKGROUND_LAYOUT_TEST=1 swift test --no-parallel` (297 tests). The
+background suites need `--no-parallel`: whether a pass may paint depends on
+reused inputs, which are keyed on the process-wide `StyleRevision.epoch`, and
+parallel suites bump it.
+
 ## Execution protocol
 
 1. Read the current code and the latest trace before changing anything.

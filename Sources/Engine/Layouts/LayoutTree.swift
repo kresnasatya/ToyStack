@@ -61,14 +61,6 @@ struct LayoutTree: @unchecked Sendable {
         storageEffects.append(effect)
     }
 
-    mutating func setCancellation(_ token: LayoutCancellation?) {
-        source.cancellation = token
-    }
-
-    var isCancelled: Bool {
-        return source.cancellation?.isCancelled ?? false
-    }
-
     mutating func takeEffects() -> [LayoutEffect] {
         let effects: [LayoutEffect] = storageEffects
         storageEffects.removeAll(keepingCapacity: true)
@@ -150,10 +142,6 @@ struct LayoutTree: @unchecked Sendable {
 
     var rootID: LayoutID {
         return LayoutID(raw: 0)
-    }
-
-    mutating func markDocumentWidthDirty() {
-        markField(.width, at: rootID)
     }
 
     mutating func markDocumentGeometryDirty() {
@@ -1110,5 +1098,4 @@ struct LayoutTreeSource {
     var inputs: LayoutInputs
     let dom: DOMTree
     var effects: [LayoutEffect] = []
-    var cancellation: LayoutCancellation?
 }
