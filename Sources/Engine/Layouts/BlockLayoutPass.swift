@@ -123,14 +123,26 @@ extension LayoutTree {
 
     // MARK: - Line plan
 
-    mutating private func inlineTextLinePlan(_ id: LayoutID) -> [[Int]]? {
+    /// Returns where the block's inline items break at its current width. A
+    /// stored plan is reused while the width stays inside the range that gives
+    /// exactly the same breaks (`InlineLinePlan.fits`).
+    mutating private func inlineTextLinePlan(_ id: LayoutID) -> InlineLinePlan? {
+        let availableWidth: CGFloat = width(id)
+        if let stored: InlineLinePlan = self[block: id].content.inlineLinePlan,
+            stored.fits?.contains(availableWidth) == true
+        {
+            return stored
+        }
+        profiler.count("layout.inline.plan.computed")
         let items: [InlineItem] = self[block: id].content.inlineItems
         var plan: [[Int]] = []
         var current: [Int] = []
         var cursorX: CGFloat = 0
-        let availableWidth: CGFloat = width(id)
         var updated: [InlineItem] = items
         var measuredNewWord: Bool = false
+        // Ends of wrapping items that stayed on their line, and that broke.
+        var widestKept: CGFloat = 0
+        var narrowestBreak: CGFloat = .infinity
 
         for index in updated.indices {
             switch updated[index] {
@@ -153,10 +165,16 @@ extension LayoutTree {
                     measuredNewWord = true
                 }
                 let width: CGFloat = wordWidth + font.spaceWidth
-                if cursorX + width > availableWidth && text.run.whiteSpace.wraps {
-                    plan.append(current)
-                    current = []
-                    cursorX = 0
+                if text.run.whiteSpace.wraps {
+                    let end: CGFloat = cursorX + width
+                    if end > availableWidth {
+                        narrowestBreak = min(narrowestBreak, end)
+                        plan.append(current)
+                        current = []
+                        cursorX = 0
+                    } else {
+                        widestKept = max(widestKept, end)
+                    }
                 }
                 current.append(index)
                 cursorX += width
@@ -167,7 +185,7 @@ extension LayoutTree {
             self[block: id].content.inlineItems = updated
         }
         plan.append(current)
-        return plan
+        return InlineLinePlan(lines: plan, fits: widestKept..<narrowestBreak)
     }
 
     mutating private func setHeightInputs(_ id: LayoutID) {
@@ -373,13 +391,13 @@ extension LayoutTree {
                         preservedItems = refreshInlineItems(id, preservingObjects: preserveObjects)
                     })
                 }
-                let oldPlan: [[Int]]? = self[block: id].content.inlineLinePlan
-                let plan: [[Int]]? = profiler.measure("layout.inline.plan", {
+                let oldPlan: InlineLinePlan? = self[block: id].content.inlineLinePlan
+                let plan: InlineLinePlan? = profiler.measure("layout.inline.plan", {
                     inlineTextLinePlan(id)
                 })
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
-                    || plan != oldPlan
+                    || plan?.lines != oldPlan?.lines
                 let canReusePlan: Bool = !inlineContentChanged || preservedItems
                 if !shouldPlace, widthChanged, !frameMoved,
                     !isDirty(.height, at: id),
@@ -393,8 +411,8 @@ extension LayoutTree {
                         profiler.measure("layout.inline.place", {
                             placeInlineItems(
                                 id,
-                                plan: plan,
-                                oldPlan: oldPlan,
+                                plan: plan.lines,
+                                oldPlan: oldPlan.lines,
                                 refreshMetrics: preservedItems
                             )
                         })
@@ -1060,6 +1078,9 @@ extension LayoutTree {
         }
         if !preservingObjects || data.content.inlineItems.isEmpty {
             data.content.inlineLinePlan = nil
+        } else {
+            // The items changed size. Keep the old breaks for line reuse only.
+            data.content.inlineLinePlan?.fits = nil
         }
         let reusablePlan: Bool = preservingObjects && !data.content.inlineItems.isEmpty
         self[block: id] = data

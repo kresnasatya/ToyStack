@@ -302,6 +302,7 @@ a test that runs the style phase without `render()`.
 | `layout.height` | duration | height accumulation |
 | `layout.mode` | duration | `layoutMode()` |
 | `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
+| `layout.inline.plan.computed` | count | inline blocks whose line breaks were computed from their items |
 | `layout.line.place` | duration | line layout |
 | `layout.line.place.placed` | count | lines placed in full (text children positioned) |
 | `layout.line.place.verticalOnly` | count | lines that only moved vertically; children keep their positions |

@@ -390,6 +390,72 @@ struct ViewportResizeTests {
         #expect((resized["layout.block.style.cache.hit"]?.count ?? 0) > 0)
         expectIncrementalMatchesFull(page)
     }
+
+    /// A narrower window that still fits every line, and does not let a word
+    /// move up a line, keeps the same breaks. The block must not recompute them.
+    @Test func widthChangeThatKeepsEveryBreakReusesTheLinePlan() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">one two three<br>four five</p>"#,
+            rules: """
+                body { display: block; font-size: 20px; }
+                p { display: block; }
+                """
+        )
+
+        page.frame.setViewport(width: 790, height: page.frame.frameHeight)
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let metrics: [String: ProfileMetric] = profiler.snapshot()
+        #expect((metrics["layout.inline.plan.computed"]?.count ?? 0) == 0)
+        expectIncrementalMatchesFull(page)
+    }
+
+    /// Reusing a line plan is only correct inside the exact range of widths
+    /// that produce it. Sweep across many break points in both directions,
+    /// through a breakpoint that changes the font, and compare each step with
+    /// a layout built from nothing.
+    @Test func widthSweepKeepsLineBreaksIdenticalToAFullLayout() throws {
+        let html: String = #"""
+            <p>ab abcdefgh abc abcdefghijkl a abcde abcdefghi abcd abcdefg abcdefghijklmnop ab abc wxyz</p>
+            """#
+        let rules: String = """
+            body { display: block; font-size: 20px; }
+            p { display: block; }
+            @media (max-width: 330px) { p { font-size: 16px; } }
+            """
+        let page: LayoutTestPage = LayoutTestPage(html: html, rules: rules)
+        let control: LayoutTestPage = LayoutTestPage(html: html, rules: rules)
+        let widths: [Int] = Array(stride(from: 420, through: 240, by: -3))
+            + Array(stride(from: 241, through: 421, by: 4))
+
+        var recomputed: Int = 0
+        var reused: Int = 0
+        for width in widths {
+            for target in [page, control] {
+                target.frame.setViewport(width: CGFloat(width), height: target.frame.frameHeight)
+                target.frame.setNeedsViewportResize()
+            }
+            profiler.reset()
+            page.frame.render()
+            if (profiler.snapshot()["layout.inline.plan.computed"]?.count ?? 0) > 0 {
+                recomputed += 1
+            } else {
+                reused += 1
+            }
+            control.frame.setLayoutTree(nil)
+            control.frame.setNeedsLayout()
+            control.frame.render()
+            let incremental: String = renderSignature(page.frame)
+            let full: String = renderSignature(control.frame)
+            #expect(incremental == full, "line breaks diverged at width \(width)")
+        }
+        // The sweep only guards the cache if it crossed breaks and also
+        // stayed inside ranges.
+        #expect(recomputed > 0)
+        #expect(reused > 0)
+    }
 }
 
 private func makeTestImage(width: Int, height: Int) -> CGImage {

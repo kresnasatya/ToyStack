@@ -155,6 +155,44 @@ tetap satu baris. Kalau lebar baru masih di dalam rentang, lewati perhitungan.
 - **Risiko:** rentang yang salah membuat baris tidak pecah ulang. Butuh tes di
   batas rentang (tepat muat, kurang 1 px).
 
+#### Hasil (diterapkan 2026-11-08)
+
+`BlockContent.inlineLinePlan` sekarang `InlineLinePlan`
+(`Sources/Engine/Layouts/InlineLinePlan.swift`): baris-barisnya plus `fits`,
+rentang lebar yang menghasilkan pemecahan yang persis sama. Rentangnya diambil
+dari keputusan yang sudah dibuat algoritma: batas bawah adalah ujung terjauh
+kata yang tetap di barisnya, batas atas adalah ujung terdekat kata yang
+pindah baris. Selama semua perbandingan `cursorX + width > lebar` berjawaban
+sama, setiap `cursorX` juga sama, jadi hasilnya identik dengan menghitung
+ulang. `refreshInlineItems` mengosongkan `fits` bila lebar kata berubah (font
+berganti); rencana lamanya tetap disimpan hanya untuk memakai ulang baris.
+
+Tes:
+
+- `ViewportResizeTests.widthChangeThatKeepsEveryBreakReusesTheLinePlan`: gagal
+  sebelum perubahan (`layout.inline.plan.computed` = 1), lulus sesudahnya (0).
+- `ViewportResizeTests.widthSweepKeepsLineBreaksIdenticalToAFullLayout`: lebar
+  420 → 240 per 3 px lalu 241 → 421 per 4 px, melewati breakpoint yang
+  mengganti font. Setiap langkah dibandingkan dengan layout dari nol, dan tes
+  mensyaratkan ada langkah yang menghitung ulang dan ada yang memakai ulang.
+
+`embeds.html`, drag 1000 → 644, tiga kali jalan, dibanding commit langkah 1:
+
+| Jalur | Sebelum | Sesudah |
+|---|---:|---:|
+| Main thread, `--no-profile` | 9,7–9,8 ms | **8,3–8,6 ms** |
+| `layout.document` dengan profiler | 12,7–12,8 ms | 11,6–12,0 ms |
+| Thread latar | 17,5 ms | **16,6–16,7 ms** |
+| `layout.inline.plan` per layout | 1,71 ms | 0,33 ms |
+
+Rencana yang dihitung per layout: 41 dari 1407 block inline (yang barisnya
+memang berubah). Screenshot `embeds.html` identik byte demi byte (lebar 640,
+lebar 1000 setelah scroll 3000 px, dan akhir drag).
+
+Catatan: di halaman ini layout di thread latar ±5 ms lebih lama dari layout
+yang sama di main thread dengan profiler (16,7 vs 11,6–12,0 ms). Penyebabnya
+belum diukur.
+
 ### Opsi C — simpan posisi relatif terhadap induk
 
 Saat ini posisi disimpan mutlak. Kalau sebuah block bergeser,

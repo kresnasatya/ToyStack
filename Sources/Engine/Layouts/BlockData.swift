@@ -23,7 +23,7 @@ struct BlockContent {
     var extraNodes: [NodeID]
     var inlineItems: [InlineItem]
     var inlineObjects: [Int: LayoutID]
-    var inlineLinePlan: [[Int]]?
+    var inlineLinePlan: InlineLinePlan?
 
     init() {
         self.extraNodes = []
