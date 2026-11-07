@@ -1243,19 +1243,29 @@ class Frame {
         incremental: Bool
     ) -> LayoutInputs {
         let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
+        let pendingChanges: Bool = !(previousInputs?.styleChanges.isEmpty ?? true)
+        let keyChanged: Bool = layoutInputsKey.map({ key in
+            key.dom != ObjectIdentifier(dom)
+                || key.domRevision != dom.revision
+                || key.imageRevision != dom.side.images.revision
+                || key.styleRevision != StyleRevision.epoch
+        }) ?? true
         var reusable: LayoutInputs?
-        if !stylesDirty, !viewportStyle,
-            let previousInputs,
-            previousInputs.styleChanges.isEmpty,
-            let key: LayoutInputsKey = layoutInputsKey,
-            key.dom == ObjectIdentifier(dom),
-            key.domRevision == dom.revision,
-            key.imageRevision == dom.side.images.revision,
-            key.styleRevision == StyleRevision.epoch
-        {
+        if !stylesDirty, !viewportStyle, !pendingChanges, !keyChanged, let previousInputs {
             reusable = previousInputs
             profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
         }
+        // One event per job says why the inputs were rebuilt, if they were.
+        browser?.measure.counter(
+            "layout.inputs.decision",
+            [
+                "reused": reusable == nil ? 0 : 1,
+                "stylesDirty": stylesDirty ? 1 : 0,
+                "viewportStyle": viewportStyle ? 1 : 0,
+                "pendingChanges": pendingChanges ? 1 : 0,
+                "keyChanged": keyChanged ? 1 : 0,
+            ]
+        )
         let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
             if let reusable {
                 return reusable
