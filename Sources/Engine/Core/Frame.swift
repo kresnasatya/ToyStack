@@ -22,6 +22,7 @@ class Frame {
     private var layoutInputsKey: LayoutInputsKey?
     private var layoutInFlight: Bool = false
     private var layoutInFlightDirty: Bool = false
+    private var layoutCancellation: LayoutCancellation?
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
     /// Style changes the in-flight job consumed when it started. Restored if
@@ -789,6 +790,8 @@ class Frame {
     // MARK: - Render
 
     var isLayoutInFlight: Bool { layoutInFlight }
+    var isLayoutJobCancelled: Bool { layoutCancellation?.isCancelled ?? false }
+    var installedLayoutSize: CGSize { layoutSize }
 
     func render() {
         if !state.document.sheets.pending.counters.isEmpty {
@@ -1288,6 +1291,9 @@ class Frame {
         box.tree.refreshInputs(inputs)
         browser?.measure.stop("layout.async.start.refresh")
 
+        let cancellation: LayoutCancellation = LayoutCancellation()
+        layoutCancellation = cancellation
+        box.tree.setCancellation(cancellation)
         let tree: LayoutTree = box.tree
         let width: CGFloat = frameWidth
         let pageZoom: CGFloat = self.pageZoom
@@ -1323,10 +1329,15 @@ class Frame {
         browser?.measure.start("layout.async.finish")
         defer { browser?.measure.stop("layout.async.finish") }
         layoutInFlight = false
-        if let key: LayoutJobKey = layoutJobKey,
-            key.isStale(currentWidth: frameWidth, currentZoom: pageZoom)
+        // A cancelled pass stopped early, so its tree is incomplete even if
+        // the width has since returned to the one it started with.
+        let wasCancelled: Bool = layoutCancellation?.isCancelled ?? false
+        layoutCancellation = nil
+        state.layout.tree.box?.tree.setCancellation(nil)
+        if wasCancelled
+            || layoutJobKey?.isStale(currentWidth: frameWidth, currentZoom: pageZoom) == true
         {
-            browser?.measure.counter("layout.async.discarded", ["width": Int(key.width)])
+            browser?.measure.counter("layout.async.discarded", ["width": Int(layoutJobKey?.width ?? 0), "cancelled": wasCancelled ? 1 : 0])
             layoutJobKey = nil
             layoutInFlightDirty = false
             requeueLayoutJobStyleChanges()
@@ -1340,6 +1351,7 @@ class Frame {
         }
         layoutSize = layoutJobSize
         box.tree = tree
+        box.tree.setCancellation(nil)
         if !effects.isEmpty {
             applyLayoutEffects(effects)
         }
@@ -1980,6 +1992,15 @@ class Frame {
         requestAnimationFrame()
     }
 
+    /// A running pass for an old width or zoom can only produce a result that
+    /// gets thrown away. Tell it to stop.
+    private func cancelLayoutJobIfStale() {
+        guard layoutInFlight, let key: LayoutJobKey = layoutJobKey,
+            key.isStale(currentWidth: frameWidth, currentZoom: pageZoom)
+        else { return }
+        layoutCancellation?.cancel()
+    }
+
     private func markDocumentDirty() {
         if layoutInFlight { layoutInFlightDirty = true }
         state.layout.tree.isDirty = true
@@ -2070,6 +2091,7 @@ class Frame {
     }
 
     func setNeedsViewportResize() {
+        cancelLayoutJobIfStale()
         state.layout.tree.box?.tree.markDocumentGeometryDirty()
         if !state.document.sheets.index.media.matches.isEmpty, !flippedMediaQueries(currentMedia()).isEmpty {
             invalidateStyle(fromViewport: true)
