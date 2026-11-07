@@ -1251,7 +1251,11 @@ class Frame {
                 || key.styleRevision != StyleRevision.epoch
         }) ?? true
         var reusable: LayoutInputs?
-        if !stylesDirty, !viewportStyle, !pendingChanges, !keyChanged, let previousInputs {
+        // A discarded background job leaves its changes in the inputs and also
+        // puts them back on the DOM, so the next job can reuse the inputs as
+        // they are. The synchronous path has no such job and stays strict.
+        let blockedByPending: Bool = pendingChanges && incremental
+        if !stylesDirty, !viewportStyle, !blockedByPending, !keyChanged, let previousInputs {
             reusable = previousInputs
             profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
         }
