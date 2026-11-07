@@ -101,4 +101,41 @@ struct AsyncResizeRestartTests {
         #expect(asyncOn)
         #expect(restarted)
     }
+
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func widthOnlyResizeReusesLayoutInputsInTheAsyncPath() async throws {
+        let html: String = (0..<40).map { index in
+            "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
+        }.joined()
+        let page: LayoutTestPage = LayoutTestPage(
+            html: html,
+            rules: "body { display: block; } p { display: block; }"
+        )
+        let browser: Browser = Browser()
+        browser.usesAsyncLayout = true
+        page.tab.browser = browser
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
+        page.frame.clearPaintRequest()
+
+        // The first pass builds the inputs and installs them.
+        page.tab.resize(width: 400, height: 600)
+        page.frame.runAnimationFrame()
+        let deadline: Date = Date().addingTimeInterval(5)
+        while page.frame.isLayoutInFlight, Date() < deadline {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        // Nothing but the width changed, so the next pass has nothing to rebuild.
+        page.tab.resize(width: 300, height: 600)
+        profiler.reset()
+        page.frame.runAnimationFrame()
+        let reused: Int = profiler.snapshot()["layout.inputs.reused"]?.count ?? 0
+        let asyncOn: Bool = browser.usesAsyncLayout
+        #expect(asyncOn)
+        #expect(reused > 0, "the async pass rebuilt every layout input for a width change")
+    }
 }

@@ -955,7 +955,7 @@ class Frame {
 
         if state.layout.tree.isDirty, browser?.usesAsyncLayout == true {
             if !layoutInFlight {
-                startAsyncLayout()
+                startAsyncLayout(stylesDirty: stylesDirty, viewportStyle: viewportStyle)
             }
             return
         }
@@ -965,37 +965,10 @@ class Frame {
             profiler.reset()
             defer { profiler.emitProfile(into: browser?.measure, named: "profile.layout") }
             defer { browser?.measure.stop("BrowserTab.layout") }
-            let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
-            let canReuseInputs: Bool
-            if !stylesDirty, !viewportStyle,
-                let previousInputs,
-                previousInputs.styleChanges.isEmpty,
-                let key: LayoutInputsKey = layoutInputsKey,
-                key.dom == ObjectIdentifier(dom),
-                key.domRevision == dom.revision,
-                key.imageRevision == dom.side.images.revision,
-                key.styleRevision == StyleRevision.epoch
-            {
-                canReuseInputs = true
-                profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
-            } else {
-                canReuseInputs = false
-            }
-            let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
-                if canReuseInputs, let previousInputs {
-                    return previousInputs
-                }
-                return LayoutInputsBuilder.build(
-                    dom: dom,
-                    previous: previousInputs,
-                    key: layoutInputsKey
-                )
-            })
-            layoutInputsKey = LayoutInputsKey(
-                dom: ObjectIdentifier(dom),
-                domRevision: dom.revision,
-                imageRevision: dom.side.images.revision,
-                styleRevision: StyleRevision.epoch
+            let inputs: LayoutInputs = resolveLayoutInputs(
+                stylesDirty: stylesDirty,
+                viewportStyle: viewportStyle,
+                incremental: true
             )
             let box: LayoutBox = profiler.measure("layout.prepare", {
                 let box: LayoutBox
@@ -1262,9 +1235,54 @@ class Frame {
         }
     }
 
+    /// Returns the inputs for the next layout pass. When nothing but the width
+    /// changed, the previous inputs are still correct, so they are reused.
+    private func resolveLayoutInputs(
+        stylesDirty: Bool,
+        viewportStyle: Bool,
+        incremental: Bool
+    ) -> LayoutInputs {
+        let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
+        var reusable: LayoutInputs?
+        if !stylesDirty, !viewportStyle,
+            let previousInputs,
+            previousInputs.styleChanges.isEmpty,
+            let key: LayoutInputsKey = layoutInputsKey,
+            key.dom == ObjectIdentifier(dom),
+            key.domRevision == dom.revision,
+            key.imageRevision == dom.side.images.revision,
+            key.styleRevision == StyleRevision.epoch
+        {
+            reusable = previousInputs
+            profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
+        }
+        let inputs: LayoutInputs = profiler.measure("layout.inputs.build", {
+            if let reusable {
+                return reusable
+            }
+            // A background job may be discarded and its style changes requeued,
+            // so a rebuild there must look at every node, not only the new ones.
+            if !incremental {
+                return LayoutInputsBuilder.build(dom: dom)
+            }
+            return LayoutInputsBuilder.build(
+                dom: dom,
+                previous: previousInputs,
+                key: layoutInputsKey
+            )
+        })
+        layoutInputsKey = LayoutInputsKey(
+            dom: ObjectIdentifier(dom),
+            domRevision: dom.revision,
+            imageRevision: dom.side.images.revision,
+            styleRevision: StyleRevision.epoch
+        )
+        return inputs
+    }
+
     /// Runs the layout pass on a background worker. The main thread keeps the
     /// previous tree for previews; the completed tree is installed atomically.
-    private func startAsyncLayout() {
+    private func startAsyncLayout(stylesDirty: Bool, viewportStyle: Bool) {
         browser?.measure.start("layout.async.start")
         defer { browser?.measure.stop("layout.async.start") }
         layoutJobID &+= 1
@@ -1273,7 +1291,11 @@ class Frame {
         layoutInFlightDirty = false
 
         browser?.measure.start("layout.async.start.inputs")
-        let inputs: LayoutInputs = LayoutInputsBuilder.build(dom: dom)
+        let inputs: LayoutInputs = resolveLayoutInputs(
+            stylesDirty: stylesDirty,
+            viewportStyle: viewportStyle,
+            incremental: false
+        )
         browser?.measure.stop("layout.async.start.inputs")
         layoutJobStyleChanges = inputs.styleChanges
         browser?.measure.start("layout.async.start.tree")
