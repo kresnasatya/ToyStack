@@ -303,6 +303,9 @@ a test that runs the style phase without `render()`.
 | `layout.mode` | duration | `layoutMode()` |
 | `layout.inline.refresh`, `layout.inline.place` | duration | inline item rebuild and placement |
 | `layout.line.place` | duration | line layout |
+| `layout.line.place.placed` | count | lines placed in full (text children positioned) |
+| `layout.line.place.verticalOnly` | count | lines that only moved vertically; children keep their positions |
+| `layout.line.boxes.built` | count | lines whose inline boxes were rebuilt from their text children |
 | `layout.text` | duration | text layout |
 | `layout.rebuilt` | count | block pass bodies that ran; equals `layout.visited` |
 | `layout.children.rebuilt` | count | block-mode child lists rebuilt (inline reflow is not counted) |

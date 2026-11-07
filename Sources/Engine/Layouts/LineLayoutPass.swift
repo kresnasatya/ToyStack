@@ -145,7 +145,14 @@ extension LayoutTree {
                 let offset: CGFloat = y(id) - childOriginY
                 self[line: id].placement.inlineYOffset = offset
             })
-            syncInlineBoxes(id)
+            // Boxes store y relative to the line (`y(child) - childOriginY`),
+            // and this path keeps x, widths, and children, so a line that only
+            // moved still has the right boxes. Only build them if it has none.
+            if self[line: id].content.boxes.isEmpty {
+                syncInlineBoxes(id)
+            } else {
+                followBoxRevision(id)
+            }
             return
         }
 
@@ -232,6 +239,7 @@ extension LayoutTree {
         if children.isEmpty, !self[line: id].content.boxes.isEmpty {
             return
         }
+        profiler.count("layout.line.boxes.built")
         var boxes: [InlineBox] = []
         boxes.reserveCapacity(children.count)
         for child in children where isText(child) {
@@ -254,12 +262,21 @@ extension LayoutTree {
                 )
             )
         }
-        if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
-            self[line: id].paint.boxRevision = revision
-        }
+        followBoxRevision(id)
         guard self[line: id].content.boxes != boxes else { return }
         self[line: id].content.boxes = boxes
         self[line: id].paint.generation += 1
+    }
+
+    /// Points the line's boxes at the block's current inline-content revision,
+    /// so `currentInlineBoxes` keeps accepting boxes that are still valid.
+    mutating private func followBoxRevision(_ id: LayoutID) {
+        guard collectsInlineBoxes, !self[line: id].content.hasEmbed,
+            let block: LayoutID = parentID(of: id),
+            let revision: UInt64 = boxRevision(block),
+            self[line: id].paint.boxRevision != revision
+        else { return }
+        self[line: id].paint.boxRevision = revision
     }
 
     mutating private func shiftChildren(_ id: LayoutID, by offset: CGFloat) {

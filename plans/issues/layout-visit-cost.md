@@ -249,3 +249,28 @@ Urutan yang disarankan untuk halaman ini:
 2. Opsi B (rencana baris dan salinan per kata): ±16%.
 3. Opsi C (posisi relatif terhadap induk): menghapus kunjungan baris dari block
    yang hanya bergeser, yaitu sebagian besar dari 37,5% `layoutLine`.
+
+### Langkah 1 diterapkan (2026-11-08)
+
+Di jalur "hanya bergeser vertikal" (`LineLayoutPass.layoutLine`), baris yang
+sudah punya box tidak lagi membangunnya ulang; `followBoxRevision` hanya
+memperbarui `boxRevision` bila revisi block berubah. Counter baru
+`layout.line.boxes.built` menghitung baris yang box-nya dibangun dari anak teks.
+
+Tes: `InlineBoxTests.lineThatOnlyMovesKeepsItsBoxes`. Margin paragraf pertama
+diubah, sehingga semua baris hanya bergeser dan tidak ada baris yang
+ditempatkan ulang. Sebelum perubahan tes ini gagal dengan
+`layout.line.boxes.built` = 2; sesudahnya 0, box baris yang bergeser sama
+dengan sebelumnya, dan hasilnya sama dengan layout penuh.
+
+`embeds.html`, drag 1000 → 644, tiga kali jalan, dibanding commit Opsi A:
+
+| Jalur | Sebelum | Sesudah |
+|---|---:|---:|
+| Main thread, `--no-profile` | 11,9–12,3 ms | **9,7–10,0 ms** |
+| `layout.document` dengan profiler | 15,0–15,2 ms | 12,7 ms |
+| Thread latar (`layout.async.document`) | 20,0–20,2 ms | **17,4–17,6 ms** |
+
+Box yang dibangun per layout: 1 (baris yang belum punya box), bukan sekitar
+1169. Screenshot `embeds.html` identik byte demi byte (lebar 640, dan lebar
+1000 setelah scroll 3000 px).

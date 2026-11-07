@@ -120,6 +120,39 @@ struct InlineBoxTests {
         #expect(afterY > beforeY)
     }
 
+    /// When something above grows, every line below it only moves down.
+    /// Boxes store their position relative to the line, so those lines must
+    /// keep their boxes instead of rebuilding them from the text children.
+    @Test func lineThatOnlyMovesKeepsItsBoxes() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="first">one</p><p id="second">two three</p>"#,
+            rules: "body { display: block; font-size: 20px; } p { display: block; }"
+        )
+        let second: ElementRef = try #require(page.firstElement(id: "second"))
+        let line: LayoutID = try #require(page.firstLineID(in: second))
+        let boxesBefore: [InlineBox] = page.tree[line: line].content.boxes
+        let yBefore: CGFloat = page.tree.y(line)
+        #expect(!boxesBefore.isEmpty)
+
+        let first: ElementRef = try #require(page.firstElement(id: "first"))
+        first.attributes["style"] = "margin-top: 40px;"
+        page.frame.setNeedsRender()
+        profiler.reset()
+        page.frame.render()
+
+        // No line was placed again; every line only moved.
+        let metrics: [String: ProfileMetric] = profiler.snapshot()
+        #expect(page.tree.y(line) > yBefore)
+        #expect((metrics["layout.line.place.placed"]?.count ?? 0) == 0)
+        #expect((metrics["layout.line.place.verticalOnly"]?.count ?? 0) > 0)
+        #expect(
+            (metrics["layout.line.boxes.built"]?.count ?? 0) == 0,
+            "a line that only moved rebuilt its boxes"
+        )
+        #expect(page.tree.currentInlineBoxes(line) == boxesBefore)
+        expectIncrementalMatchesFull(page)
+    }
+
     @Test func boxRevisionChangesWithLineGeometry() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: "<p>Hello world this is a long line</p>",
