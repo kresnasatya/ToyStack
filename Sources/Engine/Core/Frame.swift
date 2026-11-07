@@ -1360,6 +1360,9 @@ class Frame {
         let measure: MeasureTime? = browser?.measure
         Task.detached(priority: .userInitiated) { [tree, marksGeometry, width, pageZoom, jobID, measure] in
             var tree: LayoutTree = tree
+            // The detached task runs on a pooled thread; its own lane keeps the
+            // layout off whatever lane that thread served before.
+            let lane: TraceLane? = measure?.beginThreadLane("browser.layout")
             if marksGeometry {
                 tree.markDocumentGeometryDirty()
             }
@@ -1368,6 +1371,7 @@ class Frame {
             let effects: [LayoutEffect] = tree.takeEffects()
             let removed: Set<LayoutID> = tree.needsSweep ? tree.sweepUnreachable() : []
             measure?.stop("layout.async.document")
+            lane?.end()
             let completed: LayoutTree = tree
             await MainActor.run { [weak self] in
                 self?.finishAsyncLayout(

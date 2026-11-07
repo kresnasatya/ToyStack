@@ -366,6 +366,37 @@ Event → painted latency splits into: waiting for the running pass to finish
 Remaining walls: layout cost (Step 2b), the timer-tick wait after an install,
 and breakpoint style on the main thread (21–38 ms in drags).
 
+Trace note: in this trace `layout.async.document` spans appear on the
+`browser.present` and `browser.raster.workers` lanes. `MeasureTime.noteStream`
+stored the stream id in `Thread.current.threadDictionary` and nothing cleared
+it, and `noteThread` named pooled threads permanently, so later work on the same
+OS thread was reported under the old lane. **Fixed (2026-11-08):** lanes are
+now scoped (`beginStream` / `beginThreadLane` → `TraceLane.end()`), and
+background layout has its own `browser.layout` lane (`MeasureTimeLaneTests`;
+see `profiling.md`, Threads and streams).
+
+GUI trace after the lane fix (43 drags, 27.1 s, 1360 resize events):
+
+- Lanes are clean: all 520 `layout.async.document` spans are on
+  `browser.layout`; none on `browser.present` or `browser.raster.workers`; no
+  `trace.warning`; no two layout jobs overlap.
+- Same performance as the previous trace (only labels changed): 15.3 new
+  layouts painted per second, resize event → painted median 84 ms (p95
+  132 ms), final width painted median 31 ms after release.
+- The tab paints the installed tree in the same tick that starts the next job
+  (job start − paint start: median −0.1 ms), as designed.
+- Layout costs about 40 ms at every width (390–1440 px buckets: 39–43 ms
+  median). The cost is per pass, not line breaking: Step 2b is still the
+  target.
+- The background pass emits no `profile.layout`: the profiler is unlocked
+  and main-thread only, so the GUI trace cannot break the 40 ms down. Use a
+  headless sync run for the breakdown.
+- Every intermediate layout re-rasters every tile (median 60 misses, 0 hits per
+  composite); worker raster is 8.1 s of CPU over 27 s of dragging. It is off the
+  critical path (`composite_raster_and_draw` p95 10 ms).
+- Breakpoint style runs 18 times during drags at 13–35 ms on main; the
+  present gap around it grows to 21–64 ms (median gap in drags 16 ms).
+
 Verification: `swift test` (297 tests) and
 `TOYSTACK_BACKGROUND_LAYOUT_TEST=1 swift test --no-parallel` (297 tests). The
 background suites need `--no-parallel`: whether a pass may paint depends on

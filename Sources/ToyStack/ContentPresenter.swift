@@ -72,7 +72,8 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func drain() {
-        measure.noteStream("browser.present")
+        let lane: TraceLane = measure.beginStream("browser.present")
+        defer { lane.end() }
         while true {
             lock.lock()
             guard let next = latest else {
@@ -101,6 +102,8 @@ final class ContentPresenter: @unchecked Sendable {
     /// same frame until the budget drains.
     private func scheduleDeferredDrain() {
         queue.asyncAfter(deadline: .now() + 1.0 / 60.0) {
+            let lane: TraceLane = self.measure.beginStream("browser.present")
+            defer { lane.end() }
             self.drainScheduled = false
             self.lock.lock()
             let superseded: Bool = self.latest != nil

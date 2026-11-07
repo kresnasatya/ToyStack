@@ -45,7 +45,8 @@ final class RasterWorkerPool: @unchecked Sendable {
         for index in 0..<strips.count {
             group.enter()
             queue.async {
-                trace.measure?.noteThread("browser.raster.workers")
+                let lane: TraceLane? = trace.measure?.beginThreadLane("browser.raster.workers")
+                defer { lane?.end() }
                 trace.measure?.start("raster.strip", category: .raster, frame: trace.frame)
                 let image: CGImage? = TileStripRasterizer.render(strips[index], scale: scale)
                 trace.measure?.stop("raster.strip")
@@ -54,6 +55,8 @@ final class RasterWorkerPool: @unchecked Sendable {
             }
         }
         group.notify(queue: queue) {
+            let lane: TraceLane? = trace.measure?.beginThreadLane("browser.raster.workers")
+            defer { lane?.end() }
             trace.measure?.counter("pool", [
                 "workers": RasterWorkerPool.defaultWorkerCount,
                 "strips": strips.count

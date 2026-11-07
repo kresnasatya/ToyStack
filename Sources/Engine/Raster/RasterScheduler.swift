@@ -27,7 +27,8 @@ class RasterScheduler: @unchecked Sendable {
     }
 
     private func drain() {
-        measure?.noteStream("browser.compositor")
+        let lane: TraceLane? = measure?.beginStream("browser.compositor")
+        defer { lane?.end() }
         lock.lock()
         guard let job = pending else {
             draining = false
@@ -51,7 +52,8 @@ class RasterScheduler: @unchecked Sendable {
     }
 
     private func finish(job: Job, plan: RasterPlan, images: [CGImage?]) {
-        measure?.noteStream("browser.compositor")
+        let lane: TraceLane? = measure?.beginStream("browser.compositor")
+        defer { lane?.end() }
         let output: RasterOutput = job.install(tileStore, plan, images)
         Task { @MainActor in job.then(output) }
         drain()

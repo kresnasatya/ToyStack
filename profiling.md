@@ -174,15 +174,22 @@ treat it as layout work when reading a trace.
 | `thread_name` | How it is made | Notes |
 |---|---|---|
 | `main` | `Browser.init` → `noteThread` | real `pthread_self` id |
-| `browser.present` | `ContentPresenter.drain` → `noteStream` | GUI only; synthetic stable tid |
-| `browser.compositor` | `RasterScheduler.drain/finish` → `noteStream` | synthetic stable tid |
-| `browser.raster.workers` | each worker → `noteThread` | one tid per actual thread, all share the name |
-| `worker` | fallback for an unnamed non-main thread | |
+| `browser.present` | `ContentPresenter.drain` and its deferred drain → `beginStream` | GUI only; synthetic stable tid |
+| `browser.compositor` | `RasterScheduler.drain/finish` → `beginStream` | synthetic stable tid |
+| `browser.raster.workers` | each strip and the `pool` counter → `beginThreadLane` | one synthetic tid per actual thread, all share the name |
+| `browser.layout` | background layout task (`Frame.startAsyncLayout`) → `beginThreadLane` | one synthetic tid per actual thread |
+| `worker` | fallback for unlabelled work on a non-main thread | real `pthread_self` id |
 
-`noteStream` assigns a synthetic tid so asynchronous work stays on one trace
-lane. `noteThread` labels a real thread. The number of `browser.raster.workers`
-tids can exceed the pool size because OS threads are recreated; use the `pool`
-counter's `workers` for the intended concurrency.
+GCD queues and Swift tasks share pooled OS threads, so a label must not outlive
+the work it describes. `beginStream` and `beginThreadLane` return a
+`TraceLane`; the work calls `end()` (usually in a `defer`) on the same thread,
+which restores the thread's previous label. `beginStream` puts every block of a
+serial queue on one lane whatever thread runs it. `beginThreadLane` gives each
+OS thread its own lane under one name, so overlapping spans in a concurrent pool
+keep their `B`/`E` pairs apart. `noteThread` names a thread for the life of the
+process and is only for a thread the browser owns (main). The number of
+`browser.raster.workers` tids can exceed the pool size because OS threads are
+recreated; use the `pool` counter's `workers` for the intended concurrency.
 
 ## Reading rules
 
