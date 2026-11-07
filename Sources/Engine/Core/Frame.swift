@@ -1262,13 +1262,18 @@ class Frame {
     /// Runs the layout pass on a background worker. The main thread keeps the
     /// previous tree for previews; the completed tree is installed atomically.
     private func startAsyncLayout() {
+        browser?.measure.start("layout.async.start")
+        defer { browser?.measure.stop("layout.async.start") }
         layoutJobID &+= 1
         let jobID: UInt = layoutJobID
         layoutInFlight = true
         layoutInFlightDirty = false
 
+        browser?.measure.start("layout.async.start.inputs")
         let inputs: LayoutInputs = LayoutInputsBuilder.build(dom: dom)
+        browser?.measure.stop("layout.async.start.inputs")
         layoutJobStyleChanges = inputs.styleChanges
+        browser?.measure.start("layout.async.start.tree")
         let box: LayoutBox
         if let existing: LayoutBox = state.layout.tree.box, existing.tree.dom === dom {
             box = existing
@@ -1278,18 +1283,24 @@ class Frame {
         }
         state.layout.tree.box = box
         dom.layoutBox = box
+        browser?.measure.stop("layout.async.start.tree")
+        browser?.measure.start("layout.async.start.refresh")
         box.tree.refreshInputs(inputs)
+        browser?.measure.stop("layout.async.start.refresh")
 
         let tree: LayoutTree = box.tree
         let width: CGFloat = frameWidth
         let pageZoom: CGFloat = self.pageZoom
         layoutJobKey = LayoutJobKey(width: width, zoom: pageZoom)
         layoutJobSize = CGSize(width: width, height: frameHeight)
-        Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID] in
+        let measure: MeasureTime? = browser?.measure
+        Task.detached(priority: .userInitiated) { [tree, width, pageZoom, jobID, measure] in
             var tree: LayoutTree = tree
+            measure?.start("layout.async.document")
             tree.layoutDocument(availableWidth: width, zoom: 1.0, pageZoom: pageZoom)
             let effects: [LayoutEffect] = tree.takeEffects()
             let removed: Set<LayoutID> = tree.needsSweep ? tree.sweepUnreachable() : []
+            measure?.stop("layout.async.document")
             let completed: LayoutTree = tree
             await MainActor.run { [weak self] in
                 self?.finishAsyncLayout(
@@ -1309,10 +1320,13 @@ class Frame {
         jobID: UInt
     ) {
         guard layoutInFlight, layoutJobID == jobID else { return }
+        browser?.measure.start("layout.async.finish")
+        defer { browser?.measure.stop("layout.async.finish") }
         layoutInFlight = false
         if let key: LayoutJobKey = layoutJobKey,
             key.isStale(currentWidth: frameWidth, currentZoom: pageZoom)
         {
+            browser?.measure.counter("layout.async.discarded", ["width": Int(key.width)])
             layoutJobKey = nil
             layoutInFlightDirty = false
             requeueLayoutJobStyleChanges()
