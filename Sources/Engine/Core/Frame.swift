@@ -860,6 +860,9 @@ class Frame {
             browser?.measure.start("BrowserTab.style.diff")
             let animationsBefore: Int = cascade.appliedNodes.reduce(0) { $0 + $1.animations.count }
             var paintedChanged: Bool = false
+            // One trace event per tag, written after the loop: a breakpoint
+            // flip changes thousands of nodes and one event each slowed the pass.
+            var fontChangesByTag: [String: Int] = [:]
             for node in cascade.appliedNodes {
                 guard let old: ComputedStyle = cascade.oldStyle(for: node) else { continue }
                 if old.text.font.size != node.style.computed.text.font.size {
@@ -868,10 +871,7 @@ class Frame {
                         from: old.text.font.size,
                         to: node.style.computed.text.font.size
                     )
-                    browser?.measure.counter(
-                        "style.font-size.changed.\(node.element?.tag ?? "text")",
-                        ["count": 1]
-                    )
+                    fontChangesByTag[node.element?.tag ?? "text", default: 0] += 1
                 }
                 if Self.paintStyleChanged(old: old, new: node.style.computed) {
                     paintedChanged = true
@@ -894,6 +894,9 @@ class Frame {
                 for (property, animation) in newAnimations {
                     node.animations[.property(property)] = animation
                 }
+            }
+            for (tag, count) in fontChangesByTag {
+                browser?.measure.counter("style.font-size.changed.\(tag)", ["count": count])
             }
             if paintedChanged {
                 // The paint caches are keyed by the changed node's style
