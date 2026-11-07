@@ -24,6 +24,9 @@ class Frame {
     private var layoutInFlightDirty: Bool = false
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
+    /// Style changes the in-flight job consumed when it started. Restored if
+    /// the viewport moves on and the completed tree is dropped.
+    private var layoutJobStyleChanges: [NodeID: Set<StyleProperty>] = [:]
     private var layoutJobSize: CGSize = .zero
     private var layoutSize: CGSize = .zero
     private(set) var paintedLayoutSize: CGSize = .zero
@@ -1265,6 +1268,7 @@ class Frame {
         layoutInFlightDirty = false
 
         let inputs: LayoutInputs = LayoutInputsBuilder.build(dom: dom)
+        layoutJobStyleChanges = inputs.styleChanges
         let box: LayoutBox
         if let existing: LayoutBox = state.layout.tree.box, existing.tree.dom === dom {
             box = existing
@@ -1311,10 +1315,12 @@ class Frame {
         {
             layoutJobKey = nil
             layoutInFlightDirty = false
+            requeueLayoutJobStyleChanges()
             setNeedsLayout()
             return
         }
         layoutJobKey = nil
+        layoutJobStyleChanges.removeAll(keepingCapacity: true)
         guard let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
             return
         }
@@ -1341,6 +1347,18 @@ class Frame {
         state.layout.tree.forced = changedAgain
         state.display.paint.isNeeded = true
         requestAnimationFrame()
+    }
+
+    /// A discarded job already took its style changes out of the DOM. Put them
+    /// back so the next job marks `.font` / `.inlineContent` and refreshes the
+    /// inline items instead of reusing the previous font.
+    private func requeueLayoutJobStyleChanges() {
+        guard !layoutJobStyleChanges.isEmpty else { return }
+        for (id, changes) in layoutJobStyleChanges {
+            guard dom.node(id) != nil else { continue }
+            dom.ref(id).style.requeueLayoutChanges(changes)
+        }
+        layoutJobStyleChanges.removeAll(keepingCapacity: true)
     }
 
     func makeSnapshot() -> FrameSnapshot {
