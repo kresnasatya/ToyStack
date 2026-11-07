@@ -30,7 +30,8 @@ extension LayoutTree {
         )
         let state: LayoutState = LayoutState(
             fields: fields,
-            hasDirtyDescendants: false
+            hasDirtyDescendants: false,
+            isRemoved: false
         )
         let id: LayoutID = append(
             LayoutNodeSeed(kind: .text(text), dom: dom, links: links, state: state)
@@ -51,7 +52,7 @@ extension LayoutTree {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(id).state.fields
+        let state: FieldState = self[node: id].state.fields.state
         return state.isDirty(.zoom) || state.isDirty(.width) || state.isDirty(.height)
             || state.isDirty(.font) || state.isDirty(.ascent) || state.isDirty(.descent)
     }
@@ -66,32 +67,27 @@ extension LayoutTree {
 
             let fontChanged: Bool = isDirty(.font, at: id)
             if fontChanged {
-                var data: TextData = textData(id)
                 let resolvedFont: BrowserFont
-                if let override = data.payload.fontOverride {
+                if let override = self[text: id].payload.fontOverride {
                     resolvedFont = override
                 } else {
                     resolvedFont = fontFor(domID(of: id), zoom: zoom(id))
                 }
                 setFont(resolvedFont, for: id)
-                data = textData(id)
             }
 
             if fontChanged || isDirty(.width, at: id) || isDirty(.height, at: id)
                 || isDirty(.ascent, at: id) || isDirty(.descent, at: id)
             {
                 let measuredFont: BrowserFont = font(id)
-                let data: TextData = textData(id)
                 let measured: CGFloat
-                if data.metrics.measured {
+                if self[text: id].metrics.measured {
                     profiler.count("text.measureReused")
-                    measured = data.metrics.width
+                    measured = self[text: id].metrics.width
                 } else {
                     measured = measuredFont.measure(textString(id))
-                    var updated: TextData = data
-                    updated.metrics.width = measured
-                    updated.metrics.measured = true
-                    setKind(.text(updated), at: id)
+                    self[text: id].metrics.width = measured
+                    self[text: id].metrics.measured = true
                 }
                 setTextMetrics(
                     id,
@@ -107,7 +103,7 @@ extension LayoutTree {
     }
 
     func textAbsoluteY(_ id: LayoutID) -> CGFloat {
-        let inlineOffset: CGFloat = parentID(of: id).map({ lineData($0).placement.inlineYOffset }) ?? 0
+        let inlineOffset: CGFloat = parentID(of: id).map({ self[line: $0].placement.inlineYOffset }) ?? 0
         return y(id) + inlineOffset
     }
 
@@ -119,16 +115,16 @@ extension LayoutTree {
 
     func textTextWidth(_ id: LayoutID) -> CGFloat {
         guard let line: LayoutID = parentID(of: id) else {
-            return textData(id).metrics.width
+            return self[text: id].metrics.width
         }
         let inline: [LayoutID] = childrenIDs(of: line).filter({ isText($0) || isEmbed($0) })
         guard let index: Int = inline.firstIndex(of: id) else {
-            return textData(id).metrics.width
+            return self[text: id].metrics.width
         }
-        let widths: [CGFloat] = lineData(line).content.inlineWidths
+        let widths: [CGFloat] = self[line: line].content.inlineWidths
         if index < widths.count {
             return widths[index]
         }
-        return textData(id).metrics.width
+        return self[text: id].metrics.width
     }
 }

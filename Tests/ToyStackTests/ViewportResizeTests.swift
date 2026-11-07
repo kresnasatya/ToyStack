@@ -177,7 +177,7 @@ struct ViewportResizeTests {
             .filter({ page.tree.isLine($0) })
         #expect(!lines.isEmpty)
         for line in lines {
-            let fragments: [InlineBox] = page.tree.lineData(line).content.boxes
+            let fragments: [InlineBox] = page.tree[line: line].content.boxes
             #expect(fragments.count == 1)
         }
         expectIncrementalMatchesFull(page)
@@ -278,9 +278,7 @@ struct ViewportResizeTests {
         #expect(lines.count == 2)
         page.withTree { tree in
             for line in lines {
-                var data: LineData = tree.lineData(line)
-                data.content.centered = true
-                tree.setKind(.line(data), at: line)
+                tree[line: line].content.centered = true
             }
         }
 

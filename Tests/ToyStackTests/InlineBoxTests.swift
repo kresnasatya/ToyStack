@@ -60,7 +60,7 @@ struct InlineBoxTests {
         let paragraph: ElementRef = try #require(page.firstElement(id: "p"))
         let line: LayoutID = try #require(page.firstLineID(in: paragraph))
         let block: LayoutID = try #require(page.tree.parentID(of: line))
-        #expect(page.tree.lineData(line).paint.boxRevision == page.tree.inlineContent(block))
+        #expect(page.tree[line: line].paint.boxRevision == page.tree.inlineContent(block))
     }
 
     @Test func textEditRefreshesBoxes() throws {
@@ -74,7 +74,7 @@ struct InlineBoxTests {
         page.frame.setNeedsRender()
         page.frame.render()
         let line: LayoutID = try #require(page.firstLineID(in: paragraph))
-        let boxes: [InlineBox] = page.tree.lineData(line).content.boxes
+        let boxes: [InlineBox] = page.tree[line: line].content.boxes
         let content: String = boxes.map({ page.tree.inlineText($0) }).joined()
         #expect(content.contains("three four"))
     }
@@ -86,12 +86,12 @@ struct InlineBoxTests {
         )
         let paragraph: ElementRef = try #require(page.firstElement(id: "p"))
         let beforeLine: LayoutID = try #require(page.firstLineID(in: paragraph))
-        let before: CGFloat = page.tree.lineData(beforeLine).content.boxes.reduce(0, { $0 + $1.geometry.width })
+        let before: CGFloat = page.tree[line: beforeLine].content.boxes.reduce(0, { $0 + $1.geometry.width })
         paragraph.attributes["style"] = "font-size: 32px;"
         page.frame.setNeedsRender()
         page.frame.render()
         let afterLine: LayoutID = try #require(page.firstLineID(in: paragraph))
-        let after: CGFloat = page.tree.lineData(afterLine).content.boxes.reduce(0, { $0 + $1.geometry.width })
+        let after: CGFloat = page.tree[line: afterLine].content.boxes.reduce(0, { $0 + $1.geometry.width })
         #expect(after > before)
     }
 
@@ -103,7 +103,7 @@ struct InlineBoxTests {
         let second: ElementRef = try #require(page.firstElement(id: "second"))
         let beforeLine: LayoutID = try #require(page.firstLineID(in: second))
         let beforeY: CGFloat = try #require(
-            page.tree.lineData(beforeLine).content.boxes.first.map({
+            page.tree[line: beforeLine].content.boxes.first.map({
                 page.tree.y(beforeLine) + $0.geometry.y
             })
         )
@@ -113,7 +113,7 @@ struct InlineBoxTests {
         page.frame.render()
         let afterLine: LayoutID = try #require(page.firstLineID(in: second))
         let afterY: CGFloat = try #require(
-            page.tree.lineData(afterLine).content.boxes.first.map({
+            page.tree[line: afterLine].content.boxes.first.map({
                 page.tree.y(afterLine) + $0.geometry.y
             })
         )
@@ -127,12 +127,12 @@ struct InlineBoxTests {
         )
         let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
         let beforeLine: LayoutID = try #require(page.firstLineID(in: paragraph))
-        let before: UInt = page.tree.lineData(beforeLine).paint.generation
+        let before: UInt = page.tree[line: beforeLine].paint.generation
         page.frame.setViewport(width: 220, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         page.frame.render()
         let afterLine: LayoutID = try #require(page.firstLineID(in: paragraph))
-        let after: UInt = page.tree.lineData(afterLine).paint.generation
+        let after: UInt = page.tree[line: afterLine].paint.generation
         #expect(after != before)
     }
 
@@ -151,7 +151,7 @@ struct InlineBoxTests {
         let line: LayoutID = try #require(page.firstLineID(in: paragraph))
         let tree: LayoutTree = page.tree
         let children: [LayoutID] = tree.childrenIDs(of: line).filter({ tree.isText($0) })
-        let boxes: [InlineBox] = tree.lineData(line).content.boxes
+        let boxes: [InlineBox] = tree[line: line].content.boxes
 
         #expect(!boxes.isEmpty)
         if children.isEmpty {
@@ -159,7 +159,7 @@ struct InlineBoxTests {
         } else {
             #expect(boxes.count == children.count)
             for (box, child) in zip(boxes, children) {
-                let data: TextData = tree.textData(child)
+                let data: TextData = tree[text: child]
                 #expect(box.dom == tree.domID(of: child))
                 #expect(box.fragment == data.fragment)
                 #expect(box.geometry.x == tree.x(child))

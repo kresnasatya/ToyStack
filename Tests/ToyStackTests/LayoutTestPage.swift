@@ -85,7 +85,7 @@ struct LayoutTestPage {
     func embedID(in element: ElementRef, _ match: EmbedMatch) -> LayoutID? {
         return firstLayoutID(in: element, where: { id, tree in
             guard tree.isEmbed(id) else { return false }
-            return match.matches(tree.embedData(id))
+            return match.matches(tree[embed: id])
         })
     }
 
@@ -102,12 +102,12 @@ struct LayoutTestPage {
         else { return 0 }
         let lines: [LayoutID] = tree.childrenIDs(of: block).filter({ tree.isLine($0) })
         let fromBoxes: CGFloat = lines.reduce(0) { total, line in
-            total + tree.lineData(line).content.boxes.reduce(0) { $0 + $1.geometry.width }
+            total + tree[line: line].content.boxes.reduce(0) { $0 + $1.geometry.width }
         }
         if fromBoxes > 0 { return fromBoxes }
         return treeToList(tree, block)
             .filter({ tree.isText($0) })
-            .reduce(0, { $0 + tree.textData($1).metrics.width })
+            .reduce(0, { $0 + tree[text: $1].metrics.width })
     }
 
 }

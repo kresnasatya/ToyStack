@@ -14,7 +14,7 @@ struct LayoutIdempotenceTests {
         let first: [Snapshot] = snapshot(of: document.rootID, in: document)
 
         let zoom: CGFloat = document.zoom(document.rootID)
-        let pageZoom: CGFloat = document.documentData(document.rootID).pageZoom
+        let pageZoom: CGFloat = document[document: document.rootID].pageZoom
         profiler.reset()
         markAllFields(document.rootID, in: &document)
         document.layoutDocument(
@@ -35,7 +35,7 @@ struct LayoutIdempotenceTests {
         let first: [Snapshot] = snapshot(of: document.rootID, in: document)
 
         let zoom: CGFloat = document.zoom(document.rootID)
-        let pageZoom: CGFloat = document.documentData(document.rootID).pageZoom
+        let pageZoom: CGFloat = document[document: document.rootID].pageZoom
         profiler.reset()
         markAllFields(document.rootID, in: &document)
         document.layoutDocument(
@@ -55,7 +55,7 @@ struct LayoutIdempotenceTests {
         let button: LayoutID = try #require(
             treeToList(document, document.rootID).first(where: {
                 guard document.isEmbed($0) else { return false }
-                return EmbedMatch.button.matches(document.embedData($0))
+                return EmbedMatch.button.matches(document[embed: $0])
             })
         )
 

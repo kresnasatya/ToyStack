@@ -48,7 +48,7 @@ struct LineBoxWipeTests {
             for line in lines {
                 let children: [LayoutID] = tree.childrenIDs(of: line)
                 let valueLine: Bool = children.isEmpty
-                    && !tree.lineData(line).content.boxes.isEmpty
+                    && !tree[line: line].content.boxes.isEmpty
                 if valueLine { sawValueLines = true }
                 guard (tree.heightIfUsed(at: line) ?? 0) > 0 else { continue }
                 let paintable: Bool = tree.currentInlineBoxes(line) != nil

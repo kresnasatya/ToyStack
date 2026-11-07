@@ -17,7 +17,7 @@ enum LayoutInputTable {
         field: LayoutField,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        switch tree.node(id).kind {
+        switch tree[node: id].kind {
         case .document:
             return documentInputs(id, field, in: tree)
         case .block:
@@ -38,15 +38,14 @@ enum LayoutInputTable {
         _ field: LayoutField,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        let node: LayoutNode = tree.node(id)
         switch field {
         case .zoom, .children:
             return []
         case .width, .x, .y:
             return [.layout(id, .zoom)]
         case .height:
-            guard let child: LayoutID = node.links.children.first else { return [] }
-            let childDom: NodeID = tree.node(child).dom
+            guard let child: LayoutID = tree.childrenIDs(of: id).first else { return [] }
+            let childDom: NodeID = tree.domID(of: child)
             return [
                 .layout(child, .height),
                 .style(childDom, .paddingTop),
@@ -64,10 +63,9 @@ enum LayoutInputTable {
         _ field: LayoutField,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        let node: LayoutNode = tree.node(id)
-        let dom: NodeID = node.dom
-        let parent: LayoutID? = node.links.parent
-        let previous: LayoutID? = node.links.previous
+        let dom: NodeID = tree.domID(of: id)
+        let parent: LayoutID? = tree.parentID(of: id)
+        let previous: LayoutID? = tree.previousID(of: id)
         switch field {
         case .previous:
             return []
@@ -94,7 +92,7 @@ enum LayoutInputTable {
             ]
             if let parent { keys.insert(.layout(parent, .y), at: 0) }
             if let previous {
-                let previousDom: NodeID = tree.node(previous).dom
+                let previousDom: NodeID = tree.domID(of: previous)
                 keys += [
                     .layout(previous, .y),
                     .layout(previous, .height),
@@ -137,8 +135,7 @@ enum LayoutInputTable {
         _ field: LayoutField,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        let node: LayoutNode = tree.node(id)
-        let parent: LayoutID? = node.links.parent
+        let parent: LayoutID? = tree.parentID(of: id)
         switch field {
         case .zoom:
             return parent.map({ [.layout($0, .zoom)] }) ?? []
@@ -148,7 +145,7 @@ enum LayoutInputTable {
             return parent.map({ [.layout($0, .x)] }) ?? []
         case .y:
             var keys: [FieldKey] = parent.map({ [.layout($0, .y)] }) ?? []
-            if let previous = node.links.previous {
+            if let previous: LayoutID = tree.previousID(of: id) {
                 keys += [.layout(previous, .y), .layout(previous, .height)]
             }
             return keys
@@ -180,12 +177,11 @@ enum LayoutInputTable {
         _ field: LayoutField,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        let node: LayoutNode = tree.node(id)
-        let dom: NodeID = node.dom
+        let dom: NodeID = tree.domID(of: id)
         switch field {
         case .zoom:
             var keys: [FieldKey] = [.style(dom, .zoom)]
-            if let parent = node.links.parent {
+            if let parent: LayoutID = tree.parentID(of: id) {
                 keys.append(.layout(parent, .zoom))
             }
             return keys
@@ -205,11 +201,10 @@ enum LayoutInputTable {
         _ field: LayoutField,
         in tree: LayoutTree
     ) -> [FieldKey] {
-        let node: LayoutNode = tree.node(id)
-        let dom: NodeID = node.dom
-        let parent: LayoutID? = node.links.parent
+        let dom: NodeID = tree.domID(of: id)
+        let parent: LayoutID? = tree.parentID(of: id)
         let data: EmbedData
-        if case .embed(let value) = node.kind {
+        if case .embed(let value) = tree[node: id].kind {
             data = value
         } else {
             preconditionFailure("LayoutInputTable.embedInputs on non-embed node")

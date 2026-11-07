@@ -28,9 +28,9 @@ extension LayoutTree {
     mutating func resetLine(_ id: LayoutID, previous: LayoutID?) -> Bool {
         let oldPrevious: LayoutID? = previousID(of: id)
         var data: LineData = LineData()
-        if case .line(let old) = node(id).kind {
+        if case .line = self[node: id].kind {
             // The line paint cache is keyed by this generation.
-            data.paint.generation = old.paint.generation + 1
+            data.paint.generation = self[line: id].paint.generation + 1
         }
         setKind(.line(data), at: id)
         setPrevious(previous, of: id)
@@ -54,16 +54,14 @@ extension LayoutTree {
     @discardableResult
     mutating func reuseLine(_ id: LayoutID, previous: LayoutID?) -> Bool {
         let oldPrevious: LayoutID? = previousID(of: id)
-        var data: LineData = lineData(id)
-        data.paint.generation += 1
+        self[line: id].paint.generation += 1
         // The block's inline-content revision can advance (font refresh)
         // while its lines are reused; the boxes stay valid but the revision
         // they were built for must follow, or `currentInlineBoxes` rejects
         // them and paint falls back to the absent text children.
         if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
-            data.paint.boxRevision = revision
+            self[line: id].paint.boxRevision = revision
         }
-        setKind(.line(data), at: id)
         setPrevious(previous, of: id)
         for field in [LayoutField.width, .y] {
             markField(field, at: id)
@@ -76,7 +74,7 @@ extension LayoutTree {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(id).state.fields
+        let state: FieldState = self[node: id].state.fields.state
         return state.isDirty(.zoom) || state.isDirty(.x) || state.isDirty(.y)
             || state.isDirty(.width) || state.isDirty(.height)
             || state.isDirty(.ascent) || state.isDirty(.descent)
@@ -89,17 +87,16 @@ extension LayoutTree {
         let yWasDirty: Bool = isDirty(.y, at: id)
         let zoomWasDirty: Bool = isDirty(.zoom, at: id)
         let children: [LayoutID] = childrenIDs(of: id)
-        var data: LineData = lineData(id)
-        let childCountChanged: Bool = children.count != data.placement.declaredInlineChildCount
+        let declaredChildCount: Int = self[line: id].placement.declaredInlineChildCount
+        let childCountChanged: Bool = children.count != declaredChildCount
         var childWidthChanged: Bool = false
         for child in children where isDirty(.width, at: child) {
             childWidthChanged = true
             break
         }
-        if children.count != data.paint.paintedChildCount {
-            data.paint.generation += 1
-            data.paint.paintedChildCount = children.count
-            setKind(.line(data), at: id)
+        if children.count != self[line: id].paint.paintedChildCount {
+            self[line: id].paint.generation += 1
+            self[line: id].paint.paintedChildCount = children.count
         }
         let parent: LayoutID = parentID(of: id)!
         let previous: LayoutID? = previousID(of: id)
@@ -114,13 +111,11 @@ extension LayoutTree {
             for: id
         )
 
-        if children.count != data.placement.declaredInlineChildCount {
-            var updated: LineData = lineData(id)
-            updated.placement.declaredInlineChildCount = children.count
-            setKind(.line(updated), at: id)
+        if childCountChanged {
+            self[line: id].placement.declaredInlineChildCount = children.count
         }
 
-        let widthMovesChildren: Bool = lineData(id).content.centered
+        let widthMovesChildren: Bool = self[line: id].content.centered
             || inputs.style(domID(of: id)).text.direction == .rtl
         let needsPlacement: Bool = xWasDirty || yWasDirty || childCountChanged
             || childWidthChanged
@@ -131,7 +126,7 @@ extension LayoutTree {
             || widthMovesChildren
 
         let textOnly: Bool = children.allSatisfy({ isText($0) })
-        let hasBoxes: Bool = !lineData(id).content.boxes.isEmpty
+        let hasBoxes: Bool = !self[line: id].content.boxes.isEmpty
         // Only lines backed by text children may take the child fast path.
         // A value line has no children; it keeps its text in `content.boxes`,
         // and this path used to rebuild those boxes from the empty child list.
@@ -142,14 +137,13 @@ extension LayoutTree {
             && !isDirty(.height, at: id)
             && !isDirty(.children, at: id)
             && textOnly && !children.isEmpty
-            && lineData(id).placement.childOriginY != nil
+            && self[line: id].placement.childOriginY != nil
 
-        if verticalOnly, let childOriginY: CGFloat = lineData(id).placement.childOriginY {
+        if verticalOnly, let childOriginY: CGFloat = self[line: id].placement.childOriginY {
             profiler.count("layout.line.place.verticalOnly")
             profiler.measure("layout.line.place.vertical", {
-                var updated: LineData = lineData(id)
-                updated.placement.inlineYOffset = y(id) - childOriginY
-                setKind(.line(updated), at: id)
+                let offset: CGFloat = y(id) - childOriginY
+                self[line: id].placement.inlineYOffset = offset
             })
             syncInlineBoxes(id)
             return
@@ -214,16 +208,15 @@ extension LayoutTree {
                 shiftChildren(id, by: width(id) - usedWidth)
             }
 
-            if lineData(id).content.centered {
+            if self[line: id].content.centered {
                 let usedWidth: CGFloat = contentWidth(id)
                 shiftChildren(id, by: (width(id) - usedWidth) / 2)
             }
 
             setField(.height, ascent(id) + descent(id), for: id)
-            var updated: LineData = lineData(id)
-            updated.placement.childOriginY = y(id)
-            updated.placement.inlineYOffset = 0
-            setKind(.line(updated), at: id)
+            let originY: CGFloat = y(id)
+            self[line: id].placement.childOriginY = originY
+            self[line: id].placement.inlineYOffset = 0
             syncInlineBoxes(id)
         })
     }
@@ -232,17 +225,17 @@ extension LayoutTree {
     /// read the text children until the value path is complete.
     mutating private func syncInlineBoxes(_ id: LayoutID) {
         guard collectsInlineBoxes else { return }
-        guard !lineData(id).content.hasEmbed else { return }
+        guard !self[line: id].content.hasEmbed else { return }
         let children: [LayoutID] = childrenIDs(of: id)
         // A value line owns its text as boxes and has no text children;
         // syncing from the child list would erase that text.
-        if children.isEmpty, !lineData(id).content.boxes.isEmpty {
+        if children.isEmpty, !self[line: id].content.boxes.isEmpty {
             return
         }
         var boxes: [InlineBox] = []
         boxes.reserveCapacity(children.count)
         for child in children where isText(child) {
-            let data: TextData = textData(child)
+            let data: TextData = self[text: child]
             boxes.append(
                 InlineBox(
                     dom: domID(of: child),
@@ -261,24 +254,17 @@ extension LayoutTree {
                 )
             )
         }
-        var line: LineData = lineData(id)
         if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
-            line.paint.boxRevision = revision
+            self[line: id].paint.boxRevision = revision
         }
-        guard line.content.boxes != boxes else {
-            setKind(.line(line), at: id)
-            return
-        }
-        line.content.boxes = boxes
-        line.paint.generation += 1
-        setKind(.line(line), at: id)
+        guard self[line: id].content.boxes != boxes else { return }
+        self[line: id].content.boxes = boxes
+        self[line: id].paint.generation += 1
     }
 
     mutating private func shiftChildren(_ id: LayoutID, by offset: CGFloat) {
         guard offset != 0 else { return }
-        var data: LineData = lineData(id)
-        data.paint.generation += 1
-        setKind(.line(data), at: id)
+        self[line: id].paint.generation += 1
         let children: [LayoutID] = childrenIDs(of: id)
         let shifted: [CGFloat] = children.map({ x($0) + offset })
 
@@ -288,7 +274,7 @@ extension LayoutTree {
     }
 
     private func inlineWidth(_ id: LayoutID, index: Int, child: LayoutID) -> CGFloat {
-        let widths: [CGFloat] = lineData(id).content.inlineWidths
+        let widths: [CGFloat] = self[line: id].content.inlineWidths
         if index < widths.count {
             return widths[index]
         }
@@ -303,7 +289,7 @@ extension LayoutTree {
     }
 
     func lineCanCachePaint(_ id: LayoutID) -> Bool {
-        return !lineData(id).content.hasEmbed
+        return !self[line: id].content.hasEmbed
     }
 
     private func boxRevision(_ id: LayoutID) -> UInt64? {
@@ -314,7 +300,7 @@ extension LayoutTree {
     }
 
     mutating private func layoutLineBoxes(_ id: LayoutID) {
-        let data: LineData = lineData(id)
+        let data: LineData = self[line: id]
         guard !data.content.boxes.isEmpty else { return }
         let maxAscent: CGFloat = data.content.boxes.map({ $0.text.ascent }).max() ?? 0
         let maxDescent: CGFloat = data.content.boxes.map({ $0.text.descent }).max() ?? 0
@@ -344,16 +330,16 @@ extension LayoutTree {
             )
             cursorX += box.geometry.width
         }
-        var updated: LineData = data
-        updated.content.boxes = boxes
-        updated.content.inlineWidths = boxes.map({ $0.geometry.width })
-        if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
-            updated.paint.boxRevision = revision
+        let revision: UInt64? = parentID(of: id).flatMap({ boxRevision($0) })
+        let originY: CGFloat = y(id)
+        self[line: id].content.inlineWidths = boxes.map({ $0.geometry.width })
+        self[line: id].content.boxes = boxes
+        if let revision {
+            self[line: id].paint.boxRevision = revision
         }
-        updated.paint.generation += 1
-        updated.placement.childOriginY = y(id)
-        updated.placement.inlineYOffset = 0
-        setKind(.line(updated), at: id)
+        self[line: id].paint.generation += 1
+        self[line: id].placement.childOriginY = originY
+        self[line: id].placement.inlineYOffset = 0
         setField(.height, maxAscent + maxDescent, for: id)
     }
 
@@ -361,7 +347,7 @@ extension LayoutTree {
     /// children. Incremental text edits can replace a child without forcing a
     /// fresh line placement, in which case callers must fall back to nodes.
     func currentInlineBoxes(_ id: LayoutID) -> [InlineBox]? {
-        let data: LineData = lineData(id)
+        let data: LineData = self[line: id]
         guard !data.content.hasEmbed, !data.content.boxes.isEmpty else { return nil }
         let block: LayoutID? = parentID(of: id)
         guard let block, let revision: UInt64 = boxRevision(block),
@@ -371,7 +357,7 @@ extension LayoutTree {
         if children.isEmpty { return data.content.boxes }
         guard children.count == data.content.boxes.count else { return nil }
         for (box, child) in zip(data.content.boxes, children) {
-            let text: TextData = textData(child)
+            let text: TextData = self[text: child]
             guard box.dom == domID(of: child),
                 box.fragment == text.fragment,
                 box.geometry.x == x(child),

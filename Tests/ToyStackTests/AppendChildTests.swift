@@ -168,7 +168,7 @@ struct AppendChildTests {
         #expect(page.tree.childrenIDs(of: boxLayout).count == 2)
         #expect(page.tree.childrenIDs(of: boxLayout)[0] == oneLayout)
         let run: LayoutID = try #require(page.tree.childrenIDs(of: boxLayout).last)
-        let extras: [NodeID] = page.tree.blockData(run).content.extraNodes
+        let extras: [NodeID] = page.tree[block: run].content.extraNodes
         #expect(extras.count == 2)
         #expect(DOMRef(id: extras[1], dom: page.frame.dom).element?.tag == "span")
         #expect(profiler.snapshot()["layout.children.rebuilt"] == nil)

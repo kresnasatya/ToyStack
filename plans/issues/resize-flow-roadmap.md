@@ -386,11 +386,11 @@ GUI trace after the lane fix (43 drags, 27.1 s, 1360 resize events):
 - The tab paints the installed tree in the same tick that starts the next job
   (job start − paint start: median −0.1 ms), as designed.
 - Layout costs about 40 ms at every width (390–1440 px buckets: 39–43 ms
-  median). The cost is per pass, not line breaking: Step 2b is still the
-  target.
-- The background pass emits no `profile.layout`: the profiler is unlocked
-  and main-thread only, so the GUI trace cannot break the 40 ms down. Use a
-  headless sync run for the breakdown.
+  median). See "Layout cost measured" below for the breakdown.
+- The background pass emits no `profile.layout`. The profiler is locked but
+  has one global window: the worker records into the main thread's paint
+  window, so `profile.paint` carries partial `layout.*` counts and the GUI
+  trace cannot break the 40 ms down. Use a headless sync run for the breakdown.
 - Every intermediate layout re-rasters every tile (median 60 misses, 0 hits per
   composite); worker raster is 8.1 s of CPU over 27 s of dragging. It is off the
   critical path (`composite_raster_and_draw` p95 10 ms).
@@ -402,6 +402,85 @@ Verification: `swift test` (297 tests) and
 background suites need `--no-parallel`: whether a pass may paint depends on
 reused inputs, which are keyed on the process-wide `StyleRevision.epoch`, and
 parallel suites bump it.
+
+### Layout cost measured (2026-11-08)
+
+Release headless, `www/bench/large.html` (1000 paragraphs, 2025 blocks), one
+resize per tick. The page has no media queries, so this is layout alone.
+
+| Drag | Passes | Wall per pass | Lines re-broken |
+|---|---:|---:|---|
+| 1000 → 644 px, 4 px steps, sync | 89 | median 18.7 ms, max 21.6 ms | never |
+| 450 → 302 px, 2 px steps, sync | 70 | median 19.5 ms | no |
+| same, the 4 passes that re-break | 4 | median 45.0 ms, max 73.1 ms | 1000 paragraphs → 2000 lines |
+| 1000 → 644 px, async worker | 90 | median 21.5 ms | never |
+
+Pass without a line change (median, wide drag):
+
+| Stage | ms | Calls |
+|---|---:|---:|
+| `layout.document` | 18.7 | 1 |
+| `layout.visit` (all block bodies) | 15.2 | 2025 |
+| — `layout.visit.geometry` | 5.8 | 2025 |
+| — `layout.inline.plan` | 2.1 | 2023 |
+| — `layout.mode` | 0.9 | 2025 |
+| — `layout.blockStyle` | 0.3 | 2025 |
+| — rest of the block body (no own span) | ~6.1 | |
+| outside block bodies (traversal, gates) | ~3.5 | |
+
+Every block is visited on every pass (`layout.visited` = `layout.rebuilt` =
+2025; 2023 inline blocks only update line widths). The cost is about 9 µs per
+block before any line changes, so this page cannot fit 16.7 ms by trimming line
+work; the visit itself has to be skipped for blocks whose geometry only moves.
+
+Pass that re-breaks lines (median of the 4): `layout.document` 44.2 ms,
+`layout.visit` 30.1 ms, `layout.inline.place` 16.2 ms (1000 calls),
+`layout.line.place` 5.3 ms (2000), `inline.place.lineChildren` 3.7 ms,
+`line.children.previous` 2.8 ms, `inline.children.deps` 1.6 ms, sweep 0.7 ms;
+`layout.field.mark` 18,050 vs 4,050 without re-break.
+
+The async worker costs about 2.8 ms (15%) more than the sync pass on the same
+drag. [INFERENCE] The difference is the worker's copy of the node storage, which
+the main thread still shares when the worker writes.
+
+The GUI page from the last trace is not identified in the trace. It has about
+1723 paint nodes and takes about 40 ms at every width; that matches the bench's
+re-break passes (45 ms), not its no-change passes (19 ms). [INFERENCE] On that
+page most passes re-break lines.
+
+Option A from `plans/issues/layout-visit-cost.md` applied (2026-11-08): same
+drag, `BrowserTab.layout` without profiler 15.8 → **5.8 ms**; re-break passes
+43–57 → 23–31 ms; background `layout.async.document` 21.1 → **12.3 ms**.
+Screenshots byte-identical. Details and steps are in that file.
+Option A step 4 (line/text/embed/document payloads) applied the same day; on a
+300-paragraph page where every pass re-breaks lines, layout went 16.0 → 7.95 ms
+against `HEAD`. Remaining hot spots: `inlineTextLinePlan` (per-word copies),
+`placeInlineItems`, `layoutLineBoxes`.
+
+GUI trace after step 4 (same page, ~1726 paint nodes; 48 drags, 30.8 s, 1262
+resize events, shorter drags: median 0.35 s): background layout in drags median
+24.0 ms (p95 40.4) vs 23.1 ms after step 3; resize event → painted median 57 ms
+(p95 91) vs 57 (88); final width after release median 23 ms. Step 4 is not
+visible on this page, as in the headless `large.html` run. Breakpoint style ran
+18 times during drags at 14–45 ms on main, with present gaps of 23–61 ms
+around it.
+
+GUI trace after Option A (same page: ~1749 paint nodes vs ~1723; 21 drags,
+25.7 s, 1253 resize events), compared with the trace after the lane fix:
+
+| Measure | Before Option A | After |
+|---|---:|---:|
+| Background layout in drags (median / p95) | 41.1 / 62.9 ms | **23.1 / 36.4 ms** |
+| New layouts painted per second | 15.3 | **23.6** |
+| Resize event → painted (median / p95) | 84 / 132 ms | **57 / 88 ms** |
+| Final width painted after release (median) | 31 ms | 21 ms |
+| Layout worker busy during drags | 74% | 60% |
+
+The 57 ms now splits into waiting for the running pass (16 ms), the pass
+(25 ms), and finish → paint (13 ms: about 7 ms waiting for the next 60 Hz tick
+plus 4.9 ms paint). About half of the latency is now scheduling, not layout.
+Layout is still above one frame at every width (22–26 ms). Breakpoint style
+still runs on main during drags (14 passes, 13–25 ms).
 
 ## Execution protocol
 

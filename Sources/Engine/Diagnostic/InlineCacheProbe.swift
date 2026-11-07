@@ -16,7 +16,7 @@ func inlineCacheProbe(_ frame: Frame, _ label: String) {
 
         for id in tree.liveIDs where tree.isBlock(id) {
             totalBlocks += 1
-            let data: BlockData = tree.blockData(id)
+            let data: BlockData = tree[block: id]
             let itemCount: Int = data.content.inlineItems.count
             let objectCount: Int = data.content.inlineObjects.count
             guard itemCount > 0 || objectCount > 0 else { continue }

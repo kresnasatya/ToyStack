@@ -49,8 +49,8 @@ struct LayoutTreeTests {
 
         tree.removeSubtree(parent)
 
-        #expect(tree.nodes[parent.raw] == nil)
-        #expect(tree.nodes[child.raw] == nil)
+        #expect(!tree.contains(parent))
+        #expect(!tree.contains(child))
 
         let next: LayoutID = tree.append(
             kind: .block(BlockData()),
@@ -83,12 +83,12 @@ struct LayoutTreeTests {
         )
 
         tree.setChildren([first], of: parent)
-        #expect(tree.node(first).links.parent == parent)
-        #expect(tree.node(parent).links.versions.children == 1)
+        #expect(tree[node: first].links.parent == parent)
+        #expect(tree[node: parent].links.versions.children == 1)
 
         tree.setChildren([first, second], of: parent)
-        #expect(tree.node(second).links.parent == parent)
+        #expect(tree[node: second].links.parent == parent)
         #expect(tree.children(of: parent) == [first, second])
-        #expect(tree.node(parent).links.versions.children == 2)
+        #expect(tree[node: parent].links.versions.children == 2)
     }
 }

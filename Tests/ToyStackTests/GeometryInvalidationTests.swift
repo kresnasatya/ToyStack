@@ -63,7 +63,7 @@ struct GeometryInvalidationTests {
             treeToList(tree, blockBefore).first(where: { tree.isText($0) })
         )
         #expect(
-            tree.x(textBefore) + tree.textData(textBefore).metrics.width
+            tree.x(textBefore) + tree[text: textBefore].metrics.width
                 == tree.x(blockBefore) + tree.width(blockBefore)
         )
 
@@ -79,7 +79,7 @@ struct GeometryInvalidationTests {
         )
         #expect(treeAfter.y(blockAfter) == yBefore + 70)
         #expect(
-            treeAfter.x(textAfter) + treeAfter.textData(textAfter).metrics.width
+            treeAfter.x(textAfter) + treeAfter[text: textAfter].metrics.width
                 == treeAfter.x(blockAfter) + treeAfter.width(blockAfter)
         )
     }

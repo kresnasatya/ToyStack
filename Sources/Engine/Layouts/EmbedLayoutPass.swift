@@ -39,7 +39,7 @@ extension LayoutTree {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(id).state.fields
+        let state: FieldState = self[node: id].state.fields.state
         return state.isDirty(.zoom) || state.isDirty(.width) || state.isDirty(.height)
             || state.isDirty(.font) || state.isDirty(.ascent) || state.isDirty(.descent)
     }
@@ -61,7 +61,7 @@ extension LayoutTree {
 
     mutating func layoutEmbed(_ id: LayoutID) {
         guard embedLayoutNeeded(id) else { return }
-        switch embedData(id) {
+        switch self[embed: id] {
         case .image:
             layoutImage(id)
         case .input:
@@ -97,13 +97,13 @@ extension LayoutTree {
             zoom: zoom(id)
         )
         var data: ImageData
-        if case .image(let current) = embedData(id) {
+        if case .image(let current) = self[embed: id] {
             data = current
         } else {
             data = ImageData(imageHeight: 0)
         }
         data.imageHeight = usedHeight
-        setKind(.embed(.image(data)), at: id)
+        self[embed: id] = .image(data)
         setField(.height, max(usedHeight, font(id).linespace), for: id)
         embedSetAscentFromHeight(id)
     }
@@ -171,13 +171,13 @@ extension LayoutTree {
 
     mutating private func newButtonLine(_ id: LayoutID) {
         var data: ButtonData
-        if case .button(let current) = embedData(id) {
+        if case .button(let current) = self[embed: id] {
             data = current
         } else {
             data = ButtonData(cursorX: 0)
         }
         data.cursorX = 0
-        setKind(.embed(.button(data)), at: id)
+        self[embed: id] = .button(data)
         let previous: LayoutID? = childrenIDs(of: id).last
         let line: LayoutID = makeLine(dom: domID(of: id), parent: id, previous: previous)
         var children: [LayoutID] = childrenIDs(of: id)
@@ -245,14 +245,14 @@ extension LayoutTree {
     }
 
     private func buttonCursorX(_ id: LayoutID) -> CGFloat {
-        guard case .button(let data) = embedData(id) else { return 0 }
+        guard case .button(let data) = self[embed: id] else { return 0 }
         return data.cursorX
     }
 
     mutating private func setButtonCursorX(_ id: LayoutID, _ value: CGFloat) {
-        guard case .button(var data) = embedData(id) else { return }
+        guard case .button(var data) = self[embed: id] else { return }
         data.cursorX = value
-        setKind(.embed(.button(data)), at: id)
+        self[embed: id] = .button(data)
     }
 
     // MARK: - Iframe

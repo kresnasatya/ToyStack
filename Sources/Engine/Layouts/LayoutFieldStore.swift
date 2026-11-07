@@ -19,11 +19,11 @@ struct LayoutFieldStore {
 
 extension LayoutFieldStore {
     func isUsed(_ field: LayoutField) -> Bool {
-        return state.usedBits & field.mask != 0
+        return state.isUsed(field)
     }
 
     func isDirty(_ field: LayoutField) -> Bool {
-        return state.dirtyBits & field.mask != 0
+        return state.isDirty(field)
     }
 
     mutating func markUsed(_ field: LayoutField) {
@@ -78,5 +78,15 @@ struct FieldState {
     init() {
         self.usedBits = 0
         self.dirtyBits = LayoutField.allMask
+    }
+}
+
+extension FieldState {
+    func isUsed(_ field: LayoutField) -> Bool {
+        return usedBits & field.mask != 0
+    }
+
+    func isDirty(_ field: LayoutField) -> Bool {
+        return dirtyBits & field.mask != 0
     }
 }

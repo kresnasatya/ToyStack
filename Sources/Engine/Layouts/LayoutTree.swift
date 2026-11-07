@@ -8,7 +8,10 @@ import Foundation
 /// Nodes are append-only: removing a subtree writes `nil` into the hole and
 /// never reuses the ID, so a stale `LayoutID` cannot point at another node.
 struct LayoutTree: @unchecked Sendable {
-    private(set) var nodes: [LayoutNode?]
+    /// Not optional: unwrapping an optional element copies the whole node
+    /// (over 400 bytes) on every read. A removed node stays as a placeholder
+    /// with `state.isRemoved`; IDs are never reused.
+    private(set) var nodes: [LayoutNode]
     private(set) var primaryByNode: [NodeID: LayoutID]
     var dependencies: DependencyIndex
     private var source: LayoutTreeSource
@@ -111,7 +114,8 @@ struct LayoutTree: @unchecked Sendable {
         )
         let state: LayoutState = LayoutState(
             fields: LayoutFieldStore(),
-            hasDirtyDescendants: false
+            hasDirtyDescendants: false,
+            isRemoved: false
         )
         return append(
             LayoutNodeSeed(kind: kind, dom: dom, links: links, state: state)
@@ -156,73 +160,72 @@ struct LayoutTree: @unchecked Sendable {
     var liveIDs: [LayoutID] {
         var ids: [LayoutID] = []
         ids.reserveCapacity(nodes.count)
-        for (index, node) in nodes.enumerated() where node != nil {
+        for index in nodes.indices where !nodes[index].state.isRemoved {
             ids.append(LayoutID(raw: index))
         }
         return ids
     }
 
-    func node(_ id: LayoutID) -> LayoutNode {
-        guard let node: LayoutNode = nodes[id.raw] else {
-            preconditionFailure("LayoutID points at a removed node")
+    /// Borrows the node in place. Reading one field through it copies only
+    /// that field, and writing through it changes the stored node without
+    /// copying the rest of it (kind payload, children, font).
+    subscript(node id: LayoutID) -> LayoutNode {
+        _read {
+            guard !nodes[id.raw].state.isRemoved else {
+                preconditionFailure("LayoutID points at a removed node")
+            }
+            yield nodes[id.raw]
         }
-        return node
+        _modify {
+            guard !nodes[id.raw].state.isRemoved else {
+                preconditionFailure("LayoutID points at a removed node")
+            }
+            yield &nodes[id.raw]
+        }
     }
 
     func kind(_ id: LayoutID) -> LayoutKind {
-        return node(id).kind
+        return self[node: id].kind
     }
 
     func contains(_ id: LayoutID) -> Bool {
         guard id.raw >= 0, id.raw < nodes.count else { return false }
-        return nodes[id.raw] != nil
+        return !nodes[id.raw].state.isRemoved
     }
 
     mutating func setKind(_ kind: LayoutKind, at id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        node.kind = kind
-        nodes[id.raw] = node
+        self[node: id].kind = kind
     }
 
     // MARK: - Links
 
     func children(of id: LayoutID) -> [LayoutID] {
-        return node(id).links.children
+        return self[node: id].links.children
     }
 
     mutating func setChildren(_ children: [LayoutID], of id: LayoutID) {
-        var parent: LayoutNode = node(id)
-        if parent.links.children != children {
+        if self[node: id].links.children != children {
             needsSweep = true
         }
-        parent.links.children = children
-        parent.links.versions.children += 1
-        nodes[id.raw] = parent
-        for child in children {
-            var node: LayoutNode = self.node(child)
-            guard node.links.parent != id else { continue }
-            node.links.parent = id
-            nodes[child.raw] = node
+        self[node: id].links.children = children
+        self[node: id].links.versions.children += 1
+        for child in children where self[node: child].links.parent != id {
+            self[node: child].links.parent = id
         }
     }
 
     mutating func setPrevious(_ previous: LayoutID?, of id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        guard node.links.previous != previous else { return }
-        node.links.previous = previous
-        node.links.versions.previous += 1
-        nodes[id.raw] = node
+        guard self[node: id].links.previous != previous else { return }
+        self[node: id].links.previous = previous
+        self[node: id].links.versions.previous += 1
     }
 
     mutating func removeSubtree(_ id: LayoutID) {
-        guard nodes[id.raw] != nil else { return }
-        let links: LayoutLinks = node(id).links
-        let parent: LayoutID? = links.parent
+        guard contains(id) else { return }
+        let parent: LayoutID? = self[node: id].links.parent
         if let parent {
-            var node: LayoutNode = self.node(parent)
-            node.links.children.removeAll(where: { $0 == id })
-            node.links.versions.children += 1
-            nodes[parent.raw] = node
+            self[node: parent].links.children.removeAll(where: { $0 == id })
+            self[node: parent].links.versions.children += 1
         }
         var removed: [LayoutID] = []
         collectSubtreeIDs(id, into: &removed)
@@ -234,22 +237,23 @@ struct LayoutTree: @unchecked Sendable {
     }
 
     private func collectSubtreeIDs(_ id: LayoutID, into ids: inout [LayoutID]) {
-        guard let node: LayoutNode = nodes[id.raw] else { return }
+        guard contains(id) else { return }
         ids.append(id)
-        for child in node.links.children {
+        for child in self[node: id].links.children {
             collectSubtreeIDs(child, into: &ids)
         }
     }
 
     mutating private func removeRecursively(_ id: LayoutID) {
-        guard let node: LayoutNode = nodes[id.raw] else { return }
-        for child in node.links.children {
+        guard contains(id) else { return }
+        for child in self[node: id].links.children {
             removeRecursively(child)
         }
-        if let primary: LayoutID = primaryByNode[node.dom], primary == id {
-            primaryByNode.removeValue(forKey: node.dom)
+        let dom: NodeID = self[node: id].dom
+        if let primary: LayoutID = primaryByNode[dom], primary == id {
+            primaryByNode.removeValue(forKey: dom)
         }
-        nodes[id.raw] = nil
+        nodes[id.raw] = .removed(dom: dom)
     }
 
     /// Removes dependency edges owned by and pointing at the given nodes.
@@ -260,8 +264,8 @@ struct LayoutTree: @unchecked Sendable {
         guard !ids.isEmpty else { return }
         profiler.measure("layout.sweep.edges.dependents", {
             for id in ids {
-                guard let node: LayoutNode = nodes[id.raw] else { continue }
-                let mask: UInt16 = node.state.fields.state.usedBits
+                guard contains(id) else { continue }
+                let mask: UInt16 = self[node: id].state.fields.state.usedBits
                 for field in LayoutField.allCases where mask & field.mask != 0 {
                     dependencies.removeDependent(
                         .layout(id, field),
@@ -272,8 +276,8 @@ struct LayoutTree: @unchecked Sendable {
         })
         profiler.measure("layout.sweep.edges.keys", {
             for id in ids {
-                guard let node: LayoutNode = nodes[id.raw] else { continue }
-                let mask: UInt16 = node.state.fields.state.usedBits
+                guard contains(id) else { continue }
+                let mask: UInt16 = self[node: id].state.fields.state.usedBits
                 for field in LayoutField.allCases where mask & field.mask != 0 {
                     dependencies.removeInputKey(.layout(id, field))
                 }
@@ -291,12 +295,12 @@ struct LayoutTree: @unchecked Sendable {
         })
         var removed: Set<LayoutID> = []
         profiler.measure("layout.sweep.identify", {
-            for index in nodes.indices {
-                guard let node: LayoutNode = nodes[index] else { continue }
+            for index in nodes.indices where !nodes[index].state.isRemoved {
                 let id: LayoutID = LayoutID(raw: index)
                 if reachable.contains(id) { continue }
-                if let primary: LayoutID = primaryByNode[node.dom], primary == id {
-                    primaryByNode.removeValue(forKey: node.dom)
+                let dom: NodeID = nodes[index].dom
+                if let primary: LayoutID = primaryByNode[dom], primary == id {
+                    primaryByNode.removeValue(forKey: dom)
                 }
                 removed.insert(id)
             }
@@ -304,7 +308,7 @@ struct LayoutTree: @unchecked Sendable {
         removeDependencyEdges(for: removed)
         profiler.measure("layout.sweep.nodes", {
             for id in removed {
-                nodes[id.raw] = nil
+                nodes[id.raw] = .removed(dom: nodes[id.raw].dom)
             }
         })
         needsSweep = false
@@ -312,9 +316,9 @@ struct LayoutTree: @unchecked Sendable {
     }
 
     private func collectReachable(_ id: LayoutID, into reachable: inout Set<LayoutID>) {
-        guard nodes[id.raw] != nil, !reachable.contains(id) else { return }
+        guard contains(id), !reachable.contains(id) else { return }
         reachable.insert(id)
-        for child in node(id).links.children {
+        for child in self[node: id].links.children {
             collectReachable(child, into: &reachable)
         }
     }
@@ -370,18 +374,16 @@ struct LayoutTree: @unchecked Sendable {
 
     // MARK: - Fields
     func isDirty(_ field: LayoutField, at id: LayoutID) -> Bool {
-        return node(id).state.fields.isDirty(field)
+        return self[node: id].state.fields.isDirty(field)
     }
 
     func isUsed(_ field: LayoutField, at id: LayoutID) -> Bool {
-        return node(id).state.fields.isUsed(field)
+        return self[node: id].state.fields.isUsed(field)
     }
 
     mutating func markUsed(_ field: LayoutField, at id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        let wasUsed: Bool = node.state.fields.isUsed(field)
-        node.state.fields.markUsed(field)
-        nodes[id.raw] = node
+        let wasUsed: Bool = self[node: id].state.fields.isUsed(field)
+        self[node: id].state.fields.markUsed(field)
         guard !wasUsed else { return }
         let dependent: FieldKey = .layout(id, field)
         for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
@@ -401,101 +403,86 @@ struct LayoutTree: @unchecked Sendable {
     }
 
     mutating func markClean(_ field: LayoutField, at id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        node.state.fields.markClean(field)
-        nodes[id.raw] = node
+        self[node: id].state.fields.markClean(field)
     }
 
     mutating func markField(_ field: LayoutField, at id: LayoutID) {
         guard !isDirty(field, at: id) else { return }
         profiler.count("layout.field.mark")
-        var node: LayoutNode = self.node(id)
-        node.state.fields.markDirty(field)
-        nodes[id.raw] = node
+        self[node: id].state.fields.markDirty(field)
         markAncestorsDirty(from: id)
     }
 
     mutating func markAncestorsDirty(from id: LayoutID) {
-        var current: LayoutID? = node(id).links.parent
-        while let ancestor = current, !node(ancestor).state.hasDirtyDescendants {
-            var node: LayoutNode = self.node(ancestor)
-            node.state.hasDirtyDescendants = true
-            nodes[ancestor.raw] = node
-            current = node.links.parent
+        var current: LayoutID? = self[node: id].links.parent
+        while let ancestor = current, !self[node: ancestor].state.hasDirtyDescendants {
+            self[node: ancestor].state.hasDirtyDescendants = true
+            current = self[node: ancestor].links.parent
         }
     }
 
     mutating func setDirtyDescendants(_ value: Bool, at id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        node.state.hasDirtyDescendants = value
-        nodes[id.raw] = node
+        self[node: id].state.hasDirtyDescendants = value
     }
 
     // MARK: - Values
 
     func storedCGFloat(_ field: LayoutField, at id: LayoutID) -> CGFloat {
-        let fields: LayoutFieldStore = node(id).state.fields
         switch field {
         case .x:
-            return fields.geometry.origin.x
+            return self[node: id].state.fields.geometry.origin.x
         case .y:
-            return fields.geometry.origin.y
+            return self[node: id].state.fields.geometry.origin.y
         case .width:
-            return fields.geometry.size.width
+            return self[node: id].state.fields.geometry.size.width
         case .height:
-            return fields.geometry.size.height
+            return self[node: id].state.fields.geometry.size.height
         case .zoom:
-            return fields.geometry.zoom
+            return self[node: id].state.fields.geometry.zoom
         case .ascent:
-            return fields.inlineText.ascent
+            return self[node: id].state.fields.inlineText.ascent
         case .descent:
-            return fields.inlineText.descent
+            return self[node: id].state.fields.inlineText.descent
         default:
             preconditionFailure("Field \(field.rawValue) is not a CGFloat value")
         }
     }
 
     func storedFont(_ id: LayoutID) -> BrowserFont {
-        return node(id).state.fields.inlineText.font
+        return self[node: id].state.fields.inlineText.font
     }
 
     func storedInlineContent(_ id: LayoutID) -> UInt64 {
-        return node(id).state.fields.inlineText.inlineContent
+        return self[node: id].state.fields.inlineText.inlineContent
     }
 
     mutating private func writeCGFloat(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
-        var node: LayoutNode = self.node(id)
         switch field {
         case .x:
-            node.state.fields.geometry.origin.x = value
+            self[node: id].state.fields.geometry.origin.x = value
         case .y:
-            node.state.fields.geometry.origin.y = value
+            self[node: id].state.fields.geometry.origin.y = value
         case .width:
-            node.state.fields.geometry.size.width = value
+            self[node: id].state.fields.geometry.size.width = value
         case .height:
-            node.state.fields.geometry.size.height = value
+            self[node: id].state.fields.geometry.size.height = value
         case .zoom:
-            node.state.fields.geometry.zoom = value
+            self[node: id].state.fields.geometry.zoom = value
         case .ascent:
-            node.state.fields.inlineText.ascent = value
+            self[node: id].state.fields.inlineText.ascent = value
         case .descent:
-            node.state.fields.inlineText.descent = value
+            self[node: id].state.fields.inlineText.descent = value
         default:
             preconditionFailure("Field \(field.rawValue) is not a CGFloat value")
         }
-        nodes[id.raw] = node
     }
 
     mutating private func writeFont(_ font: BrowserFont, for id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        node.state.fields.inlineText.font = font
-        nodes[id.raw] = node
+        self[node: id].state.fields.inlineText.font = font
     }
 
     mutating private func writeInlineContent(_ value: UInt64, for id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        node.state.fields.inlineText.inlineContent = value
-        nodes[id.raw] = node
+        self[node: id].state.fields.inlineText.inlineContent = value
     }
 
     /// Writes a computed value and dirties the fields that read it.
@@ -510,65 +497,51 @@ struct LayoutTree: @unchecked Sendable {
         markDependents(of: .layout(id, field))
     }
 
+    /// Fields written together by `setFrame`, `setPosition`, and
+    /// `setTextMetrics`. Static, so a call does not allocate an array.
+    private static let frameFields: [LayoutField] = [.zoom, .x, .y, .width]
+    private static let positionFields: [LayoutField] = [.x, .y]
+    private static let textMetricFields: [LayoutField] = [.width, .height, .ascent, .descent]
 
     mutating func setFrame(
         _ frame: (zoom: CGFloat, x: CGFloat, y: CGFloat, width: CGFloat),
         for id: LayoutID
     ) {
-        var node: LayoutNode = self.node(id)
-        let used: UInt16 = node.state.fields.state.usedBits
-        let oldZoom: CGFloat = node.state.fields.geometry.zoom
-        let oldX: CGFloat = node.state.fields.geometry.origin.x
-        let oldY: CGFloat = node.state.fields.geometry.origin.y
-        let oldWidth: CGFloat = node.state.fields.geometry.size.width
-        node.state.fields.geometry.zoom = frame.zoom
-        node.state.fields.geometry.origin.x = frame.x
-        node.state.fields.geometry.origin.y = frame.y
-        node.state.fields.geometry.size.width = frame.width
-        for field in [LayoutField.zoom, .x, .y, .width] {
-            node.state.fields.markUsed(field)
-            node.state.fields.markClean(field)
-        }
-        nodes[id.raw] = node
+        let old: GeometryFields = self[node: id].state.fields.geometry
+        let used: UInt16 = self[node: id].state.fields.state.usedBits
+        self[node: id].state.fields.geometry.zoom = frame.zoom
+        self[node: id].state.fields.geometry.origin.x = frame.x
+        self[node: id].state.fields.geometry.origin.y = frame.y
+        self[node: id].state.fields.geometry.size.width = frame.width
+        markUsedClean(Self.frameFields, at: id)
+        registerInputs(of: Self.frameFields, notIn: used, for: id)
 
-        for field in [LayoutField.zoom, .x, .y, .width] where used & field.mask == 0 {
-            let dependent: FieldKey = .layout(id, field)
-            for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
-                dependencies.add(dependent, for: input)
-            }
+        if used & LayoutField.zoom.mask == 0 || old.zoom != frame.zoom {
+            noteFieldSet(.zoom, at: id)
         }
-
-        let changes: [(LayoutField, CGFloat, CGFloat)] = [
-            (.zoom, oldZoom, frame.zoom),
-            (.x, oldX, frame.x),
-            (.y, oldY, frame.y),
-            (.width, oldWidth, frame.width),
-        ]
-        for (field, old, value) in changes where used & field.mask == 0 || old != value {
-            profiler.count("layout.field.set")
-            markDependents(of: .layout(id, field))
+        if used & LayoutField.x.mask == 0 || old.origin.x != frame.x {
+            noteFieldSet(.x, at: id)
+        }
+        if used & LayoutField.y.mask == 0 || old.origin.y != frame.y {
+            noteFieldSet(.y, at: id)
+        }
+        if used & LayoutField.width.mask == 0 || old.size.width != frame.width {
+            noteFieldSet(.width, at: id)
         }
     }
 
     mutating func setPosition(x: CGFloat, y: CGFloat, for id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        let used: UInt16 = node.state.fields.state.usedBits
-        let oldX: CGFloat = node.state.fields.geometry.origin.x
-        let oldY: CGFloat = node.state.fields.geometry.origin.y
-        node.state.fields.geometry.origin.x = x
-        node.state.fields.geometry.origin.y = y
-        node.state.fields.markUsed(.x)
-        node.state.fields.markUsed(.y)
-        node.state.fields.markClean(.x)
-        node.state.fields.markClean(.y)
-        nodes[id.raw] = node
+        let old: Point = self[node: id].state.fields.geometry.origin
+        let used: UInt16 = self[node: id].state.fields.state.usedBits
+        self[node: id].state.fields.geometry.origin.x = x
+        self[node: id].state.fields.geometry.origin.y = y
+        markUsedClean(Self.positionFields, at: id)
 
-        for (field, old, value) in [
-            (LayoutField.x, oldX, x),
-            (.y, oldY, y),
-        ] where used & field.mask == 0 || old != value {
-            profiler.count("layout.field.set")
-            markDependents(of: .layout(id, field))
+        if used & LayoutField.x.mask == 0 || old.x != x {
+            noteFieldSet(.x, at: id)
+        }
+        if used & LayoutField.y.mask == 0 || old.y != y {
+            noteFieldSet(.y, at: id)
         }
     }
 
@@ -580,14 +553,14 @@ struct LayoutTree: @unchecked Sendable {
     }
 
     mutating func setFont(_ font: BrowserFont, for id: LayoutID) {
-        var node: LayoutNode = self.node(id)
-        let wasUsed: Bool = node.state.fields.isUsed(.font)
-        let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
-        if wasUsed, !node.state.fields.isDirty(.font), !changed { return }
-        node.state.fields.inlineText.font = font
-        node.state.fields.markUsed(.font)
-        node.state.fields.markClean(.font)
-        nodes[id.raw] = node
+        let fields: FieldState = self[node: id].state.fields.state
+        let wasUsed: Bool = fields.isUsed(.font)
+        let changed: Bool = !wasUsed
+            || !CFEqual(self[node: id].state.fields.inlineText.font.ctFont, font.ctFont)
+        if wasUsed, !fields.isDirty(.font), !changed { return }
+        self[node: id].state.fields.inlineText.font = font
+        self[node: id].state.fields.markUsed(.font)
+        self[node: id].state.fields.markClean(.font)
         if !wasUsed {
             let dependent: FieldKey = .layout(id, .font)
             for input in LayoutInputTable.inputs(for: id, field: .font, in: self) {
@@ -605,34 +578,34 @@ struct LayoutTree: @unchecked Sendable {
         measuredWidth: CGFloat?,
         for id: LayoutID
     ) {
-        var node: LayoutNode = self.node(id)
-        let wasUsed: Bool = node.state.fields.isUsed(.font)
-        let fontDirty: Bool = node.state.fields.isDirty(.font)
-        let changed: Bool = !wasUsed || !CFEqual(node.state.fields.inlineText.font.ctFont, font.ctFont)
-        let previousChanged: Bool = node.links.previous != previous
+        let fields: FieldState = self[node: id].state.fields.state
+        let wasUsed: Bool = fields.isUsed(.font)
+        let fontDirty: Bool = fields.isDirty(.font)
+        let changed: Bool = !wasUsed
+            || !CFEqual(self[node: id].state.fields.inlineText.font.ctFont, font.ctFont)
+        let previousChanged: Bool = self[node: id].links.previous != previous
         var metricsChanged: Bool = false
         if let measuredWidth: CGFloat {
-            if case .text(var data) = node.kind,
+            if case .text(var data) = self[node: id].kind,
                 data.metrics.width != measuredWidth || !data.metrics.measured
             {
                 data.metrics.width = measuredWidth
                 data.metrics.measured = true
-                node.kind = .text(data)
+                self[node: id].kind = .text(data)
                 metricsChanged = true
             }
         }
         let needsWrite: Bool = !wasUsed || changed || fontDirty || previousChanged || metricsChanged
         guard needsWrite else { return }
         if !wasUsed || changed || fontDirty {
-            node.state.fields.inlineText.font = font
-            node.state.fields.markUsed(.font)
-            node.state.fields.markClean(.font)
+            self[node: id].state.fields.inlineText.font = font
+            self[node: id].state.fields.markUsed(.font)
+            self[node: id].state.fields.markClean(.font)
         }
         if previousChanged {
-            node.links.previous = previous
-            node.links.versions.previous += 1
+            self[node: id].links.previous = previous
+            self[node: id].links.versions.previous += 1
         }
-        nodes[id.raw] = node
         if !wasUsed {
             let dependent: FieldKey = .layout(id, .font)
             for input in LayoutInputTable.inputs(for: id, field: .font, in: self) {
@@ -655,38 +628,56 @@ struct LayoutTree: @unchecked Sendable {
         width: CGFloat,
         vertical: (height: CGFloat, ascent: CGFloat, descent: CGFloat)
     ) {
-        var node: LayoutNode = self.node(id)
-        let used: UInt16 = node.state.fields.state.usedBits
-        let fields: [LayoutField] = [.width, .height, .ascent, .descent]
-        for field in fields where used & field.mask == 0 {
+        let used: UInt16 = self[node: id].state.fields.state.usedBits
+        for field in Self.textMetricFields where used & field.mask == 0 {
             markUsed(field, at: id)
         }
-        node = self.node(id)
-        let oldWidth: CGFloat = node.state.fields.geometry.size.width
-        let oldHeight: CGFloat = node.state.fields.geometry.size.height
-        let oldAscent: CGFloat = node.state.fields.inlineText.ascent
-        let oldDescent: CGFloat = node.state.fields.inlineText.descent
+        let oldSize: CGSize = self[node: id].state.fields.geometry.size
+        let oldAscent: CGFloat = self[node: id].state.fields.inlineText.ascent
+        let oldDescent: CGFloat = self[node: id].state.fields.inlineText.descent
 
-        node.state.fields.geometry.size.width = width
-        node.state.fields.geometry.size.height = vertical.height
-        node.state.fields.inlineText.ascent = vertical.ascent
-        node.state.fields.inlineText.descent = vertical.descent
+        self[node: id].state.fields.geometry.size.width = width
+        self[node: id].state.fields.geometry.size.height = vertical.height
+        self[node: id].state.fields.inlineText.ascent = vertical.ascent
+        self[node: id].state.fields.inlineText.descent = vertical.descent
+        markUsedClean(Self.textMetricFields, at: id)
+
+        if used & LayoutField.width.mask == 0 || oldSize.width != width {
+            noteFieldSet(.width, at: id)
+        }
+        if used & LayoutField.height.mask == 0 || oldSize.height != vertical.height {
+            noteFieldSet(.height, at: id)
+        }
+        if used & LayoutField.ascent.mask == 0 || oldAscent != vertical.ascent {
+            noteFieldSet(.ascent, at: id)
+        }
+        if used & LayoutField.descent.mask == 0 || oldDescent != vertical.descent {
+            noteFieldSet(.descent, at: id)
+        }
+    }
+
+    /// Marks fields used and clean in one write to the node.
+    private mutating func markUsedClean(_ fields: [LayoutField], at id: LayoutID) {
         for field in fields {
-            node.state.fields.markUsed(field)
-            node.state.fields.markClean(field)
+            self[node: id].state.fields.markUsed(field)
+            self[node: id].state.fields.markClean(field)
         }
-        nodes[id.raw] = node
+    }
 
-        let changes: [(LayoutField, Bool)] = [
-            (.width, used & LayoutField.width.mask == 0 || oldWidth != width),
-            (.height, used & LayoutField.height.mask == 0 || oldHeight != vertical.height),
-            (.ascent, used & LayoutField.ascent.mask == 0 || oldAscent != vertical.ascent),
-            (.descent, used & LayoutField.descent.mask == 0 || oldDescent != vertical.descent),
-        ]
-        for (field, changed) in changes where changed {
-            profiler.count("layout.field.set")
-            markDependents(of: .layout(id, field))
+    /// Records the dependency edges of fields that were not used before.
+    private mutating func registerInputs(of fields: [LayoutField], notIn used: UInt16, for id: LayoutID) {
+        for field in fields where used & field.mask == 0 {
+            let dependent: FieldKey = .layout(id, field)
+            for input in LayoutInputTable.inputs(for: id, field: field, in: self) {
+                dependencies.add(dependent, for: input)
+            }
         }
+    }
+
+    /// Counts a changed computed value and dirties the fields that read it.
+    private mutating func noteFieldSet(_ field: LayoutField, at id: LayoutID) {
+        profiler.count("layout.field.set")
+        markDependents(of: .layout(id, field))
     }
 
     mutating func setInlineContent(_ value: UInt64, for id: LayoutID) {
@@ -712,7 +703,7 @@ struct LayoutTree: @unchecked Sendable {
             !wasUsed || self.children(of: id) != children
         })
         let reparented: [LayoutID] = profiler.measure("layout.inline.children.reparent", {
-            children.filter({ node($0).links.parent != id })
+            children.filter({ self[node: $0].links.parent != id })
         })
         profiler.measure("layout.inline.children.write", {
             markUsed(.children, at: id)
@@ -753,7 +744,7 @@ struct LayoutTree: @unchecked Sendable {
             !wasUsed || oldChildren != children
         })
         let reparented: [LayoutID] = profiler.measure("layout.line.children.reparent", {
-            children.filter({ node($0).links.parent != id })
+            children.filter({ self[node: $0].links.parent != id })
         })
         var oldParents: [LayoutID: LayoutID] = [:]
         if !reparented.isEmpty {
@@ -820,7 +811,7 @@ struct LayoutTree: @unchecked Sendable {
     mutating func setChildrenField(_ children: [LayoutID], of id: LayoutID) {
         let wasUsed: Bool = isUsed(.children, at: id)
         let changed: Bool = !wasUsed || self.children(of: id) != children
-        let reparented: [LayoutID] = children.filter({ node($0).links.parent != id })
+        let reparented: [LayoutID] = children.filter({ self[node: $0].links.parent != id })
         markUsed(.children, at: id)
         setChildren(children, of: id)
         markClean(.children, at: id)
@@ -847,7 +838,7 @@ struct LayoutTree: @unchecked Sendable {
 
     mutating func setPreviousField(_ previous: LayoutID?, of id: LayoutID) {
         let wasUsed: Bool = isUsed(.previous, at: id)
-        let changed: Bool = !wasUsed || node(id).links.previous != previous
+        let changed: Bool = !wasUsed || self[node: id].links.previous != previous
         markUsed(.previous, at: id)
         setPrevious(previous, of: id)
         markClean(.previous, at: id)
@@ -956,37 +947,93 @@ extension LayoutTree {
     }
 
     // MARK: Payloads
+    //
+    // Each kind's payload is borrowed through a subscript. Reading copies only
+    // what the caller reads. Writing moves the payload out of the node for the
+    // duration, so the arrays inside are changed without being copied; the
+    // node holds `vacatedKind` meanwhile, and exclusive access to the tree
+    // means nothing can read it in between.
 
-    func documentData(_ id: LayoutID) -> DocumentData {
-        guard case .document(let data) = kind(id) else {
-            preconditionFailure("Not a document node")
+    subscript(document id: LayoutID) -> DocumentData {
+        _read {
+            switch self[node: id].kind {
+            case .document(let data):
+                yield data
+            default:
+                preconditionFailure("Not a document node")
+            }
         }
-        return data
+        _modify {
+            guard case .document(var data) = self[node: id].kind else {
+                preconditionFailure("Not a document node")
+            }
+            defer { self[node: id].kind = .document(data) }
+            yield &data
+        }
     }
 
-    func blockData(_ id: LayoutID) -> BlockData {
-        guard case .block(let data) = kind(id) else {
-            preconditionFailure("Not a block node")
+    subscript(block id: LayoutID) -> BlockData {
+        _read {
+            switch self[node: id].kind {
+            case .block(let data):
+                yield data
+            default:
+                preconditionFailure("Not a block node")
+            }
         }
-        return data
+        _modify {
+            guard case .block(var data) = self[node: id].kind else {
+                preconditionFailure("Not a block node")
+            }
+            self[node: id].kind = Self.vacatedKind
+            defer { self[node: id].kind = .block(data) }
+            yield &data
+        }
     }
 
-    func lineData(_ id: LayoutID) -> LineData {
-        guard case .line(let data) = kind(id) else {
-            preconditionFailure("Not a line node")
+    /// What a node holds only while a payload subscript is modifying its data.
+    private static let vacatedKind: LayoutKind = .document(DocumentData(pageZoom: 1))
+
+    subscript(line id: LayoutID) -> LineData {
+        _read {
+            switch self[node: id].kind {
+            case .line(let data):
+                yield data
+            default:
+                preconditionFailure("Not a line node")
+            }
         }
-        return data
+        _modify {
+            guard case .line(var data) = self[node: id].kind else {
+                preconditionFailure("Not a line node")
+            }
+            self[node: id].kind = Self.vacatedKind
+            defer { self[node: id].kind = .line(data) }
+            yield &data
+        }
     }
 
-    func textData(_ id: LayoutID) -> TextData {
-        guard case .text(let data) = kind(id) else {
-            preconditionFailure("Not a text node")
+    subscript(text id: LayoutID) -> TextData {
+        _read {
+            switch self[node: id].kind {
+            case .text(let data):
+                yield data
+            default:
+                preconditionFailure("Not a text node")
+            }
         }
-        return data
+        _modify {
+            guard case .text(var data) = self[node: id].kind else {
+                preconditionFailure("Not a text node")
+            }
+            self[node: id].kind = Self.vacatedKind
+            defer { self[node: id].kind = .text(data) }
+            yield &data
+        }
     }
 
     func textString(_ id: LayoutID) -> String {
-        let data: TextData = textData(id)
+        let data: TextData = self[text: id]
         if let fragment = data.fragment, let run: TextRun = textRuns[fragment.block] {
             return run.string(start: fragment.start, count: fragment.count)
         }
@@ -997,7 +1044,7 @@ extension LayoutTree {
         var result: [InlineBox] = []
         for id in liveIDs where isLine(id) {
             let boxes: [InlineBox] = currentInlineBoxes(id)
-                ?? lineData(id).content.boxes
+                ?? self[line: id].content.boxes
             for box in boxes where box.dom == dom {
                 result.append(
                     InlineBox(
@@ -1023,20 +1070,32 @@ extension LayoutTree {
         return box.text.payload.display ?? box.text.payload.word
     }
 
-    func embedData(_ id: LayoutID) -> EmbedData {
-        guard case .embed(let data) = kind(id) else {
-            preconditionFailure("Not an embed node")
+    subscript(embed id: LayoutID) -> EmbedData {
+        _read {
+            switch self[node: id].kind {
+            case .embed(let data):
+                yield data
+            default:
+                preconditionFailure("Not an embed node")
+            }
         }
-        return data
+        _modify {
+            guard case .embed(var data) = self[node: id].kind else {
+                preconditionFailure("Not an embed node")
+            }
+            self[node: id].kind = Self.vacatedKind
+            defer { self[node: id].kind = .embed(data) }
+            yield &data
+        }
     }
 
     // MARK: Structure
 
-    func domID(of id: LayoutID) -> NodeID { return node(id).dom }
-    func parentID(of id: LayoutID) -> LayoutID? { return node(id).links.parent }
-    func previousID(of id: LayoutID) -> LayoutID? { return node(id).links.previous }
-    func childrenIDs(of id: LayoutID) -> [LayoutID] { return node(id).links.children }
-    func hasDirtyDescendants(at id: LayoutID) -> Bool { return node(id).state.hasDirtyDescendants }
+    func domID(of id: LayoutID) -> NodeID { return self[node: id].dom }
+    func parentID(of id: LayoutID) -> LayoutID? { return self[node: id].links.parent }
+    func previousID(of id: LayoutID) -> LayoutID? { return self[node: id].links.previous }
+    func childrenIDs(of id: LayoutID) -> [LayoutID] { return self[node: id].links.children }
+    func hasDirtyDescendants(at id: LayoutID) -> Bool { return self[node: id].state.hasDirtyDescendants }
 
     func isBlock(_ id: LayoutID) -> Bool { if case .block = kind(id) { return true }; return false }
     func isLine(_ id: LayoutID) -> Bool { if case .line = kind(id) { return true }; return false }

@@ -179,7 +179,7 @@ struct LayoutOracleTests {
             treeToList(page.tree, block).first(where: { page.tree.isText($0) })
         )
         let heightBefore: CGFloat = page.tree.height(text)
-        let textWidthBefore: CGFloat = page.tree.textData(text).metrics.width
+        let textWidthBefore: CGFloat = page.tree[text: text].metrics.width
 
         page.frame.setPageZoom(2)
         page.frame.render()
@@ -194,11 +194,11 @@ struct LayoutOracleTests {
         // Page zoom shrinks the layout viewport and is applied at paint time;
         // it is not a layout `zoom` field.
         #expect(document.zoom(document.rootID) == CGFloat(1))
-        #expect(document.documentData(document.rootID).pageZoom == CGFloat(2))
+        #expect(document[document: document.rootID].pageZoom == CGFloat(2))
         #expect(document.width(document.rootID) == page.frame.frameWidth - 2 * HSTEP)
         #expect(page.tree.width(paragraphAfter) == document.width(document.rootID))
         #expect(page.tree.height(zoomed) == heightBefore)
-        #expect(page.tree.textData(zoomed).metrics.width == textWidthBefore)
+        #expect(page.tree[text: zoomed].metrics.width == textWidthBefore)
         expectIncrementalMatchesFull(page)
     }
 

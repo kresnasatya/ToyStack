@@ -44,9 +44,7 @@ extension LayoutTree {
         extraNodes: [NodeID],
         previous: LayoutID?
     ) {
-        var data: BlockData = blockData(id)
-        data.content.extraNodes = extraNodes
-        setKind(.block(data), at: id)
+        self[block: id].content.extraNodes = extraNodes
         setPreviousClean(previous, of: id)
         for field in [
             LayoutField.zoom, .x, .y, .width, .inlineContent, .children,
@@ -57,7 +55,13 @@ extension LayoutTree {
     }
 
     func blockExtraNodes(_ id: LayoutID) -> [LayoutDOMView] {
-        return blockData(id).content.extraNodes.map({ domView($0) })
+        return self[block: id].content.extraNodes.map({ domView($0) })
+    }
+
+    /// True for an anonymous block that wraps inline nodes. Cheaper than
+    /// `blockExtraNodes(_:).isEmpty`, which builds the views.
+    func hasExtraNodes(_ id: LayoutID) -> Bool {
+        return !self[block: id].content.extraNodes.isEmpty
     }
 
     func inlineContentInputs(_ id: LayoutID) -> [FieldKey] {
@@ -120,12 +124,13 @@ extension LayoutTree {
     // MARK: - Line plan
 
     mutating private func inlineTextLinePlan(_ id: LayoutID) -> [[Int]]? {
-        let items: [InlineItem] = blockData(id).content.inlineItems
+        let items: [InlineItem] = self[block: id].content.inlineItems
         var plan: [[Int]] = []
         var current: [Int] = []
         var cursorX: CGFloat = 0
         let availableWidth: CGFloat = width(id)
         var updated: [InlineItem] = items
+        var measuredNewWord: Bool = false
 
         for index in updated.indices {
             switch updated[index] {
@@ -145,6 +150,7 @@ extension LayoutTree {
                     wordWidth = font.measure(text.display ?? text.word)
                     text.measuredWidth = wordWidth
                     updated[index] = .text(text)
+                    measuredNewWord = true
                 }
                 let width: CGFloat = wordWidth + font.spaceWidth
                 if cursorX + width > availableWidth && text.run.whiteSpace.wraps {
@@ -157,21 +163,19 @@ extension LayoutTree {
             }
         }
 
-        var data: BlockData = blockData(id)
-        data.content.inlineItems = updated
-        setKind(.block(data), at: id)
+        if measuredNewWord {
+            self[block: id].content.inlineItems = updated
+        }
         plan.append(current)
         return plan
     }
 
     mutating private func setHeightInputs(_ id: LayoutID) {
         let children: [LayoutID] = childrenIDs(of: id)
-        let declared: [LayoutID] = blockData(id).changes.declaredHeightChildren
+        let declared: [LayoutID] = self[block: id].changes.declaredHeightChildren
         let unchanged: Bool = children == declared
         if unchanged { return }
-        var data: BlockData = blockData(id)
-        data.changes.declaredHeightChildren = children
-        setKind(.block(data), at: id)
+        self[block: id].changes.declaredHeightChildren = children
         markUsed(.height, at: id)
     }
 
@@ -197,24 +201,18 @@ extension LayoutTree {
     }
 
     mutating func blockMarkChildrenDirty(_ id: LayoutID) {
-        var data: BlockData = blockData(id)
-        data.changes.childChanges.removeAll()
-        setKind(.block(data), at: id)
+        self[block: id].changes.childChanges.removeAll()
         markField(.inlineContent, at: id)
         markField(.children, at: id)
     }
 
     mutating func blockNoteAppendedChildren(_ id: LayoutID, _ nodes: [NodeID]) {
-        var data: BlockData = blockData(id)
-        data.changes.childChanges.append(.append(nodes))
-        setKind(.block(data), at: id)
+        self[block: id].changes.childChanges.append(.append(nodes))
         markAncestorsDirty(from: id)
     }
 
     mutating func blockNoteInsertedChildren(_ id: LayoutID, _ nodes: [NodeID], before reference: NodeID) {
-        var data: BlockData = blockData(id)
-        data.changes.childChanges.append(.insert(nodes, before: reference))
-        setKind(.block(data), at: id)
+        self[block: id].changes.childChanges.append(.insert(nodes, before: reference))
         markAncestorsDirty(from: id)
     }
 
@@ -231,7 +229,7 @@ extension LayoutTree {
             profiler.count("layout.dirtyDescendants")
             return true
         }
-        let state: LayoutFieldStore = node(id).state.fields
+        let state: FieldState = self[node: id].state.fields.state
         if state.isDirty(.zoom) || state.isDirty(.x) || state.isDirty(.y)
             || state.isDirty(.width) || state.isDirty(.height)
         {
@@ -239,7 +237,7 @@ extension LayoutTree {
         }
         return state.isDirty(.inlineContent)
             || state.isDirty(.children)
-            || !blockData(id).changes.childChanges.isEmpty
+            || !self[block: id].changes.childChanges.isEmpty
     }
 
     mutating func layoutBlock(_ id: LayoutID) {
@@ -266,7 +264,7 @@ extension LayoutTree {
             let parent: LayoutID = parentID(of: id)!
 
             let parentX: CGFloat = x(parent)
-            let padLeft: CGFloat = blockExtraNodes(id).isEmpty
+            let padLeft: CGFloat = !hasExtraNodes(id)
                 ? style.box.padding.left * zoomValue
                 : 0
             var frameX: CGFloat
@@ -277,7 +275,7 @@ extension LayoutTree {
             }
 
             let parentWidth: CGFloat = width(parent)
-            let padHorizontal: CGFloat = blockExtraNodes(id).isEmpty
+            let padHorizontal: CGFloat = !hasExtraNodes(id)
                 ? (style.box.padding.left + style.box.padding.right) * zoomValue
                 : 0
             var frameWidth: CGFloat
@@ -295,7 +293,7 @@ extension LayoutTree {
 
             var frameY: CGFloat
             if isAbsolute, let t = style.flags.top {
-                let padTop: CGFloat = blockExtraNodes(id).isEmpty
+                let padTop: CGFloat = !hasExtraNodes(id)
                     ? style.box.padding.left * zoomValue
                     : 0
                 frameY = t * zoomValue + padTop
@@ -342,11 +340,9 @@ extension LayoutTree {
                 profiler.count("layout.mode.block")
                 if isDirty(.children, at: id) {
                     setChildrenField(rebuildBlockChildren(id), of: id)
-                } else if !blockData(id).changes.childChanges.isEmpty {
-                    let changes: [BlockChildChange] = blockData(id).changes.childChanges
-                    var data: BlockData = blockData(id)
-                    data.changes.childChanges.removeAll()
-                    setKind(.block(data), at: id)
+                } else if !self[block: id].changes.childChanges.isEmpty {
+                    let changes: [BlockChildChange] = self[block: id].changes.childChanges
+                    self[block: id].changes.childChanges.removeAll()
                     if let changed: [LayoutID] = applyBlockChanges(id, changes) {
                         countChildChanges(changes)
                         setChildrenField(changed, of: id)
@@ -356,20 +352,18 @@ extension LayoutTree {
                 }
 
                 if isDirty(.inlineContent, at: id) {
-                    let revision: UInt64 = node(id).state.fields.inlineText.inlineContent + 1
+                    let revision: UInt64 = storedInlineContent(id) + 1
                     setInlineContentClean(revision, for: id)
-                    var data: BlockData = blockData(id)
-                    data.content.inlineObjects.removeAll(keepingCapacity: true)
-                    data.content.inlineLinePlan = nil
-                    setKind(.block(data), at: id)
+                    self[block: id].content.inlineObjects.removeAll(keepingCapacity: true)
+                    self[block: id].content.inlineLinePlan = nil
                 }
             } else {
                 profiler.count("layout.mode.inline")
-                let inlineContentChanged: Bool = isDirty(.inlineContent, at: id)
-                    || !blockData(id).changes.childChanges.isEmpty
-                var data: BlockData = blockData(id)
-                data.changes.childChanges.removeAll()
-                setKind(.block(data), at: id)
+                let hasChildChanges: Bool = !self[block: id].changes.childChanges.isEmpty
+                let inlineContentChanged: Bool = isDirty(.inlineContent, at: id) || hasChildChanges
+                if hasChildChanges {
+                    self[block: id].changes.childChanges.removeAll()
+                }
                 _ = zoom(id)
                 
                 var preservedItems: Bool = false
@@ -379,7 +373,7 @@ extension LayoutTree {
                         preservedItems = refreshInlineItems(id, preservingObjects: preserveObjects)
                     })
                 }
-                let oldPlan: [[Int]]? = blockData(id).content.inlineLinePlan
+                let oldPlan: [[Int]]? = self[block: id].content.inlineLinePlan
                 let plan: [[Int]]? = profiler.measure("layout.inline.plan", {
                     inlineTextLinePlan(id)
                 })
@@ -410,9 +404,9 @@ extension LayoutTree {
                 } else {
                     setChildrenField(childrenIDs(of: id), of: id)
                 }
-                var updated: BlockData = blockData(id)
-                updated.content.inlineLinePlan = plan
-                setKind(.block(updated), at: id)
+                if self[block: id].content.inlineLinePlan != plan {
+                    self[block: id].content.inlineLinePlan = plan
+                }
             }
         }
 
@@ -442,7 +436,8 @@ extension LayoutTree {
             profiler.count("layout.inline.children.skipped")
         }
 
-        var scroll: BlockScroll = blockData(id).scroll
+        let storedScroll: BlockScroll = self[block: id].scroll
+        var scroll: BlockScroll = storedScroll
         if let sumHeight = measuredHeight {
             scroll.contentHeight = sumHeight
             if let h: CGFloat = domView(id).style.computed.box.size.height {
@@ -461,9 +456,9 @@ extension LayoutTree {
             let maxScroll: CGFloat = max(0, scroll.contentHeight - height(id))
             scroll.offset = min(inputs.scrollOffset(domID(of: id)), maxScroll)
         }
-        var data: BlockData = blockData(id)
-        data.scroll = scroll
-        setKind(.block(data), at: id)
+        if scroll.offset != storedScroll.offset || scroll.contentHeight != storedScroll.contentHeight {
+            self[block: id].scroll = scroll
+        }
     }
 
     private enum LayoutMode {
@@ -472,7 +467,7 @@ extension LayoutTree {
     }
 
     private func layoutMode(_ id: LayoutID) -> LayoutMode {
-        if !blockExtraNodes(id).isEmpty { return .inline }
+        if hasExtraNodes(id) { return .inline }
         if domView(id).text != nil { return .inline }
         let hasBlockChild: Bool = domView(id).children.contains(where: {
             $0.style.computed.layout.display == .block
@@ -491,7 +486,7 @@ extension LayoutTree {
         guard inputs.style(domID(of: id)).text.direction == .ltr else {
             return false
         }
-        let items: [InlineItem] = blockData(id).content.inlineItems
+        let items: [InlineItem] = self[block: id].content.inlineItems
         guard items.allSatisfy({ item in
             if case .text = item { return true }
             return false
@@ -502,7 +497,7 @@ extension LayoutTree {
         guard !children.isEmpty, children.allSatisfy({ isLine($0) }) else {
             return false
         }
-        return children.allSatisfy({ !lineData($0).content.centered })
+        return children.allSatisfy({ !self[line: $0].content.centered })
     }
 
     private mutating func updateInlineLineFrames(_ id: LayoutID) {
@@ -519,9 +514,7 @@ extension LayoutTree {
 
     mutating private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
         profiler.count("layout.children.rebuilt")
-        var data: BlockData = blockData(id)
-        data.changes.childChanges.removeAll()
-        setKind(.block(data), at: id)
+        self[block: id].changes.childChanges.removeAll()
         var state: BlockChildBuild = BlockChildBuild()
         consumeBlockChildren(id, domView(id).children, state: &state)
         finishBlockChildren(id, &state)
@@ -533,13 +526,13 @@ extension LayoutTree {
         _ nodes: [LayoutDOMView],
         to current: [LayoutID]
     ) -> [LayoutID]? {
-        guard blockExtraNodes(id).isEmpty,
+        guard !hasExtraNodes(id),
             current.allSatisfy({ isBlock($0) })
         else {
             return nil
         }
         if let lastID: LayoutID = current.last {
-            if blockExtraNodes(lastID).isEmpty, domView(lastID).element?.tag == "h6" {
+            if !hasExtraNodes(lastID), domView(lastID).element?.tag == "h6" {
                 return nil
             }
         }
@@ -614,7 +607,7 @@ extension LayoutTree {
         before reference: LayoutDOMView,
         in current: [LayoutID]
     ) -> [LayoutID]? {
-        guard blockExtraNodes(id).isEmpty,
+        guard !hasExtraNodes(id),
             current.allSatisfy({ isBlock($0) })
         else {
             return nil
@@ -638,7 +631,7 @@ extension LayoutTree {
         let startsInline: Bool = first.style.computed.layout.display != .block
         if startsInline, index > 0 {
             let previous: LayoutID = current[index - 1]
-            if !blockExtraNodes(previous).isEmpty {
+            if hasExtraNodes(previous) {
                 return nil
             }
         }
@@ -654,7 +647,7 @@ extension LayoutTree {
         var previous: LayoutID? = state.previous
         for id in current[index...] {
             setBlockPrevious(id, previous)
-            let isFlow: Bool = !blockExtraNodes(id).isEmpty
+            let isFlow: Bool = hasExtraNodes(id)
                 || domView(id).style.computed.layout.position.kind != .absolute
             if isFlow { previous = id }
         }
@@ -694,7 +687,7 @@ extension LayoutTree {
 
     private func lastFlowChild(_ id: LayoutID, in children: [LayoutID]) -> LayoutID? {
         for id in children.reversed() {
-            if isBlock(id), !blockExtraNodes(id).isEmpty {
+            if isBlock(id), hasExtraNodes(id) {
                 return id
             }
             if domView(id).style.computed.layout.position.kind != .absolute {
@@ -787,12 +780,12 @@ extension LayoutTree {
     }
 
     func padding(_ id: LayoutID, _ side: StyleProperty) -> CGFloat {
-        guard blockExtraNodes(id).isEmpty else { return 0 }
+        guard !hasExtraNodes(id) else { return 0 }
         return max(0, paddingValue(id, side) * zoom(id))
     }
 
     private func paintedPadding(_ id: LayoutID, _ side: StyleProperty) -> CGFloat {
-        guard blockExtraNodes(id).isEmpty else { return 0 }
+        guard !hasExtraNodes(id) else { return 0 }
         return max(0, paddingValue(id, side) * zoom(id))
     }
 
@@ -807,7 +800,7 @@ extension LayoutTree {
     // MARK: - Inline items
 
     mutating private func placeInlineItems(_ id: LayoutID) {
-        let data: BlockData = blockData(id)
+        let data: BlockData = self[block: id]
         let items: [InlineItem] = data.content.inlineItems
         if textRuns[id] == nil {
             textRuns[id] = TextRun(items: items)
@@ -837,9 +830,7 @@ extension LayoutTree {
             placement.finish(in: &self)
         })
         if placement.objectsChanged {
-            var updated: BlockData = blockData(id)
-            updated.content.inlineObjects = placement.objects
-            setKind(.block(updated), at: id)
+            self[block: id].content.inlineObjects = placement.objects
         }
         profiler.measure("layout.inline.place.parentChildren", {
             setInlineChildrenField(placement.lines, of: id)
@@ -855,12 +846,11 @@ extension LayoutTree {
         items: [InlineItem]
     ) {
         let children: [LayoutID] = childrenIDs(of: line)
-        var data: LineData = lineData(line)
-        guard data.content.inlineWidths.count == children.count else { return }
-        var widths: [CGFloat] = data.content.inlineWidths
+        guard self[line: line].content.inlineWidths.count == children.count else { return }
+        var widths: [CGFloat] = self[line: line].content.inlineWidths
         for (index, child) in children.enumerated() where isText(child) {
-            let text: TextData = textData(child)
-            guard let fragment: TextFragment = text.fragment,
+            let textFragment: TextFragment? = self[text: child].fragment
+            guard let fragment: TextFragment = textFragment,
                 fragment.start >= 0,
                 fragment.start + fragment.count <= items.count
             else { continue }
@@ -873,15 +863,12 @@ extension LayoutTree {
                 width += measured + font.spaceWidth
             }
             widths[index] = width
-            var updated: TextData = text
-            updated.metrics.width = width
-            updated.metrics.measured = true
-            setKind(.text(updated), at: child)
+            self[text: child].metrics.width = width
+            self[text: child].metrics.measured = true
             markField(.font, at: child)
             markField(.width, at: child)
         }
-        data.content.inlineWidths = widths
-        setKind(.line(data), at: line)
+        self[line: line].content.inlineWidths = widths
     }
 
     /// Places a changed line plan. Lines whose item range is unchanged keep
@@ -892,7 +879,7 @@ extension LayoutTree {
         oldPlan: [[Int]],
         refreshMetrics: Bool
     ) {
-        let data: BlockData = blockData(id)
+        let data: BlockData = self[block: id]
         let items: [InlineItem] = data.content.inlineItems
         if textRuns[id] == nil {
             textRuns[id] = TextRun(items: items)
@@ -948,7 +935,7 @@ extension LayoutTree {
             if let freeLine: LayoutID = free.popLast() {
                 line = freeLine
             } else {
-                line = makeLine(dom: node(id).dom, parent: id, previous: previous)
+                line = makeLine(dom: domID(of: id), parent: id, previous: previous)
             }
             placement.start(at: line, previous: previous, in: &self)
             for itemIndex in range {
@@ -964,9 +951,7 @@ extension LayoutTree {
             profiler.count("layout.inline.place.rebuiltLines")
         }
         if placement.objectsChanged {
-            var updated: BlockData = blockData(id)
-            updated.content.inlineObjects = placement.objects
-            setKind(.block(updated), at: id)
+            self[block: id].content.inlineObjects = placement.objects
         }
         setInlineChildrenField(lines, of: id)
         profiler.count("layout.lines.total", by: lines.count)
@@ -978,7 +963,7 @@ extension LayoutTree {
 
     private func canRefreshFontsOnly(_ id: LayoutID) -> Bool {
         guard !isDirty(.children, at: id),
-            blockData(id).changes.childChanges.isEmpty
+            self[block: id].changes.childChanges.isEmpty
         else { return false }
         if inputs.styleChanges(domID(of: id)).contains(where: {
             LayoutInputTable.structuralStyleProperties.contains($0)
@@ -1024,7 +1009,7 @@ extension LayoutTree {
     /// the old line plan may be reused for placement.
     @discardableResult
     mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) -> Bool {
-        var data: BlockData = blockData(id)
+        var data: BlockData = self[block: id]
         if preservingObjects, !data.content.inlineItems.isEmpty {
             let zoom: CGFloat = zoom(id)
             let scaleWidths: Bool = canScaleMeasuredWidths(id)
@@ -1077,8 +1062,8 @@ extension LayoutTree {
             data.content.inlineLinePlan = nil
         }
         let reusablePlan: Bool = preservingObjects && !data.content.inlineItems.isEmpty
-        setKind(.block(data), at: id)
-        let revision: UInt64 = node(id).state.fields.inlineText.inlineContent + 1
+        self[block: id] = data
+        let revision: UInt64 = storedInlineContent(id) + 1
         setInlineContent(revision, for: id)
         return reusablePlan
     }
@@ -1178,9 +1163,7 @@ extension LayoutTree {
         into placement: inout InlinePlacement
     ) {
         if placement.currentLine != nil {
-            var data: LineData = lineData(placement.currentLine!)
-            data.content.hasEmbed = true
-            setKind(.line(data), at: placement.currentLine!)
+            self[line: placement.currentLine!].content.hasEmbed = true
         }
         placement.flushText(in: &self)
         switch element.tag {
@@ -1520,7 +1503,7 @@ extension LayoutTree {
         guard contains(id) else { return nil }
         guard isText(id),
             domID(of: id) == node.id,
-            textData(id).payload.word == word
+            self[text: id].payload.word == word
         else { return nil }
         return id
     }
@@ -1533,7 +1516,7 @@ extension LayoutTree {
         guard contains(id) else { return nil }
         guard isEmbed(id),
             domID(of: id) == node.ref.id,
-            kind.matches(embedData(id))
+            kind.matches(self[embed: id])
         else { return nil }
         return id
     }
@@ -1584,7 +1567,7 @@ extension LayoutTree {
     }
 
     func blockPaintScrollbar(_ id: LayoutID) -> [DisplayOp] {
-        let scroll: BlockScroll = blockData(id).scroll
+        let scroll: BlockScroll = self[block: id].scroll
         guard domView(id).style.computed.layout.overflow == .scroll,
             scroll.contentHeight > height(id)
         else { return [] }
@@ -1606,17 +1589,15 @@ extension LayoutTree {
 
     mutating func blockStyle(_ id: LayoutID) -> BlockStyle {
         let revision: UInt64 = domView(id).style.revision
-        let paint: BlockPaint = blockData(id).paint
+        let paint: BlockPaint = self[block: id].paint
         if let cachedStyle = paint.style, paint.styleRevision == revision {
             profiler.count("layout.block.style.cache.hit")
             return cachedStyle
         }
         profiler.count("layout.block.style.cache.miss")
         let style: BlockStyle = BlockStyle(style: domView(id).style.computed)
-        var data: BlockData = blockData(id)
-        data.paint.style = style
-        data.paint.styleRevision = revision
-        setKind(.block(data), at: id)
+        self[block: id].paint.style = style
+        self[block: id].paint.styleRevision = revision
         return style
     }
 
@@ -1633,17 +1614,15 @@ extension LayoutTree {
     // MARK: - Scroll
 
     func blockScrollOffset(_ id: LayoutID) -> CGFloat {
-        return blockData(id).scroll.offset
+        return self[block: id].scroll.offset
     }
 
     mutating func setBlockScrollOffset(_ id: LayoutID, _ value: CGFloat) {
-        var data: BlockData = blockData(id)
-        data.scroll.offset = value
-        setKind(.block(data), at: id)
+        self[block: id].scroll.offset = value
     }
 
     func blockContentHeight(_ id: LayoutID) -> CGFloat {
-        return blockData(id).scroll.contentHeight
+        return self[block: id].scroll.contentHeight
     }
 }
 
@@ -1775,7 +1754,7 @@ struct InlinePlacement {
             state.content = InlineLineContent(reuseText: reuseText)
         } else {
             state.currentLine = tree.makeLine(
-                dom: tree.node(context.parent).dom,
+                dom: tree.domID(of: context.parent),
                 parent: context.parent,
                 previous: previous
             )
@@ -1881,13 +1860,11 @@ struct InlinePlacement {
             )
         } else {
             text = state.content.reuseText.removeFirst()
-            var data: TextData = tree.textData(text)
-            data.fragment = fragment
-            data.payload.word = ""
-            data.payload.display = nil
-            data.metrics.width = pending.width
-            data.metrics.measured = true
-            tree.setKind(.text(data), at: text)
+            tree[text: text].fragment = fragment
+            tree[text: text].payload.word = ""
+            tree[text: text].payload.display = nil
+            tree[text: text].metrics.width = pending.width
+            tree[text: text].metrics.measured = true
         }
         tree.setFontAndPrevious(
             pending.style.font,
@@ -1906,10 +1883,8 @@ struct InlinePlacement {
     }
 
     private mutating func commitLine(_ line: LayoutID, in tree: inout LayoutTree) {
-        var data: LineData = tree.lineData(line)
-        data.content.inlineWidths = state.content.widths
-        data.content.boxes = state.content.boxes
-        tree.setKind(.line(data), at: line)
+        tree[line: line].content.inlineWidths = state.content.widths
+        tree[line: line].content.boxes = state.content.boxes
         profiler.measure("layout.inline.place.lineChildren", {
             tree.setLineChildrenField(
                 state.content.children,

@@ -204,7 +204,7 @@ struct PaintSceneBuilder {
         case .line:
             return .line(PaintLine(
                 canCache: tree.lineCanCachePaint(id) && boxes != nil,
-                generation: tree.lineData(id).paint.generation,
+                generation: tree[line: id].paint.generation,
                 focusRing: lineFocusRing(tree, id),
                 inlineText: boxes.map({ lineInlineText(tree, id, $0) }) ?? []
             ))

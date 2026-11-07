@@ -43,9 +43,7 @@ extension LayoutTree {
 
         profiler.measure("layout.document.root", {
             setField(.zoom, zoom, for: root)
-            var data: DocumentData = documentData(root)
-            data.pageZoom = pageZoom
-            setKind(.document(data), at: root)
+            self[document: root].pageZoom = pageZoom
 
             let dom: NodeID = domID(of: root)
             let child: LayoutID

@@ -86,7 +86,7 @@ struct LayoutSkippingTests {
             treeToList(tree, line).last(where: { tree.isText($0) })
         )
         #expect(
-            tree.x(text) + tree.textData(text).metrics.width
+            tree.x(text) + tree[text: text].metrics.width
                 == tree.x(block) + tree.width(block)
         )
 
@@ -97,7 +97,7 @@ struct LayoutSkippingTests {
         #expect((profiler.snapshot()["layout.line.place"]?.count ?? 0) > 0)
         #expect((profiler.snapshot()["layout.text"]?.count ?? 0) > 0)
         #expect(
-            tree.x(text) + tree.textData(text).metrics.width
+            tree.x(text) + tree[text: text].metrics.width
                 == tree.x(block) + tree.width(block)
         )
 
