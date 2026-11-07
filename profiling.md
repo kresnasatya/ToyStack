@@ -12,8 +12,9 @@ Two writers:
 | `Profiler` | `Sources/Engine/Diagnostic/Profiler.swift` | one accumulated `profile.<phase>` counter | recursive work (per node, per rule, per word) |
 
 `MeasureTime` is locked and is called from the main thread, the presenter, the
-compositor, and raster workers. `Profiler` is a `nonisolated(unsafe)` global
-with no lock; it is only called from the main thread.
+compositor, raster workers, and the background layout task. `Profiler` is one
+locked global window: whoever calls `reset()` and `emitProfile` owns it, but any
+thread can record into it.
 
 ## Deterministic runs
 
@@ -446,6 +447,7 @@ placements. A resize burst should show mostly 1 until the reflow commits.
 - **`raster.composite` is one scan.** `raster.composite.scan` covers the linear display-list scan and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.
 - **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
 - **`layout.visit` is a duration, not a count.** Box counts are `layout.visited`, `layout.skipped`, and `layout.rebuilt`.
+- **Background layout has no `profile.layout`.** With async layout (the GUI), the worker records `layout.*` metrics into the one global window while the main thread owns it for paint. A GUI trace therefore has no `profile.layout`, and `profile.paint` carries partial `layout.*` counts from whatever slice of a pass overlapped the paint. Measure layout breakdowns with a synchronous headless run (no `TOYSTACK_ASYNC_LAYOUT`).
 - **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,
   or presenter coalescing.
 - **D is a load trace.** `www/bench/large.html` has no animation, so a 600-tick
@@ -456,10 +458,10 @@ placements. A resize burst should show mostly 1 until the reflow commits.
 
 ## Assumptions
 
-- **Locks.** `MeasureTime` has an `NSLock` and is called from main, compositor,
-  and workers. `Profiler` and `fontCache` are unlocked `nonisolated(unsafe)`
-  globals (`Profiler.swift:58`, `BrowserFont.swift:47`) and must stay on the
-  main thread.
+- **Locks.** `MeasureTime`, `Profiler`, and `fontCache` each have an `NSLock`
+  (`Profiler.swift:10`, `BrowserFont.swift:74`), so calls from background
+  threads are safe. `Profiler` still has one window per process; see
+  [Known distortions](#known-distortions).
 - **Tracing is always on.** There is no compile-time switch. `--no-profile` only
   disables the `Profiler`; spans and counters still run.
 - **Close the trace.** Call `Browser.stopAnimationTimer()` before the process
