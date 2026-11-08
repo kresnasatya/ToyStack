@@ -230,8 +230,13 @@ does. `snapshot()` merges both by name.
 |---|---|---|
 | `profile.load` | `Frame.load`, around `parseHTML` (`Frame.swift:150-152`) | `load.*`, `jsc.*` |
 | `profile.style` | `Frame.render`, style block (`Frame.swift:712-810`) | `style.*` |
-| `profile.layout` | `Frame.render`, layout block (`Frame.swift:817-856`) | `layout.*`, `text.*`, `scrollTargets.reused`, `scrollTargets.rebuilt` |
+| `profile.layout` | `Frame.render`, layout block (`Frame.swift:817-856`); with async layout (the GUI), the background job in `Frame.startAsyncLayout` instead | `layout.*`, `text.*`; the main-thread window also has `scrollTargets.reused`, `scrollTargets.rebuilt` |
 | `profile.paint` | `Frame.paint` (`Frame.swift:877-884`) | `paint.*`, canvas `text.font*` |
+
+The background job's `profile.layout` is written on the `browser.layout` lane
+with the frame that started the job, not the frame in which it finished. It
+covers the job only (`layout.async.document`): input resolution and the install
+on the main thread are not in it.
 
 A window must not contain an `await`; the reset→emit pair would then include
 unrelated work, and a task may resume on another thread with another table. The
@@ -458,7 +463,7 @@ placements. A resize burst should show mostly 1 until the reflow commits.
 - **`raster.composite` is one scan.** `raster.composite.scan` covers the linear display-list scan and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.
 - **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
 - **`layout.visit` is a duration, not a count.** Box counts are `layout.visited`, `layout.skipped`, and `layout.rebuilt`.
-- **Background layout before 2026-11-08 has no `profile.layout`.** Older GUI traces recorded the worker's `layout.*` metrics into the main thread's open window, so they have no `profile.layout`, and their `profile.paint` carries partial `layout.*` counts. Traces recorded since then keep each thread's metrics apart.
+- **GUI traces before 2026-11-08 have no `profile.layout`.** They recorded the background job's `layout.*` metrics into the main thread's open window, so their `profile.paint` carries partial `layout.*` counts. Newer traces keep each thread's metrics apart, and the job writes its own `profile.layout`.
 - **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,
   or presenter coalescing.
 - **D is a load trace.** `www/bench/large.html` has no animation, so a 600-tick

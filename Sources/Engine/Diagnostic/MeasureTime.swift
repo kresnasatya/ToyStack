@@ -192,6 +192,13 @@ public final class MeasureTime: @unchecked Sendable {
         currentFrame = id
     }
 
+    /// The frame id that events are recorded under when they name none.
+    public var frame: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return currentFrame
+    }
+
     /// Names the current thread for the life of the process. Only for a
     /// thread the browser owns, like main; work on pooled threads uses a lane.
     public func noteThread(_ name: String) {

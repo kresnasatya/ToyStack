@@ -422,3 +422,15 @@ juga berebut kunci dengan main thread). Screenshot identik byte demi byte.
 Perilaku di main thread sama (nama, nilai, event `profile.<phase>`). Yang
 berubah: hitungan dari thread lain tidak lagi masuk ke window main thread, jadi
 `profile.paint` di GUI tidak lagi membawa potongan `layout.*`.
+
+#### `profile.layout` dari job latar (2026-11-08)
+
+Job di thread latar membuka window profiler-nya sendiri dan menulisnya sebagai
+`profile.layout` di jalur `browser.layout`, dengan frame saat job dimulai. Tes:
+`BackgroundLayoutProfileTests.backgroundLayoutWritesItsOwnLayoutProfile` (gagal
+sebelum perubahan: tidak ada `profile.layout` di jalur itu).
+
+Trace headless async `embeds.html`: 90 `profile.layout` untuk 90 job, semuanya
+di `browser.layout`; tidak ada `profile.paint` yang membawa `layout.*`. Biaya:
+tidak terukur (thread latar dengan profiler 9,38–9,48 → 9,37–9,39 ms).
+Screenshot identik byte demi byte.
