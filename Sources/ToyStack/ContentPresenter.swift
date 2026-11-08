@@ -298,6 +298,7 @@ final class ContentPresenter: @unchecked Sendable {
         // Within one generation, a few edge tiles may still be spread.
         let completeGeneration: Bool = frame.content.source.generation != lastBoundGeneration
         lastBoundGeneration = frame.content.source.generation
+        presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
         let overhaul: Bool = replaced || rebinds.count * 2 >= placements.count
         let throttled: Bool = !overhaul && !completeGeneration
         if throttled {
@@ -411,6 +412,7 @@ final class ContentPresenter: @unchecked Sendable {
             pendingLayers.removeAll(keepingCapacity: true)
             pendingGeneration = nil
             lastBoundGeneration = generation
+            presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
             lastDeferred = 0
         } else {
             lastDeferred = deferred
@@ -549,6 +551,7 @@ final class ContentPresenter: @unchecked Sendable {
             contentLayer.contents = image
             contentLayer.contentsScale = scale.display
         }
+        presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
 
         contentLayer.transform = CATransform3DIdentity
         contentLayer.contentsGravity = preview ? .resize : .topLeft

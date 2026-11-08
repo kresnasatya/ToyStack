@@ -131,6 +131,55 @@ struct ContentPresentationStateTests {
         #expect(finished == .bind)
     }
 
+    @Test func staleLayoutPreviewsFromShownWidth() {
+        var state = ContentPresentationState()
+        _ = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 1440, height: 703),
+            layoutSize: CGSize(width: 1440, height: 703)
+        )
+        state.didShow(
+            layoutSize: CGSize(width: 1440, height: 703),
+            viewSize: CGSize(width: 1440, height: 703)
+        )
+
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 2, sequence: 2),
+            viewSize: CGSize(width: 1201, height: 703),
+            layoutSize: CGSize(width: 1220, height: 703)
+        )
+
+        #expect(decision == .preview(from: CGSize(width: 1440, height: 703)))
+    }
+
+    @Test func bindNotYetShownKeepsPreviewingFromShownWidth() {
+        var state = ContentPresentationState()
+        _ = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 1440, height: 703),
+            layoutSize: CGSize(width: 1440, height: 703)
+        )
+        state.didShow(
+            layoutSize: CGSize(width: 1440, height: 703),
+            viewSize: CGSize(width: 1440, height: 703)
+        )
+        // Bound, but its layers are still staging behind the 1440 layers.
+        let staged: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 2, sequence: 2),
+            viewSize: CGSize(width: 1300, height: 703),
+            layoutSize: CGSize(width: 1300, height: 703)
+        )
+        #expect(staged == .bind)
+
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 3, sequence: 3),
+            viewSize: CGSize(width: 1250, height: 703),
+            layoutSize: CGSize(width: 1300, height: 703)
+        )
+
+        #expect(decision == .preview(from: CGSize(width: 1440, height: 703)))
+    }
+
     @Test func sameWidthDifferentHeightBinds() {
         var state = ContentPresentationState()
         let decision: ContentPresentationState.Decision = state.decide(
