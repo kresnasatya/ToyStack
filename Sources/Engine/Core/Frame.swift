@@ -875,17 +875,18 @@ class Frame {
             // One trace event per tag, written after the loop: a breakpoint
             // flip changes thousands of nodes and one event each slowed the pass.
             var fontChangesByTag: [String: Int] = [:]
-            for node in cascade.appliedNodes {
-                guard let old: ComputedStyle = cascade.oldStyle(for: node) else { continue }
-                if old.text.font.size != node.style.computed.text.font.size {
+            for (appliedIndex, node) in cascade.appliedNodes.enumerated() {
+                let old: ComputedStyle = cascade.oldStyle(at: appliedIndex)
+                let new: ComputedStyle = node.style.computed
+                if old.text.font.size != new.text.font.size {
                     StyleDiagnostics.fontChange(
                         node: node,
                         from: old.text.font.size,
-                        to: node.style.computed.text.font.size
+                        to: new.text.font.size
                     )
                     fontChangesByTag[node.element?.tag ?? "text", default: 0] += 1
                 }
-                if Self.paintStyleChanged(old: old, new: node.style.computed) {
+                if Self.paintStyleChanged(old: old, new: new) {
                     paintedChanged = true
                 }
                 if node.style.hasLayoutChanges {
@@ -893,15 +894,15 @@ class Frame {
                 }
                 // Scroll targets are collected by layout class and computed overflow.
                 // A style-only change to either changes the target set, not just rects.
-                if old.layout.display != node.style.computed.layout.display
-                    || old.layout.overflow != node.style.computed.layout.overflow
+                if old.layout.display != new.layout.display
+                    || old.layout.overflow != new.layout.overflow
                 {
                     markStructureChanged()
                 }
                 let newAnimations: [StyleProperty: any Animation] = StyleTransitions.diff(
                     node: node,
                     oldStyle: old,
-                    newStyle: node.style.computed
+                    newStyle: new
                 )
                 for (property, animation) in newAnimations {
                     node.animations[.property(property)] = animation

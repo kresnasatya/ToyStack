@@ -20,7 +20,7 @@ final class StyleCascade {
     let media: MediaFeatures
     let scope: StyleScope?
     let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
-    private var oldStyles: [NodeID: ComputedStyle] = [:]
+    private var prePass: PrePassStyles = PrePassStyles()
     private(set) var appliedNodes: [DOMRef] = []
 
     init(
@@ -33,29 +33,24 @@ final class StyleCascade {
         self.scope = scope
     }
 
-    func record(_ node: DOMRef) {
-        record(node, old: node.style.computed)
-    }
-
     func record(_ node: DOMRef, old: ComputedStyle) {
         appliedNodes.append(node)
-        oldStyles[node.id] = old
+        prePass.append(old)
     }
 
-    /// Stores the pre-pass style for a node that was forced but did not change,
-    /// so its children can see that inheritance stopped here.
-    func recordBaseline(_ node: DOMRef, old: ComputedStyle) {
-        oldStyles[node.id] = old
+    func recordInherited(_ node: DOMRef, oldText: TextStyle) {
+        appliedNodes.append(node)
+        prePass.append(text: oldText)
     }
 
-    func oldStyle(for node: DOMRef) -> ComputedStyle? {
-        return oldStyles[node.id]
-    }
-
-    func inheritedChanged(_ node: DOMRef) -> Bool {
-        guard let old: ComputedStyle = oldStyles[node.id] else {
-            return true
+    func oldStyle(at index: Int) -> ComputedStyle {
+        switch prePass[index] {
+        case .full(let style):
+            return style
+        case .text(let text):
+            var style: ComputedStyle = appliedNodes[index].style.computed
+            style.text = text
+            return style
         }
-        return old.text != node.style.computed.text
     }
 }

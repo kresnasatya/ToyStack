@@ -8,6 +8,7 @@ import Foundation
 @MainActor
 final class DOMTree {
     private(set) var nodes: [DOMNode?]
+    private var lookup: DOMNodeLookup
     private(set) var root: NodeID
     private(set) var revision: UInt64 = 0
     var side: DOMSideTables
@@ -24,6 +25,7 @@ final class DOMTree {
             base: DOMBase()
         )
         self.nodes = [node]
+        self.lookup = DOMNodeLookup(styles: [node.base.style], isElement: [true])
         self.root = root
         self.side = DOMSideTables()
         self.links = DOMLinks()
@@ -44,7 +46,8 @@ final class DOMTree {
     }
 
     func isElement(_ id: NodeID) -> Bool {
-        return node(id)?.element != nil
+        guard id.raw < lookup.isElement.count else { return false }
+        return lookup.isElement[Int(id.raw)]
     }
 
     func isText(_ id: NodeID) -> Bool {
@@ -84,10 +87,10 @@ final class DOMTree {
     }
 
     func style(of id: NodeID) -> StyleFields {
-        guard let node: DOMNode = node(id) else {
+        guard id.raw < lookup.styles.count else {
             preconditionFailure("NodeID points at a missing node")
         }
-        return node.base.style
+        return lookup.styles[Int(id.raw)]
     }
 
     func flags(of id: NodeID) -> DOMFlags {
@@ -127,6 +130,8 @@ final class DOMTree {
     private func allocate(_ node: DOMNode) -> NodeID {
         let id: NodeID = NodeID(raw: UInt32(nodes.count))
         nodes.append(node)
+        lookup.styles.append(node.base.style)
+        lookup.isElement.append(node.element != nil)
         revision += 1
         return id
     }
@@ -297,4 +302,9 @@ final class DOMTree {
         nodes[Int(id.raw)] = node
         revision += 1
     }
+}
+
+private struct DOMNodeLookup {
+    var styles: [StyleFields]
+    var isElement: [Bool]
 }
