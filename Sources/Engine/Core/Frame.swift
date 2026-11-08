@@ -1347,6 +1347,12 @@ class Frame {
         // geometry mark is applied there and the main thread copies nothing.
         var tree: LayoutTree = box.tree
         tree.refreshInputs(resolved.inputs)
+        let handoff: LayoutJobHandoff = LayoutJobHandoff(consume tree)
+        // The installed tree is only painted and hit-tested while the job
+        // runs; neither reads the dependency index, and the job's tree replaces
+        // it on install. Hand the index over so the job is its only owner and
+        // its first write does not copy both dictionaries.
+        box.tree.dependencies = DependencyIndex()
         let marksGeometry: Bool = viewportGeometryPending
         viewportGeometryPending = false
         browser?.measure.stop("layout.async.start.refresh")
@@ -1358,8 +1364,8 @@ class Frame {
             zoom: pageZoom
         )
         let measure: MeasureTime? = browser?.measure
-        Task.detached(priority: .userInitiated) { [tree, marksGeometry, width, pageZoom, jobID, measure] in
-            var tree: LayoutTree = tree
+        Task.detached(priority: .userInitiated) { [handoff, marksGeometry, width, pageZoom, jobID, measure] in
+            var tree: LayoutTree = handoff.take()
             // The detached task runs on a pooled thread; its own lane keeps the
             // layout off whatever lane that thread served before.
             let lane: TraceLane? = measure?.beginThreadLane("browser.layout")

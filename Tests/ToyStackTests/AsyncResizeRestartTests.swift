@@ -195,15 +195,46 @@ struct AsyncResizeRestartTests {
         #expect(reused > 0, "the async pass rebuilt every layout input for a width change")
     }
 
+    /// Each background pass must leave the tree ready for the next one: the
+    /// next pass only updates the fields that depend on what changed, so a
+    /// lost dependency shows up as a stale layout one pass later.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func consecutiveBackgroundPassesMatchAFullLayout() async throws {
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage()
+        for width in [400, 300, 520, 360] {
+            page.tab.resize(width: CGFloat(width), height: 600)
+            page.frame.runAnimationFrame()
+            try await Self.settle(page)
+            #expect(page.frame.installedLayoutSize.width == CGFloat(width))
+        }
+
+        let control: LayoutTestPage = LayoutTestPage(
+            html: Self.paragraphs,
+            rules: "body { display: block; } p { display: block; }"
+        )
+        control.frame.setViewport(width: 360, height: 600)
+        control.frame.setNeedsViewportResize()
+        control.frame.setLayoutTree(nil)
+        control.frame.setNeedsLayout()
+        control.frame.render()
+        #expect(renderSignature(page.frame) == renderSignature(control.frame))
+        #expect(browser.usesAsyncLayout)
+    }
+
     // MARK: - Helpers
+
+    private static let paragraphs: String = (0..<40).map { index in
+        "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
+    }.joined()
 
     /// The tab keeps a weak reference to the browser; the caller holds it.
     private static func makeAsyncPage() -> (LayoutTestPage, Browser) {
-        let html: String = (0..<40).map { index in
-            "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
-        }.joined()
         let page: LayoutTestPage = LayoutTestPage(
-            html: html,
+            html: paragraphs,
             rules: "body { display: block; } p { display: block; }"
         )
         let browser: Browser = Browser()

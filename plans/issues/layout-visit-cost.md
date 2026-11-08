@@ -312,3 +312,82 @@ dengan sebelumnya, dan hasilnya sama dengan layout penuh.
 Box yang dibangun per layout: 1 (baris yang belum punya box), bukan sekitar
 1169. Screenshot `embeds.html` identik byte demi byte (lebar 640, dan lebar
 1000 setelah scroll 3000 px).
+
+### Selisih thread latar vs main thread (2026-11-08, setelah Opsi B)
+
+`embeds.html`, drag 1000 → 644, median per layout, tiga kali jalan. Span yang
+sebanding: `BrowserTab.layout` (main thread) dan `layout.async.document`
+(thread latar); keduanya termasuk sweep. Angka "5 ms" sebelumnya membandingkan
+`layout.document`, yang tidak termasuk sweep (1,1 ms).
+
+| | Dengan profiler | Tanpa profiler |
+|---|---:|---:|
+| Main thread | 12,3 ms | 8,2 ms |
+| Thread latar | 15,8 ms | 11,8 ms |
+
+Dua penyebab terpisah:
+
+1. **Profiler: ±4 ms di kedua mode** (±34% dari waktu layout yang diprofil).
+   `Profiler.count` 15–21% di CPU sample: setiap hitungan mengambil lock dan
+   meng-hash string nama counter. Pemanggil terbanyak: `markDependents`,
+   `setFrame`, `blockStyle`, `layoutLine`. GUI menjalankan profiler, dan di
+   thread latar hasilnya tidak pernah menjadi `profile.layout` (lihat
+   `profiling.md`, Known distortions), jadi di GUI biaya ini tidak menghasilkan
+   data yang berguna.
+2. **Salinan copy-on-write di thread latar: ±3,6 ms.** Pohon milik job berbagi
+   storage dengan pohon terpasang di main thread, jadi penulisan pertama
+   menyalin seluruhnya:
+   - `DependencyIndex.replaceDependent` → `_NativeDictionary.copy()`: 18,4% dari
+     waktu thread latar. Dua dictionary `[FieldKey: Set<FieldKey>]` disalin
+     setiap job.
+   - `markField` → salinan array node (`_consumeAndCreateNew`,
+     `swift_arrayInitWithCopy`): ±6%.
+
+Usulan:
+
+- **Dependency index milik job sepenuhnya.** Pohon terpasang menyerahkan
+  `dependencies` ke salinan job saat job dimulai (pohon terpasang dipakai untuk
+  paint dan hit test, yang tidak membaca index). Selama job berjalan, tanda
+  dependency di pohon terpasang memang sudah hilang saat job dipasang, jadi
+  tidak ada perilaku yang berubah. Sasaran: bagian terbesar dari 3,6 ms.
+- **Salinan array node** melekat pada desain snapshot (main thread tetap
+  menggambar pohon lama). Mengecilkan node (413 byte, `BlockData` 232 byte di
+  dalam enum) mengurangi biayanya; itu perubahan lebih besar.
+- **Profiler**, pilih salah satu:
+  - matikan profiler secara default di GUI (nyalakan lewat variabel
+    lingkungan), headless tetap memprofil;
+  - beri job di thread latar profiler sendiri yang dikirim sebagai
+    `profile.layout`: datanya jadi berguna, tetapi biayanya tetap;
+  - buat `Profiler.count` murah (kunci counter tanpa hash string, akumulasi per
+    thread tanpa lock): data dan kecepatan sama-sama terjaga, perubahan paling
+    besar.
+
+Dipilih: C (profiler murah) lalu B (window `profile.layout` milik job), setelah
+perbaikan salinan copy-on-write.
+
+#### Salinan copy-on-write diperbaiki (2026-11-08)
+
+Menyerahkan dependency index saja tidak cukup: tree yang ditangkap di capture
+list task tetap hidup selama task berjalan, jadi tulisan pertama job tetap
+menyalin array node dan index (pengukuran pertama: tidak ada beda di luar
+variasi). Perbaikannya dua bagian:
+
+- `LayoutJobHandoff` (`Sources/Engine/Core/LayoutJobHandoff.swift`)
+  memindahkan tree ke job; job mengambilnya dengan `take()`, sehingga job satu-
+  satunya pemilik salinannya.
+- Pohon terpasang menyerahkan `dependencies` (diganti index kosong) karena paint
+  dan hit test tidak membacanya, dan pohon job menggantikannya saat dipasang.
+
+Tes penjaga: `AsyncResizeRestartTests.consecutiveBackgroundPassesMatchAFullLayout`
+(empat layout latar berturut-turut harus sama dengan layout dari nol). Tes ini
+gagal bila job diberi index kosong, jadi benar menjaga kehilangan dependency.
+
+`embeds.html`, drag 1000 → 644, dua putaran bergantian `HEAD`/sesudah:
+
+| Thread latar | Sebelum | Sesudah |
+|---|---:|---:|
+| Tanpa profiler | 12,0–12,2 ms | **8,5–8,7 ms** |
+| Dengan profiler | 16,0–16,6 ms | 14,6–14,8 ms |
+
+Main thread tidak berubah (8,2–8,4 ms tanpa profiler). Thread latar sekarang
+hampir sama dengan main thread. Screenshot identik byte demi byte.
