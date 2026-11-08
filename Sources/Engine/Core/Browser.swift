@@ -60,8 +60,7 @@ public class Browser: ObservableObject {
                 scale: ContentScale(display: displayScale, page: pageZoom),
                 canvasColor: canvasColor,
                 scrollbar: activeSidebar
-            ),
-            layoutSize: activeTab?.rootFrame.paintedLayoutSize ?? .zero
+            )
         )
     }
 
@@ -438,7 +437,12 @@ public class Browser: ObservableObject {
         if wantsComposite {
             compositeGeneration &+= 1
         }
-        let generation: UInt64 = compositeGeneration
+        // The layout size travels with the composite: a present dispatched
+        // before this composite returns must still describe the old layers.
+        let source: RenderedSource = RenderedSource(
+            generation: compositeGeneration,
+            layoutSize: activeTab?.rootFrame.paintedLayoutSize ?? .zero
+        )
         compositeInFlight = true
         if wantsComposite {
             needsComposite = false
@@ -632,7 +636,7 @@ public class Browser: ObservableObject {
                             placements: plan.composition.usesSublayers ? RasterDrawList.placements(layers, effectStrategies: effectStrategies) : [],
                             image: contentImage,
                             usesSublayers: plan.composition.usesSublayers,
-                            generation: generation
+                            source: source
                         ),
                         needsMoreTiles: store.needsMoreTiles
                     )

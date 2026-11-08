@@ -221,7 +221,7 @@ final class ContentPresenter: @unchecked Sendable {
             width: viewSize.width,
             height: viewSize.height
         )
-        if frame.content.generation != lastBoundGeneration, !layersByPlacement.isEmpty {
+        if frame.content.source.generation != lastBoundGeneration, !layersByPlacement.isEmpty {
             applyPendingGeneration(frame, viewSize: viewSize, scale: scale)
             return
         }
@@ -296,8 +296,8 @@ final class ContentPresenter: @unchecked Sendable {
         // A new compositor generation must be bound as one complete frame.
         // Otherwise a scroll can expose layers whose images have not arrived.
         // Within one generation, a few edge tiles may still be spread.
-        let completeGeneration: Bool = frame.content.generation != lastBoundGeneration
-        lastBoundGeneration = frame.content.generation
+        let completeGeneration: Bool = frame.content.source.generation != lastBoundGeneration
+        lastBoundGeneration = frame.content.source.generation
         let overhaul: Bool = replaced || rebinds.count * 2 >= placements.count
         let throttled: Bool = !overhaul && !completeGeneration
         if throttled {
@@ -342,7 +342,7 @@ final class ContentPresenter: @unchecked Sendable {
         viewSize: CGSize,
         scale: ContentScale
     ) {
-        let generation: UInt64 = frame.content.generation
+        let generation: UInt64 = frame.content.source.generation
         if pendingGeneration != generation {
             discardPendingGeneration()
             pendingGeneration = generation
@@ -516,7 +516,7 @@ final class ContentPresenter: @unchecked Sendable {
         let scale: ContentScale = frame.viewport.scale
         lastDeferred = 0
         discardPendingGeneration()
-        lastBoundGeneration = frame.content.generation
+        lastBoundGeneration = frame.content.source.generation
         for key in Array(layersByPlacement.keys) {
             guard var slot = layersByPlacement[key] else { continue }
             if !slot.hidden {
