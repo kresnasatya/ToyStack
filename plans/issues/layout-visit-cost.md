@@ -434,3 +434,27 @@ Trace headless async `embeds.html`: 90 `profile.layout` untuk 90 job, semuanya
 di `browser.layout`; tidak ada `profile.paint` yang membawa `layout.*`. Biaya:
 tidak terukur (thread latar dengan profiler 9,38–9,48 → 9,37–9,39 ms).
 Screenshot identik byte demi byte.
+
+#### Sweep terarah (2026-11-08)
+
+Sweep tidak lagi menelusuri seluruh tree. `LayoutTree` mencatat node yang
+terlepas (`detached`): node yang di-append tetapi belum dipasang, dan anak yang
+dibuang dari daftar anak induknya (kecuali sudah diadopsi induk lain). Sweep
+hanya membuang node itu beserta subtree yang masih dimilikinya. Di build debug,
+setiap sweep dibandingkan dengan penelusuran penuh dari root (`assert`); seluruh
+suite tes lulus dengan pemeriksaan itu.
+
+Tes: `LayoutSweepTests.sweepLooksOnlyAtWhatThePassDetached` (sebelum: sweep
+memeriksa 258 node, batas < 32) dan `noUnreachableNodeSurvivesAPass` (node hidup
+selalu sama dengan node yang terjangkau dari root, melewati re-break,
+pemindahan, dan edit DOM).
+
+`embeds.html`, drag 1000 → 644, dua putaran bergantian:
+
+| Median per layout | Sebelum | Sesudah |
+|---|---:|---:|
+| Main thread, tanpa profiler | 8,2–8,8 ms | **7,3–7,9 ms** |
+| Thread latar, tanpa profiler | 8,6–9,1 ms | **7,7–8,0 ms** |
+
+Biaya sweep per job (median) turun dari 1,17 ms ke 0: kebanyakan job hanya
+memakai ulang baris dan tidak melepas node apa pun. Screenshot identik.

@@ -15,9 +15,11 @@ struct LayoutTree: @unchecked Sendable {
     private(set) var primaryByNode: [NodeID: LayoutID]
     var dependencies: DependencyIndex
     private var source: LayoutTreeSource
-    /// Set when layout adds or re-links nodes. A pure width/geometry pass
-    /// leaves it false and can skip the reachability sweep.
-    private(set) var needsSweep: Bool = false
+    /// Nodes that may have left the tree: appended but not yet attached, or
+    /// dropped from their parent's children. The sweep looks only at these.
+    private var detached: Set<LayoutID> = []
+    /// A pure width/geometry pass detaches nothing and skips the sweep.
+    var needsSweep: Bool { !detached.isEmpty }
     var textRuns: [LayoutID: TextRun] = [:]
     /// Fragment values are collected while paint migrates off text nodes.
     var collectsInlineBoxes: Bool = true
@@ -83,6 +85,8 @@ struct LayoutTree: @unchecked Sendable {
             previous: nil
         )
         assert(document.raw == 0)
+        // The root has no parent to attach it; it is never swept.
+        detached.remove(document)
         primaryByNode[root] = document
         for field in [LayoutField.zoom, .width, .x, .y, .children] {
             markUsed(field, at: document)
@@ -132,7 +136,7 @@ struct LayoutTree: @unchecked Sendable {
                 state: seed.state
             )
         )
-        needsSweep = true
+        detached.insert(id)
         return id
     }
 
@@ -204,8 +208,18 @@ struct LayoutTree: @unchecked Sendable {
     }
 
     mutating func setChildren(_ children: [LayoutID], of id: LayoutID) {
-        if self[node: id].links.children != children {
-            needsSweep = true
+        let old: [LayoutID] = self[node: id].links.children
+        if old != children {
+            let kept: Set<LayoutID> = Set(children)
+            // A child that another parent already adopted is still in the tree.
+            for child in old where !kept.contains(child)
+                && contains(child) && self[node: child].links.parent == id
+            {
+                detached.insert(child)
+            }
+            for child in children {
+                detached.remove(child)
+            }
         }
         self[node: id].links.children = children
         self[node: id].links.versions.children += 1
@@ -285,34 +299,65 @@ struct LayoutTree: @unchecked Sendable {
         })
     }
 
-    /// Frees nodes that are no longer reachable from the document root.
-    /// Returns the dropped IDs, so callers can invalidate caches that may
+    /// Frees the nodes that left the tree since the last sweep: every detached
+    /// node that was not attached again, with its subtree. Returns the dropped
+    /// IDs, so callers can invalidate caches that may hold them.
     @discardableResult
     mutating func sweepUnreachable() -> Set<LayoutID> {
-        var reachable: Set<LayoutID> = []
-        profiler.measure("layout.sweep.reachability", {
-            collectReachable(rootID, into: &reachable)
-        })
         var removed: Set<LayoutID> = []
+        var examined: Int = 0
         profiler.measure("layout.sweep.identify", {
-            for index in nodes.indices where !nodes[index].state.isRemoved {
-                let id: LayoutID = LayoutID(raw: index)
-                if reachable.contains(id) { continue }
-                let dom: NodeID = nodes[index].dom
-                if let primary: LayoutID = primaryByNode[dom], primary == id {
-                    primaryByNode.removeValue(forKey: dom)
-                }
-                removed.insert(id)
+            for candidate in detached where contains(candidate) {
+                collectDetachedSubtree(candidate, into: &removed, examined: &examined)
             }
         })
+        profiler.count("layout.sweep.examined", by: examined)
+        #if DEBUG
+        assertSweepMatchesReachability(removed)
+        #endif
+        for id in removed {
+            let dom: NodeID = self[node: id].dom
+            if let primary: LayoutID = primaryByNode[dom], primary == id {
+                primaryByNode.removeValue(forKey: dom)
+            }
+        }
         removeDependencyEdges(for: removed)
         profiler.measure("layout.sweep.nodes", {
             for id in removed {
                 nodes[id.raw] = .removed(dom: nodes[id.raw].dom)
             }
         })
-        needsSweep = false
+        detached.removeAll(keepingCapacity: true)
         return removed
+    }
+
+    /// A detached node and the descendants it still owns. A child another
+    /// parent adopted is skipped: its parent link points elsewhere.
+    private func collectDetachedSubtree(
+        _ id: LayoutID,
+        into removed: inout Set<LayoutID>,
+        examined: inout Int
+    ) {
+        examined += 1
+        guard removed.insert(id).inserted else { return }
+        for child in self[node: id].links.children
+            where contains(child) && self[node: child].links.parent == id
+        {
+            collectDetachedSubtree(child, into: &removed, examined: &examined)
+        }
+    }
+
+    #if DEBUG
+    /// The targeted sweep must drop exactly the nodes a full walk from the root
+    /// cannot reach.
+    private func assertSweepMatchesReachability(_ removed: Set<LayoutID>) {
+        var reachable: Set<LayoutID> = []
+        collectReachable(rootID, into: &reachable)
+        let unreachable: Set<LayoutID> = Set(liveIDs).subtracting(reachable)
+        assert(
+            removed == unreachable,
+            "Targeted sweep dropped \(removed.count) nodes; \(unreachable.count) are unreachable"
+        )
     }
 
     private func collectReachable(_ id: LayoutID, into reachable: inout Set<LayoutID>) {
@@ -322,6 +367,7 @@ struct LayoutTree: @unchecked Sendable {
             collectReachable(child, into: &reachable)
         }
     }
+    #endif
 
     // MARK: - Style changes
 

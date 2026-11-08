@@ -317,6 +317,7 @@ a test that runs the style phase without `render()`.
 | `layout.inline.plan.computed` | count | inline blocks whose line breaks were computed from their items |
 | `layout.line.place` | duration | line layout |
 | `layout.line.place.placed` | count | lines placed in full (text children positioned) |
+| `layout.sweep.examined` | count | layout nodes the sweep looked at to find the ones no longer in the tree |
 | `layout.line.place.verticalOnly` | count | lines that only moved vertically; children keep their positions |
 | `layout.line.boxes.built` | count | lines whose inline boxes were rebuilt from their text children |
 | `layout.text` | duration | text layout |
