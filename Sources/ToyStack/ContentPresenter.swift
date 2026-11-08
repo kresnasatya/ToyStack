@@ -146,7 +146,8 @@ final class ContentPresenter: @unchecked Sendable {
         let decision: ContentPresentationState.Decision = presentationState.decide(
             revision: frame.revision,
             viewSize: viewSize,
-            layoutSize: frame.displayedLayoutSize
+            layoutSize: frame.displayedLayoutSize,
+            stagingLayers: staging.current != nil
         )
         let preview: Bool
         let previousSize: CGSize?

@@ -23,10 +23,13 @@ public struct ContentPresentationState {
 
     public init() {}
 
+    /// `stagingLayers` is true while a new layer generation uploads behind
+    /// the layers on screen; those layers stay visible until it completes.
     public mutating func decide(
         revision: PresentedRevision,
         viewSize: CGSize,
-        layoutSize: CGSize
+        layoutSize: CGSize,
+        stagingLayers: Bool
     ) -> Decision {
         if !Self.fitsView(layoutSize: layoutSize, viewSize: viewSize) {
             let contentWidth: CGFloat = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
@@ -35,6 +38,16 @@ public struct ContentPresentationState {
             // layout, so it must start from the width those layers were laid
             // out at.
             let shownWidth: CGFloat = shownContentWidth ?? contentWidth
+            return .preview(
+                from: CGSize(width: shownWidth, height: viewSize.height)
+            )
+        }
+        // This layout fits, but until its layers finish staging the older
+        // layers stay on screen. Scale them to the view instead of showing
+        // them at their own width next to an empty strip. Without staging
+        // nothing would replace them, so the frame binds.
+        if stagingLayers, let shownWidth: CGFloat = shownContentWidth, shownWidth != viewSize.width {
+            lastRevision = revision
             return .preview(
                 from: CGSize(width: shownWidth, height: viewSize.height)
             )

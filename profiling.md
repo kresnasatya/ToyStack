@@ -458,10 +458,12 @@ strategy changed on this frame; `sublayers` is the current strategy.
 `view.presentation` (`preview`, `baseWidth`, `viewWidth`): GUI only. `preview` is
 1 when the presenter kept the old content and scaled/clipped it for the new view
 size; 0 when it bound new layer placements. A resize burst should show mostly 1
-until the reflow commits. `baseWidth` (view pixels) is the width the layers on
-screen were laid out at, which the preview scales from; 0 on a bind. It can lag
-the last bind while a new layer generation is still staging. `viewWidth` (view
-pixels) is the view width of this present.
+until the reflow commits. A frame whose layout fits the view still previews while
+its generation is staging and the layers on screen were laid out at another
+width, so those layers are scaled instead of shown beside an empty strip.
+`baseWidth` (view pixels) is the width the layers on screen were laid out at,
+which the preview scales from; 0 on a bind. `viewWidth` (view pixels) is the
+view width of this present.
 
 `view.staging` (`completed`, `waiting`): GUI only, one sample per upload chunk of
 a staged layer generation, under the staged frame's id. A generation that fits
