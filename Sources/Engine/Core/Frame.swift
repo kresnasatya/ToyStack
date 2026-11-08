@@ -1347,7 +1347,7 @@ class Frame {
         // geometry mark is applied there and the main thread copies nothing.
         var tree: LayoutTree = box.tree
         tree.refreshInputs(resolved.inputs)
-        let handoff: LayoutJobHandoff = LayoutJobHandoff(consume tree)
+        let handoff: LayoutTreeHandoff = LayoutTreeHandoff(consume tree)
         // The installed tree is only painted and hit-tested while the job
         // runs; neither reads the dependency index, and the job's tree replaces
         // it on install. Hand the index over so the job is its only owner and
@@ -1417,7 +1417,14 @@ class Frame {
             currentZoom: pageZoom
         )
         layoutSize = job.size
-        box.tree = tree
+        // The replaced tree is uniquely owned now, so freeing it frees every
+        // node; do that off the main thread.
+        var retired: LayoutTree = tree
+        swap(&box.tree, &retired)
+        let disposal: LayoutTreeHandoff = LayoutTreeHandoff(consume retired)
+        Task.detached(priority: .utility) { [disposal] in
+            _ = disposal.take()
+        }
         if viewportMoved {
             browser?.measure.counter("layout.async.superseded", ["width": Int(job.size.width)])
         }

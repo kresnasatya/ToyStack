@@ -372,7 +372,7 @@ list task tetap hidup selama task berjalan, jadi tulisan pertama job tetap
 menyalin array node dan index (pengukuran pertama: tidak ada beda di luar
 variasi). Perbaikannya dua bagian:
 
-- `LayoutJobHandoff` (`Sources/Engine/Core/LayoutJobHandoff.swift`)
+- `LayoutJobHandoff` (sekarang `LayoutTreeHandoff`, `Sources/Engine/Core/LayoutTreeHandoff.swift`)
   memindahkan tree ke job; job mengambilnya dengan `take()`, sehingga job satu-
   satunya pemilik salinannya.
 - Pohon terpasang menyerahkan `dependencies` (diganti index kosong) karena paint
@@ -476,3 +476,20 @@ dimulai dan tidak ada yang digambar. Tiga tes lama yang memaku waktu lama
 Harness sementara (1500 paragraf, release, jam 60 Hz disimulasikan, 120 resize):
 umur konten di layar median 50 → **20 ms**, p95 50 → 21 ms. Headless
 `embeds.html`: screenshot identik; waktu layout tidak berubah.
+
+#### Tree lama dibebaskan di thread latar (2026-11-08)
+
+CPU sample `layout.async.finish` di main thread: `rebuildScrollTargets` 52,5%,
+membebaskan tree lama 41%. Sejak job memiliki tree-nya sendiri, tree lama yang
+diganti saat install dimiliki penuh oleh main thread, jadi semua node-nya
+dibebaskan di sana. Sekarang tree lama dipindah ke task latar lewat
+`LayoutTreeHandoff` (nama baru `LayoutJobHandoff`, karena dipakai untuk dua arah)
+dan dibebaskan di sana; sample ulang menunjukkan pembebasan berjalan di thread
+pekerja.
+
+`embeds.html`, drag 1000 → 644: `layout.async.finish` median 1,22–1,23 →
+**0,76–0,80 ms**; waktu layout tidak berubah. Screenshot identik.
+
+Sisa finish di main thread hampir semuanya `rebuildScrollTargets` (±0,65 ms):
+menelusuri seluruh tree untuk daftar target scroll setiap install. Bisa dihitung
+di job latar.
