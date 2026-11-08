@@ -8,80 +8,41 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct AsyncResizeRestartTests {
+    /// A pass that finishes after the window moved on is installed and painted
+    /// at once, and the pass for the current width starts at once: no
+    /// frame-clock tick is needed between them.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
         )
     )
-    func frameClockRestartsLayoutAfterAStaleResult() async throws {
-        let html: String = (0..<40).map { index in
-            "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
-        }.joined()
-        let page: LayoutTestPage = LayoutTestPage(
-            html: html,
-            rules: "body { display: block; } p { display: block; }"
-        )
-        let browser: Browser = Browser()
-        browser.usesAsyncLayout = true
-        page.tab.browser = browser
-        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
-        // The page loaded and painted before the resize.
-        page.frame.clearPaintRequest()
-
-        // A layout for 400 starts.
-        page.tab.resize(width: 400, height: 600)
-        page.frame.runAnimationFrame()
-        let started: Bool = page.frame.isLayoutInFlight
-        #expect(started)
-
-        // Resize while it runs; this tick consumes the render request.
-        page.tab.resize(width: 300, height: 600)
-        page.frame.runAnimationFrame()
-        let stillRunning: Bool = page.frame.isLayoutInFlight
-        #expect(stillRunning)
-
-        // The 400 result installs as an intermediate layout. Nothing else invalidates.
-        let deadline: Date = Date().addingTimeInterval(5)
-        while page.frame.isLayoutInFlight, Date() < deadline {
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
-        page.frame.clearPaintRequest()
-
-        // The frame clock alone must start the pass for the latest width.
-        page.frame.runAnimationFrame()
-        let restarted: Bool = page.frame.isLayoutInFlight
-        let asyncOn: Bool = browser.usesAsyncLayout   // also keeps the weak tab.browser alive
-        #expect(asyncOn)
-        #expect(restarted, "the final width never restarted after the intermediate install")
-    }
-
-    @Test(
-        .enabled(
-            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
-        )
-    )
-    func resizeDuringAPassInstallsItsResultThenLaysOutTheLatestWidth() async throws {
-        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage()
+    func finishedPassIsPaintedAndTheNextStartsWithoutATick() async throws {
+        let path: String = NSTemporaryDirectory() + "no-tick-\(UUID().uuidString).trace"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(tracePath: path)
 
         page.tab.resize(width: 400, height: 600)
         page.frame.runAnimationFrame()
         #expect(page.frame.isLayoutInFlight)
-
-        // The pointer keeps moving while the pass runs. The pass must still
-        // finish, or a drag never shows a new layout.
+        // The pointer moves on while the 400 pass runs. From here on, no tick.
         page.tab.resize(width: 300, height: 600)
         try await Self.settle(page)
-        let intermediate: CGSize = page.frame.installedLayoutSize
-        #expect(intermediate.width == 400, "the pass for 400 was dropped instead of installed")
 
-        // The frame clock lays out the width the window has now.
-        page.frame.runAnimationFrame()
-        let restarted: Bool = page.frame.isLayoutInFlight
-        #expect(restarted, "no pass started for the latest width")
-        try await Self.settle(page)
-        let final: CGSize = page.frame.installedLayoutSize
-        #expect(final.width == 300)
-        #expect(browser.usesAsyncLayout)
+        let installed: CGSize = page.frame.installedLayoutSize
+        let painted: CGSize = page.frame.paintedLayoutSize
+        #expect(installed.width == 300, "no pass ran for the latest width")
+        #expect(painted.width == 300, "the latest width was not painted")
+
+        browser.measure.close()
+        let events: [[String: Any]] = try Self.traceEvents(path)
+        let superseded: [Int] = events
+            .filter({ $0["name"] as? String == "layout.async.superseded" })
+            .compactMap({ ($0["args"] as? [String: Any])?["width"] as? Int })
+        let paints: Int = events.filter({
+            $0["name"] as? String == "BrowserTab.paint" && $0["ph"] as? String == "B"
+        }).count
+        #expect(superseded == [400], "the 400 pass was not installed as an intermediate layout")
+        #expect(paints == 2, "expected the 400 and the 300 layouts painted, got \(paints) paints")
     }
 
     @Test(
@@ -103,31 +64,6 @@ struct AsyncResizeRestartTests {
         page.frame.runAnimationFrame()
         let restarted: Bool = page.frame.isLayoutInFlight
         #expect(!restarted, "the window is back at 400, so no other pass is needed")
-        #expect(browser.usesAsyncLayout)
-    }
-
-    @Test(
-        .enabled(
-            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
-        )
-    )
-    func tabPaintsTheIntermediateLayoutWhileTheNextPassRuns() async throws {
-        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage()
-
-        page.tab.resize(width: 400, height: 600)
-        page.frame.runAnimationFrame()
-        page.tab.resize(width: 300, height: 600)
-        try await Self.settle(page)
-
-        // The pass for 300 starts. Only the viewport moved, so the 400 layout
-        // is still a valid picture of the document and must reach the screen.
-        page.frame.runAnimationFrame()
-        page.tab.runAnimationFrame()
-        let running: Bool = page.frame.isLayoutInFlight
-        let painted: CGSize = page.frame.paintedLayoutSize
-        #expect(running)
-        #expect(painted.width == 400, "the intermediate layout was never painted")
-        try await Self.settle(page)
         #expect(browser.usesAsyncLayout)
     }
 
@@ -231,12 +167,12 @@ struct AsyncResizeRestartTests {
     }.joined()
 
     /// The tab keeps a weak reference to the browser; the caller holds it.
-    private static func makeAsyncPage() -> (LayoutTestPage, Browser) {
+    private static func makeAsyncPage(tracePath: String? = nil) -> (LayoutTestPage, Browser) {
         let page: LayoutTestPage = LayoutTestPage(
             html: paragraphs,
             rules: "body { display: block; } p { display: block; }"
         )
-        let browser: Browser = Browser()
+        let browser: Browser = Browser(tracePath: tracePath)
         browser.usesAsyncLayout = true
         page.tab.browser = browser
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
@@ -250,5 +186,13 @@ struct AsyncResizeRestartTests {
             try await Task.sleep(nanoseconds: 5_000_000)
         }
         #expect(!page.frame.isLayoutInFlight)
+    }
+
+    private static func traceEvents(_ path: String) throws -> [[String: Any]] {
+        let data: Data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let root: [String: Any] = try #require(
+            try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        return try #require(root["traceEvents"] as? [[String: Any]])
     }
 }

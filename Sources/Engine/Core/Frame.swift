@@ -1385,12 +1385,10 @@ class Frame {
             lane?.end()
             let completed: LayoutTree = tree
             await MainActor.run { [weak self] in
-                self?.finishAsyncLayout(
-                    completed,
-                    effects: effects,
-                    removed: removed,
-                    jobID: jobID
-                )
+                guard let self,
+                    self.finishAsyncLayout(completed, effects: effects, removed: removed, jobID: jobID)
+                else { return }
+                self.continueAfterInstall()
             }
         }
     }
@@ -1398,21 +1396,21 @@ class Frame {
     /// Installs a finished pass. A pass that started before the viewport moved
     /// is still a complete layout for the viewport it started with. Installing
     /// it keeps a drag showing new layouts; the current viewport is laid out
-    /// next.
+    /// next. Returns false when the result was dropped.
     private func finishAsyncLayout(
         _ tree: LayoutTree,
         effects: [LayoutEffect],
         removed: Set<LayoutID>,
         jobID: UInt
-    ) {
-        guard layoutInFlight, layoutJobID == jobID else { return }
+    ) -> Bool {
+        guard layoutInFlight, layoutJobID == jobID else { return false }
         browser?.measure.start("layout.async.finish")
         defer { browser?.measure.stop("layout.async.finish") }
         layoutInFlight = false
         let job: LayoutJobKey? = layoutJobKey
         layoutJobKey = nil
         guard let job, let box: LayoutBox = state.layout.tree.box, box.tree.dom === dom else {
-            return
+            return false
         }
         let viewportMoved: Bool = job.isStale(
             currentSize: CGSize(width: frameWidth, height: frameHeight),
@@ -1445,8 +1443,20 @@ class Frame {
         if needsRelayout {
             state.runtime.schedule.needsRender = true
         }
-        state.display.paint.isNeeded = true
-        requestAnimationFrame()
+        setNeedsPaint()
+        return true
+    }
+
+    /// Does now what the next frame-clock tick would do after an install:
+    /// starts the pass for the current viewport and presents the installed
+    /// tree. Waiting for the tick cost up to a frame per install during a drag.
+    /// Animations and rAF callbacks still advance only on the tick.
+    private func continueAfterInstall() {
+        if state.layout.tree.isDirty {
+            state.runtime.schedule.needsRender = false
+            render()
+        }
+        tab?.paintAndCommit()
     }
 
     func makeSnapshot() -> FrameSnapshot {

@@ -215,6 +215,16 @@ public class BrowserTab {
             browser?.measure.stop("BrowserTab.a11y")
             needsAccessibility = false
         }
+        paintAndCommit(frames)
+    }
+
+    /// Paints and commits, unless a running layout pass holds paint back.
+    /// Called by the frame clock, and right after a background pass installs.
+    func paintAndCommit() {
+        paintAndCommit(allFrames.sorted(by: { $0.windowID < $1.windowID }))
+    }
+
+    private func paintAndCommit(_ frames: [Frame]) {
         if frames.contains(where: { $0.isLayoutInFlight }) {
             // A running pass holds paint back, except a pass that only moves
             // the viewport: the installed tree still matches the document, so

@@ -458,3 +458,21 @@ pemindahan, dan edit DOM).
 
 Biaya sweep per job (median) turun dari 1,17 ms ke 0: kebanyakan job hanya
 memakai ulang baris dan tidak melepas node apa pun. Screenshot identik.
+
+#### Tampilkan dan mulai layout berikutnya langsung setelah install (2026-11-08)
+
+Setelah job latar dipasang, `Frame.continueAfterInstall` langsung memulai pass
+untuk viewport sekarang dan memanggil `BrowserTab.paintAndCommit`, tanpa
+menunggu tick 60 Hz berikutnya. Animasi dan callback rAF tetap hanya maju di
+tick. `finishAsyncLayout` memakai `setNeedsPaint()` supaya permintaan paint dari
+iframe sampai ke root, sama seperti yang dilakukan tick.
+
+Tes: `AsyncResizeRestartTests.finishedPassIsPaintedAndTheNextStartsWithoutATick`
+(tanpa satu tick pun: pass 400 dipasang sebagai layout sementara, pass 300
+dimulai, keduanya digambar). Sebelum perubahan gagal: lebar akhir tidak pernah
+dimulai dan tidak ada yang digambar. Tiga tes lama yang memaku waktu lama
+(menunggu tick) dihapus; maksudnya tercakup tes baru.
+
+Harness sementara (1500 paragraf, release, jam 60 Hz disimulasikan, 120 resize):
+umur konten di layar median 50 → **20 ms**, p95 50 → 21 ms. Headless
+`embeds.html`: screenshot identik; waktu layout tidak berubah.
