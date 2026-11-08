@@ -391,3 +391,34 @@ gagal bila job diberi index kosong, jadi benar menjaga kehilangan dependency.
 
 Main thread tidak berubah (8,2–8,4 ms tanpa profiler). Thread latar sekarang
 hampir sama dengan main thread. Screenshot identik byte demi byte.
+
+#### Profiler murah, satu window per thread (2026-11-08)
+
+Biaya per panggilan (release, microbenchmark): kunci + kunci `String` 78 ns;
+tanpa kunci 36 ns; alamat literal + kunci 26 ns; alamat literal tanpa kunci
+14 ns. Kunci dan hash string sama-sama perlu dihapus.
+
+`Profiler` sekarang menyimpan satu window per thread (pthread TLS, struct
+lewat pointer mentah), tanpa kunci, dengan nama `StaticString` dikunci menurut
+alamatnya. Nama yang dibangun saat runtime memakai `count(named:)`.
+
+Percobaan pertama memakai `byAddress[address, default: ...]` di class; hasilnya
+lebih lambat (12,6 → 19,1 ms dengan profiler) karena `default:` mengalokasikan
+objek setiap panggilan (`swift_allocObject` → `__isPlatformVersionAtLeast`).
+Versi akhir mencari slot dulu lalu memperbarui array di tempat.
+
+`embeds.html`, drag 1000 → 644, dua putaran bergantian `HEAD`/sesudah:
+
+| Median per layout | Sebelum | Sesudah |
+|---|---:|---:|
+| Main thread, dengan profiler | 12,1–12,9 ms | **9,1–9,6 ms** |
+| Main thread, tanpa profiler | 8,1–8,6 ms | 8,1–8,6 ms |
+| Thread latar, dengan profiler | 14,3–14,9 ms | **9,4–9,8 ms** |
+| Thread latar, tanpa profiler | 8,3–8,7 ms | 8,4–8,5 ms |
+
+Biaya profiler: main thread ±4 → ±1 ms; thread latar ±6 → ±1 ms (sebelumnya
+juga berebut kunci dengan main thread). Screenshot identik byte demi byte.
+
+Perilaku di main thread sama (nama, nilai, event `profile.<phase>`). Yang
+berubah: hitungan dari thread lain tidak lagi masuk ke window main thread, jadi
+`profile.paint` di GUI tidak lagi membawa potongan `layout.*`.

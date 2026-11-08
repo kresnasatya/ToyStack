@@ -12,9 +12,9 @@ Two writers:
 | `Profiler` | `Sources/Engine/Diagnostic/Profiler.swift` | one accumulated `profile.<phase>` counter | recursive work (per node, per rule, per word) |
 
 `MeasureTime` is locked and is called from the main thread, the presenter, the
-compositor, raster workers, and the background layout task. `Profiler` is one
-locked global window: whoever calls `reset()` and `emitProfile` owns it, but any
-thread can record into it.
+compositor, raster workers, and the background layout task. `Profiler` keeps
+one window per thread and records without a lock; see
+[Measurement windows](#measurement-windows).
 
 ## Deterministic runs
 
@@ -216,9 +216,15 @@ recreated; use the `pool` counter's `workers` for the intended concurrency.
 
 ## Measurement windows
 
-The Profiler holds one global `[String: ProfileMetric]`. Each window calls
-`profiler.reset()` first and `profiler.emitProfile(into:named:)` last. Anything
-measured outside a window is discarded at the next reset.
+The Profiler keeps one `ProfileMetric` table per thread. Each window calls
+`profiler.reset()` first and `profiler.emitProfile(into:named:)` last, on the same
+thread; both act on that thread's table. Anything measured outside a window is
+discarded at the next reset on that thread. Work on another thread never lands
+in this thread's window.
+
+Names are string literals (`StaticString`), keyed by address, so recording does
+not hash a string. A name built at runtime uses `profiler.count(named:)`, which
+does. `snapshot()` merges both by name.
 
 | Event | Window | Contains |
 |---|---|---|
@@ -228,8 +234,9 @@ measured outside a window is discarded at the next reset.
 | `profile.paint` | `Frame.paint` (`Frame.swift:877-884`) | `paint.*`, canvas `text.font*` |
 
 A window must not contain an `await`; the reset→emit pair would then include
-unrelated work. The `parseHTML` window is synchronous. `BrowserTab.load` itself
-is not a profiler window because it awaits.
+unrelated work, and a task may resume on another thread with another table. The
+`parseHTML` window is synchronous. `BrowserTab.load` itself is not a profiler
+window because it awaits.
 
 Metric storage is nanoseconds; emission writes:
 
@@ -451,7 +458,7 @@ placements. A resize burst should show mostly 1 until the reflow commits.
 - **`raster.composite` is one scan.** `raster.composite.scan` covers the linear display-list scan and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.
 - **`composite_raster_and_draw` is a total, not CPU work.** It starts at enqueue and ends in the main-thread completion. Split it with `raster.queueWait`, `raster.plan`, worker raster time, `raster.install`, and `raster.installWait`; the remainder is the main-thread completion. The parts are sampled between spans, so the sum is approximate. `raster.strip` covers worker work but runs concurrently, so do not sum those spans either.
 - **`layout.visit` is a duration, not a count.** Box counts are `layout.visited`, `layout.skipped`, and `layout.rebuilt`.
-- **Background layout has no `profile.layout`.** With async layout (the GUI), the worker records `layout.*` metrics into the one global window while the main thread owns it for paint. A GUI trace therefore has no `profile.layout`, and `profile.paint` carries partial `layout.*` counts from whatever slice of a pass overlapped the paint. Measure layout breakdowns with a synchronous headless run (no `TOYSTACK_ASYNC_LAYOUT`).
+- **Background layout before 2026-11-08 has no `profile.layout`.** Older GUI traces recorded the worker's `layout.*` metrics into the main thread's open window, so they have no `profile.layout`, and their `profile.paint` carries partial `layout.*` counts. Traces recorded since then keep each thread's metrics apart.
 - **Headless has no presenter.** A/B/C/D cannot answer layer churn, `view.commit`,
   or presenter coalescing.
 - **D is a load trace.** `www/bench/large.html` has no animation, so a 600-tick
@@ -462,10 +469,9 @@ placements. A resize burst should show mostly 1 until the reflow commits.
 
 ## Assumptions
 
-- **Locks.** `MeasureTime`, `Profiler`, and `fontCache` each have an `NSLock`
-  (`Profiler.swift:10`, `BrowserFont.swift:74`), so calls from background
-  threads are safe. `Profiler` still has one window per process; see
-  [Known distortions](#known-distortions).
+- **Locks.** `MeasureTime` and `fontCache` each have an `NSLock`
+  (`BrowserFont.swift:74`), so calls from background threads are safe. The
+  `Profiler` takes no lock: each thread records into its own window.
 - **Tracing is always on.** There is no compile-time switch. `--no-profile` only
   disables the `Profiler`; spans and counters still run.
 - **Close the trace.** Call `Browser.stopAnimationTimer()` before the process

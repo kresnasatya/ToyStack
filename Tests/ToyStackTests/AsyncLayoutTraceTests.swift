@@ -4,8 +4,7 @@ import Testing
 
 @testable import Engine
 
-// Like the other background layout suites, this one is opt-in because the
-// worker records into the process-wide profiler.
+// Opt-in for the same reason as BackgroundLayoutTests.
 @Suite(.serialized)
 @MainActor
 struct AsyncLayoutTraceTests {

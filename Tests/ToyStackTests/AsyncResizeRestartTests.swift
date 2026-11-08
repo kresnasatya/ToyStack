@@ -4,8 +4,7 @@ import Testing
 
 @testable import Engine
 
-// Background layout records into the process-wide profiler, so this suite is
-// opt-in for the same reason as BackgroundLayoutTests.
+// Opt-in for the same reason as BackgroundLayoutTests.
 @Suite(.serialized)
 @MainActor
 struct AsyncResizeRestartTests {

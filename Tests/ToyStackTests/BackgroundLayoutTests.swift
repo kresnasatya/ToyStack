@@ -13,9 +13,10 @@ private final class BackgroundLayoutTree: @unchecked Sendable {
     }
 }
 
-// Background layout records into the process-wide profiler. Running these tests
-// beside suites that assert profiler counts makes those counts ambiguous, so
-// they are opt-in: TOYSTACK_BACKGROUND_LAYOUT_TEST=1.
+// Background layout suites are opt-in (TOYSTACK_BACKGROUND_LAYOUT_TEST=1) and run
+// with `swift test --no-parallel`. They wait on real background work, and whether
+// a pass reuses its inputs is keyed on the process-wide `StyleRevision.epoch`,
+// which other suites advance when they run in parallel.
 @Suite(.serialized)
 @MainActor
 struct BackgroundLayoutTests {

@@ -127,7 +127,7 @@ final class StyleFields {
 
     private func recordInheritedChanges(_ changed: Set<StyleProperty>) {
         for property in changed where StyleProperty.inherited.contains(property) {
-            profiler.count("style.changed.\(property.cssName)")
+            profiler.count(named: "style.changed.\(property.cssName)")
         }
     }
 
