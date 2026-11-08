@@ -465,6 +465,28 @@ visible on this page, as in the headless `large.html` run. Breakpoint style ran
 18 times during drags at 14–45 ms on main, with present gaps of 23–61 ms
 around it.
 
+GUI trace after step 1, Option B, the tree handoff, the cheap profiler, and the
+job's own `profile.layout` (33 drags, 15.0 s, 889 resize events), compared with
+the step 4 trace:
+
+| Measure | After step 4 | Now |
+|---|---:|---:|
+| Background layout in drags (median / p95) | 24.0 / 40.4 ms | **13.3 / 29.4 ms** |
+| New layouts painted per second | 19.4 | **37.1** |
+| Resize event → painted (median / p95) | 57 / 91 ms | **45 / 71 ms** |
+| Final width painted after release (median) | 23 ms | 16 ms |
+| Present gap in drags (median / p95) | 15.0 / 33.1 ms | 9.7 / 19.9 ms |
+
+First `profile.layout` from the app (576 jobs in drags, medians): every job
+re-broke about 92 paragraphs (379 lines). `layout.document` 12.0 ms, of which
+block bodies (`layout.visit`) 7.4 ms: `inline.place` 2.8, `visit.geometry` 2.3,
+`mode` 0.7, `inline.plan` 0.7. Outside block bodies ~4.6 ms: 1548 line visits
+(1379 only moved), height sums 0.7, and the reachability sweep 1.4 ms on every
+job (`layout.sweep.reachability` 1.05 + `identify` 0.31). `layout.async.finish`
+on main rose from ~0.5 to 1.6 ms median ([INFERENCE] the replaced installed tree
+is now uniquely owned and freed on main). Breakpoint style still ran 11 times in
+drags at 14–34 ms.
+
 GUI trace after Option A (same page: ~1749 paint nodes vs ~1723; 21 drags,
 25.7 s, 1253 resize events), compared with the trace after the lane fix:
 
