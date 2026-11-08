@@ -28,8 +28,8 @@ public struct ContentPresentationState {
         viewSize: CGSize,
         layoutSize: CGSize
     ) -> Decision {
-        let contentWidth: CGFloat = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
-        if contentWidth != viewSize.width {
+        if !Self.fitsView(layoutSize: layoutSize, viewSize: viewSize) {
+            let contentWidth: CGFloat = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
             lastRevision = revision
             // The preview scales the layers on screen, not this unbound
             // layout, so it must start from the width those layers were laid
@@ -47,6 +47,12 @@ public struct ContentPresentationState {
     /// Records that the layers laid out at `layoutSize` are now on screen.
     public mutating func didShow(layoutSize: CGSize, viewSize: CGSize) {
         shownContentWidth = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
+    }
+
+    /// True when content laid out at `layoutSize` fills the view at its own
+    /// width, so it can be bound instead of previewed.
+    public static func fitsView(layoutSize: CGSize, viewSize: CGSize) -> Bool {
+        return contentWidth(layoutSize: layoutSize, viewSize: viewSize) == viewSize.width
     }
 
     private static func contentWidth(layoutSize: CGSize, viewSize: CGSize) -> CGFloat {

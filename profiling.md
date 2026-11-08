@@ -463,6 +463,15 @@ screen were laid out at, which the preview scales from; 0 on a bind. It can lag
 the last bind while a new layer generation is still staging. `viewWidth` (view
 pixels) is the view width of this present.
 
+`view.staging` (`completed`, `waiting`): GUI only, one sample per upload chunk of
+a staged layer generation, under the staged frame's id. A generation that fits
+the view width is uploaded behind the layers on screen, at most
+`PresentUploadBudget.generationPixels` per present, on every present including
+previews. A started generation is always finished; a newer one waits, and only
+the newest waiting frame is kept (`GenerationStaging`). `completed` is 1 when
+this chunk finished the generation and swapped it on screen. `waiting` is 1
+when a newer frame was waiting behind it at that moment.
+
 ## Known distortions
 
 - **`raster.composite` is one scan.** `raster.composite.scan` covers the linear display-list scan and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.

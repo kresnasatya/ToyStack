@@ -43,7 +43,9 @@ final class ContentPresenter: @unchecked Sendable {
     private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
     private var lastDeferred: Int = 0
     private var lastBoundGeneration: UInt64 = 0
-    private var pendingGeneration: UInt64? = nil
+    /// Generation uploading behind the layers on screen, and the newest frame
+    /// waiting for it.
+    private var staging: GenerationStaging<PresentedFrame> = GenerationStaging()
     private var pendingLayers: [LayerPlacementKey: Slot] = [:]
     private var drainScheduled: Bool = false
 
@@ -78,7 +80,7 @@ final class ContentPresenter: @unchecked Sendable {
             lock.lock()
             guard let next = latest else {
                 presenting = false
-                let needsDrain: Bool = lastDeferred > 0 && !drainScheduled
+                let needsDrain: Bool = (lastDeferred > 0 || staging.current != nil) && !drainScheduled
                 if needsDrain { drainScheduled = true }
                 lock.unlock()
                 if needsDrain { scheduleDeferredDrain() }
@@ -98,8 +100,9 @@ final class ContentPresenter: @unchecked Sendable {
 
     /// Tiles left unbound by the scroll budget are picked up on the next frame,
     /// but a page that lands while the pointer is still would otherwise show
-    /// only the first few tiles until the user scrolls. Keep presenting the
-    /// same frame until the budget drains.
+    /// only the first few tiles until the user scrolls. A staged generation
+    /// also needs more presents to finish. Keep presenting the same frame
+    /// until both drain.
     private func scheduleDeferredDrain() {
         queue.asyncAfter(deadline: .now() + 1.0 / 60.0) {
             let lane: TraceLane = self.measure.beginStream("browser.present")
@@ -131,6 +134,15 @@ final class ContentPresenter: @unchecked Sendable {
         lock.lock()
         applied = (frame.revision, viewSize)
         lock.unlock()
+        measure.start("view.apply", category: .present, frame: frame.frameID)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if usesSublayers {
+            // Stage before deciding: a generation that completes here changes
+            // the width the preview must scale from.
+            offerGeneration(frame, viewSize: viewSize)
+            stageGeneration(viewSize: viewSize)
+        }
         let decision: ContentPresentationState.Decision = presentationState.decide(
             revision: frame.revision,
             viewSize: viewSize,
@@ -151,9 +163,6 @@ final class ContentPresenter: @unchecked Sendable {
             "baseWidth": Int(previousSize?.width ?? 0),
             "viewWidth": Int(viewSize.width)
         ], frame: frame.frameID)
-        measure.start("view.apply", category: .present, frame: frame.frameID)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
 
         if frame.content.usesSublayers {
             applySublayers(
@@ -224,7 +233,8 @@ final class ContentPresenter: @unchecked Sendable {
             height: viewSize.height
         )
         if frame.content.source.generation != lastBoundGeneration, !layersByPlacement.isEmpty {
-            applyPendingGeneration(frame, viewSize: viewSize, scale: scale)
+            // This generation is staging, or waiting, behind the layers on
+            // screen; `stageGeneration` swaps it in once it is complete.
             return
         }
         let placements = frame.content.placements
@@ -337,19 +347,27 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
     }
 
-    /// Stages a new layer generation behind the still-visible previous one.
-    /// The old frame stays complete while a fixed pixel budget binds new tiles;
-    /// only a fully bound generation replaces it.
-    private func applyPendingGeneration(
-        _ frame: PresentedFrame,
-        viewSize: CGSize,
-        scale: ContentScale
-    ) {
+    /// Offers a frame whose generation could replace the layers on screen.
+    /// A frame laid out at another width is only previewed, never staged.
+    private func offerGeneration(_ frame: PresentedFrame, viewSize: CGSize) {
         let generation: UInt64 = frame.content.source.generation
-        if pendingGeneration != generation {
-            discardPendingGeneration()
-            pendingGeneration = generation
-        }
+        guard generation != lastBoundGeneration, !layersByPlacement.isEmpty,
+            ContentPresentationState.fitsView(
+                layoutSize: frame.displayedLayoutSize,
+                viewSize: viewSize
+            )
+        else { return }
+        _ = staging.offer(frame, generation: generation)
+    }
+
+    /// Uploads one budgeted chunk of the staged generation behind the
+    /// still-visible layers. Only a fully bound generation replaces them; the
+    /// newest waiting frame then starts on the next present. Runs on every
+    /// present, previews included, so a resize cannot stall the upload.
+    private func stageGeneration(viewSize: CGSize) {
+        guard let entry: GenerationStaging<PresentedFrame>.Entry = staging.current else { return }
+        let frame: PresentedFrame = entry.frame
+        let scale: ContentScale = frame.viewport.scale
         let placements = frame.content.placements
         measure.start("view.updateSublayers", category: .present, frame: frame.frameID)
         let offset: CGFloat = frame.viewport.contentOffset
@@ -399,6 +417,7 @@ final class ContentPresenter: @unchecked Sendable {
             guard let slot: Slot = pendingLayers[$0.key] else { return false }
             return slot.layer.contents != nil
         }
+        let waiting: Bool = staging.waiting != nil
         if complete {
             for slot in layersByPlacement.values {
                 slot.layer.removeFromSuperlayer()
@@ -412,12 +431,9 @@ final class ContentPresenter: @unchecked Sendable {
             }
             layersByPlacement = active
             pendingLayers.removeAll(keepingCapacity: true)
-            pendingGeneration = nil
-            lastBoundGeneration = generation
+            lastBoundGeneration = entry.generation
             presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
-            lastDeferred = 0
-        } else {
-            lastDeferred = deferred
+            _ = staging.finish()
         }
         measure.stop("view.updateSublayers")
         measure.counter("view", [
@@ -433,6 +449,10 @@ final class ContentPresenter: @unchecked Sendable {
             "pool": layersByPlacement.count + pendingLayers.count,
             "sublayers": contentLayer.sublayers?.count ?? 0,
         ], frame: frame.frameID)
+        measure.counter("view.staging", [
+            "completed": complete ? 1 : 0,
+            "waiting": waiting ? 1 : 0
+        ], frame: frame.frameID)
     }
 
     private func discardPendingGeneration() {
@@ -440,7 +460,7 @@ final class ContentPresenter: @unchecked Sendable {
             slot.layer.removeFromSuperlayer()
         }
         pendingLayers.removeAll(keepingCapacity: true)
-        pendingGeneration = nil
+        staging.cancel()
     }
 
     private func makeSublayer(scale: CGFloat) -> CALayer {
