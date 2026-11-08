@@ -147,7 +147,9 @@ final class ContentPresenter: @unchecked Sendable {
             previousSize = size
         }
         measure.counter("view.presentation", [
-            "preview": preview ? 1 : 0
+            "preview": preview ? 1 : 0,
+            "baseWidth": Int(previousSize?.width ?? 0),
+            "viewWidth": Int(viewSize.width)
         ], frame: frame.frameID)
         measure.start("view.apply", category: .present, frame: frame.frameID)
         CATransaction.begin()
