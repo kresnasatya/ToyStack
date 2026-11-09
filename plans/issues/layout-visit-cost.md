@@ -2,8 +2,8 @@
 
 Tanggal: 2026-11-08
 Dasar: pengukuran di `plans/issues/resize-flow-roadmap.md` ("Layout cost
-measured") dan satu CPU sample. Dokumen ini hanya usulan; belum ada perubahan
-kode.
+measured") dan satu CPU sample. Opsi A, Opsi B, dan langkah-langkah di bawahnya
+sudah diterapkan; nomor baris di bagian "Temuan" merujuk ke kode sebelum Opsi A.
 
 ## Temuan dari CPU sample
 
@@ -144,7 +144,7 @@ hitung referensi):
 
 ### Opsi B — lewati perhitungan rencana baris saat lebar masih aman
 
-`inlineTextLinePlan` (`BlockLayoutPass.swift:383`) dihitung ulang untuk setiap
+`inlineTextLinePlan` (sekarang `BlockLayoutPass.swift:129`) dihitung ulang untuk setiap
 paragraf di setiap resize, walaupun hasilnya sama (6,8% layout, 2,1 ms).
 Simpan rentang lebar tempat rencana baris itu tetap berlaku. Contoh termudah:
 paragraf satu baris yang lebar teksnya muat di lebar lama dan lebar baru pasti
@@ -483,7 +483,7 @@ CPU sample `layout.async.finish` di main thread: `rebuildScrollTargets` 52,5%,
 membebaskan tree lama 41%. Sejak job memiliki tree-nya sendiri, tree lama yang
 diganti saat install dimiliki penuh oleh main thread, jadi semua node-nya
 dibebaskan di sana. Sekarang tree lama dipindah ke task latar lewat
-`LayoutTreeHandoff` (nama baru `LayoutJobHandoff`, karena dipakai untuk dua arah)
+`LayoutTreeHandoff` (nama lama `LayoutJobHandoff`; diganti karena dipakai untuk dua arah)
 dan dibebaskan di sana; sample ulang menunjukkan pembebasan berjalan di thread
 pekerja.
 
@@ -493,3 +493,7 @@ pekerja.
 Sisa finish di main thread hampir semuanya `rebuildScrollTargets` (±0,65 ms):
 menelusuri seluruh tree untuk daftar target scroll setiap install. Bisa dihitung
 di job latar.
+
+Diperbaiki di `plans/async-scroll-targets-reuse.md`: pemasangan latar memakai
+aturan yang sama dengan layout sinkron, jadi drag yang hanya mengubah lebar
+tidak lagi menelusuri seluruh tree.
