@@ -1341,6 +1341,7 @@ class Frame {
         // node storage stays shared until the worker writes to it, so the
         // geometry mark is applied there and the main thread copies nothing.
         var tree: LayoutTree = box.tree
+        box.startRecordingEdits()
         tree.refreshInputs(resolved.inputs)
         let handoff: LayoutTreeHandoff = LayoutTreeHandoff(consume tree)
         // The installed tree is only painted and hit-tested while the job
@@ -1417,6 +1418,12 @@ class Frame {
         // node; do that off the main thread.
         var retired: LayoutTree = tree
         swap(&box.tree, &retired)
+        // Edits marked while the pass ran went to the tree it just replaced.
+        // Their callers also scheduled a render, which set
+        // `layoutInFlightDirty`, so the follow-up pass is already due.
+        for edit in box.takeRecordedEdits() {
+            LayoutInvalidation.apply(edit, in: dom)
+        }
         let disposal: LayoutTreeHandoff = LayoutTreeHandoff(consume retired)
         Task.detached(priority: .utility) { [disposal] in
             _ = disposal.take()

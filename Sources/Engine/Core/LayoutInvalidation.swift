@@ -4,8 +4,7 @@ import Foundation
 enum LayoutInvalidation {
 
     static func childrenChanged(_ node: DOMRef) {
-        guard let block = nearestBlock(node) else { return }
-        block.box.tree.blockMarkChildrenDirty(block.id)
+        perform(.childrenChanged(node.id), in: node.dom)
     }
 
     static func childrenAppend(_ parent: DOMRef, _ child: DOMRef) {
@@ -13,6 +12,9 @@ enum LayoutInvalidation {
             childrenChanged(parent)
             return
         }
+        // A pass running now may already have read the new child from the
+        // DOM, so the replay rebuilds the children instead of appending twice.
+        block.box.record(.childrenChanged(parent.id))
         block.box.tree.blockNoteAppendedChildren(block.id, [child.id])
     }
 
@@ -25,6 +27,7 @@ enum LayoutInvalidation {
             childrenChanged(parent)
             return
         }
+        block.box.record(.childrenChanged(parent.id))
         block.box.tree.blockNoteInsertedChildren(block.id, [child.id], before: reference.id)
     }
 
@@ -40,27 +43,23 @@ enum LayoutInvalidation {
         let affectsSiblings: Bool = property == .display
             || property == .position
             || property == .marginBottom
-        markLayoutInput(node, affectsSiblings: affectsSiblings)
-    }
-
-    private static func markLayoutInput(_ node: DOMRef, affectsSiblings: Bool) {
-        guard let block = nearestBlock(node) else { return }
-        block.box.tree.blockMarkChildrenDirty(block.id)
-
-        guard affectsSiblings else { return }
-        guard let parent = parentBlock(of: block) else { return }
-        parent.box.tree.blockMarkChildrenDirty(parent.id)
+        perform(.layoutInputChanged(node.id, affectsSiblings: affectsSiblings), in: node.dom)
     }
 
     static func imageChanged(_ node: DOMRef) {
-        if let box: LayoutBox = node.dom.layoutBox,
-            let id: LayoutID = node.layoutID,
-            case .embed(.image) = box.tree.kind(id)
-        {
-            box.tree.markField(.width, at: id)
-            box.tree.markField(.height, at: id)
+        perform(.imageChanged(node.id), in: node.dom)
+    }
+
+    /// Marks `edit` on the tree the DOM's layout box holds now.
+    static func apply(_ edit: LayoutEdit, in dom: DOMTree) {
+        switch edit {
+        case .childrenChanged(let id):
+            markChildren(dom.ref(id))
+        case .imageChanged(let id):
+            markImage(dom.ref(id))
+        case .layoutInputChanged(let id, let affectsSiblings):
+            markLayoutInput(dom.ref(id), affectsSiblings: affectsSiblings)
         }
-        childrenChanged(node)
     }
 
     static func nearestBlock(_ node: DOMRef) -> (box: LayoutBox, id: LayoutID)? {
@@ -80,6 +79,38 @@ enum LayoutInvalidation {
             dom = parent.parent
         }
         return nil
+    }
+
+    // MARK: - Marking
+
+    private static func perform(_ edit: LayoutEdit, in dom: DOMTree) {
+        dom.layoutBox?.record(edit)
+        apply(edit, in: dom)
+    }
+
+    private static func markChildren(_ node: DOMRef) {
+        guard let block = nearestBlock(node) else { return }
+        block.box.tree.blockMarkChildrenDirty(block.id)
+    }
+
+    private static func markImage(_ node: DOMRef) {
+        if let box: LayoutBox = node.dom.layoutBox,
+            let id: LayoutID = node.layoutID,
+            case .embed(.image) = box.tree.kind(id)
+        {
+            box.tree.markField(.width, at: id)
+            box.tree.markField(.height, at: id)
+        }
+        markChildren(node)
+    }
+
+    private static func markLayoutInput(_ node: DOMRef, affectsSiblings: Bool) {
+        guard let block = nearestBlock(node) else { return }
+        block.box.tree.blockMarkChildrenDirty(block.id)
+
+        guard affectsSiblings else { return }
+        guard let parent = parentBlock(of: block) else { return }
+        parent.box.tree.blockMarkChildrenDirty(parent.id)
     }
 
     private static func parentBlock(of block: (box: LayoutBox, id: LayoutID)) -> (box: LayoutBox, id: LayoutID)? {

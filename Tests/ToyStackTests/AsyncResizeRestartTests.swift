@@ -261,11 +261,132 @@ struct AsyncResizeRestartTests {
         #expect(rebuilt.last == 1, "the install after the removal reused the old list: \(rebuilt)")
     }
 
+    /// An element added while a pass runs must reach the layout once the
+    /// follow-up pass is installed.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func domEditDuringAPassReachesTheLayout() async throws {
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: #"<section id="box"></section>"# + Self.paragraphs,
+            rules: Self.scrollRules
+        )
+        try Self.startPass(page, width: 400)
+        page.frame.js.run(
+            script: "appendChild",
+            code: "document.getElementById('box').appendChild(document.createElement('div'));"
+        )
+        try await Self.settle(page)
+
+        let added: ElementRef = try #require(page.firstElement(tag: "div"))
+        #expect(added.ref.layoutID != nil, "the added element has no layout node")
+        Self.expectMatchesFullLayout(page, browser: browser)
+    }
+
+    /// Text changed while a pass runs must reflow once the follow-up pass is
+    /// installed. The install starts that pass itself; no tick runs.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func textEditDuringAPassReachesTheLayout() async throws {
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage()
+        let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
+        let text: TextRef = try #require(paragraph.children.first?.text)
+        try Self.startPass(page, width: 400)
+        text.append(" with many more words so that it needs several more lines to fit")
+        // `TextRef` callers schedule the render themselves.
+        page.frame.setNeedsRender()
+        try await Self.settle(page)
+
+        Self.expectMatchesFullLayout(page, browser: browser)
+    }
+
+    /// An element removed while a pass runs must leave the layout once the
+    /// follow-up pass is installed.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func removalDuringAPassReachesTheLayout() async throws {
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: #"<section id="box"><p>Removed while the pass runs.</p></section>"#
+                + Self.paragraphs,
+            rules: Self.scrollRules
+        )
+        try Self.startPass(page, width: 400)
+        page.frame.js.run(
+            script: "removeChild",
+            code: """
+                var box = document.getElementById('box');
+                box.removeChild(box.children[0]);
+            """
+        )
+        try await Self.settle(page)
+
+        Self.expectMatchesFullLayout(page, browser: browser)
+    }
+
+    /// Animation steps that run while a pass runs, the last one included, must
+    /// reach the layout once the follow-up pass is installed.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func animationDuringAPassReachesTheLayout() async throws {
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: "<div></div>" + Self.paragraphs,
+            rules: Self.blockRules + " div { display: block; width: 100px; height: 20px; }"
+        )
+        let box: ElementRef = try #require(page.firstElement(tag: "div"))
+        page.frame.addAnimation(PixelAnimation(
+            animatedProperty: .width,
+            oldValue: 100,
+            newValue: 200,
+            timing: FrameTiming(totalFrames: 2, easing: .linear)
+        ), to: box.ref)
+        try Self.startPass(page, width: 400)
+        // Every step, and the end of the animation, lands while the pass runs.
+        for _ in 0..<3 {
+            page.frame.runAnimationFrame()
+        }
+        try #require(page.frame.isLayoutInFlight)
+        try await Self.settle(page)
+
+        let id: LayoutID = try #require(box.ref.layoutID)
+        #expect(page.tree.width(id) == 200, "the last animation step did not reach the layout")
+        Self.expectMatchesFullLayout(page, browser: browser)
+    }
+
     // MARK: - Helpers
 
     private static let paragraphs: String = (0..<40).map { index in
         "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
     }.joined()
+
+    /// Resizes and starts a background pass that is still running on return.
+    private static func startPass(_ page: LayoutTestPage, width: CGFloat) throws {
+        page.tab.resize(width: width, height: 600)
+        page.frame.runAnimationFrame()
+        try #require(page.frame.isLayoutInFlight)
+    }
+
+    /// Compares the installed layout with one built from nothing on the same
+    /// DOM. Detaches the browser so that rebuild runs synchronously.
+    private static func expectMatchesFullLayout(
+        _ page: LayoutTestPage,
+        browser: Browser,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        #expect(browser.usesAsyncLayout, sourceLocation: sourceLocation)
+        page.tab.browser = nil
+        expectIncrementalMatchesFull(page, sourceLocation: sourceLocation)
+    }
 
     private static let blockRules: String = "body { display: block; } p { display: block; }"
 
