@@ -31,7 +31,6 @@ final class ContentPresenter: @unchecked Sendable {
     /// 12-24 new tiles blows the frame budget. Incremental arrivals are spread.
     private static let uploadsPerPresent: Int = 6
     private static let pixelsPerPresent: Int = 400_000
-    private static let generationPixelsPerPresent: Int = PresentUploadBudget.generationPixels
     private let lock = NSLock()
     private var latest: (frame: PresentedFrame, viewSize: CGSize)?
     private var applied: (revision: PresentedRevision, size: CGSize)?
@@ -153,8 +152,8 @@ final class ContentPresenter: @unchecked Sendable {
             // the width the preview must scale from. The skip check and the
             // upload share one budget so they agree on what finishes now.
             offerGeneration(frame, viewSize: viewSize)
-            let budget: PresentUploadBudget = PresentUploadBudget(
-                pixels: Self.generationPixelsPerPresent
+            let budget: PresentUploadBudget = PresentUploadBudget.generation(
+                resizeSettled: resizeSettle.isSettled(at: lastPresentStart)
             )
             let skipped: Bool = skipStaleGeneration(viewSize: viewSize, budget: budget)
             stageGeneration(viewSize: viewSize, skipped: skipped, budget: budget)
@@ -509,7 +508,8 @@ final class ContentPresenter: @unchecked Sendable {
         measure.counter("view.staging", [
             "completed": complete ? 1 : 0,
             "waiting": waiting ? 1 : 0,
-            "skipped": skipped ? 1 : 0
+            "skipped": skipped ? 1 : 0,
+            "budgetPixels": budget.pixels
         ], frame: frame.frameID)
     }
 

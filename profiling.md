@@ -465,20 +465,24 @@ width, so those layers are scaled instead of shown beside an empty strip.
 which the preview scales from; 0 on a bind. `viewWidth` (view pixels) is the
 view width of this present.
 
-`view.staging` (`completed`, `waiting`, `skipped`): GUI only, one sample per upload
-chunk of a staged layer generation, under the staged frame's id. A generation
-that fits the view width is uploaded behind the layers on screen, at most
-`PresentUploadBudget.generationPixels` per present, on every present including
-previews. While the view width keeps changing, a started generation is always
+`view.staging` (`completed`, `waiting`, `skipped`, `budgetPixels`): GUI only, one
+sample per upload chunk of a staged layer generation, under the staged frame's
+id. A generation that fits the view width is uploaded behind the layers on
+screen, at most `budgetPixels` per present, on every present including previews.
+`budgetPixels` is `PresentUploadBudget.generationPixels` (2,000,000; 30 tiles of
+256 × 256) while the view width moves, and twice that once it has not changed for
+`ResizeSettle.delay` (`PresentUploadBudget.generation`). The 2× budget applies to
+every generation uploaded while the width is not changing, including page loads,
+style changes and animations, not only the end of a drag. While the view width
+keeps changing, a started generation is always
 finished; a newer one waits, and only the newest waiting frame is kept
 (`GenerationStaging`). `completed` is 1 when this chunk finished the generation
 and swapped it on screen. `waiting` is 1 when a newer frame was waiting behind it
 at that moment. `skipped` is 1 when this present first dropped an upload laid out
 for an old width, because the view width had not changed for
 `ResizeSettle.delay` (two display frames), the waiting frame fits the view, and
-the dropped upload had more tiles left than one present's
-`PresentUploadBudget.generationPixels` uploads. An upload this present can
-finish is kept.
+the dropped upload had more tiles left than this present's `budgetPixels`
+uploads. An upload this present can finish is kept.
 
 Follow-up presents (the staged chunks after the engine stops sending frames,
 and deferred tile binds) start one display frame after the previous present

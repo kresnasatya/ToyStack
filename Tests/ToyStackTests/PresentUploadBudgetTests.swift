@@ -57,4 +57,38 @@ struct PresentUploadBudgetTests {
         let budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
         #expect(budget.admitsAll(pixels: []))
     }
+
+    // MARK: - Budget for a staged generation
+
+    /// While the width moves, a heavier present would delay the next
+    /// preview, so the budget stays small.
+    @Test func movingResizeKeepsTheSmallBudget() {
+        let budget: PresentUploadBudget = PresentUploadBudget.generation(resizeSettled: false)
+        #expect(budget.pixels == PresentUploadBudget.generationPixels)
+    }
+
+    /// A 1440-wide window holds 132 tiles of 256 x 256. Once settled they
+    /// must go up in 3 presents, not 5.
+    @Test func settledWideWindowUploadsInThreePresents() {
+        var left: Int = 132
+        var presents: Int = 0
+        while left > 0 {
+            var budget: PresentUploadBudget = PresentUploadBudget.generation(resizeSettled: true)
+            while left > 0, budget.take(pixels: 256 * 256) {
+                left -= 1
+            }
+            presents += 1
+        }
+        #expect(presents == 3)
+    }
+
+    /// After a drag, an older upload with 50 tiles left waits in front of the
+    /// final frame. The skip check and the upload use this same budget, so it
+    /// must see that those 50 tiles finish in one settled present and keep the
+    /// nearly done image instead of dropping it.
+    @Test func settledBudgetFinishesFiftyTilesInOnePresent() {
+        let budget: PresentUploadBudget = PresentUploadBudget.generation(resizeSettled: true)
+        let left: [Int] = Array(repeating: 256 * 256, count: 50)
+        #expect(budget.admitsAll(pixels: left))
+    }
 }
