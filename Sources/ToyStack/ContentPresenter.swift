@@ -46,6 +46,9 @@ final class ContentPresenter: @unchecked Sendable {
     /// Generation uploading behind the layers on screen, and the newest frame
     /// waiting for it.
     private var staging: GenerationStaging<PresentedFrame> = GenerationStaging()
+    /// When the view width last changed, so a finished drag can skip an
+    /// upload laid out for a width the window no longer has.
+    private var resizeSettle: ResizeSettle = ResizeSettle()
     private var pendingLayers: [LayerPlacementKey: Slot] = [:]
     private var drainScheduled: Bool = false
 
@@ -124,6 +127,7 @@ final class ContentPresenter: @unchecked Sendable {
     private func present(_ frame: PresentedFrame, viewSize: CGSize) {
         lastApplied = (frame, viewSize)
         frameNumber += 1
+        resizeSettle.note(width: viewSize.width, at: CACurrentMediaTime())
         let usesSublayers: Bool = frame.content.usesSublayers
         let flipped: Bool = lastUsesSublayers.map({ $0 != usesSublayers }) ?? false
         measure.counter("view.usesSublayersFlips", [
@@ -139,9 +143,14 @@ final class ContentPresenter: @unchecked Sendable {
         CATransaction.setDisableActions(true)
         if usesSublayers {
             // Stage before deciding: a generation that completes here changes
-            // the width the preview must scale from.
+            // the width the preview must scale from. The skip check and the
+            // upload share one budget so they agree on what finishes now.
             offerGeneration(frame, viewSize: viewSize)
-            stageGeneration(viewSize: viewSize)
+            let budget: PresentUploadBudget = PresentUploadBudget(
+                pixels: Self.generationPixelsPerPresent
+            )
+            let skipped: Bool = skipStaleGeneration(viewSize: viewSize, budget: budget)
+            stageGeneration(viewSize: viewSize, skipped: skipped, budget: budget)
         }
         let decision: ContentPresentationState.Decision = presentationState.decide(
             revision: frame.revision,
@@ -361,11 +370,53 @@ final class ContentPresenter: @unchecked Sendable {
         _ = staging.offer(frame, generation: generation)
     }
 
+    /// Once the window width stops changing, drops an upload laid out for a
+    /// width the window no longer has, so the final layout starts at once
+    /// instead of waiting for a stale one. An upload this present finishes
+    /// within `budget` is kept. Returns true when it skipped.
+    private func skipStaleGeneration(viewSize: CGSize, budget: PresentUploadBudget) -> Bool {
+        let skipped: Bool = staging.skipStale(
+            settled: resizeSettle.isSettled(at: CACurrentMediaTime()),
+            currentFinishesNow: { self.finishesThisPresent($0, budget: budget) },
+            fits: {
+                ContentPresentationState.fitsView(
+                    layoutSize: $0.displayedLayoutSize,
+                    viewSize: viewSize
+                )
+            }
+        )
+        if skipped {
+            removePendingLayers()
+        }
+        return skipped
+    }
+
+    /// True when the tiles of `frame` still unbound in `pendingLayers` fit
+    /// `budget`, so `stageGeneration` completes it in this present.
+    private func finishesThisPresent(_ frame: PresentedFrame, budget: PresentUploadBudget) -> Bool {
+        var left: [Int] = []
+        for placed in frame.content.placements {
+            if Self.needsBind(pendingLayers[placed.key]?.layer, to: placed) {
+                left.append(placed.image.width * placed.image.height)
+            }
+        }
+        return budget.admitsAll(pixels: left)
+    }
+
+    /// True when `layer` (nil: not created yet) does not show `placed`'s
+    /// image. `stageGeneration` binds exactly these tiles, and
+    /// `finishesThisPresent` predicts from the same test.
+    private static func needsBind(_ layer: CALayer?, to placed: LayerPlacement) -> Bool {
+        return (layer?.contents as AnyObject?) !== placed.image
+    }
+
     /// Uploads one budgeted chunk of the staged generation behind the
     /// still-visible layers. Only a fully bound generation replaces them; the
     /// newest waiting frame then starts on the next present. Runs on every
     /// present, previews included, so a resize cannot stall the upload.
-    private func stageGeneration(viewSize: CGSize) {
+    /// `skipped` is true when this present dropped a stale upload first.
+    /// `budget` is the one the skip check used in this present.
+    private func stageGeneration(viewSize: CGSize, skipped: Bool, budget: PresentUploadBudget) {
         guard let entry: GenerationStaging<PresentedFrame>.Entry = staging.current else { return }
         let frame: PresentedFrame = entry.frame
         let scale: ContentScale = frame.viewport.scale
@@ -392,7 +443,7 @@ final class ContentPresenter: @unchecked Sendable {
                 added += 1
             }
             updateSublayer(layer, with: placed, scale: scale.effective)
-            if (layer.contents as AnyObject?) !== placed.image {
+            if Self.needsBind(layer, to: placed) {
                 rebinds.append(
                     LayerRebind(
                         distance: abs(placed.frame.midY - centerY),
@@ -403,9 +454,7 @@ final class ContentPresenter: @unchecked Sendable {
             }
         }
         rebinds.sort(by: { $0.distance < $1.distance })
-        var budget: PresentUploadBudget = PresentUploadBudget(
-            pixels: Self.generationPixelsPerPresent
-        )
+        var budget: PresentUploadBudget = budget
         for rebind in rebinds {
             let pixels: Int = rebind.image.width * rebind.image.height
             guard budget.take(pixels: pixels) else { continue }
@@ -452,16 +501,21 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
         measure.counter("view.staging", [
             "completed": complete ? 1 : 0,
-            "waiting": waiting ? 1 : 0
+            "waiting": waiting ? 1 : 0,
+            "skipped": skipped ? 1 : 0
         ], frame: frame.frameID)
     }
 
     private func discardPendingGeneration() {
+        removePendingLayers()
+        staging.cancel()
+    }
+
+    private func removePendingLayers() {
         for slot in pendingLayers.values {
             slot.layer.removeFromSuperlayer()
         }
         pendingLayers.removeAll(keepingCapacity: true)
-        staging.cancel()
     }
 
     private func makeSublayer(scale: CGFloat) -> CALayer {

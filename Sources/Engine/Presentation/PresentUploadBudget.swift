@@ -23,4 +23,12 @@ public struct PresentUploadBudget: Sendable {
         }
         return false
     }
+
+    /// Returns true when one present with this budget uploads every item, so
+    /// an upload with these items left finishes in that present. Does not
+    /// spend the budget.
+    public func admitsAll(pixels items: [Int]) -> Bool {
+        var trial: PresentUploadBudget = self
+        return items.allSatisfy { trial.take(pixels: $0) }
+    }
 }

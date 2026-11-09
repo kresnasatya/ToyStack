@@ -465,14 +465,20 @@ width, so those layers are scaled instead of shown beside an empty strip.
 which the preview scales from; 0 on a bind. `viewWidth` (view pixels) is the
 view width of this present.
 
-`view.staging` (`completed`, `waiting`): GUI only, one sample per upload chunk of
-a staged layer generation, under the staged frame's id. A generation that fits
-the view width is uploaded behind the layers on screen, at most
+`view.staging` (`completed`, `waiting`, `skipped`): GUI only, one sample per upload
+chunk of a staged layer generation, under the staged frame's id. A generation
+that fits the view width is uploaded behind the layers on screen, at most
 `PresentUploadBudget.generationPixels` per present, on every present including
-previews. A started generation is always finished; a newer one waits, and only
-the newest waiting frame is kept (`GenerationStaging`). `completed` is 1 when
-this chunk finished the generation and swapped it on screen. `waiting` is 1
-when a newer frame was waiting behind it at that moment.
+previews. While the view width keeps changing, a started generation is always
+finished; a newer one waits, and only the newest waiting frame is kept
+(`GenerationStaging`). `completed` is 1 when this chunk finished the generation
+and swapped it on screen. `waiting` is 1 when a newer frame was waiting behind it
+at that moment. `skipped` is 1 when this present first dropped an upload laid out
+for an old width, because the view width had not changed for
+`ResizeSettle.delay` (two display frames), the waiting frame fits the view, and
+the dropped upload had more tiles left than one present's
+`PresentUploadBudget.generationPixels` uploads. An upload this present can
+finish is kept.
 
 ## Known distortions
 

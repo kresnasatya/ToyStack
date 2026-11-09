@@ -33,4 +33,28 @@ struct PresentUploadBudgetTests {
         #expect(oversized)
         #expect(!after)
     }
+
+    // MARK: - Whether one present can upload everything left
+
+    @Test func remainingTilesWithinBudgetFitOnePresent() {
+        let budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
+        #expect(budget.admitsAll(pixels: [1_000_000, 3_000_000]))
+    }
+
+    @Test func remainingTilesOverBudgetNeedAnotherPresent() {
+        let budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
+        #expect(!budget.admitsAll(pixels: [3_000_000, 1_000_001]))
+    }
+
+    /// `take` lets one oversized tile through when it comes first, so a
+    /// single oversized tile still finishes in one present.
+    @Test func singleOversizedTileFitsOnePresent() {
+        let budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
+        #expect(budget.admitsAll(pixels: [6_000_000]))
+    }
+
+    @Test func nothingLeftFitsOnePresent() {
+        let budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
+        #expect(budget.admitsAll(pixels: []))
+    }
 }
