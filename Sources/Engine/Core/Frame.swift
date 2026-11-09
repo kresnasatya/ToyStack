@@ -1356,7 +1356,8 @@ class Frame {
         let pageZoom: CGFloat = self.pageZoom
         layoutJobKey = LayoutJobKey(
             size: CGSize(width: width, height: frameHeight),
-            zoom: pageZoom
+            zoom: pageZoom,
+            targetsRevision: state.layout.targets.revision
         )
         let measure: MeasureTime? = browser?.measure
         let jobFrame: Int? = measure?.frame
@@ -1431,8 +1432,12 @@ class Frame {
                 .filter({ box.tree.primaryLayout(for: $0.key) != nil })
             state.display.caches.prune(removing: removed)
         }
-        rebuildScrollTargets(box.tree)
-        state.layout.targets.builtRevision = state.layout.targets.revision
+        let rebuilt: Bool = updateScrollTargets(
+            box.tree,
+            removed: removed,
+            revision: job.targetsRevision
+        )
+        browser?.measure.counter("layout.async.scrollTargets", ["rebuilt": rebuilt ? 1 : 0])
         tab?.needsAccessibility = true
 
         let needsRelayout: Bool = layoutInFlightDirty || viewportMoved

@@ -230,7 +230,7 @@ does. `snapshot()` merges both by name.
 |---|---|---|
 | `profile.load` | `Frame.load`, around `parseHTML` (`Frame.swift:150-152`) | `load.*`, `jsc.*` |
 | `profile.style` | `Frame.render`, style block (`Frame.swift:712-810`) | `style.*` |
-| `profile.layout` | `Frame.render`, layout block (`Frame.swift:817-856`); with async layout (the GUI), the background job in `Frame.startAsyncLayout` instead | `layout.*`, `text.*`; the main-thread window also has `scrollTargets.reused`, `scrollTargets.rebuilt` |
+| `profile.layout` | `Frame.render`, layout block (`Frame.swift:817-856`); with async layout (the GUI), the background job in `Frame.startAsyncLayout` instead | `layout.*`, `text.*`; the synchronous (main-thread) window also has `scrollTargets.reused`, `scrollTargets.rebuilt`. The async install reports `layout.async.scrollTargets` instead |
 | `profile.paint` | `Frame.paint` (`Frame.swift:877-884`) | `paint.*`, canvas `text.font*` |
 
 The background job's `profile.layout` is written on the `browser.layout` lane
@@ -326,8 +326,8 @@ a test that runs the style phase without `render()`.
 | `layout.dirtyDescendants` | count | gate checks that returned because a descendant field was dirty |
 | `layout.field.set` | count | layout field writes that changed the value |
 | `layout.field.mark` | count | layout field transitions from clean to dirty |
-| `scrollTargets.rebuilt` | count | layout pass that rescanned the tree for scrollable blocks and iframes |
-| `scrollTargets.reused` | count | layout pass that reused the target list and only refreshed rects |
+| `scrollTargets.rebuilt` | count | synchronous layout pass that rescanned the tree for scrollable blocks and iframes |
+| `scrollTargets.reused` | count | synchronous layout pass that reused the target list and only refreshed rects |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
 | `layout.lines.total` | count | lines placed |
 | `layout.sweep.skipped` | count | geometry pass that did not need the reachability sweep |
@@ -415,6 +415,13 @@ Non-zero is a missing dependency edge and traps in debug builds.
 viewport moved. Its tree is installed and painted as an intermediate layout,
 and the next pass lays out the current viewport. `width` is the CSS width the
 finished pass used. During a drag, expect roughly one sample per pass.
+
+`layout.async.scrollTargets` (`rebuilt`): one sample per installed background
+layout. `rebuilt` = 1 when the install walked the whole tree for scroll targets
+(new tree, structure or display/overflow change before the pass started, or a
+target's node removed); 0 when it only refreshed the rects of the known
+targets. A change made while the pass ran is picked up by the next pass.
+During a width-only drag, expect 0.
 
 `tiles`: one sample per composite, reset by `TileStore.beginComposite`.
 

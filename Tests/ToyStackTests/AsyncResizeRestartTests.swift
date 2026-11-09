@@ -160,18 +160,127 @@ struct AsyncResizeRestartTests {
         #expect(browser.usesAsyncLayout)
     }
 
+    /// A pass that only changes the width keeps the same scroll targets.
+    /// Installing it refreshes their rects instead of walking the whole tree,
+    /// and the refreshed rects follow the new layout.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func widthOnlyInstallReusesScrollTargets() async throws {
+        let path: String = NSTemporaryDirectory() + "scroll-reuse-\(UUID().uuidString).trace"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: "<div></div>" + Self.paragraphs,
+            rules: Self.scrollRules,
+            tracePath: path
+        )
+        var widths: [CGFloat] = []
+        for width in [400, 300] {
+            page.tab.resize(width: CGFloat(width), height: 600)
+            page.frame.runAnimationFrame()
+            try await Self.settle(page)
+            let target: ScrollBlockTarget = try Self.onlyScrollBlock(page)
+            widths.append(target.rect.right - target.rect.left)
+        }
+        #expect(widths[0] > widths[1], "the scroll box rect did not follow the viewport: \(widths)")
+
+        browser.measure.close()
+        let rebuilt: [Int] = try Self.scrollTargetSamples(path)
+        try #require(rebuilt.count == 2, "expected one sample per install, got \(rebuilt)")
+        #expect(rebuilt == [0, 0], "a width-only install walked the whole tree: \(rebuilt)")
+    }
+
+    /// A box that becomes scrollable while a pass runs: the change bumps the
+    /// target revision after the pass recorded its own. The list must still
+    /// pick the box up once the follow-up pass is installed.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func boxMadeScrollableDuringAPassBecomesATarget() async throws {
+        let path: String = NSTemporaryDirectory() + "scroll-overflow-\(UUID().uuidString).trace"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: "<div></div>" + Self.paragraphs,
+            rules: Self.blockRules + " div { display: block; height: 20px; }",
+            tracePath: path
+        )
+        let box: ElementRef = try #require(page.firstElement(tag: "div"))
+        #expect(page.frame.state.layout.targets.blocks.isEmpty)
+
+        page.tab.resize(width: 400, height: 600)
+        page.frame.runAnimationFrame()
+        #expect(page.frame.isLayoutInFlight)
+        InlineStyle.set(box, property: "overflow", value: "scroll")
+        page.frame.setNeedsRender()
+        page.frame.runAnimationFrame()
+        try await Self.settle(page)
+
+        _ = try Self.onlyScrollBlock(page)
+        browser.measure.close()
+        let rebuilt: [Int] = try Self.scrollTargetSamples(path)
+        #expect(rebuilt.last == 1, "the install after the change reused the old list: \(rebuilt)")
+    }
+
+    /// A removed scroll box must leave the target list.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func removedScrollBoxLeavesTheTargets() async throws {
+        let path: String = NSTemporaryDirectory() + "scroll-removed-\(UUID().uuidString).trace"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: #"<section id="box"><div></div></section>"# + Self.paragraphs,
+            rules: Self.scrollRules,
+            tracePath: path
+        )
+        page.tab.resize(width: 400, height: 600)
+        page.frame.runAnimationFrame()
+        try await Self.settle(page)
+        _ = try Self.onlyScrollBlock(page)
+
+        page.frame.js.run(
+            script: "removeChild",
+            code: """
+                var box = document.getElementById('box');
+                box.removeChild(box.children[0]);
+            """
+        )
+        page.frame.runAnimationFrame()
+        try await Self.settle(page)
+
+        let blocks: [ScrollBlockTarget] = page.frame.state.layout.targets.blocks
+        #expect(blocks.isEmpty, "a removed scroll box is still a target")
+        browser.measure.close()
+        let rebuilt: [Int] = try Self.scrollTargetSamples(path)
+        #expect(rebuilt.last == 1, "the install after the removal reused the old list: \(rebuilt)")
+    }
+
     // MARK: - Helpers
 
     private static let paragraphs: String = (0..<40).map { index in
         "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
     }.joined()
 
+    private static let blockRules: String = "body { display: block; } p { display: block; }"
+
+    /// A `div` is a scroll target whose width follows the viewport.
+    private static let scrollRules: String = blockRules
+        + " section { display: block; }"
+        + " div { display: block; height: 20px; overflow: scroll; }"
+
     /// The tab keeps a weak reference to the browser; the caller holds it.
-    private static func makeAsyncPage(tracePath: String? = nil) -> (LayoutTestPage, Browser) {
-        let page: LayoutTestPage = LayoutTestPage(
-            html: paragraphs,
-            rules: "body { display: block; } p { display: block; }"
-        )
+    private static func makeAsyncPage(
+        html: String = paragraphs,
+        rules: String = blockRules,
+        tracePath: String? = nil
+    ) -> (LayoutTestPage, Browser) {
+        let page: LayoutTestPage = LayoutTestPage(html: html, rules: rules)
         let browser: Browser = Browser(tracePath: tracePath)
         browser.usesAsyncLayout = true
         page.tab.browser = browser
@@ -194,5 +303,22 @@ struct AsyncResizeRestartTests {
             try JSONSerialization.jsonObject(with: data) as? [String: Any]
         )
         return try #require(root["traceEvents"] as? [[String: Any]])
+    }
+
+    /// `rebuilt` of every `layout.async.scrollTargets` sample, in order.
+    private static func scrollTargetSamples(_ path: String) throws -> [Int] {
+        return try traceEvents(path)
+            .filter({ $0["name"] as? String == "layout.async.scrollTargets" })
+            .compactMap({ ($0["args"] as? [String: Any])?["rebuilt"] as? Int })
+    }
+
+    /// The only scroll block target, checked against the installed tree.
+    private static func onlyScrollBlock(_ page: LayoutTestPage) throws -> ScrollBlockTarget {
+        let tree: LayoutTree = try #require(page.frame.document)
+        let blocks: [ScrollBlockTarget] = page.frame.state.layout.targets.blocks
+        #expect(blocks.count == 1, "expected one scroll block target, got \(blocks.count)")
+        let target: ScrollBlockTarget = try #require(blocks.first)
+        #expect(target.rect == tree.selfRect(target.layout), "the target rect is stale")
+        return target
     }
 }

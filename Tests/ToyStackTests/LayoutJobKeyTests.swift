@@ -7,7 +7,8 @@ import Testing
 struct LayoutJobKeyTests {
     private static let key: LayoutJobKey = LayoutJobKey(
         size: CGSize(width: 800, height: 600),
-        zoom: 1
+        zoom: 1,
+        targetsRevision: 1
     )
 
     @Test func widthChangeMakesAJobStale() {
