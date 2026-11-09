@@ -999,6 +999,9 @@ class Frame {
                         inputs: inputs
                     ))
                     state.layout.targets.isValid = false
+                    // The new tree numbers its nodes from the start, so the
+                    // old tree's paint caches would match the wrong nodes.
+                    state.display.caches = PaintCacheStore()
                 }
                 state.layout.tree.box = box
                 dom.layoutBox = box
