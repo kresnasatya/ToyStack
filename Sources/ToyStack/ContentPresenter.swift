@@ -49,6 +49,8 @@ final class ContentPresenter: @unchecked Sendable {
     /// When the view width last changed, so a finished drag can skip an
     /// upload laid out for a width the window no longer has.
     private var resizeSettle: ResizeSettle = ResizeSettle()
+    /// When the last present started; follow-up presents are paced from it.
+    private var lastPresentStart: CFTimeInterval = 0
     private var pendingLayers: [LayerPlacementKey: Slot] = [:]
     private var drainScheduled: Bool = false
 
@@ -105,9 +107,13 @@ final class ContentPresenter: @unchecked Sendable {
     /// but a page that lands while the pointer is still would otherwise show
     /// only the first few tiles until the user scrolls. A staged generation
     /// also needs more presents to finish. Keep presenting the same frame
-    /// until both drain.
+    /// until both drain, one display frame after the last present started.
     private func scheduleDeferredDrain() {
-        queue.asyncAfter(deadline: .now() + 1.0 / 60.0) {
+        let delay: TimeInterval = PresentPacing.delay(
+            lastStart: lastPresentStart,
+            now: CACurrentMediaTime()
+        )
+        queue.asyncAfter(deadline: .now() + delay) {
             let lane: TraceLane = self.measure.beginStream("browser.present")
             defer { lane.end() }
             self.drainScheduled = false
@@ -125,9 +131,10 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func present(_ frame: PresentedFrame, viewSize: CGSize) {
+        lastPresentStart = CACurrentMediaTime()
         lastApplied = (frame, viewSize)
         frameNumber += 1
-        resizeSettle.note(width: viewSize.width, at: CACurrentMediaTime())
+        resizeSettle.note(width: viewSize.width, at: lastPresentStart)
         let usesSublayers: Bool = frame.content.usesSublayers
         let flipped: Bool = lastUsesSublayers.map({ $0 != usesSublayers }) ?? false
         measure.counter("view.usesSublayersFlips", [
@@ -376,7 +383,7 @@ final class ContentPresenter: @unchecked Sendable {
     /// within `budget` is kept. Returns true when it skipped.
     private func skipStaleGeneration(viewSize: CGSize, budget: PresentUploadBudget) -> Bool {
         let skipped: Bool = staging.skipStale(
-            settled: resizeSettle.isSettled(at: CACurrentMediaTime()),
+            settled: resizeSettle.isSettled(at: lastPresentStart),
             currentFinishesNow: { self.finishesThisPresent($0, budget: budget) },
             fits: {
                 ContentPresentationState.fitsView(

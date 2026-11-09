@@ -480,6 +480,12 @@ the dropped upload had more tiles left than one present's
 `PresentUploadBudget.generationPixels` uploads. An upload this present can
 finish is kept.
 
+Follow-up presents (the staged chunks after the engine stops sending frames,
+and deferred tile binds) start one display frame after the previous present
+*started* (`PresentPacing`), not after it finished. In a trace, the gap from
+one `view.apply` start to the next is ~16.7 ms; a present that took longer is
+followed at once.
+
 ## Known distortions
 
 - **`raster.composite` is one scan.** `raster.composite.scan` covers the linear display-list scan and layer merge; there are no `copy`/`flatten`/`layers` sub-spans.
