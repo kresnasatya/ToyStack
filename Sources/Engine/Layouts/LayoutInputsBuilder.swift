@@ -98,7 +98,6 @@ enum LayoutInputsBuilder {
         }
         return LayoutInputs(
             nodes: nodes,
-            scrollOffsets: dom.side.scrollOffsets,
             styleChanges: styleChanges
         )
     }

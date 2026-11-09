@@ -9,7 +9,6 @@ import Foundation
 /// so they no longer need a DOM reference to look at a tag, style, or font.
 struct LayoutInputs {
     var nodes: [LayoutInput?]
-    var scrollOffsets: [NodeID: CGFloat] = [:]
     var styleChanges: [NodeID: Set<StyleProperty>] = [:]
 
     func input(_ id: NodeID) -> LayoutInput? {
@@ -53,10 +52,6 @@ struct LayoutInputs {
 
     func styleChanges(_ id: NodeID) -> Set<StyleProperty> {
         return styleChanges[id] ?? []
-    }
-
-    func scrollOffset(_ id: NodeID) -> CGFloat {
-        return scrollOffsets[id] ?? 0
     }
 
     func isChecked(_ id: NodeID) -> Bool {

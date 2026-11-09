@@ -1725,12 +1725,11 @@ class Frame {
             guard let el: ElementRef = DOMRef(id: target.node, dom: dom).element else {
                 return false
             }
-            let maxScroll: CGFloat = max(0, doc.blockContentHeight(target.layout) - doc.height(target.layout))
+            let maxScroll: CGFloat = doc.blockScrollRange(target.layout)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
             guard next != current else { return false }
             el.scrollOffsetY = next
-            state.layout.tree.box?.tree.setBlockScrollOffset(target.layout, next)
             state.runtime.interaction.scrollFocus = el.id
             setNeedsPaint()
             return true
@@ -1781,11 +1780,10 @@ class Frame {
         else {
             return
         }
-        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - doc.height(block))
+        let maxScroll: CGFloat = doc.blockScrollRange(block)
         let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
         let next: CGFloat = min(current + Frame.scrollStep, maxScroll)
         dom.side.scrollOffsets[node] = next
-        state.layout.tree.box?.tree.setBlockScrollOffset(block, next)
         setNeedsPaint()
     }
 
@@ -1793,11 +1791,10 @@ class Frame {
         guard let node = state.runtime.interaction.scrollFocus, let doc = document,
             let block = liveScrollBlock()
         else { return }
-        let maxScroll: CGFloat = max(0, doc.blockContentHeight(block) - doc.height(block))
+        let maxScroll: CGFloat = doc.blockScrollRange(block)
         let current: CGFloat = min(dom.side.scrollOffsets[node] ?? 0, maxScroll)
         let next: CGFloat = max(current - Frame.scrollStep, 0)
         dom.side.scrollOffsets[node] = next
-        state.layout.tree.box?.tree.setBlockScrollOffset(block, next)
         setNeedsPaint()
     }
 

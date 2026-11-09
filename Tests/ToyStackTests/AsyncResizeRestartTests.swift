@@ -305,6 +305,34 @@ struct AsyncResizeRestartTests {
         Self.expectMatchesFullLayout(page, browser: browser)
     }
 
+    /// A scroll box scrolled while a pass runs: the installed layout shows the
+    /// box where the user left it.
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func scrollDuringAPassSurvivesTheInstall() async throws {
+        let (page, browser): (LayoutTestPage, Browser) = Self.makeAsyncPage(
+            html: #"<div id="box">"# + Self.paragraphs + "</div>",
+            rules: Self.blockRules + " div { display: block; height: 50px; overflow: scroll; }"
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
+        try Self.startPass(page, width: 400)
+        let moved: Bool = page.frame.scrollAt(
+            x: target.rect.left + 5,
+            y: target.rect.top + 5,
+            deltaY: -30
+        )
+        #expect(moved)
+        try await Self.settle(page)
+
+        let id: LayoutID = try #require(box.ref.layoutID)
+        #expect(page.tree.blockScrollOffset(id) == 30, "the install moved the box back")
+        #expect(browser.usesAsyncLayout)
+    }
+
     /// An element removed while a pass runs must leave the layout once the
     /// follow-up pass is installed.
     @Test(

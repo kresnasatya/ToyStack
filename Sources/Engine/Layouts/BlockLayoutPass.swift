@@ -473,11 +473,7 @@ extension LayoutTree {
             setField(.height, height(id) + VSTEP, for: id)
         }
 
-        if style.flags.overflowScroll, domView(id).element != nil {
-            let maxScroll: CGFloat = max(0, scroll.contentHeight - height(id))
-            scroll.offset = min(inputs.scrollOffset(domID(of: id)), maxScroll)
-        }
-        if scroll.offset != storedScroll.offset || scroll.contentHeight != storedScroll.contentHeight {
+        if scroll.contentHeight != storedScroll.contentHeight {
             self[block: id].scroll = scroll
         }
     }
@@ -1605,6 +1601,7 @@ extension LayoutTree {
         }
     }
 
+    @MainActor
     func blockPaintScrollbar(_ id: LayoutID) -> [DisplayOp] {
         let scroll: BlockScroll = self[block: id].scroll
         guard domView(id).style.computed.layout.overflow == .scroll,
@@ -1613,7 +1610,7 @@ extension LayoutTree {
         let barWidth: CGFloat = 8
         let ratio: CGFloat = height(id) / scroll.contentHeight
         let barHeight: CGFloat = ratio * height(id)
-        let barTop: CGFloat = y(id) + (scroll.offset / scroll.contentHeight) * height(id)
+        let barTop: CGFloat = y(id) + (blockScrollOffset(id) / scroll.contentHeight) * height(id)
         let barRect: Rect = Rect(
             left: x(id) + width(id) - barWidth, top: barTop,
             right: x(id) + width(id), bottom: barTop + barHeight)
@@ -1652,12 +1649,21 @@ extension LayoutTree {
 
     // MARK: - Scroll
 
+    /// Where a scroll box shows its content from. The offset lives in the DOM,
+    /// so no layout can move it back; this layout only bounds it to the
+    /// content it produced.
+    @MainActor
     func blockScrollOffset(_ id: LayoutID) -> CGFloat {
-        return self[block: id].scroll.offset
+        guard domView(id).element != nil,
+            domView(id).style.computed.layout.overflow == .scroll
+        else { return 0 }
+        let offset: CGFloat = dom.side.scrollOffsets[domID(of: id)] ?? 0
+        return min(offset, blockScrollRange(id))
     }
 
-    mutating func setBlockScrollOffset(_ id: LayoutID, _ value: CGFloat) {
-        self[block: id].scroll.offset = value
+    /// How far a scroll box can scroll in this layout.
+    func blockScrollRange(_ id: LayoutID) -> CGFloat {
+        return max(0, blockContentHeight(id) - height(id))
     }
 
     func blockContentHeight(_ id: LayoutID) -> CGFloat {
