@@ -1,13 +1,13 @@
 import CoreGraphics
 
 public struct PresentedViewport {
-    public let contentOffset: CGFloat
+    public let contentOffset: ContentOffset
     public let scale: ContentScale
     public let canvasColor: CGColor
     public let scrollbar: (frame: CGRect, color: CGColor)?
 
     public init(
-        contentOffset: CGFloat,
+        contentOffset: ContentOffset,
         scale: ContentScale,
         canvasColor: CGColor,
         scrollbar: (frame: CGRect, color: CGColor)?

@@ -56,7 +56,10 @@ public class Browser: ObservableObject {
             frameID: frameID,
             content: activePresentation.render.content,
             viewport: PresentedViewport(
-                contentOffset: topInset - activePresentation.scroll.scroll * pageZoom,
+                contentOffset: ContentOffset(
+                    top: topInset,
+                    scroll: activePresentation.scroll.scroll * pageZoom,
+                ),
                 scale: ContentScale(display: displayScale, page: pageZoom),
                 canvasColor: canvasColor,
                 scrollbar: activeSidebar
@@ -954,4 +957,3 @@ public class Browser: ObservableObject {
         scheduleRasterAndDraw()
     }
 }
-

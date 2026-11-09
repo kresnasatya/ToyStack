@@ -221,17 +221,10 @@ final class ContentPresenter: @unchecked Sendable {
             // viewport so a smaller window does not clip stale content.
             let fit: PreviewFit = PreviewFit(old: previousSize, new: viewSize)
             contentLayer.backgroundColor = frame.viewport.canvasColor
-            contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
-            contentLayer.transform = CATransform3DMakeScale(
-                scale.page * fit.scale,
-                scale.page * fit.scale,
-                1
-            )
-            contentLayer.frame = CGRect(
-                x: 0,
-                y: frame.viewport.contentOffset,
-                width: viewSize.width,
-                height: viewSize.height
+            placeContentLayer(
+                originY: frame.viewport.contentOffset.origin(previewScale: fit.scale),
+                scale: scale.page * fit.scale,
+                viewSize: viewSize
             )
             return
         }
@@ -240,13 +233,10 @@ final class ContentPresenter: @unchecked Sendable {
             contentLayer.contents = nil
         }
         contentLayer.backgroundColor = frame.viewport.canvasColor
-        contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
-        contentLayer.transform = CATransform3DMakeScale(scale.page, scale.page, 1)
-        contentLayer.frame = CGRect(
-            x: 0,
-            y: frame.viewport.contentOffset,
-            width: viewSize.width,
-            height: viewSize.height
+        placeContentLayer(
+            originY: frame.viewport.contentOffset.origin,
+            scale: scale.page,
+            viewSize: viewSize
         )
         if frame.content.source.generation != lastBoundGeneration, !layersByPlacement.isEmpty {
             // This generation is staging, or waiting, behind the layers on
@@ -260,7 +250,7 @@ final class ContentPresenter: @unchecked Sendable {
             previous: previous,
             current: placements.map(\.key)
         )
-        let offset: CGFloat = frame.viewport.contentOffset
+        let offset: CGFloat = frame.viewport.contentOffset.origin
         // A different page (or any wholesale replacement of the layer set) is
         // not an incremental arrival: bind it in one go instead of showing six
         // tiles until the next present.
@@ -428,7 +418,7 @@ final class ContentPresenter: @unchecked Sendable {
         let scale: ContentScale = frame.viewport.scale
         let placements = frame.content.placements
         measure.start("view.updateSublayers", category: .present, frame: frame.frameID)
-        let offset: CGFloat = frame.viewport.contentOffset
+        let offset: CGFloat = frame.viewport.contentOffset.origin
         let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
         var added: Int = 0
         var contents: Int = 0
@@ -645,6 +635,18 @@ final class ContentPresenter: @unchecked Sendable {
             y: 0,
             width: viewSize.width,
             height: preview ? viewSize.height : imageHeight
+        )
+    }
+
+    private func placeContentLayer(originY: CGFloat, scale: CGFloat, viewSize: CGSize) {
+        contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
+        contentLayer.transform = CATransform3DMakeScale(scale, scale, 1)
+        contentLayer.position = CGPoint(x: 0, y: originY)
+        contentLayer.bounds = CGRect(
+            x: 0,
+            y: 0,
+            width: viewSize.width / scale,
+            height: viewSize.height / scale
         )
     }
 }

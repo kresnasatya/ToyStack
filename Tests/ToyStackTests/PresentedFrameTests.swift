@@ -12,7 +12,7 @@ struct PresentedFrameTests {
                 source: RenderedSource(layoutSize: CGSize(width: 500, height: 300))
             ),
             viewport: PresentedViewport(
-                contentOffset: 0,
+                contentOffset: ContentOffset(top: 0, scroll: 0),
                 scale: ContentScale(display: 2, page: 2),
                 canvasColor: CGColor(gray: 1, alpha: 1),
                 scrollbar: nil
