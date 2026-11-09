@@ -5,26 +5,27 @@ import CoreImage
 public final class CGRenderer: Renderer {
     private let cg: CGContext
     private let canvasSize: CGSize
-    private let scale: CGFloat
+    private let target: RasterTarget
     private static let ciContext: CIContext = CIContext(options: nil)
 
-    init(cg: CGContext, canvasSize: CGSize, scale: CGFloat = 1) {
+    init(cg: CGContext, canvasSize: CGSize, target: RasterTarget) {
         self.cg = cg
         self.canvasSize = canvasSize
-        self.scale = scale
+        self.target = target
     }
 
-    public static func renderBitmap(size: CGSize, scale: CGFloat, backgroundColor: BrowserColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
+    public static func renderBitmap(size: CGSize, target: RasterTarget, backgroundColor: BrowserColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
+        let scale: CGFloat = target.scale
         let pxW = Int(size.width * scale), pxH = Int(size.height * scale)
         guard pxW > 0, pxH > 0,
-            let ctx = CGContext(data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            let ctx = CGContext(data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0, space: target.colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             else { return nil }
 
         ctx.scaleBy(x: scale, y: scale)
         ctx.translateBy(x: 0, y: size.height)
         ctx.scaleBy(x: 1, y: -1)
 
-        let r: CGRenderer = CGRenderer(cg: ctx, canvasSize: CGSize(width: size.width, height: size.height), scale: scale)
+        let r: CGRenderer = CGRenderer(cg: ctx, canvasSize: CGSize(width: size.width, height: size.height), target: target)
         if let bg = backgroundColor {
             r.fillRect(Rect(left: 0, top: 0, right: size.width, bottom: size.height), color: bg)
         }
@@ -108,7 +109,7 @@ public final class CGRenderer: Renderer {
         if let blur = options.blur, blur > 0 {
             guard let layerImage = Self.renderBitmap(
                 size: canvasSize,
-                scale: scale,
+                target: target,
                 backgroundColor: nil, content
             )
                 else { return }

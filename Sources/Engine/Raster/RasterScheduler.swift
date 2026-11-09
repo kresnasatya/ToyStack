@@ -43,8 +43,9 @@ class RasterScheduler: @unchecked Sendable {
             finish(job: job, plan: plan, images: [])
             return
         }
-        let scale: CGFloat = plan.composition.inputs.settings.viewport.scale.effective
-        workers.render(plan.batch.strips, scale: scale, trace: job.trace) { images in
+        let viewport: Viewport = plan.composition.inputs.settings.viewport
+        let target: RasterTarget = viewport.target(scale: viewport.scale.effective)
+        workers.render(plan.batch.strips, target: target, trace: job.trace) { images in
             self.queue.async {
                 self.finish(job: job, plan: plan, images: images)
             }

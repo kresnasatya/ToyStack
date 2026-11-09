@@ -16,7 +16,7 @@ private func renderImage(_ browser: Browser, scale: CGFloat) -> CGImage? {
     let size: CGSize = browser.windowSize
     return CGRenderer.renderBitmap(
         size: size,
-        scale: scale,
+        target: RasterTarget(scale: scale),
         backgroundColor: BrowserColor(cssName: "white")
     ) { renderer in
         guard let tab: BrowserTab = browser.activeTab else { return }

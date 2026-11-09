@@ -265,6 +265,9 @@ public struct BrowserView: View {
         .task {
             app.usesAsyncLayout = true
             app.displayScale = NSScreen.main?.backingScaleFactor ?? 2.0
+            if let space: CGColorSpace = NSScreen.main?.colorSpace?.cgColorSpace {
+                app.displayColorSpace = space
+            }
             chrome.tabManager = app
             chrome.bookmarks = bookmarks
             chrome.resize(width: app.windowSize.width)

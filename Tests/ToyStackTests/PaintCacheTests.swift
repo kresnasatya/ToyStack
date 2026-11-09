@@ -152,7 +152,7 @@ struct PaintCacheTests {
 }
 
 private func renderDisplayList(_ items: [DisplayOp]) -> CGImage? {
-    CGRenderer.renderBitmap(size: CGSize(width: 200, height: 100), scale: 1, { renderer in
+    CGRenderer.renderBitmap(size: CGSize(width: 200, height: 100), target: RasterTarget(scale: 1), { renderer in
         for item in items {
             item.execute(renderer: renderer)
         }

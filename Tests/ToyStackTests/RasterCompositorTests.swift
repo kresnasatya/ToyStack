@@ -31,7 +31,8 @@ struct RasterCompositorTests {
                 viewport: Viewport(
                     windowSize: CGSize(width: 800, height: 600),
                     topInset: 0,
-                    scale: ContentScale(display: 1, page: 1)
+                    scale: ContentScale(display: 1, page: 1),
+                    colorSpace: RasterTarget.sRGB
                 ),
                 preferences: ColorPreferences(prefersDark: false, usesForcedColors: false),
                 flags: RasterInvalidation(needsComposite: true, needsDraw: true),
@@ -88,7 +89,8 @@ struct RasterCompositorTests {
                 viewport: Viewport(
                     windowSize: CGSize(width: 800, height: 600),
                     topInset: 0,
-                    scale: ContentScale(display: 1, page: 1)
+                    scale: ContentScale(display: 1, page: 1),
+                    colorSpace: RasterTarget.sRGB
                 ),
                 preferences: ColorPreferences(prefersDark: false, usesForcedColors: false),
                 flags: RasterInvalidation(needsComposite: true, needsDraw: true),

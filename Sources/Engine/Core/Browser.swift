@@ -9,6 +9,10 @@ public class Browser: ObservableObject {
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
+    /// Colour space of the screen showing the page. Bitmaps handed to the
+    /// presenter are drawn in it, so Core Animation does not convert every
+    /// pixel when it commits them. Headless runs keep sRGB.
+    public var displayColorSpace: CGColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
     public var usesAsyncLayout: Bool = false
     private var animationTimer: Timer?
     private var nextFrameTime: Date = .distantPast
@@ -404,7 +408,12 @@ public class Browser: ObservableObject {
                 previousLayers: activePresentation.render.composite.layers,
             ),
             settings: RasterSettings(
-                viewport: Viewport(windowSize: windowSize, topInset: topInset, scale: ContentScale(display: displayScale, page: pageZoom)),
+                viewport: Viewport(
+                    windowSize: windowSize,
+                    topInset: topInset,
+                    scale: ContentScale(display: displayScale, page: pageZoom),
+                    colorSpace: displayColorSpace
+                ),
                 preferences: ColorPreferences(prefersDark: activePresentation.preferences.prefersDark, usesForcedColors: activePresentation.preferences.usesForcedColors),
                 flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
@@ -592,7 +601,9 @@ public class Browser: ObservableObject {
                         for index in layers.indices where effectStrategies[index].kind == .ca {
                             RasterEffectCache.update(
                                 &layers[index],
-                                scale: inputs.settings.viewport.scale.effective,
+                                target: inputs.settings.viewport.target(
+                                    scale: inputs.settings.viewport.scale.effective
+                                ),
                                 blur: effectStrategies[index].blur
                             )
                         }
@@ -612,7 +623,9 @@ public class Browser: ObservableObject {
                                     width: inputs.settings.viewport.windowSize.width,
                                     height: regionHeight
                                 ),
-                                scale: inputs.settings.viewport.scale.display,
+                                target: inputs.settings.viewport.target(
+                                    scale: inputs.settings.viewport.scale.display
+                                ),
                                 backgroundColor: inputs.settings.preferences.usesForcedColors
                                     ? BrowserColor(cssName: ForcedColor.canvas)
                                     : (inputs.settings.preferences.prefersDark ? BrowserColor(cssName: "black") : BrowserColor(cssName: "white"))

@@ -31,7 +31,7 @@ final class RasterWorkerPool: @unchecked Sendable {
 
     func render(
         _ strips: [TileStrip],
-        scale: CGFloat,
+        target: RasterTarget,
         trace: TraceContext,
         completion: @escaping @Sendable ([CGImage?]) -> Void
     ) {
@@ -48,7 +48,7 @@ final class RasterWorkerPool: @unchecked Sendable {
                 let lane: TraceLane? = trace.measure?.beginThreadLane("browser.raster.workers")
                 defer { lane?.end() }
                 trace.measure?.start("raster.strip", category: .raster, frame: trace.frame)
-                let image: CGImage? = TileStripRasterizer.render(strips[index], scale: scale)
+                let image: CGImage? = TileStripRasterizer.render(strips[index], target: target)
                 trace.measure?.stop("raster.strip")
                 results.set(index, image)
                 group.leave()

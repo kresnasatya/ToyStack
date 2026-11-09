@@ -27,8 +27,10 @@ final class ContentPresenter: @unchecked Sendable {
     private var frameNumber: Int = 0
     private var lastUsesSublayers: Bool?
     private let graceFrames: Int = 10
-    /// Binding a tile image costs 0.3-0.5 ms in the commit, so a burst of
-    /// 12-24 new tiles blows the frame budget. Incremental arrivals are spread.
+    /// Incremental tile arrivals (scroll) are spread across presents. A tile
+    /// in another colour space than the screen's costs ~0.42 ms to bind;
+    /// tiles drawn in the screen's space (`Browser.displayColorSpace`) cost
+    /// ~0.01 ms.
     private static let uploadsPerPresent: Int = 6
     private static let pixelsPerPresent: Int = 400_000
     private let lock = NSLock()

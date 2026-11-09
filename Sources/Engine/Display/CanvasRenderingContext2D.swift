@@ -24,7 +24,7 @@ final class CanvasRenderingContext2D {
         self.height = height
         self.scale = scale
         self.cg = cg
-        self.renderer = CGRenderer(cg: cg, canvasSize: CGSize(width: width, height: height), scale: scale)
+        self.renderer = CGRenderer(cg: cg, canvasSize: CGSize(width: width, height: height), target: RasterTarget(scale: scale))
     }
 
     private static func makeContext(width: CGFloat, height: CGFloat, scale: CGFloat) -> CGContext? {
@@ -37,7 +37,7 @@ final class CanvasRenderingContext2D {
                 height: pxHeight,
                 bitsPerComponent: 8,
                 bytesPerRow: 0,
-                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                space: RasterTarget.sRGB,
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
             )
         else { return nil }
@@ -65,7 +65,7 @@ final class CanvasRenderingContext2D {
         guard let next: CGContext = Self.makeContext(width: width, height: height, scale: newScale) else { return }
         scale = newScale
         cg = next
-        renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), scale: newScale)
+        renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), target: RasterTarget(scale: newScale))
         revision += 1
         for command in commands {
             command.draw(cg: cg, renderer: renderer)
@@ -78,7 +78,7 @@ final class CanvasRenderingContext2D {
         self.width = width
         self.height = height
         cg = next
-        renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), scale: scale)
+        renderer = CGRenderer(cg: next, canvasSize: CGSize(width: width, height: height), target: RasterTarget(scale: scale))
         commands.removeAll()
         path = CGMutablePath()
         stateStack.removeAll()
