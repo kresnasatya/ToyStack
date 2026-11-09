@@ -56,7 +56,54 @@ struct ScrollBoxTests {
         #expect(Self.paintedScrollOffsets(page) == [range])
     }
 
+    /// A click inside a scrolled box lands on the content painted under it.
+    @Test func hitTestFollowsTheScrollPosition() throws {
+        let page: LayoutTestPage = Self.makePage()
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
+        let x: CGFloat = target.rect.left + 5
+        let y: CGFloat = target.rect.top + 5
+        page.frame.scrollAt(x: x, y: y, deltaY: -40)
+        #expect(Self.paintedScrollOffsets(page) == [40])
+
+        let shown: NodeID = try #require(Self.paragraph(in: page, containing: y + 40))
+        #expect(Self.hitParagraph(page, x: x, y: y) == shown, "the click ignored the scroll position")
+    }
+
+    /// Content outside the box is clipped away, so a point outside the box
+    /// must not reach it.
+    @Test func hitTestSkipsContentOutsideTheBox() throws {
+        let page: LayoutTestPage = Self.makePage()
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
+        let x: CGFloat = target.rect.left + 5
+        let below: CGFloat = target.rect.bottom + 5
+        #expect(Self.paragraph(in: page, containing: below) != nil, "the content must overflow the box")
+
+        #expect(Self.hitParagraph(page, x: x, y: below) == nil, "the click reached clipped content")
+    }
+
     // MARK: - Helpers
+
+    /// The `<p>` that a hit test at (x, y) lands in, if any.
+    private static func hitParagraph(_ page: LayoutTestPage, x: CGFloat, y: CGFloat) -> NodeID? {
+        guard let hit: LayoutHit = page.tree.hitTest(page.tree.rootID, x: x, y: y) else { return nil }
+        var node: DOMRef? = DOMRef(id: hit.dom, dom: page.frame.dom)
+        while let current = node, current.element?.tag != "p" {
+            node = current.parent
+        }
+        return node?.id
+    }
+
+    /// The `<p>` whose laid-out box covers document height `y`, ignoring scroll.
+    private static func paragraph(in page: LayoutTestPage, containing y: CGFloat) -> NodeID? {
+        return treeToList(page.frame.nodes)
+            .filter({ $0.element?.tag == "p" })
+            .first(where: { node in
+                guard let id: LayoutID = node.layoutID else { return false }
+                let rect: Rect = page.tree.selfRect(id)
+                return rect.top <= y && y < rect.bottom
+            })?
+            .id
+    }
 
     /// The offset of every scroll effect in a fresh paint of the page.
     private static func paintedScrollOffsets(_ page: LayoutTestPage) -> [CGFloat] {

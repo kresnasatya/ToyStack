@@ -3,6 +3,10 @@ import CoreGraphics
 // MARK: - LayoutPaintPass
 
 extension LayoutTree {
+    /// Scroll boxes clip their content and show it shifted by their scroll
+    /// position, so a point reaches their children only inside the box, and
+    /// moves down by that position on the way.
+    @MainActor
     func hitTest(_ id: LayoutID, x: CGFloat, y: CGFloat) -> LayoutHit? {
         var x: CGFloat = x
         var y: CGFloat = y
@@ -12,12 +16,18 @@ extension LayoutTree {
             y -= t.y
         }
 
+        let scrollsContent: Bool = isBlock(id)
+            && domView(id).element != nil
+            && domView(id).style.computed.layout.overflow == .scroll
+        let reachesChildren: Bool = !scrollsContent || selfRect(id).containsPoint(x, y)
+        let childY: CGFloat = scrollsContent ? y + blockScrollOffset(id) : y
+
         let boxes: [InlineBox]? = isLine(id) ? currentInlineBoxes(id) : nil
         let childIDs: [LayoutID] = boxes == nil
             ? childrenIDs(of: id)
             : childrenIDs(of: id).filter({ !isText($0) })
-        for child in paintOrder(childIDs).reversed() {
-            if let hit: LayoutHit = hitTest(child, x: x, y: y) {
+        for child in paintOrder(childIDs).reversed() where reachesChildren {
+            if let hit: LayoutHit = hitTest(child, x: x, y: childY) {
                 return hit
             }
         }
@@ -43,6 +53,7 @@ extension LayoutTree {
         return nil
     }
 
+    @MainActor
     func linkHref(_ id: LayoutID, x: CGFloat, y: CGFloat) -> String? {
         var current: NodeID? = hitTest(id, x: x, y: y)?.dom
         while let node = current {
