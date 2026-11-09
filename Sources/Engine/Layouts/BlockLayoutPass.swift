@@ -338,10 +338,13 @@ extension LayoutTree {
                 frameY += VSTEP
             }
 
+            let oldGeometry: GeometryFields = self[node: id].state.fields.geometry
+            let widthWasUsed: Bool = isUsed(.width, at: id)
             setFrame(
                 (zoom: zoomValue, x: frameX, y: frameY, width: frameWidth),
                 for: id
             )
+            countWidthChange(from: oldGeometry, widthWasUsed: widthWasUsed, at: id)
             })
             }
             let frameMoved: Bool = geometryDirty
@@ -476,6 +479,21 @@ extension LayoutTree {
         }
         if scroll.offset != storedScroll.offset || scroll.contentHeight != storedScroll.contentHeight {
             self[block: id].scroll = scroll
+        }
+    }
+
+    /// Puts one geometry pass in exactly one `layout.width.*` bucket. A block
+    /// laid out for the first time counts as a width change.
+    private func countWidthChange(from old: GeometryFields, widthWasUsed: Bool, at id: LayoutID) {
+        let new: GeometryFields = self[node: id].state.fields.geometry
+        if !widthWasUsed || old.size.width != new.size.width {
+            profiler.count("layout.width.changed")
+        } else if old.origin.x != new.origin.x {
+            profiler.count("layout.width.same.xMoved")
+        } else if old.origin.y != new.origin.y {
+            profiler.count("layout.width.same.yMoved")
+        } else {
+            profiler.count("layout.width.same.unmoved")
         }
     }
 

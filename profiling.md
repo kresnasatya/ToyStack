@@ -332,6 +332,10 @@ a test that runs the style phase without `render()`.
 | `layout.lines.total` | count | lines placed |
 | `layout.sweep.skipped` | count | geometry pass that did not need the reachability sweep |
 | `layout.inline.children.skipped` | count | inline block that only updated line widths; line subtree and height sum skipped |
+| `layout.width.changed` | count | block geometry pass whose width changed, including a block laid out for the first time |
+| `layout.width.same.xMoved` | count | block geometry pass that kept its width and moved horizontally (it may also have moved vertically) |
+| `layout.width.same.yMoved` | count | block geometry pass that kept its width and only moved vertically |
+| `layout.width.same.unmoved` | count | block geometry pass that kept its width and position |
 | `text.measureCalls`, `text.measureMisses` | count | font width calls and cache misses |
 | `text.measure` | duration | `CTLine` creation per miss |
 | `text.fontRequests`, `text.font` | count/duration | font resolution |
@@ -358,6 +362,10 @@ Rules:
 - `text.measure` is `CTLine` creation per cache miss; `text.font` is font
   resolution, called before the word is measured. Both sit inside
   `layout.visit`, so do not add `layout.*` and `text.*` as independent buckets.
+- The four `layout.width.*` buckets are exclusive and checked in that order;
+  their sum equals `layout.visit.geometry.count`. They tell which skip would
+  pay off on a resize: a vertical subtree offset helps `yMoved`, a horizontal
+  one helps `xMoved`, and only `changed` blocks must lay out their content again.
 
 ### `profile.paint` — durations and counts
 
