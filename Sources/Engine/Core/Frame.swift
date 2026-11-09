@@ -60,7 +60,7 @@ class Frame {
         layoutInputsKey = nil
         state.layout.tree.box = nil
         state.layout.tree.isDirty = true
-        state.layout.targets = ScrollTargetState()
+        state.layout.targets.clear()
         state.runtime.interaction.scrollFocus = nil
         state.display.composite.updates.removeAll()
         state.runtime.schedule.needsRender = true
@@ -175,7 +175,7 @@ class Frame {
 
 
     func markStructureChanged() {
-        state.layout.targets.needsRebuild = true
+        state.layout.targets.invalidate()
     }
 
     var hasScrollElement: Bool { state.runtime.interaction.scrollFocus != nil }
@@ -998,7 +998,7 @@ class Frame {
                         root: dom.root,
                         inputs: inputs
                     ))
-                    state.layout.targets.isValid = false
+                    state.layout.targets.invalidate()
                     // The new tree numbers its nodes from the start, so the
                     // old tree's paint caches would match the wrong nodes.
                     state.display.caches = PaintCacheStore()
@@ -1037,12 +1037,6 @@ class Frame {
                     .filter({ box.tree.primaryLayout(for: $0.key) != nil })
                 state.display.caches.prune(removing: removed)
             }
-            if state.layout.targets.iframes.contains(where: { removed.contains($0.layout) })
-                || state.layout.targets.blocks.contains(where: { removed.contains($0.layout) })
-            {
-                state.layout.targets.isValid = false
-                state.layout.targets.needsRebuild = true
-            }
             state.layout.tree.isDirty = false
             state.layout.tree.forced = false
             #if DEBUG
@@ -1051,13 +1045,10 @@ class Frame {
             }
             #endif
             browser?.measure.start("BrowserTab.rebuildScrollTargets")
-            if state.layout.targets.needsRebuild || !state.layout.targets.isValid {
-                rebuildScrollTargets(box.tree)
-                state.layout.targets.isValid = true
-                state.layout.targets.needsRebuild = false
+            let revision: UInt64 = state.layout.targets.revision
+            if updateScrollTargets(box.tree, removed: removed, revision: revision) {
                 profiler.count("scrollTargets.rebuilt")
             } else {
-                refreshScrollTargetRects()
                 profiler.count("scrollTargets.reused")
             }
             browser?.measure.stop("BrowserTab.rebuildScrollTargets")
@@ -1340,7 +1331,7 @@ class Frame {
             box = existing
         } else {
             box = LayoutBox(LayoutTree(dom: dom, root: dom.root, inputs: resolved.inputs))
-            state.layout.targets.isValid = false
+            state.layout.targets.invalidate()
         }
         state.layout.tree.box = box
         dom.layoutBox = box
@@ -1440,11 +1431,8 @@ class Frame {
                 .filter({ box.tree.primaryLayout(for: $0.key) != nil })
             state.display.caches.prune(removing: removed)
         }
-        state.layout.targets.isValid = false
-        state.layout.targets.needsRebuild = true
         rebuildScrollTargets(box.tree)
-        state.layout.targets.isValid = true
-        state.layout.targets.needsRebuild = false
+        state.layout.targets.builtRevision = state.layout.targets.revision
         tab?.needsAccessibility = true
 
         let needsRelayout: Bool = layoutInFlightDirty || viewportMoved
@@ -1557,6 +1545,29 @@ class Frame {
         }
         state.layout.targets.iframes = iframes
         state.layout.targets.blocks = blocks
+    }
+
+    /// Walks the tree for scroll targets when the lists were built for another
+    /// `revision` or the pass removed a target's node; otherwise refreshes the
+    /// rects of the known targets. `revision` is the one the tree was laid out
+    /// for: the current one for a synchronous pass, the one recorded at job
+    /// start for a background pass, so a change made while the job ran stays
+    /// pending. Returns true when the tree was walked.
+    private func updateScrollTargets(
+        _ doc: LayoutTree,
+        removed: Set<LayoutID>,
+        revision: UInt64
+    ) -> Bool {
+        let lostTarget: Bool =
+            state.layout.targets.iframes.contains(where: { removed.contains($0.layout) })
+            || state.layout.targets.blocks.contains(where: { removed.contains($0.layout) })
+        guard lostTarget || state.layout.targets.builtRevision != revision else {
+            refreshScrollTargetRects()
+            return false
+        }
+        rebuildScrollTargets(doc)
+        state.layout.targets.builtRevision = revision
+        return true
     }
 
     // MARK: - Scroll

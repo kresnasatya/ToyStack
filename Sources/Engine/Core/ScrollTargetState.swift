@@ -4,14 +4,29 @@ import CoreGraphics
 struct ScrollTargetState {
     var iframes: [IframeTarget]
     var blocks: [ScrollBlockTarget]
-    var isValid: Bool
-    var needsRebuild: Bool
+    /// Bumped whenever the lists may be wrong: a new tree, a structure change,
+    /// or a change to display or overflow. Only compared for equality.
+    private(set) var revision: UInt64
+    /// The `revision` the lists were last built for.
+    var builtRevision: UInt64
 
     init() {
         self.iframes = []
         self.blocks = []
-        self.isValid = false
-        self.needsRebuild = false
+        self.revision = 1
+        self.builtRevision = 0
+    }
+
+    mutating func invalidate() {
+        revision &+= 1
+    }
+
+    /// Drops every target. The revision keeps counting up, so a pass recorded
+    /// before the clear can never look current.
+    mutating func clear() {
+        iframes = []
+        blocks = []
+        invalidate()
     }
 }
 
