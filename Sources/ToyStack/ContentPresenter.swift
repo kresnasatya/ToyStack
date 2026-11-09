@@ -151,7 +151,7 @@ final class ContentPresenter: @unchecked Sendable {
             // Stage before deciding: a generation that completes here changes
             // the width the preview must scale from. The skip check and the
             // upload share one budget so they agree on what finishes now.
-            offerGeneration(frame, viewSize: viewSize)
+            offerGeneration(frame)
             let budget: PresentUploadBudget = PresentUploadBudget.generation(
                 resizeSettled: resizeSettle.isSettled(at: lastPresentStart)
             )
@@ -353,16 +353,15 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
     }
 
-    /// Offers a frame whose generation could replace the layers on screen.
-    /// A frame laid out at another width is only previewed, never staged.
-    private func offerGeneration(_ frame: PresentedFrame, viewSize: CGSize) {
+    /// Offers a frame whose generation could replace the layers on screen,
+    /// at any width: a layout for an older width is still closer to the
+    /// window than the layers on screen, and is previewed once shown.
+    private func offerGeneration(_ frame: PresentedFrame) {
         let generation: UInt64 = frame.content.source.generation
-        guard generation != lastBoundGeneration, !layersByPlacement.isEmpty,
-            ContentPresentationState.fitsView(
-                layoutSize: frame.displayedLayoutSize,
-                viewSize: viewSize
-            )
-        else { return }
+        guard ContentPresentationState.stages(
+            generation: generation,
+            shown: layersByPlacement.isEmpty ? nil : lastBoundGeneration
+        ) else { return }
         _ = staging.offer(frame, generation: generation)
     }
 

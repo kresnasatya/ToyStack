@@ -68,6 +68,20 @@ public struct ContentPresentationState {
         return contentWidth(layoutSize: layoutSize, viewSize: viewSize) == viewSize.width
     }
 
+    /// Whether a frame's layer generation should be uploaded behind the layers
+    /// on screen, which came from generation `shown` (nil: nothing is on
+    /// screen, so the frame binds directly).
+    ///
+    /// Any newer generation is uploaded, whatever width it was laid out at.
+    /// During a drag the layout trails the window by a frame or two, so it
+    /// almost never has the window's exact width; it is still closer to the
+    /// window than the older layers on screen. Once on screen it is previewed
+    /// from its own width like any other layers.
+    public static func stages(generation: UInt64, shown: UInt64?) -> Bool {
+        guard let shown else { return false }
+        return generation != shown
+    }
+
     private static func contentWidth(layoutSize: CGSize, viewSize: CGSize) -> CGFloat {
         return layoutSize.width > 0 ? layoutSize.width : viewSize.width
     }

@@ -482,8 +482,10 @@ view width of this present.
 
 `view.staging` (`completed`, `waiting`, `skipped`, `budgetPixels`): GUI only, one
 sample per upload chunk of a staged layer generation, under the staged frame's
-id. A generation that fits the view width is uploaded behind the layers on
-screen, at most `budgetPixels` per present, on every present including previews.
+id. Every generation newer than the layers on screen is uploaded behind them,
+whatever width it was laid out at (`ContentPresentationState.stages`); once
+shown, a generation for another width is previewed from its own width. At most
+`budgetPixels` are uploaded per present, on every present including previews.
 `budgetPixels` is `PresentUploadBudget.generationPixels` (2,000,000; 30 tiles of
 256 × 256) while the view width moves, and twice that once it has not changed for
 `ResizeSettle.delay` (`PresentUploadBudget.generation`). The 2× budget applies to

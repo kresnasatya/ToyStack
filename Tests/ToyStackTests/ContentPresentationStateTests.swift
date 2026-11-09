@@ -269,4 +269,24 @@ struct ContentPresentationStateTests {
         #expect(decision == .bind)
         #expect(state.baseViewSize == CGSize(width: 160, height: 80))
     }
+
+    // MARK: - Which generations are uploaded
+
+    /// During a drag the layout trails the window by a frame or two, so a
+    /// newer layout almost never has the window's exact width. It is still
+    /// closer to the window than the older layers on screen; refusing it kept
+    /// one picture on screen for up to 1.2 s on a long page.
+    @Test func newerLayoutAtAnotherWidthIsStaged() {
+        #expect(ContentPresentationState.stages(generation: 8, shown: 7))
+    }
+
+    @Test func generationOnScreenIsNotStagedAgain() {
+        #expect(!ContentPresentationState.stages(generation: 7, shown: 7))
+    }
+
+    /// With nothing on screen there is nothing to upload behind; the first
+    /// frame binds directly.
+    @Test func firstGenerationBindsInsteadOfStaging() {
+        #expect(!ContentPresentationState.stages(generation: 1, shown: nil))
+    }
 }
