@@ -16,4 +16,10 @@ public struct ContentOffset: Equatable, Sendable {
     public func origin(previewScale scale: CGFloat) -> CGFloat {
         return top - scroll * scale
     }
+
+    public func devicePixelOrigin(previewScale scale: CGFloat, displayScale: CGFloat) -> CGFloat {
+        let raw: CGFloat = origin(previewScale: scale)
+        guard displayScale > 0, displayScale.isFinite else { return raw }
+        return (raw * displayScale).rounded() / displayScale
+    }
 }

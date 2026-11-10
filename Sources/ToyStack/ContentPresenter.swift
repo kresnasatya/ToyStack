@@ -221,10 +221,10 @@ final class ContentPresenter: @unchecked Sendable {
         if preview, let previousSize, previousSize.width > 0, previousSize.height > 0 {
             // Keep the last complete frame visible, but fit it into the new
             // viewport so a smaller window does not clip stale content.
-            let fit: PreviewFit = PreviewFit(old: previousSize, new: viewSize)
+            let fit: PreviewFit = PreviewFit(old: previousSize, new: viewSize, scale: scale)
             contentLayer.backgroundColor = frame.viewport.canvasColor
             placeContentLayer(
-                originY: frame.viewport.contentOffset.origin(previewScale: fit.scale),
+                originY: frame.viewport.contentOffset.devicePixelOrigin(previewScale: fit.scale, displayScale: scale.display),
                 scale: scale.page * fit.scale,
                 viewSize: viewSize
             )
@@ -236,7 +236,7 @@ final class ContentPresenter: @unchecked Sendable {
         }
         contentLayer.backgroundColor = frame.viewport.canvasColor
         placeContentLayer(
-            originY: frame.viewport.contentOffset.origin,
+            originY: frame.viewport.contentOffset.devicePixelOrigin(previewScale: 1, displayScale: scale.display),
             scale: scale.page,
             viewSize: viewSize
         )
