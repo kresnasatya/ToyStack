@@ -4,6 +4,10 @@ import Foundation
 
 public class WebURL: @unchecked Sendable {
 
+    private static let dataPrefix: String = "data:"
+    private static let viewSourcePrefix: String = "view-source:"
+    private static let aboutPrefix: String = "about:"
+
     let scheme: String
 
     var host: String
@@ -17,11 +21,11 @@ public class WebURL: @unchecked Sendable {
     var fragment: String? = nil
 
     public init(_ rawURL: String) {
-        if rawURL.hasPrefix("data:") {
+        if rawURL.hasPrefix(Self.dataPrefix) {
             scheme = "data"
             host = ""
             port = 0
-            let afterScheme: String = String(rawURL.dropFirst(5))
+            let afterScheme: String = String(rawURL.dropFirst(Self.dataPrefix.count))
             if let commaIdx = afterScheme.firstIndex(of: ",") {
                 mimeType = String(afterScheme[afterScheme.startIndex..<commaIdx])
                 path = String(afterScheme[afterScheme.index(after: commaIdx)...])
@@ -32,20 +36,20 @@ public class WebURL: @unchecked Sendable {
             return
         }
 
-        if rawURL.hasPrefix("view-source:") {
+        if rawURL.hasPrefix(Self.viewSourcePrefix) {
             scheme = "view-source"
             host = ""
             port = 0
             mimeType = ""
-            path = String(rawURL.dropFirst(12))
+            path = String(rawURL.dropFirst(Self.viewSourcePrefix.count))
             return
         }
 
-        if rawURL.hasPrefix("about:") {
+        if rawURL.hasPrefix(Self.aboutPrefix) {
             scheme = "about"
             host = ""
             port = 0
-            path = String(rawURL.dropFirst(6))
+            path = String(rawURL.dropFirst(Self.aboutPrefix.count))
             mimeType = ""
             return
         }

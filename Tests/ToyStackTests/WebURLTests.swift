@@ -100,4 +100,36 @@ import Testing
         let resolved = base.resolve("//other.com/page")
         #expect(resolved.toString() == "https://other.com/page")
     }
+
+    @Test func dataURLSplitsMimeTypeFromContent() {
+        let url: WebURL = WebURL("data:text/html,<p>hi</p>")
+        #expect(url.scheme == "data")
+        #expect(url.mimeType == "text/html")
+        #expect(url.path == "<p>hi</p>")
+    }
+
+    @Test func dataURLWithoutCommaHasNoNimeTypeOrContent() {
+        let url: WebURL = WebURL("data:text/html")
+        #expect(url.scheme == "data")
+        #expect(url.mimeType == "")
+        #expect(url.path == "")
+    }
+
+    @Test func viewSourceKeepsTheWholeInnerURL() {
+        let url: WebURL = WebURL("view-source:https://example.com/a")
+        #expect(url.scheme == "view-source")
+        #expect(url.path == "https://example.com/a")
+    }
+
+    @Test func aboutURLKeepsThePageName() {
+        let url: WebURL = WebURL("about:blank")
+        #expect(url.scheme == "about")
+        #expect(url.path == "blank")
+    }
+
+    @Test func aboutURLWithoutPageNameHasEmptyPath() {
+        let url: WebURL = WebURL("about:")
+        #expect(url.scheme == "about")
+        #expect(url.path == "")
+    }
 }
