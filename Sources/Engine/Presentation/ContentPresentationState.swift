@@ -46,7 +46,7 @@ public struct ContentPresentationState {
         // layers stay on screen. Scale them to the view instead of showing
         // them at their own width next to an empty strip. Without staging
         // nothing would replace them, so the frame binds.
-        if stagingLayers, let shownWidth: CGFloat = shownContentWidth, shownWidth != viewSize.width {
+        if stagingLayers, let shownWidth: CGFloat = shownContentWidth, !Self.sameWidth(shownWidth, viewSize.width) {
             lastRevision = revision
             return .preview(
                 from: CGSize(width: shownWidth, height: viewSize.height)
@@ -65,7 +65,7 @@ public struct ContentPresentationState {
     /// True when content laid out at `layoutSize` fills the view at its own
     /// width, so it can be bound instead of previewed.
     public static func fitsView(layoutSize: CGSize, viewSize: CGSize) -> Bool {
-        return contentWidth(layoutSize: layoutSize, viewSize: viewSize) == viewSize.width
+        return sameWidth(contentWidth(layoutSize: layoutSize, viewSize: viewSize), viewSize.width)
     }
 
     /// Whether a frame's layer generation should be uploaded behind the layers
@@ -80,6 +80,10 @@ public struct ContentPresentationState {
     public static func stages(generation: UInt64, shown: UInt64?) -> Bool {
         guard let shown else { return false }
         return generation != shown
+    }
+
+    private static func sameWidth(_ a: CGFloat, _ b: CGFloat) -> Bool {
+        return abs(a - b) < 0.5
     }
 
     private static func contentWidth(layoutSize: CGSize, viewSize: CGSize) -> CGFloat {

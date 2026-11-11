@@ -270,6 +270,55 @@ struct ContentPresentationStateTests {
         #expect(state.baseViewSize == CGSize(width: 160, height: 80))
     }
 
+    // MARK: - Zoom rounding
+
+    @Test func zoomedLayoutThatFillsTheViewBinds() {
+        let zoom: CGFloat = 1.1 * 1.1
+        let layoutWidth: CGFloat = 425 / zoom * zoom
+        #expect(layoutWidth != 425)
+        var state = ContentPresentationState()
+
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 425, height: 705),
+            layoutSize: CGSize(width: layoutWidth, height: 705),
+            stagingLayers: false
+        )
+
+        #expect(decision == .bind)
+    }
+
+    @Test func stagingBehindZoomedLayersBinds() {
+        let zoom: CGFloat = 1.1 * 1.1
+        var state = ContentPresentationState()
+        state.didShow(
+            layoutSize: CGSize(width: 425 / zoom * zoom, height: 705),
+            viewSize: CGSize(width: 425, height: 705)
+        )
+
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 2, sequence: 2),
+            viewSize: CGSize(width: 425, height: 705),
+            layoutSize: CGSize(width: 425, height: 705),
+            stagingLayers: true
+        )
+
+        #expect(decision == .bind)
+    }
+
+    @Test func onePointNarrowerLayoutStillPreviews() {
+        var state = ContentPresentationState()
+
+        let decision: ContentPresentationState.Decision = state.decide(
+            revision: PresentedRevision(content: 1, sequence: 1),
+            viewSize: CGSize(width: 425, height: 705),
+            layoutSize: CGSize(width: 424, height: 705),
+            stagingLayers: false
+        )
+
+        #expect(decision == .preview(from: CGSize(width: 424, height: 705)))
+    }
+
     // MARK: - Which generations are uploaded
 
     /// During a drag the layout trails the window by a frame or two, so a
