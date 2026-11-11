@@ -27,7 +27,7 @@ struct FocusTarget {
 }
 
 @MainActor
-func focusOder(of root: Frame) -> [FocusTarget] {
+func focusOrder(of root: Frame) -> [FocusTarget] {
     let tab: BrowserTab? = root.tab
     return inDocumentOrder(of: root)
         .enumerated()

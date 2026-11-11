@@ -392,7 +392,7 @@ public class BrowserTab {
 
     @discardableResult
     public func advanceTab() -> Bool {
-        let targets: [FocusTarget] = focusOder(of: rootFrame)
+        let targets: [FocusTarget] = focusOrder(of: rootFrame)
         var start: Int = 0
         if let focused = focusedFrame.focus,
             let idx = targets.firstIndex(where: { $0.frame == focusedFrameID && $0.element == focused }) {
