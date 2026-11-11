@@ -36,13 +36,13 @@ func focusOrder(of root: Frame) -> [FocusTarget] {
 }
 
 @MainActor
-private func tabOrderKey(_ target: FocusTarget, tab: BrowserTab?, offset: Int) -> (Int, Int, Int) {
-    guard let frame: Frame = tab?.frame(target.frame) else { return (1, 0, offset) }
+private func tabOrderKey(_ target: FocusTarget, tab: BrowserTab?, offset: Int) -> TabOrderKey {
+    guard let frame: Frame = tab?.frame(target.frame) else { return (.documentOrder, 0, offset) }
     let node: DOMRef = frame.dom.ref(target.element)
     if let idx = explicitTabIndex(node), idx > 0 {
-        return (0, idx, offset)
+        return (.positiveTabIndex, idx, offset)
     }
-    return (1, 0, offset)
+    return (.documentOrder, 0, offset)
 }
 
 @MainActor
@@ -58,4 +58,11 @@ private func inDocumentOrder(of frame: Frame) -> [FocusTarget] {
         }
     }
     return targets
+}
+
+private typealias TabOrderKey = (group: TabOrderGroup, tabIndex: Int, documentPosition: Int)
+
+private enum TabOrderGroup: Comparable {
+    case positiveTabIndex
+    case documentOrder
 }
