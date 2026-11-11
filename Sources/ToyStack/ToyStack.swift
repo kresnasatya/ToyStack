@@ -83,11 +83,11 @@ public struct BrowserView: View {
                     guard event.window === browserWindow else { return event }
                     guard let app else { return event }
                     Task { @MainActor in
-                        if event.modifierFlags.contains(.command) && event.keyCode == 45 {  // Cmd+N
+                        if event.modifierFlags.contains(.command) && event.keyCode == KeyCode.n {
                             openWindow(id: "browser", value: UUID())
-                        } else if event.modifierFlags.contains(.command) && event.keyCode == 123 {  // Cmd+Left -> go back
+                        } else if event.modifierFlags.contains(.command) && event.keyCode == KeyCode.leftArrow {
                             app.activeTab?.goBack()
-                        } else if event.keyCode == 125 {  // Down arrow
+                        } else if event.keyCode == KeyCode.downArrow {
                             print(
                                 "[key] down arrow hasScrollElement=\(app.activeTab?.hasScrollElement ?? false)"
                             )
@@ -96,29 +96,29 @@ public struct BrowserView: View {
                             } else {
                                 app.activeTab?.scrollDown()
                             }
-                        } else if event.keyCode == 126 {  // Up arrow
+                        } else if event.keyCode == KeyCode.upArrow {
                             if let tab = app.activeTab, tab.hasScrollElement {
                                 tab.scrollElementUp()
                             } else {
                                 app.activeTab?.scrollUp()
                             }
-                        } else if event.keyCode == 36 {  // Return
+                        } else if event.keyCode == KeyCode.returnKey {
                             if !(chrome.enter()) {
                                 app.activeTab?.enterKey()
                             }
-                        } else if event.keyCode == 51 {
+                        } else if event.keyCode == KeyCode.backspace {
                             if chrome.backspace() {
                                 app.objectWillChange.send()
                             }
-                        } else if event.keyCode == 123 {  // left arrow
+                        } else if event.keyCode == KeyCode.leftArrow {
                             if chrome.cursorLeft() {
                                 app.objectWillChange.send()
                             }
-                        } else if event.keyCode == 124 {  // right arrow
+                        } else if event.keyCode == KeyCode.rightArrow {
                             if chrome.cursorRight() {
                                 app.objectWillChange.send()
                             }
-                        } else if event.keyCode == 48 {  // tab keyboard
+                        } else if event.keyCode == KeyCode.tab {
                             if event.modifierFlags.contains(.control) {
                                 app.cycleTabs()
                             } else {
@@ -132,25 +132,25 @@ public struct BrowserView: View {
                             }
                         } else if event.modifierFlags.contains(.control) {
                             switch event.keyCode {
-                            case 0:  // Ctrl+A
+                            case KeyCode.a:
                                 app.toggleAccessibility()
-                            case 1:  // Ctrl+S
+                            case KeyCode.s:
                                 app.advanceAccessibility()
-                            case 2:  // Ctrl+D
+                            case KeyCode.d:
                                 app.togglePrefersDark()
-                            case 4:  // Ctrl+H
+                            case KeyCode.h:
                                 app.toggleForcedColors()
-                            case 12:
+                            case KeyCode.q:
                                 NSApplication.shared.terminate(nil)
-                            case 17:
+                            case KeyCode.t:
                                 app.newTab(WebURL("about:blank"))
-                            case 24:  // Ctrl+=
+                            case KeyCode.equal:
                                 app.incrementZoom(true)
-                            case 27:  // Ctrl+-
+                            case KeyCode.minus:
                                 app.incrementZoom(false)
-                            case 29:  // Ctrl+0
+                            case KeyCode.zero:
                                 app.resetZoom()
-                            case 37:  // Ctrl+L
+                            case KeyCode.l:
                                 app.activeTab?.blur()
                                 chrome.focusAddressBar()
                                 app.objectWillChange.send()
