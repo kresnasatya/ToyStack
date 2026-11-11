@@ -108,7 +108,7 @@ import Testing
         #expect(url.path == "<p>hi</p>")
     }
 
-    @Test func dataURLWithoutCommaHasNoNimeTypeOrContent() {
+    @Test func dataURLWithoutCommaHasNoMimeTypeOrContent() {
         let url: WebURL = WebURL("data:text/html")
         #expect(url.scheme == "data")
         #expect(url.mimeType == "")
