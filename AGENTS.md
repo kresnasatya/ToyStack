@@ -2,7 +2,7 @@
 
 This is a project to build a toy browser engine with Swift programming language.
 
-## Code Architecture
+## Coding Conventions
 
 - Functions, methods, and initializers take at most four parameters by default. More than four requires either splitting the function or groupping parameters that form one named concept with a clear invariant.
 - Do NOT create a catch-all `Context` or `Parameters` struct only to satisfy the count.
@@ -13,10 +13,31 @@ This is a project to build a toy browser engine with Swift programming language.
 - Only small helpers that are truly support one type may share that type's file, grouped under a `// MARK: -` section (e.g. `ScrollbarGeometry` and `scrollbarBarRect` in `Scrollbar.swift`).
 - Use `+=` for counts, indexes, sizes, offsets, and quantities; overflow is a bug and must trap.
 - Use `&+=` only for generation, revision, or sequence tokens where wrapping is accepted and the value is used for equality or difference. Never use `&+=` to hide an overflow bug.
+- No comments by default. Write a comment ONLY to explain *why* the code does something that the code cannot say by itself: a browser spec rule, a workaround, a non-obvious constraint, or a trade-off that was chosen on purpose. Never write a comment that says *what* the code does.
+- If a comment is needed to explain *what*, fix the code instead: rename the variable or function, or move the step into a function with a clear name.
+- Do not leave commented-out code, change-log comments (e.g. `// added X`, `// fixed bug`), or comments that repeat the type or function name.
+- When a comment cites a spec (CSS, HTML, DOM), cite the exact section number and make sure the claim matches the spec text.
+- `// MARK: -` sections (see the helper rule above) are allowed.
+
+  Bad (says *what*):
+
+  ```swift
+  // Add the line height to y
+  y += lineHeight
+  ```
+
+  Good (says *why*):
+
+  ```swift
+  // CSS 2.1 §10.8.1: every line box starts with a strut, so the block's own font
+  // and line-height count toward the line's height even when no text uses them.
+  var maxAscent: Double = strutAscent
+  var maxDescent: Double = strutDescent
+  ```
 
 ## Expected Result
 
-This project is intended to be used as learning purpose to understand how to make the actual browser engine with Swift programming language. The thinking process must be experienced web browser engineer. The output of code must be high quality and must follow the **Code Architecture** section.
+This project is intended to be used as learning purpose to understand how to make the actual browser engine with Swift programming language. The thinking process must be experienced web browser engineer. The output of code must be high quality and must follow the **Coding Conventions** section.
 
 ## Workflow
 
