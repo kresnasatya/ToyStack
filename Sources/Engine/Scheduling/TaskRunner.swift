@@ -5,7 +5,7 @@ class TaskRunner {
     private var lowQueue: [BrowserTask] = []
     private var needsQuit: Bool = false
 
-    private let starvationThreshold: TimeInterval = 0.1
+    private static let lowPriorityMaxWait: TimeInterval = 0.1
 
     func scheduleTask(_ task: BrowserTask) {
         DispatchQueue.main.async {
@@ -21,13 +21,13 @@ class TaskRunner {
     private func runNext() {
         guard !needsQuit else { return }
 
-        let starved: Bool =
+        let lowPriorityWaitedTooLong: Bool =
             lowQueue.first.map {
-                Date().timeIntervalSince($0.enqueuedAt) > starvationThreshold
+                Self.hasWaitedTooLong(enqueuedAt: $0.enqueuedAt, now: Date())
             } ?? false
 
         let task: BrowserTask
-        if starved, let t = lowQueue.first {
+        if lowPriorityWaitedTooLong, let t = lowQueue.first {
             lowQueue.removeFirst()
             task = t
         } else if let t = highQueue.first {
@@ -41,5 +41,9 @@ class TaskRunner {
         }
 
         task.run()
+    }
+
+    static func hasWaitedTooLong(enqueuedAt: Date, now: Date) -> Bool {
+        return now.timeIntervalSince(enqueuedAt) > lowPriorityMaxWait
     }
 }
