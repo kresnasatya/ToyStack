@@ -29,7 +29,6 @@ struct AsyncLayoutTraceTests {
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
         page.frame.clearPaintRequest()
 
-        // Start a pass, then change the width while it runs.
         page.tab.resize(width: 400, height: 600)
         page.frame.runAnimationFrame()
         page.tab.resize(width: 300, height: 600)

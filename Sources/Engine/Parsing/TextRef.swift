@@ -1,6 +1,5 @@
 import Foundation
 
-/// Text-only view over a `DOMRef`.
 @MainActor
 struct TextRef {
     let ref: DOMRef

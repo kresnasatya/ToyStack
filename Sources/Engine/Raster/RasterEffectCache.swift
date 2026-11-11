@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// Rasterizes and caches the effect bitmap for one composited layer.
 enum RasterEffectCache {
     static func update(_ layer: inout RasterLayer, target: RasterTarget, blur: CGFloat) {
         let key: EffectImageKey = EffectImageKey(

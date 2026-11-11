@@ -41,8 +41,6 @@ struct ThreadSafetyTests {
         #expect(first.size == second.size)
     }
 
-    /// Many threads record at once. Each window must hold exactly its own
-    /// thread's counts: no lost updates, and nothing from another thread.
     @Test func concurrentRecordsStayInTheirOwnThreadsWindow() {
         let box: ProfilerBox = ProfilerBox()
         DispatchQueue.concurrentPerform(iterations: 32) { _ in

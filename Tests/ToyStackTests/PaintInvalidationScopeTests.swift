@@ -39,7 +39,6 @@ struct PaintInvalidationScopeTests {
         page.frame.paint()
 
         let metrics: [String: ProfileMetric] = profiler.snapshot()
-        // The blocks whose own style did not change keep their cached paint.
         #expect(
             (metrics["paint.cache.hit.blocks"]?.count ?? 0) > 0,
             "a colour change must not re-emit every block"
@@ -48,7 +47,6 @@ struct PaintInvalidationScopeTests {
             (metrics["paint.cache.store.blocks"]?.count ?? 0) == 0,
             "no block's own style changed, so none may be re-emitted"
         )
-        // Only the line that owns the link's boxes re-emits its text.
         #expect(
             (metrics["paint.cache.hit.lines"]?.count ?? 0) > 0,
             "unaffected lines must keep their cached text"
@@ -57,7 +55,6 @@ struct PaintInvalidationScopeTests {
             (metrics["paint.cache.store.lines"]?.count ?? 0) <= 1,
             "only the line with the link boxes may re-emit"
         )
-        // And the new colour actually reaches the display list.
         let redLinkText: Bool = page.frame.displayList.contains(where: { op in
             guard case .text(let text, _, let color, _) = op else { return false }
             return text.contains("link text") && color == BrowserColor(cssName: "red")

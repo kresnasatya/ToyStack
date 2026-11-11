@@ -20,7 +20,6 @@ struct PaintBuildSink {
 @MainActor
 struct PaintSceneBuilder {
     private(set) var sink: PaintBuildSink = PaintBuildSink()
-    /// Nodes outside this window are not copied into the scene.
     private var window: PaintWindow = .full
 
     mutating func build(
@@ -51,7 +50,6 @@ struct PaintSceneBuilder {
 
     // MARK: - Nodes
 
-    /// Returns `nil` when the node is culled, so the parent skips it entirely.
     private mutating func appendNode(
         _ tree: LayoutTree,
         _ id: LayoutID,

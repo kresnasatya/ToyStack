@@ -11,8 +11,6 @@ import Testing
 @MainActor
 struct BlockWidthChangeMetricTests {
 
-    /// A narrower window rewraps the paragraph, so the fixed-width card below
-    /// it moves down. The card and its rows keep their width.
     @Test func narrowerWindowSeparatesWidthChangesFromBlocksThatOnlyMoveDown() throws {
         let words: String = Array(repeating: "word", count: 30).joined(separator: " ")
         let page: LayoutTestPage = LayoutTestPage(
@@ -44,8 +42,6 @@ struct BlockWidthChangeMetricTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// More left padding moves a fixed-width block and its child sideways
-    /// without changing either width.
     @Test func paddingChangeCountsBlocksThatOnlyMoveSideways() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="card"><p>row</p></div>"#,
@@ -69,8 +65,6 @@ struct BlockWidthChangeMetricTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// Pinning a block to the width it already has recomputes its geometry
-    /// but changes nothing, so it lands in the unmoved bucket.
     @Test func widthPinnedToCurrentValueCountsAsUnmoved() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="para">one two three</p>"#,

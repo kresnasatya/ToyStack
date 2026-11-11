@@ -1,6 +1,5 @@
 import Foundation
 
-/// Layout tree, viewport geometry, scroll offset, and scroll targets.
 struct FrameLayoutState {
     var tree: FrameLayoutTree
     var viewport: FrameViewportState

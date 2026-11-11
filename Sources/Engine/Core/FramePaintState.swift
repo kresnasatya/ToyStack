@@ -1,6 +1,5 @@
 import Foundation
 
-/// The display list produced by paint and the revision that identifies it.
 struct FramePaintState: Sendable {
     var ops: [DisplayOp]
     var revision: UInt

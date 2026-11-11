@@ -5,8 +5,6 @@
 /// without owning layout state.
 final class LayoutBox {
     var tree: LayoutTree
-    /// Edits marked on `tree` while a background pass lays out a copy of it.
-    /// Nil when no pass runs.
     private var recordedEdits: [LayoutEdit]?
 
     init(_ tree: LayoutTree) {
@@ -24,7 +22,6 @@ final class LayoutBox {
         recordedEdits?.append(edit)
     }
 
-    /// Returns the edits made since the pass started and stops recording.
     func takeRecordedEdits() -> [LayoutEdit] {
         let edits: [LayoutEdit] = recordedEdits ?? []
         recordedEdits = nil

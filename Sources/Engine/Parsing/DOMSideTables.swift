@@ -3,7 +3,6 @@ import Foundation
 
 // MARK: - DOMSideTables
 
-/// Cold per-node state. Only nodes that use a feature get an entry.
 struct DOMSideTables {
     var images: ImageTable
     var embeds: EmbedTable

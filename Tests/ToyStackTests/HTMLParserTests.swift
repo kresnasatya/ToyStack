@@ -63,7 +63,6 @@ struct HTMLParserTests {
         let dom: DOMTree = HTMLParser(body: "before<br>after").parse()
         let body: NodeID = children(dom.root, dom)[0]
         let bodyChildren: [NodeID] = children(body, dom)
-        // br is a child of body, not a parent of "after"
         #expect(bodyChildren.count == 3)
         #expect(tag(bodyChildren[1], dom) == "br")
     }

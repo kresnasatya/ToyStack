@@ -35,8 +35,6 @@ func focusOder(of root: Frame) -> [FocusTarget] {
         .map(\.element)
 }
 
-// Group 0: an explicit positive tabindex, ordered by value.
-// Group 1: tabindex="0" or no tabindex, in document order.
 @MainActor
 private func tabOrderKey(_ target: FocusTarget, tab: BrowserTab?, offset: Int) -> (Int, Int, Int) {
     guard let frame: Frame = tab?.frame(target.frame) else { return (1, 0, offset) }

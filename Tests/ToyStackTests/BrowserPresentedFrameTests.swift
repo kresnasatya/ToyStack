@@ -37,8 +37,6 @@ struct BrowserPresentedFrameTests {
         browser.resize(to: CGSize(width: 500, height: 600))
         browser.advanceFrame()
 
-        // The 500px layout is painted, but its composite has not come back to
-        // the main thread yet: the 800px layers are still the presented ones.
         #expect(browser.activeTab?.rootFrame.paintedLayoutSize.width == 500)
         #expect(browser.presentedFrame.displayedLayoutSize.width == 800 * zoom)
 
@@ -57,7 +55,6 @@ struct BrowserPresentedFrameTests {
         return false
     }
 
-    /// Yields the main actor so loads and composites can finish.
     private static func pump(_ condition: () -> Bool) async -> Bool {
         let deadline: Date = Date().addingTimeInterval(10)
         while !condition() {

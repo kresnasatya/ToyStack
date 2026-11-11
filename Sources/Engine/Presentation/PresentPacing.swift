@@ -8,12 +8,8 @@ import Foundation
 /// Counting from its end would add the commit (6-14 ms for a 30-tile chunk)
 /// to every gap.
 public enum PresentPacing {
-    /// One display frame.
     public static let interval: TimeInterval = 1.0 / 60.0
 
-    /// Seconds to wait at `now` before the next follow-up present, when the
-    /// previous present started at `lastStart`. A present that took longer
-    /// than a frame is followed at once.
     public static func delay(lastStart: TimeInterval, now: TimeInterval) -> TimeInterval {
         return max(0, lastStart + interval - now)
     }

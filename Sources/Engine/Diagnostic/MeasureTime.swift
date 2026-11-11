@@ -192,7 +192,6 @@ public final class MeasureTime: @unchecked Sendable {
         currentFrame = id
     }
 
-    /// The frame id that events are recorded under when they name none.
     public var frame: Int {
         lock.lock()
         defer { lock.unlock() }

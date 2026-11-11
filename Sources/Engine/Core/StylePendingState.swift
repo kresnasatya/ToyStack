@@ -1,6 +1,5 @@
 import Foundation
 
-/// Work accumulated before the next style pass.
 struct StylePendingState {
     var needsHasPrecompute: Bool
     var counters: [String: Int]

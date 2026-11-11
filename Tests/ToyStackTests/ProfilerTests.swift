@@ -38,11 +38,9 @@ struct ProfilerTests {
         #expect(elsewhere["test.elsewhere"]?.count == 2)
         #expect(elsewhere["test.timed"]?.count == 1)
         #expect(elsewhere["test.here"] == nil)
-        // Resetting the other thread's window leaves this one alone.
         #expect(profiler.snapshot()["test.here"]?.count == 3)
     }
 
-    /// A name counted as a literal and as a runtime string is one metric.
     @Test func literalAndRuntimeNamesMergeInTheSnapshot() {
         let profiler: Profiler = Profiler(enabled: true)
         profiler.reset()
@@ -53,7 +51,6 @@ struct ProfilerTests {
         #expect(profiler.snapshot()["test.merged"]?.count == 7)
     }
 
-    /// Runs `body` on a separate thread and waits for it.
     private static func onOtherThread(_ body: @escaping () -> Void) {
         let done: DispatchSemaphore = DispatchSemaphore(value: 0)
         let thread: Thread = Thread {

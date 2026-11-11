@@ -5,7 +5,6 @@ class TaskRunner {
     private var lowQueue: [BrowserTask] = []
     private var needsQuit: Bool = false
 
-    // Low-priority task waits at most 100ms before being force-run
     private let starvationThreshold: TimeInterval = 0.1
 
     func scheduleTask(_ task: BrowserTask) {
@@ -22,7 +21,6 @@ class TaskRunner {
     private func runNext() {
         guard !needsQuit else { return }
 
-        // Promote a low-priority task if it has waited too long.
         let starved: Bool =
             lowQueue.first.map {
                 Date().timeIntervalSince($0.enqueuedAt) > starvationThreshold

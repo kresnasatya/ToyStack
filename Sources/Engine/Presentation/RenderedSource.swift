@@ -9,7 +9,6 @@ public struct RenderedSource: Equatable, Sendable {
     /// A new generation must be bound as one complete frame; tiles from one
     /// generation may still arrive in later presents.
     public var generation: UInt64 = 0
-    /// Viewport size in CSS pixels at which the composited content was laid out.
     public var layoutSize: CGSize = .zero
 
     public init(generation: UInt64 = 0, layoutSize: CGSize = .zero) {

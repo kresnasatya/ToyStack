@@ -35,7 +35,6 @@ final class TileStore: @unchecked Sendable {
     var entryCount: Int { entries.count }
     var retainedPixels: Int { totalPixels }
 
-    // For temporary debug print
     private(set) var hits: Int = 0
     private(set) var misses: Int = 0
 

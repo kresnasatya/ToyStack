@@ -3,8 +3,6 @@ import Foundation
 
 // MARK: - LayoutFieldStore
 
-/// Value storage for one layout node's fields. The bit layout is unchanged;
-/// only the owner moved from a class instance to the arena node.
 struct LayoutFieldStore {
     var geometry: GeometryFields
     var inlineText: InlineTextFields

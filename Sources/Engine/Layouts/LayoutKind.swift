@@ -1,6 +1,5 @@
 import Foundation
 
-/// Tagged payload of one layout node.
 enum LayoutKind {
     case document(DocumentData)
     case block(BlockData)

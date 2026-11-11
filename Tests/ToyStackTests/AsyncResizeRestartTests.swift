@@ -8,9 +8,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct AsyncResizeRestartTests {
-    /// A pass that finishes after the window moved on is installed and painted
-    /// at once, and the pass for the current width starts at once: no
-    /// frame-clock tick is needed between them.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -24,7 +21,6 @@ struct AsyncResizeRestartTests {
         page.tab.resize(width: 400, height: 600)
         page.frame.runAnimationFrame()
         #expect(page.frame.isLayoutInFlight)
-        // The pointer moves on while the 400 pass runs. From here on, no tick.
         page.tab.resize(width: 300, height: 600)
         try await Self.settle(page)
 
@@ -112,7 +108,6 @@ struct AsyncResizeRestartTests {
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
         page.frame.clearPaintRequest()
 
-        // The first pass builds the inputs and installs them.
         page.tab.resize(width: 400, height: 600)
         page.frame.runAnimationFrame()
         let deadline: Date = Date().addingTimeInterval(5)
@@ -160,9 +155,6 @@ struct AsyncResizeRestartTests {
         #expect(browser.usesAsyncLayout)
     }
 
-    /// A pass that only changes the width keeps the same scroll targets.
-    /// Installing it refreshes their rects instead of walking the whole tree,
-    /// and the refreshed rects follow the new layout.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -225,7 +217,6 @@ struct AsyncResizeRestartTests {
         #expect(rebuilt.last == 1, "the install after the change reused the old list: \(rebuilt)")
     }
 
-    /// A removed scroll box must leave the target list.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -261,8 +252,6 @@ struct AsyncResizeRestartTests {
         #expect(rebuilt.last == 1, "the install after the removal reused the old list: \(rebuilt)")
     }
 
-    /// An element added while a pass runs must reach the layout once the
-    /// follow-up pass is installed.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -285,8 +274,6 @@ struct AsyncResizeRestartTests {
         Self.expectMatchesFullLayout(page, browser: browser)
     }
 
-    /// Text changed while a pass runs must reflow once the follow-up pass is
-    /// installed. The install starts that pass itself; no tick runs.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -305,8 +292,6 @@ struct AsyncResizeRestartTests {
         Self.expectMatchesFullLayout(page, browser: browser)
     }
 
-    /// A scroll box scrolled while a pass runs: the installed layout shows the
-    /// box where the user left it.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -333,8 +318,6 @@ struct AsyncResizeRestartTests {
         #expect(browser.usesAsyncLayout)
     }
 
-    /// An element removed while a pass runs must leave the layout once the
-    /// follow-up pass is installed.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -359,8 +342,6 @@ struct AsyncResizeRestartTests {
         Self.expectMatchesFullLayout(page, browser: browser)
     }
 
-    /// Animation steps that run while a pass runs, the last one included, must
-    /// reach the layout once the follow-up pass is installed.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -379,7 +360,6 @@ struct AsyncResizeRestartTests {
             timing: FrameTiming(totalFrames: 2, easing: .linear)
         ), to: box.ref)
         try Self.startPass(page, width: 400)
-        // Every step, and the end of the animation, lands while the pass runs.
         for _ in 0..<3 {
             page.frame.runAnimationFrame()
         }
@@ -397,7 +377,6 @@ struct AsyncResizeRestartTests {
         "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
     }.joined()
 
-    /// Resizes and starts a background pass that is still running on return.
     private static func startPass(_ page: LayoutTestPage, width: CGFloat) throws {
         page.tab.resize(width: width, height: 600)
         page.frame.runAnimationFrame()
@@ -418,7 +397,6 @@ struct AsyncResizeRestartTests {
 
     private static let blockRules: String = "body { display: block; } p { display: block; }"
 
-    /// A `div` is a scroll target whose width follows the viewport.
     private static let scrollRules: String = blockRules
         + " section { display: block; }"
         + " div { display: block; height: 20px; overflow: scroll; }"
@@ -454,14 +432,12 @@ struct AsyncResizeRestartTests {
         return try #require(root["traceEvents"] as? [[String: Any]])
     }
 
-    /// `rebuilt` of every `layout.async.scrollTargets` sample, in order.
     private static func scrollTargetSamples(_ path: String) throws -> [Int] {
         return try traceEvents(path)
             .filter({ $0["name"] as? String == "layout.async.scrollTargets" })
             .compactMap({ ($0["args"] as? [String: Any])?["rebuilt"] as? Int })
     }
 
-    /// The only scroll block target, checked against the installed tree.
     private static func onlyScrollBlock(_ page: LayoutTestPage) throws -> ScrollBlockTarget {
         let tree: LayoutTree = try #require(page.frame.document)
         let blocks: [ScrollBlockTarget] = page.frame.state.layout.targets.blocks

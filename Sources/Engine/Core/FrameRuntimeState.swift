@@ -1,4 +1,3 @@
-/// Script runtime, scheduling flags, interaction state, and animation state.
 struct FrameRuntimeState {
     var script: JSRuntime!
     var schedule: FrameScheduleState

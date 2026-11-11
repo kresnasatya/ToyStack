@@ -15,7 +15,6 @@ struct MeasureTimeLaneTests {
             let lane: TraceLane = measure.beginStream("test.stream")
             measure.start("inside")
             measure.stop("inside")
-            // The queue block ends here; the next work on this thread is unrelated.
             lane.end()
             measure.start("after")
             measure.stop("after")

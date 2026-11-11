@@ -13,7 +13,6 @@ public struct ContentPresentationState {
         case preview(from: CGSize)
     }
 
-    /// The view size at which the current content was last bound.
     public private(set) var baseViewSize: CGSize?
     /// Width, in view pixels, of the layout whose layers are on screen. A
     /// bound frame can still be staging behind older layers, so this can lag
@@ -23,8 +22,6 @@ public struct ContentPresentationState {
 
     public init() {}
 
-    /// `stagingLayers` is true while a new layer generation uploads behind
-    /// the layers on screen; those layers stay visible until it completes.
     public mutating func decide(
         revision: PresentedRevision,
         viewSize: CGSize,
@@ -57,13 +54,10 @@ public struct ContentPresentationState {
         return .bind
     }
 
-    /// Records that the layers laid out at `layoutSize` are now on screen.
     public mutating func didShow(layoutSize: CGSize, viewSize: CGSize) {
         shownContentWidth = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
     }
 
-    /// True when content laid out at `layoutSize` fills the view at its own
-    /// width, so it can be bound instead of previewed.
     public static func fitsView(layoutSize: CGSize, viewSize: CGSize) -> Bool {
         return sameWidth(contentWidth(layoutSize: layoutSize, viewSize: viewSize), viewSize.width)
     }

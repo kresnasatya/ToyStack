@@ -17,9 +17,6 @@ struct PaintScene {
 struct PaintFrame {
     var nodes: [PaintNode]
     var epoch: UInt
-    /// Per-node cache revision, aligned with `nodes`. A block uses the style
-    /// revision of its own DOM node; a line uses its generation combined with
-    /// the style revisions of its box owners.
     var revisions: [UInt64]
 }
 
@@ -33,9 +30,7 @@ struct PaintNode {
 }
 
 struct PaintGeometry {
-    /// `LayoutTree.selfRect` — padded box for blocks, absolute box for text.
     var rect: Rect
-    /// `LayoutTree` x/y/width/height, before padding.
     var frame: Rect
     var zoom: CGFloat
 }
@@ -75,7 +70,6 @@ struct PaintBlock {
 
 struct PaintBlockExtras {
     var backgroundImage: CGImage?
-    /// Scrollbar, then caret — appended after the children, as layout paints them.
     var trailing: [DisplayOp]
 }
 
@@ -120,7 +114,6 @@ struct PaintInput {
 }
 
 struct PaintIframe {
-    /// Index into `PaintScene.frames`, or nil when the frame is not loaded yet.
     var frame: Int?
     var inner: Rect
     var scroll: CGFloat

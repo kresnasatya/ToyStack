@@ -2,7 +2,6 @@ import Foundation
 
 // MARK: - LayoutNode
 
-/// The pieces needed to insert a prepared node into the tree.
 struct LayoutNodeSeed {
     let kind: LayoutKind
     let dom: NodeID

@@ -239,7 +239,6 @@ func emitCanvas(_ node: PaintNode, canvas: PaintCanvas, into items: inout [Displ
     ))
 }
 
-/// Outline when the author declared one, focus ring otherwise.
 func emitFocusOutline(
     _ node: PaintNode,
     coercedWidths: (outer: CGFloat, inner: CGFloat),

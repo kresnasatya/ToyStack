@@ -1,7 +1,5 @@
 import Foundation
 
-/// Everything the document itself owns: metadata, the DOM arena, style sheets,
-/// and loaded resources.
 struct FrameDocumentState {
     var meta: DocumentMeta
     var dom: DOMTree

@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// Fits the last complete frame into a new viewport while resizing.
 public struct PreviewFit: Equatable, Sendable {
     public let scale: CGFloat
     public let scaledSize: CGSize

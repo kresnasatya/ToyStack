@@ -8,10 +8,6 @@ struct DependencyIndex {
     private var dependents: [FieldKey: Set<FieldKey>] = [:]
     private var inputsByDependent: [FieldKey: Set<FieldKey>] = [:]
 
-    /// Replaces the whole reverse index with the static input table.
-    ///
-    /// Every used field of every live layout node declares its inputs once in
-    /// `LayoutInputTable`; this method clears stale edges and rebuilds them.
     mutating func rebuild(from tree: LayoutTree) {
         dependents.removeAll(keepingCapacity: true)
         inputsByDependent.removeAll(keepingCapacity: true)

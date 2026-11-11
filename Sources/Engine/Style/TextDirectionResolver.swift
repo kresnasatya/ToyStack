@@ -46,16 +46,16 @@ enum TextDirectionResolver {
 
     private static func isRightToLeft(_ scalar: Unicode.Scalar) -> Bool {
         switch scalar.value {
-            case 0x0590...0x05FF, // Hebrew
-                0x0600...0x06FF, // Arabic
-                0x0700...0x074F, // Syriac
-                0x0750...0x077F, // Arabic Supplement
-                0x0780...0x07BF, // Thaana
-                0x07C0...0x07FF, // NKo
-                0x08A0...0x08FF, // Arabic Extended-A
-                0xFB1D...0xFB4F, // Hebrew presentation forms
-                0xFB50...0xFDFF, // Arabic presentation forms-A
-                0xFE70...0xFEFF: // Arabic presentation forms-B
+            case 0x0590...0x05FF,
+                0x0600...0x06FF,
+                0x0700...0x074F,
+                0x0750...0x077F,
+                0x0780...0x07BF,
+                0x07C0...0x07FF,
+                0x08A0...0x08FF,
+                0xFB1D...0xFB4F,
+                0xFB50...0xFDFF,
+                0xFE70...0xFEFF:
                 return true
             default:
                 return false

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Parsed style sheets and the state of the current style pass.
 struct StylesheetState {
     var rules: [RuleIndex.Rule]
     var keyframes: [String: [Keyframe]]

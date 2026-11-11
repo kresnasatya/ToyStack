@@ -17,12 +17,8 @@ public struct GenerationStaging<Frame> {
     }
 
     public enum Offer: Equatable {
-        /// Nothing was uploading; this generation starts now.
         case started
-        /// The generation being uploaded arrived again; the upload continues
-        /// with the newer frame.
         case refreshed
-        /// Another generation is uploading; this frame waits for it.
         case queued
     }
 
@@ -45,8 +41,6 @@ public struct GenerationStaging<Frame> {
         return .queued
     }
 
-    /// The current generation is on screen. Starts the waiting frame, if any,
-    /// and returns it.
     public mutating func finish() -> Frame? {
         current = waiting
         waiting = nil

@@ -24,8 +24,6 @@ class Frame {
     /// Set when the document changes while a background pass runs. A viewport
     /// change does not set it; the pass's `LayoutJobKey` already records that.
     private var layoutInFlightDirty: Bool = false
-    /// True when the running pass reused the installed tree's inputs: the
-    /// document has not changed, and the pass only moves the viewport.
     private var layoutJobMovesViewportOnly: Bool = false
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
@@ -67,7 +65,6 @@ class Frame {
         state.display.paint.isNeeded = true
     }
 
-    /// Replacing a sheet invalidates the sorted index and the `:has` precompute.
     func setStyleRules(_ newRules: [RuleIndex.Rule]) {
         state.document.sheets.rules = newRules
         state.document.sheets.index.list.rulesRevision += 1
@@ -84,8 +81,6 @@ class Frame {
         state.document.sheets.keyframes.merge(newFrames) { _, new in new }
     }
 
-    /// Width and height change together on resize; only a width change dirties
-    /// the document's available width.
     func setViewport(width: CGFloat, height: CGFloat) {
         let oldWidth: CGFloat = state.layout.viewport.width
         state.layout.viewport.width = width
@@ -108,7 +103,6 @@ class Frame {
     }
     var document: LayoutTree? { state.layout.tree.box?.tree }
 
-    /// Borrows the layout tree for a direct mutation (tests, tools).
     func withLayoutTree(_ body: (inout LayoutTree) -> Void) {
         guard let box: LayoutBox = state.layout.tree.box else { return }
         body(&box.tree)
@@ -144,8 +138,6 @@ class Frame {
     }
 
     var displayList: [DisplayOp] { state.display.paint.ops }
-    // Bumped when anything that paint reads may have changed.
-    // One epoch covers many paints; a cached item is valid only in its epoch.
     var paintEpoch: UInt { state.display.paint.epoch }
     var paintCaches: PaintCacheStore {
         get { state.display.caches }
@@ -1272,7 +1264,6 @@ class Frame {
             reusable = previousInputs
             profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
         }
-        // One event per job says why the inputs were rebuilt, if they were.
         browser?.measure.counter(
             "layout.inputs.decision",
             [
@@ -1287,8 +1278,6 @@ class Frame {
             if let reusable {
                 return reusable
             }
-            // The background path rebuilds every input; only the synchronous
-            // path patches the previous ones.
             if !incremental {
                 return LayoutInputsBuilder.build(dom: dom)
             }
@@ -1307,8 +1296,6 @@ class Frame {
         return (inputs, reusable != nil)
     }
 
-    /// Runs the layout pass on a background worker. The installed tree stays
-    /// untouched for paint and hit testing; the completed tree replaces it.
     private func startAsyncLayout(stylesDirty: Bool, viewportStyle: Bool) {
         browser?.measure.start("layout.async.start")
         defer { browser?.measure.stop("layout.async.start") }
@@ -2087,8 +2074,6 @@ class Frame {
             noteStyleInvalidation("style.invalidate.other")
             state.document.sheets.pending.byOther = true
         }
-        // Schedules the pass; whether it becomes a document layout is decided
-        // after styles are applied, from the changed properties.
         markDocumentDirty()
         state.runtime.schedule.needsRender = true
         parentFrame?.setNeedsLayout()

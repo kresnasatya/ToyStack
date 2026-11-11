@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// The frame's scroll offset and interest window.
 struct FrameScrollState {
     var offset: CGFloat
     var interestTop: CGFloat

@@ -66,7 +66,6 @@ struct RasterColorSpaceTests {
         return false
     }
 
-    /// Yields the main actor so loads and composites can finish.
     private static func pump(_ condition: () -> Bool) async -> Bool {
         let deadline: Date = Date().addingTimeInterval(10)
         while !condition() {

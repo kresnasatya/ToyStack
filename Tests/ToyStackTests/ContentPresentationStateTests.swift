@@ -208,7 +208,6 @@ struct ContentPresentationStateTests {
         #expect(decision == .bind)
     }
 
-    /// New layers staging at the width already on screen need no scaling.
     @Test func stagingAtTheShownWidthBinds() {
         var state = ContentPresentationState()
         state.didShow(

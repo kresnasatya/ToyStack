@@ -44,7 +44,6 @@ extension LayoutTree {
             || state.isDirty(.font) || state.isDirty(.ascent) || state.isDirty(.descent)
     }
 
-    /// Shared embed body: resolve zoom and baseline font.
     mutating func layoutEmbedCommon(_ id: LayoutID) {
         if isDirty(.zoom, at: id) {
             setField(.zoom, resolvedZoom(id), for: id)

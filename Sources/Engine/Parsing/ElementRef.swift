@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// Element-only view over a `DOMRef`.
 @MainActor
 struct ElementRef {
     let ref: DOMRef

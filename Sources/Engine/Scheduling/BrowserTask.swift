@@ -1,8 +1,8 @@
 import Foundation
 
 enum TaskPriority {
-    case high  // render, input handling
-    case low  // setTimeout, setInterval
+    case high
+    case low
 }
 
 class BrowserTask {

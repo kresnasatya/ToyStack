@@ -25,8 +25,6 @@ struct ResizePreviewPolicy {
         self.delay = delay
     }
 
-    /// Starts or clears the preview window. A fast frame clears it, so the
-    /// next tick lays out immediately.
     mutating func resize(now: Date, requiresPreview: Bool) {
         guard requiresPreview else {
             cancel()
@@ -35,7 +33,6 @@ struct ResizePreviewPolicy {
         deadline = now.addingTimeInterval(delay)
     }
 
-    /// True when this tick must present the old content at `size`.
     mutating func presentPreview(size: CGSize, now: Date) -> Bool {
         guard let deadline, now < deadline, presentedSize != size else {
             return false
@@ -44,7 +41,6 @@ struct ResizePreviewPolicy {
         return true
     }
 
-    /// True when layout may run. An expired preview is cleared first.
     mutating func allowsLayout(now: Date) -> Bool {
         guard let deadline else { return true }
         guard now >= deadline else { return false }

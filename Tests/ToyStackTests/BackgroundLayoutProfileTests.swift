@@ -36,7 +36,6 @@ struct BackgroundLayoutProfileTests {
         let jobFrame: Int = browser.measure.frame
         page.tab.resize(width: 400, height: 600)
         page.frame.runAnimationFrame()
-        // Frames advance while the job runs; the profile keeps the job's frame.
         browser.beginFrame()
         let deadline: Date = Date().addingTimeInterval(5)
         while page.frame.isLayoutInFlight, Date() < deadline {

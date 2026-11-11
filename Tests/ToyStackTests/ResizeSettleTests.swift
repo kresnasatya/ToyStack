@@ -12,8 +12,6 @@ struct ResizeSettleTests {
         #expect(!settle.isSettled(at: 10.016 + ResizeSettle.delay / 2))
     }
 
-    /// Repeated presents at the same width do not restart the wait; only a
-    /// width change does.
     @Test func sameWidthKeepsTheTimeOfTheLastChange() {
         var settle: ResizeSettle = ResizeSettle()
         settle.note(width: 1000, at: 10.0)

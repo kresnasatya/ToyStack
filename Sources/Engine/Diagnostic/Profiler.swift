@@ -36,7 +36,6 @@ final class Profiler: @unchecked Sendable {
         pthread_key_delete(windowKey)
     }
 
-    /// Clears this thread's window.
     func reset() {
         guard enabled else { return }
         window.pointee.reset()
@@ -67,13 +66,10 @@ final class Profiler: @unchecked Sendable {
         window.pointee.add(named: name, nanos: 0, count: amount)
     }
 
-    /// This thread's window.
     func snapshot() -> [String: ProfileMetric] {
         return window.pointee.snapshot()
     }
 
-    /// Writes this thread's window as one counter event. `frame` defaults to
-    /// the frame current when the event is written.
     func emitProfile(into measure: MeasureTime?, named event: String, frame: Int? = nil) {
         guard enabled else { return }
         var args: [String: Int] = [:]

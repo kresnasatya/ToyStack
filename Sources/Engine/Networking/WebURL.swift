@@ -21,7 +21,7 @@ public class WebURL: @unchecked Sendable {
             scheme = "data"
             host = ""
             port = 0
-            let afterScheme: String = String(rawURL.dropFirst(5))  // remove "data:"
+            let afterScheme: String = String(rawURL.dropFirst(5))
             if let commaIdx = afterScheme.firstIndex(of: ",") {
                 mimeType = String(afterScheme[afterScheme.startIndex..<commaIdx])
                 path = String(afterScheme[afterScheme.index(after: commaIdx)...])
@@ -37,7 +37,7 @@ public class WebURL: @unchecked Sendable {
             host = ""
             port = 0
             mimeType = ""
-            path = String(rawURL.dropFirst(12))  // remove "view-source:"
+            path = String(rawURL.dropFirst(12))
             return
         }
 
@@ -45,7 +45,7 @@ public class WebURL: @unchecked Sendable {
             scheme = "about"
             host = ""
             port = 0
-            path = String(rawURL.dropFirst(6))  // "blank" from "about:blank"
+            path = String(rawURL.dropFirst(6))
             mimeType = ""
             return
         }
@@ -109,7 +109,6 @@ public class WebURL: @unchecked Sendable {
         }
 
         if scheme == "file" {
-            // Read the file at `path` and return its contents
             let content: String = try String(contentsOfFile: path, encoding: .utf8)
             return (status: 200, headers: [:], content: content)
         }

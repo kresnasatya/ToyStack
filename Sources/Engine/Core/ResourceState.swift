@@ -1,6 +1,5 @@
 import Foundation
 
-/// Loaded external resources and the policy that decides what may load.
 struct ResourceState {
     var network: NetworkPolicy
     var loadedScripts: Set<String>

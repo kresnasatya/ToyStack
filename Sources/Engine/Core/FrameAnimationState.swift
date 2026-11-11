@@ -1,4 +1,3 @@
-/// Running animation count and the current scroll tween.
 struct FrameAnimationState {
     var activeCount: Int
     var tween: ScrollTween?

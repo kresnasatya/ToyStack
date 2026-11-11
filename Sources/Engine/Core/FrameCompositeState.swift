@@ -1,6 +1,5 @@
 import Foundation
 
-/// Animated effect updates that can avoid a full composite.
 struct FrameCompositeState: Sendable {
     var updates: [NodeID: EffectUpdate]
     var isNeeded: Bool

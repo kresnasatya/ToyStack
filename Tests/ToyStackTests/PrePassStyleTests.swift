@@ -4,8 +4,6 @@ import Testing
 
 @Suite
 struct PrePassStylesTests {
-    /// Full styles and texts live in separate arrays; each entry must still
-    /// come back from its own slot when the two kinds are interleaved.
     @Test func interleavedEntriesComeBackInRecordOrder() {
         var block: ComputedStyle = .initial
         block.layout.display = .block

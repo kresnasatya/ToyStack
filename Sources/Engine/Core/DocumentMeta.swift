@@ -1,6 +1,5 @@
 import Foundation
 
-/// Identity and load status shown by the browser UI.
 struct DocumentMeta {
     var url: WebURL!
     var title: String

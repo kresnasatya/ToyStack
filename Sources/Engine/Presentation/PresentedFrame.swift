@@ -6,7 +6,6 @@ public struct PresentedFrame {
     public let content: RenderedContent
     public let viewport: PresentedViewport
 
-    /// The size the composited content occupies in view pixels.
     public var displayedLayoutSize: CGSize {
         let layoutSize: CGSize = content.source.layoutSize
         return CGSize(

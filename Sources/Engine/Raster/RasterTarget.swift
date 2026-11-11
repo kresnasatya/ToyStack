@@ -8,8 +8,6 @@ import CoreGraphics
 /// tile. Drawing in the screen's colour space moves that work to raster time,
 /// where fills and text are converted once per drawing command.
 public struct RasterTarget: Sendable {
-    /// The colour space CSS colours are written in; used where no screen is
-    /// involved (headless screenshots, canvas backing stores, tests).
     public static let sRGB: CGColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
 
     public let scale: CGFloat

@@ -3,10 +3,6 @@ import Foundation
 
 // MARK: - LayoutDOMView
 
-/// Value view of one DOM node for layout.
-///
-/// Mirrors the small part of `DOMRef` layout reads, backed by `LayoutInputs`.
-/// Mutating DOM (canvas context, iframe viewport) stays a main-actor call.
 struct LayoutDOMView {
     let inputs: LayoutInputs
     let id: NodeID

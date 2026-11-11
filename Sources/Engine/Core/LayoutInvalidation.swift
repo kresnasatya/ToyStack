@@ -50,7 +50,6 @@ enum LayoutInvalidation {
         perform(.imageChanged(node.id), in: node.dom)
     }
 
-    /// Marks `edit` on the tree the DOM's layout box holds now.
     static func apply(_ edit: LayoutEdit, in dom: DOMTree) {
         switch edit {
         case .childrenChanged(let id):

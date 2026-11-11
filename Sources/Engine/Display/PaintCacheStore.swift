@@ -25,7 +25,6 @@ struct PaintCacheStore: Sendable {
         lines[id] = cache
     }
 
-    /// Drops caches for nodes that no longer exist.
     mutating func prune(removing ids: Set<LayoutID>) {
         guard !ids.isEmpty else { return }
         for id in ids {

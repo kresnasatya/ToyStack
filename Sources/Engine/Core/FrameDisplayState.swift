@@ -1,4 +1,3 @@
-/// Paint output, composited updates, the last painted region, and paint's reusable output.
 struct FrameDisplayState: Sendable {
     var paint: FramePaintState
     var composite: FrameCompositeState

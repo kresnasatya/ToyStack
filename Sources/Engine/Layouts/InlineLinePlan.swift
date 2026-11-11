@@ -9,7 +9,6 @@ import CoreGraphics
 /// width that is at least the end of every item that stayed on its line and
 /// less than the end of every item that broke.
 struct InlineLinePlan: Equatable {
-    /// Item indices, one array per line.
     let lines: [[Int]]
     /// Widths that give these breaks, or nil once the items have changed size
     /// (a font refresh keeps the old breaks only so placement can reuse lines).

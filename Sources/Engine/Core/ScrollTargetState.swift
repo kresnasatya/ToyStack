@@ -1,13 +1,11 @@
 import CoreGraphics
 
-/// Cached hit regions for iframes and independently scrollable blocks.
 struct ScrollTargetState {
     var iframes: [IframeTarget]
     var blocks: [ScrollBlockTarget]
     /// Bumped whenever the lists may be wrong: a new tree, a structure change,
     /// or a change to display or overflow. Only compared for equality.
     private(set) var revision: UInt64
-    /// The `revision` the lists were last built for.
     var builtRevision: UInt64
 
     init() {

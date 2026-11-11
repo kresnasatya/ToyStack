@@ -35,8 +35,6 @@ struct BlockContent {
 
 // MARK: - BlockScroll
 
-/// What layout knows about a scroll box: how tall its content is. Where the
-/// box is scrolled to lives in the DOM (`DOMSideTables.scrollOffsets`).
 struct BlockScroll {
     var contentHeight: CGFloat
 

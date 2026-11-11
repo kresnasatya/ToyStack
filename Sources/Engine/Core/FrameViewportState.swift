@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// The frame's own layout viewport in CSS pixels.
 struct FrameViewportState {
     var width: CGFloat
     var height: CGFloat

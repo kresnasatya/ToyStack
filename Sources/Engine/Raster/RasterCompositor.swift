@@ -1,6 +1,5 @@
 import Foundation
 
-/// Builds raster layers from a frozen display list.
 enum RasterCompositor {
     static func compute(
         _ inputs: RasterInput,
@@ -67,7 +66,6 @@ enum RasterCompositor {
         return compositedLayers
     }
 
-    /// Any effect boundary means the list must be split into layers.
     private static func hasEffectScopes(_ ops: [DisplayOp]) -> Bool {
         for op in ops {
             switch op {

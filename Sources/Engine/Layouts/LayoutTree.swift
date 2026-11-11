@@ -15,10 +15,7 @@ struct LayoutTree: @unchecked Sendable {
     private(set) var primaryByNode: [NodeID: LayoutID]
     var dependencies: DependencyIndex
     private var source: LayoutTreeSource
-    /// Nodes that may have left the tree: appended but not yet attached, or
-    /// dropped from their parent's children. The sweep looks only at these.
     private var detached: Set<LayoutID> = []
-    /// A pure width/geometry pass detaches nothing and skips the sweep.
     var needsSweep: Bool { !detached.isEmpty }
     var textRuns: [LayoutID: TextRun] = [:]
     /// Fragment values are collected while paint migrates off text nodes.
@@ -299,9 +296,6 @@ struct LayoutTree: @unchecked Sendable {
         })
     }
 
-    /// Frees the nodes that left the tree since the last sweep: every detached
-    /// node that was not attached again, with its subtree. Returns the dropped
-    /// IDs, so callers can invalidate caches that may hold them.
     @discardableResult
     mutating func sweepUnreachable() -> Set<LayoutID> {
         var removed: Set<LayoutID> = []
@@ -348,8 +342,6 @@ struct LayoutTree: @unchecked Sendable {
     }
 
     #if DEBUG
-    /// The targeted sweep must drop exactly the nodes a full walk from the root
-    /// cannot reach.
     private func assertSweepMatchesReachability(_ removed: Set<LayoutID>) {
         var reachable: Set<LayoutID> = []
         collectReachable(rootID, into: &reachable)
@@ -407,7 +399,6 @@ struct LayoutTree: @unchecked Sendable {
         })
     }
 
-    /// Marks the layout fields that read one DOM node's changed style properties.
     mutating func consumeStyleChanges(for node: NodeID) {
         for property in inputs.styleChanges(node) {
             markDependents(of: .style(node, property))
@@ -531,7 +522,6 @@ struct LayoutTree: @unchecked Sendable {
         self[node: id].state.fields.inlineText.inlineContent = value
     }
 
-    /// Writes a computed value and dirties the fields that read it.
     mutating func setField(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         let wasUsed: Bool = isUsed(field, at: id)
         let changed: Bool = !wasUsed || storedCGFloat(field, at: id) != value
@@ -591,7 +581,6 @@ struct LayoutTree: @unchecked Sendable {
         }
     }
 
-    /// Writes a value without counting it as a computed change.
     mutating func setFieldClean(_ field: LayoutField, _ value: CGFloat, for id: LayoutID) {
         writeCGFloat(field, value, for: id)
         markUsed(field, at: id)
@@ -702,7 +691,6 @@ struct LayoutTree: @unchecked Sendable {
         }
     }
 
-    /// Marks fields used and clean in one write to the node.
     private mutating func markUsedClean(_ fields: [LayoutField], at id: LayoutID) {
         for field in fields {
             self[node: id].state.fields.markUsed(field)
@@ -710,7 +698,6 @@ struct LayoutTree: @unchecked Sendable {
         }
     }
 
-    /// Records the dependency edges of fields that were not used before.
     private mutating func registerInputs(of fields: [LayoutField], notIn used: UInt16, for id: LayoutID) {
         for field in fields where used & field.mask == 0 {
             let dependent: FieldKey = .layout(id, field)
@@ -720,7 +707,6 @@ struct LayoutTree: @unchecked Sendable {
         }
     }
 
-    /// Counts a changed computed value and dirties the fields that read it.
     private mutating func noteFieldSet(_ field: LayoutField, at id: LayoutID) {
         profiler.count("layout.field.set")
         markDependents(of: .layout(id, field))
@@ -903,7 +889,6 @@ struct LayoutTree: @unchecked Sendable {
 
 // MARK: - Node accessors
 
-/// Value API for one layout node, keyed by id.
 extension LayoutTree {
     mutating func markDependents(of key: FieldKey) {
         for dependent in dependencies.fields(for: key) {
@@ -1037,7 +1022,6 @@ extension LayoutTree {
         }
     }
 
-    /// What a node holds only while a payload subscript is modifying its data.
     private static let vacatedKind: LayoutKind = .document(DocumentData(pageZoom: 1))
 
     subscript(line id: LayoutID) -> LineData {

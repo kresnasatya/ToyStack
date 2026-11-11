@@ -12,8 +12,6 @@ struct GenerationStagingTests {
         #expect(staging.waiting == nil)
     }
 
-    /// A started upload is never thrown away for a newer layout: the newer
-    /// frame waits until the current generation is on screen.
     @Test func newerGenerationWaitsBehindTheOneBeingStaged() {
         var staging: GenerationStaging<String> = GenerationStaging()
         _ = staging.offer("a", generation: 1)
@@ -23,8 +21,6 @@ struct GenerationStagingTests {
         #expect(staging.waiting?.frame == "b")
     }
 
-    /// The same generation can arrive again with a new scroll offset; the
-    /// upload continues with the newer frame instead of starting over.
     @Test func sameGenerationRefreshesTheFrameBeingStaged() {
         var staging: GenerationStaging<String> = GenerationStaging()
         _ = staging.offer("a", generation: 1)
@@ -50,8 +46,6 @@ struct GenerationStagingTests {
         #expect(staging.current == nil)
     }
 
-    /// A repeat of the generation being uploaded updates that upload, even
-    /// while a newer frame is waiting behind it.
     @Test func currentGenerationRefreshesWhileAFrameWaits() {
         var staging: GenerationStaging<String> = GenerationStaging()
         _ = staging.offer("a", generation: 1)
@@ -96,7 +90,6 @@ struct GenerationStagingTests {
         #expect(staging.waiting == nil)
     }
 
-    /// While the drag is still moving, a started upload is finished.
     @Test func movingResizeKeepsTheStartedUpload() {
         var staging: GenerationStaging<String> = GenerationStaging()
         _ = staging.offer("stale", generation: 1)

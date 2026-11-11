@@ -1,6 +1,5 @@
 import Foundation
 
-/// One document node. The payload is tagged and the tree links live in `base`.
 struct DOMNode {
     var kind: DOMKind
     var base: DOMBase

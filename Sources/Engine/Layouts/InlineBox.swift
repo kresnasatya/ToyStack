@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// A laid-out text fragment inside a line. It is a value, not a tree node.
 import Foundation
 
 struct InlineBox: Equatable {

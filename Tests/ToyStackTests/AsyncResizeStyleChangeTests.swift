@@ -8,9 +8,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct AsyncResizeStyleChangeTests {
-    /// A flip pass starts a background job, then the next resize moves the
-    /// viewport before it installs. The job is installed as an intermediate
-    /// layout; the pass for the final width must keep the new font.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -46,8 +43,6 @@ struct AsyncResizeStyleChangeTests {
         page.frame.render()
         try await settle()
 
-        // The flip pass starts a job for 700. The next resize makes it stale
-        // before it can install.
         page.tab.resize(width: 700, height: page.frame.frameHeight)
         page.frame.render()
         page.tab.resize(width: 650, height: page.frame.frameHeight)

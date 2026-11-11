@@ -22,12 +22,12 @@ import Testing
 
     @Test func containsPointOnLeftEdge() {
         let r = Rect(left: 0, top: 0, right: 100, bottom: 50)
-        #expect(r.containsPoint(0, 0))  // inclusive
+        #expect(r.containsPoint(0, 0))
     }
 
     @Test func containsPointOnRightEdge() {
         let r = Rect(left: 0, top: 0, right: 100, bottom: 50)
-        #expect(!r.containsPoint(100, 25))  // exclusive
+        #expect(!r.containsPoint(100, 25))
     }
 
     @Test func containsPointOutside() {
@@ -41,8 +41,8 @@ import Testing
         let cg = r.cgRect
         #expect(cg.origin.x == 10)
         #expect(cg.origin.y == 20)
-        #expect(cg.size.width == 50)  // right - left
-        #expect(cg.size.height == 60)  // bottom - top
+        #expect(cg.size.width == 50)
+        #expect(cg.size.height == 60)
     }
 
     // MARK: - init(cgRect:) - round trip
@@ -51,7 +51,7 @@ import Testing
         let r = Rect(cgRect: cg)
         #expect(r.left == 5)
         #expect(r.top == 15)
-        #expect(r.right == 45)  // minX + width
-        #expect(r.bottom == 45)  // minY + height
+        #expect(r.right == 45)
+        #expect(r.bottom == 45)
     }
 }

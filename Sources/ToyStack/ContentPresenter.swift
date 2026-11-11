@@ -11,7 +11,6 @@ final class ContentPresenter: @unchecked Sendable {
         var hidden: Bool
     }
 
-    /// One tile image waiting to be bound to its layer.
     private struct LayerRebind {
         let distance: CGFloat
         let layer: CALayer
@@ -44,13 +43,10 @@ final class ContentPresenter: @unchecked Sendable {
     private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
     private var lastDeferred: Int = 0
     private var lastBoundGeneration: UInt64 = 0
-    /// Generation uploading behind the layers on screen, and the newest frame
-    /// waiting for it.
     private var staging: GenerationStaging<PresentedFrame> = GenerationStaging()
     /// When the view width last changed, so a finished drag can skip an
     /// upload laid out for a width the window no longer has.
     private var resizeSettle: ResizeSettle = ResizeSettle()
-    /// When the last present started; follow-up presents are paced from it.
     private var lastPresentStart: CFTimeInterval = 0
     private var pendingLayers: [LayerPlacementKey: Slot] = [:]
     private var drainScheduled: Bool = false
@@ -388,8 +384,6 @@ final class ContentPresenter: @unchecked Sendable {
         return skipped
     }
 
-    /// True when the tiles of `frame` still unbound in `pendingLayers` fit
-    /// `budget`, so `stageGeneration` completes it in this present.
     private func finishesThisPresent(_ frame: PresentedFrame, budget: PresentUploadBudget) -> Bool {
         var left: [Int] = []
         for placed in frame.content.placements {

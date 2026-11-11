@@ -140,7 +140,6 @@ struct InlineBoxTests {
         profiler.reset()
         page.frame.render()
 
-        // No line was placed again; every line only moved.
         let metrics: [String: ProfileMetric] = profiler.snapshot()
         #expect(page.tree.y(line) > yBefore)
         #expect((metrics["layout.line.place.placed"]?.count ?? 0) == 0)

@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// One rasterizable slice of the display list.
 public struct RasterLayer: Sendable {
     var identity: LayerIdentity
     var content: LayerContent

@@ -3,7 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// A style change that only touches pixels must not run a document layout pass.
 @Suite(.serialized)
 @MainActor
 struct StyleReflowTests {

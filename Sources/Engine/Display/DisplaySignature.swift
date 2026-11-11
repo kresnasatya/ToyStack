@@ -1,11 +1,5 @@
 import Foundation
 
-// A stable textual signature of a display list.
-//
-// Two signatures are equal when the same commands cover the same geometry with
-// the same painted content. Used by the headless runner to detect a settled
-// frame and by the differential layout oracle to compare an incremental render
-// with a full rebuild.
 public func displaySignature(_ list: [DisplayOp]) -> String {
     var parts: [String] = []
     parts.reserveCapacity(list.count)

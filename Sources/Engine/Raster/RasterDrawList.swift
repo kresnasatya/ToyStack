@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// Turns raster layers and effect scopes into the draw list handed to a renderer.
 enum RasterDrawList {
     static func compute(layers: [RasterLayer], inputs: RasterInput) -> [DisplayOp] {
         var layerByIndex: [Int: RasterLayer] = [:]

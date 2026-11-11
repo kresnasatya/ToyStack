@@ -220,7 +220,6 @@ public class Browser: ObservableObject {
         dispatchPresent(frameID: currentFrameID)
     }
 
-    /// Drops a queued preview when the frame clock takes over with a real frame.
     private func cancelPreviewPresent() {
         previewPresentID &+= 1
         previewPresentScheduled = false
@@ -902,7 +901,6 @@ public class Browser: ObservableObject {
 
         let allNodes: [AccessibilityNode] = treeToList(tree)
 
-        // --- Live Regions (aria-live) ---
         let liveNodes: [AccessibilityNode] = allNodes.filter({ $0.live != "off" })
         for node in liveNodes {
             let key: NodeID = node.node.id
@@ -923,7 +921,6 @@ public class Browser: ObservableObject {
             }
         }
 
-        // --- Legacy "role=alert" (backward compat) ---
         let activeAlerts: [AccessibilityNode] = allNodes.filter({ $0.role == "alert" })
         for alert in activeAlerts {
             if !spokenAlerts.contains(where: { $0.node.id == alert.node.id }) {

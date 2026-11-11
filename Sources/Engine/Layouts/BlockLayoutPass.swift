@@ -90,7 +90,6 @@ extension LayoutTree {
         return inputs
     }
 
-    // Only leaves this block lays out inline. Nested blocks own their own inputs.
     private func inlineLeaves(_ id: LayoutID) -> [LayoutDOMView] {
         var leaves: [LayoutDOMView] = []
         let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
@@ -123,9 +122,6 @@ extension LayoutTree {
 
     // MARK: - Line plan
 
-    /// Returns where the block's inline items break at its current width. A
-    /// stored plan is reused while the width stays inside the range that gives
-    /// exactly the same breaks (`InlineLinePlan.fits`).
     mutating private func inlineTextLinePlan(_ id: LayoutID) -> InlineLinePlan? {
         let availableWidth: CGFloat = width(id)
         if let stored: InlineLinePlan = self[block: id].content.inlineLinePlan,
@@ -140,7 +136,6 @@ extension LayoutTree {
         var cursorX: CGFloat = 0
         var updated: [InlineItem] = items
         var measuredNewWord: Bool = false
-        // Ends of wrapping items that stayed on their line, and that broke.
         var widestKept: CGFloat = 0
         var narrowestBreak: CGFloat = .infinity
 
@@ -478,8 +473,6 @@ extension LayoutTree {
         }
     }
 
-    /// Puts one geometry pass in exactly one `layout.width.*` bucket. A block
-    /// laid out for the first time counts as a width change.
     private func countWidthChange(from old: GeometryFields, widthWasUsed: Bool, at id: LayoutID) {
         let new: GeometryFields = self[node: id].state.fields.geometry
         if !widthWasUsed || old.size.width != new.size.width {
@@ -870,9 +863,6 @@ extension LayoutTree {
         profiler.count("layout.lines.total", by: placement.lines.count)
     }
 
-    /// Updates a reused line's owned widths after a font/zoom refresh. The
-    /// text nodes keep their identity, but their metrics and line widths must
-    /// follow the newly measured items.
     mutating private func refreshReusedLine(
         _ line: LayoutID,
         items: [InlineItem]
@@ -903,8 +893,6 @@ extension LayoutTree {
         self[line: line].content.inlineWidths = widths
     }
 
-    /// Places a changed line plan. Lines whose item range is unchanged keep
-    /// their existing children; only shifted or re-broken lines are rebuilt.
     mutating private func placeInlineItems(
         _ id: LayoutID,
         plan: [[Int]],
@@ -1037,8 +1025,6 @@ extension LayoutTree {
         return true
     }
 
-    /// Returns true when the existing inline item ranges are still valid and
-    /// the old line plan may be reused for placement.
     @discardableResult
     mutating private func refreshInlineItems(_ id: LayoutID, preservingObjects: Bool) -> Bool {
         var data: BlockData = self[block: id]
@@ -1661,7 +1647,6 @@ extension LayoutTree {
         return min(offset, blockScrollRange(id))
     }
 
-    /// How far a scroll box can scroll in this layout.
     func blockScrollRange(_ id: LayoutID) -> CGFloat {
         return max(0, blockContentHeight(id) - height(id))
     }
@@ -1693,7 +1678,6 @@ enum EmbedMatch {
 
 // MARK: - Block child build
 
-// Mutable cursor for one pass of the block child builder.
 private struct BlockChildBuild {
     var built: [LayoutID] = []
     var previous: LayoutID?

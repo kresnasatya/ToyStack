@@ -3,9 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// After a layout pass, the live layout nodes are exactly the ones reachable
-/// from the root. The sweep finds the rest, and it should look only at what
-/// the pass detached, not at the whole tree.
 @Suite(.serialized)
 @MainActor
 struct LayoutSweepTests {
@@ -26,7 +23,6 @@ struct LayoutSweepTests {
         )
         let live: Int = page.tree.liveIDs.count
 
-        // The long paragraph gains lines; nothing else re-breaks.
         page.frame.setViewport(width: 300, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()
@@ -44,8 +40,6 @@ struct LayoutSweepTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// Re-breaks, moved lines, and DOM edits that detach, re-attach, and
-    /// replace subtrees.
     @Test func noUnreachableNodeSurvivesAPass() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: """

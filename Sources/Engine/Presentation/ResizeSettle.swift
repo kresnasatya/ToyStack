@@ -7,7 +7,6 @@ import Foundation
 /// width change arrives for `delay`, the drag has paused or ended, and the
 /// last layout is the one worth showing.
 public struct ResizeSettle {
-    /// Two display frames without a width change.
     public static let delay: TimeInterval = 2.0 / 60.0
 
     private var width: CGFloat?
@@ -15,7 +14,6 @@ public struct ResizeSettle {
 
     public init() {}
 
-    /// Records the view width of a present at time `now`.
     public mutating func note(width newWidth: CGFloat, at now: TimeInterval) {
         guard newWidth != width else { return }
         width = newWidth

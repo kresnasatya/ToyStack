@@ -38,7 +38,6 @@ final class DOMTree {
         return nodes[Int(id.raw)]
     }
 
-    /// Walks every live node id in allocation order.
     func forEachNode(_ body: (NodeID) -> Void) {
         for index in nodes.indices where nodes[index] != nil {
             body(NodeID(raw: UInt32(index)))
@@ -277,8 +276,6 @@ final class DOMTree {
         return DOMRef(id: id, dom: self)
     }
 
-    /// Copies one subtree from another tree into `parent`. Used by `innerHTML`,
-    /// which parses into a scratch document.
     func cloneSubtree(_ source: DOMTree, _ sourceID: NodeID, into parent: NodeID) {
         guard let node: DOMNode = source.node(sourceID) else { return }
         switch node.kind {

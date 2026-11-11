@@ -1,4 +1,3 @@
-/// Work that must reach the next animation frame.
 struct FrameScheduleState {
     var needsRender: Bool
 

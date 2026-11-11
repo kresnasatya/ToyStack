@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// The last effect bitmap generated for a layer.
 public struct LayerEffectImage: Sendable {
     var image: CGImage?
     var key: EffectImageKey?

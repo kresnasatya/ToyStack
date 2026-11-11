@@ -1,6 +1,5 @@
 import Foundation
 
-/// Sorted rules plus the revisions that decide when the index is rebuilt.
 struct RuleList {
     var sorted: [RuleIndex.Rule]
     var index: RuleIndex

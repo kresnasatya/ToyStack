@@ -46,8 +46,6 @@ struct PresentUploadBudgetTests {
         #expect(!budget.admitsAll(pixels: [3_000_000, 1_000_001]))
     }
 
-    /// `take` lets one oversized tile through when it comes first, so a
-    /// single oversized tile still finishes in one present.
     @Test func singleOversizedTileFitsOnePresent() {
         let budget: PresentUploadBudget = PresentUploadBudget(pixels: 4_000_000)
         #expect(budget.admitsAll(pixels: [6_000_000]))
@@ -67,8 +65,6 @@ struct PresentUploadBudgetTests {
         #expect(budget.pixels == PresentUploadBudget.generationPixels)
     }
 
-    /// A 1440-wide window holds 132 tiles of 256 x 256. Once settled they
-    /// must go up in 3 presents, not 5.
     @Test func settledWideWindowUploadsInThreePresents() {
         var left: Int = 132
         var presents: Int = 0

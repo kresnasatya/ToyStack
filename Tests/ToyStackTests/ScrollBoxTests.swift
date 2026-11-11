@@ -3,9 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// A box with `overflow: scroll` keeps where it is scrolled to in the DOM.
-/// Layout only decides how far it can scroll; paint shows the box at the
-/// DOM offset, bounded by that range.
 @Suite(.serialized)
 @MainActor
 struct ScrollBoxTests {
@@ -39,7 +36,6 @@ struct ScrollBoxTests {
         #expect(Self.paintedScrollOffsets(page) == [25], "scrollTop did not reach the painted box")
     }
 
-    /// An offset past the end of the content shows the end, not empty space.
     @Test func offsetPastTheEndShowsTheEnd() throws {
         let page: LayoutTestPage = Self.makePage()
         let box: ElementRef = try #require(page.firstElement(id: "box"))
@@ -56,7 +52,6 @@ struct ScrollBoxTests {
         #expect(Self.paintedScrollOffsets(page) == [range])
     }
 
-    /// A click inside a scrolled box lands on the content painted under it.
     @Test func hitTestFollowsTheScrollPosition() throws {
         let page: LayoutTestPage = Self.makePage()
         let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
@@ -83,7 +78,6 @@ struct ScrollBoxTests {
 
     // MARK: - Helpers
 
-    /// The `<p>` that a hit test at (x, y) lands in, if any.
     private static func hitParagraph(_ page: LayoutTestPage, x: CGFloat, y: CGFloat) -> NodeID? {
         guard let hit: LayoutHit = page.tree.hitTest(page.tree.rootID, x: x, y: y) else { return nil }
         var node: DOMRef? = DOMRef(id: hit.dom, dom: page.frame.dom)
@@ -93,7 +87,6 @@ struct ScrollBoxTests {
         return node?.id
     }
 
-    /// The `<p>` whose laid-out box covers document height `y`, ignoring scroll.
     private static func paragraph(in page: LayoutTestPage, containing y: CGFloat) -> NodeID? {
         return treeToList(page.frame.nodes)
             .filter({ $0.element?.tag == "p" })
@@ -105,7 +98,6 @@ struct ScrollBoxTests {
             .id
     }
 
-    /// The offset of every scroll effect in a fresh paint of the page.
     private static func paintedScrollOffsets(_ page: LayoutTestPage) -> [CGFloat] {
         page.frame.setNeedsPaint()
         page.frame.paint()

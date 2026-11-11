@@ -391,8 +391,6 @@ struct ViewportResizeTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// A narrower window that still fits every line, and does not let a word
-    /// move up a line, keeps the same breaks. The block must not recompute them.
     @Test func widthChangeThatKeepsEveryBreakReusesTheLinePlan() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="para">one two three<br>four five</p>"#,

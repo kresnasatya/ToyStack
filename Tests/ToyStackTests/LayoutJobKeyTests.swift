@@ -15,7 +15,6 @@ struct LayoutJobKeyTests {
         #expect(Self.key.isStale(currentSize: CGSize(width: 400, height: 600), currentZoom: 1))
     }
 
-    /// Height-only resizes during a pass must still be laid out after it.
     @Test func heightChangeMakesAJobStale() {
         #expect(Self.key.isStale(currentSize: CGSize(width: 800, height: 500), currentZoom: 1))
     }

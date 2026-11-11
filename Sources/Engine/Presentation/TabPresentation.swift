@@ -1,4 +1,3 @@
-/// Committed state one tab presents or is about to present.
 struct TabPresentation {
     var display: TabDisplayState
     var scroll: ScrollState
