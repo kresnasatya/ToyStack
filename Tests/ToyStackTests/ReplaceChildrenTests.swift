@@ -21,7 +21,7 @@ struct ReplaceChildrenTests {
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
         let removed: [DOMRef] = box.children
-        let heightBefore: CGFloat = try #require(box.ref.layoutID).map({ page.tree.height($0) }) ?? 0
+        let heightBefore: CGFloat = try page.tree.height(#require(box.ref.layoutID))
 
         page.frame.js.run(script: "replaceChildren", code: "document.getElementById('box').replaceChildren()")
 
@@ -54,8 +54,8 @@ struct ReplaceChildrenTests {
         let two: NodeID = donor.children[1].id
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
 
-        let boxHeightBefore: CGFloat = try #require(page.ref(of: box).layoutID).map({ page.tree.height($0) }) ?? 0
-        let donorHeightBefore: CGFloat = try #require(page.ref(of: donor).layoutID).map({ page.tree.height($0) }) ?? 0
+        let boxHeightBefore: CGFloat = try page.tree.height(#require(page.ref(of: box).layoutID))
+        let donorHeightBefore: CGFloat = try page.tree.height(#require(page.ref(of: donor).layoutID))
 
         page.frame.js.run(
             script: "replaceChildren",

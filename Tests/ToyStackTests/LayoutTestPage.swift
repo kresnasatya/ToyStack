@@ -46,7 +46,7 @@ struct LayoutTestPage {
     }
 
     var tree: LayoutTree {
-        guard var tree: LayoutTree = frame.document else {
+        guard let tree: LayoutTree = frame.document else {
             preconditionFailure("page has no layout tree")
         }
         return tree
@@ -60,7 +60,7 @@ struct LayoutTestPage {
         in element: ElementRef,
         where predicate: (LayoutID, LayoutTree) -> Bool
     ) -> LayoutID? {
-        guard var tree: LayoutTree = frame.document,
+        guard let tree: LayoutTree = frame.document,
             let primary: LayoutID = element.ref.layoutID
         else { return nil }
         return treeToList(tree, primary).first(where: { predicate($0, tree) })

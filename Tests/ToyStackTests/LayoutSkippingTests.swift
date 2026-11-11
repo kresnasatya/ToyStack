@@ -41,7 +41,7 @@ struct LayoutSkippingTests {
                 div { display: block; height: 10px; }
                 """
         )
-        var document: LayoutTree = page.tree
+        let document: LayoutTree = page.tree
         let leaf: ElementRef = try #require(
             treeToList(page.frame.nodes)
                 .compactMap({ $0.element })

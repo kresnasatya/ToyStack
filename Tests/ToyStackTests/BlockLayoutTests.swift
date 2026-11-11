@@ -22,7 +22,7 @@ struct BlockLayoutTests {
         let p: ElementRef = try #require(
             treeToList(frame.nodes).compactMap({ $0.element }).first(where: { $0.tag == "p" })
         )
-        var document: LayoutTree = try #require(frame.document)
+        let document: LayoutTree = try #require(frame.document)
         let block: LayoutID = try #require(p.ref.layoutID)
         let parentID: LayoutID = try #require(document.parentID(of: block))
         let parentWidth: CGFloat = document.width(parentID)

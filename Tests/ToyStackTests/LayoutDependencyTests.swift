@@ -9,7 +9,7 @@ struct LayoutDependencyTests {
 
     @Test func unusedFieldsHaveNoEdges() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
 
         for object in treeToList(document, document.rootID) {
             for field in LayoutField.allCases where !document.isUsed(field, at: object) {
@@ -25,7 +25,7 @@ struct LayoutDependencyTests {
 
     @Test func widthFlowsDownAndHeightFlowsBackUp() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
         let root: LayoutID = try #require(document.childrenIDs(of: document.rootID).first)
         let body: LayoutID = try #require(document.childrenIDs(of: root).first)
         let box: LayoutID = try #require(document.childrenIDs(of: body).first)
@@ -42,7 +42,7 @@ struct LayoutDependencyTests {
 
     @Test func fontFieldOwnsTheParentStyleInputs() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
         let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutID = try #require(page.firstBlockID(in: paragraph))
         let text: LayoutID = try #require(
@@ -88,7 +88,7 @@ struct LayoutDependencyTests {
         let p: ElementRef = try #require(page.firstElement(tag: "p"))
         let block: LayoutID = try #require(page.firstBlockID(in: p))
         let line: LayoutID = try #require(page.firstLineID(in: p))
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
 
         let widthInputs: Set<FieldKey> = document.dependencies.fieldKeys(
             for: .layout(block, .width)
@@ -171,7 +171,7 @@ struct LayoutDependencyTests {
 
     @Test func tableAnswersEveryFieldCase() throws {
         let page: LayoutTestPage = makeDependencyPage()
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
 
         for ref in treeToList(document, document.rootID) {
             for field in LayoutField.allCases {
@@ -381,7 +381,7 @@ private func depends(
 
 @MainActor
 private func expectTableMatchesIndex(_ page: LayoutTestPage) throws {
-    var document: LayoutTree = try #require(page.frame.document)
+    let document: LayoutTree = try #require(page.frame.document)
     try expectTableMatchesIndex(document)
 }
 

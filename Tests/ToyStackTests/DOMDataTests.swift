@@ -7,14 +7,14 @@ import Testing
 @MainActor
 struct DOMDataTests {
     @Test func payloadsHaveValueSemantics() {
-        var element: ElementData = ElementData(tag: "p", attributes: ["id": "a"], isChecked: false)
+        let element: ElementData = ElementData(tag: "p", attributes: ["id": "a"], isChecked: false)
         var copy: ElementData = element
         copy.tag = "div"
         copy.attributes["id"] = "b"
         #expect(element.tag == "p")
         #expect(element.attributes["id"] == "a")
 
-        var text: DOMTextData = DOMTextData(text: "hello")
+        let text: DOMTextData = DOMTextData(text: "hello")
         var textCopy: DOMTextData = text
         textCopy.text = "bye"
         #expect(text.text == "hello")

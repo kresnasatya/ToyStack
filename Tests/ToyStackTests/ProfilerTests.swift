@@ -27,12 +27,11 @@ struct ProfilerTests {
         profiler.reset()
         profiler.count("test.here", by: 3)
 
-        var elsewhere: [String: ProfileMetric] = [:]
-        Self.onOtherThread {
+        let elsewhere: [String: ProfileMetric] = Self.onOtherThread {
             profiler.reset()
             profiler.count("test.elsewhere", by: 2)
             profiler.measure("test.timed", { () -> Void in })
-            elsewhere = profiler.snapshot()
+            return profiler.snapshot()
         }
 
         #expect(elsewhere["test.elsewhere"]?.count == 2)
@@ -51,13 +50,24 @@ struct ProfilerTests {
         #expect(profiler.snapshot()["test.merged"]?.count == 7)
     }
 
-    private static func onOtherThread(_ body: @escaping () -> Void) {
+    private static func onOtherThread<Result>(_ body: @escaping @Sendable () -> Result) -> Result {
+        let box: ThreadResultBox<Result> = ThreadResultBox()
         let done: DispatchSemaphore = DispatchSemaphore(value: 0)
         let thread: Thread = Thread {
-            body()
+            box.value = body()
             done.signal()
         }
         thread.start()
         done.wait()
+        guard let value: Result = box.value else {
+            preconditionFailure("thread finished without a result")
+        }
+        return value
     }
+}
+
+// MARK: - ThreadResultBox
+
+private final class ThreadResultBox<Value>: @unchecked Sendable {
+    var value: Value?
 }

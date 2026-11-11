@@ -184,7 +184,7 @@ struct LayoutOracleTests {
         page.frame.setPageZoom(2)
         page.frame.render()
 
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
         let paragraphAfter: LayoutID = try #require(
             page.ref(of: paragraph).layoutID
         )
@@ -351,7 +351,7 @@ struct LayoutOracleTests {
         page.frame.setNeedsRender()
         page.frame.render()
 
-        var document: LayoutTree = try #require(page.frame.document)
+        let document: LayoutTree = try #require(page.frame.document)
         expectAllLayoutFieldsClean(document)
         for node in treeToList(page.frame.nodes) {
             #expect(!node.style.isDirty)
