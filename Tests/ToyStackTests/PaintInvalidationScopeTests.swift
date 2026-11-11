@@ -3,13 +3,9 @@ import Testing
 
 @testable import Engine
 
-/// A paint-only style change on one element must not throw away the paint
-/// caches of every other block and line.
-///
 /// The paint epoch used to be global: any painted style change bumped it, so a
 /// link's hover colour re-emitted all 113 blocks and all 58 lines on the front
-/// page. The caches are now keyed by the style revision of the node (or, for a
-/// line, of the owners of its boxes), so only the affected line re-emits.
+/// page.
 @Suite(.serialized)
 @MainActor
 struct PaintInvalidationScopeTests {
@@ -62,8 +58,6 @@ struct PaintInvalidationScopeTests {
         #expect(redLinkText, "the repainted line must carry the new colour")
     }
 
-    /// An incremental paint must equal a paint with every cache invalidated.
-    ///
     /// Crossing the font breakpoint changes both the line generation and the
     /// style revisions of the box owners. Mixing those two inputs into one
     /// number with XOR let the changes cancel out (`8 ^ 1 == 11 ^ 2`) and the

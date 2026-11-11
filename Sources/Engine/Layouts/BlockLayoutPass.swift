@@ -58,8 +58,8 @@ extension LayoutTree {
         return self[block: id].content.extraNodes.map({ domView($0) })
     }
 
-    /// True for an anonymous block that wraps inline nodes. Cheaper than
-    /// `blockExtraNodes(_:).isEmpty`, which builds the views.
+    /// Cheaper than `blockExtraNodes(_:).isEmpty`, which builds the
+    /// views.
     func hasExtraNodes(_ id: LayoutID) -> Bool {
         return !self[block: id].content.extraNodes.isEmpty
     }
@@ -1635,9 +1635,8 @@ extension LayoutTree {
 
     // MARK: - Scroll
 
-    /// Where a scroll box shows its content from. The offset lives in the DOM,
-    /// so no layout can move it back; this layout only bounds it to the
-    /// content it produced.
+    /// The offset lives in the DOM, so no layout can move it back; this layout
+    /// only bounds it to the content it produced.
     @MainActor
     func blockScrollOffset(_ id: LayoutID) -> CGFloat {
         guard domView(id).element != nil,

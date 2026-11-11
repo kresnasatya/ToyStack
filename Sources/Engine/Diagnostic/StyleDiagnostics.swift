@@ -2,15 +2,10 @@ import Foundation
 
 // MARK: - StyleDiagnostics
 
-/// Opt-in audit log for style passes.
-///
 /// When `TOYSTACK_STYLE_LOG=1` is set, every style pass writes a header
 /// (viewport or other, width, flipped media queries, applied node count) and
 /// one line for every node whose font size changes. That names the nodes that
 /// a resize failed to update, which the trace counters cannot express.
-///
-/// The log goes to `/tmp/toystack-style.log`. It is a diagnostic only; with
-/// the variable unset nothing is written and no file is created.
 @MainActor
 enum StyleDiagnostics {
     static let isEnabled: Bool =

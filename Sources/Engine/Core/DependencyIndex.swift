@@ -1,7 +1,5 @@
 import Foundation
 
-/// Reverse edges from an input field to the layout fields that read it.
-///
 /// The graph is rebuilt from `LayoutInputTable`, which is the only place that
 /// declares an edge. A write walks the index once; reads never touch it.
 struct DependencyIndex {
@@ -21,17 +19,14 @@ struct DependencyIndex {
         }
     }
 
-    /// Layout fields that read `key`.
-    ///
     /// The index is kept fresh by `reindex` at the structural and style
     /// mutation sites, so a read does not rebuild or copy it.
     func fields(for key: FieldKey) -> Set<FieldKey> {
         return dependents[key] ?? []
     }
 
-    /// Adds one edge without rebuilding the whole graph. Used when a node is
-    /// created during a layout pass, so its first field writes still reach
-    /// the fields that read them.
+    /// Used when a node is created during a layout pass, so its first field
+    /// writes still reach the fields that read them.
     mutating func add(_ dependent: FieldKey, for key: FieldKey) {
         dependents[key, default: []].insert(dependent)
         inputsByDependent[dependent, default: []].insert(key)
@@ -156,8 +151,6 @@ struct DependencyIndex {
         return dependents[key]?.count ?? 0
     }
 
-    /// Input keys that the given field depends on.
-    ///
     /// The index is stored input-first, so this is the inverse lookup. Internal
     /// so tests can compare the reverse index against `LayoutInputTable`.
     func fieldKeys(for dependent: FieldKey) -> Set<FieldKey> {

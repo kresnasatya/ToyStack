@@ -1,8 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// Tells whether the view width has stopped changing.
-///
 /// A window drag delivers a new width about every display frame. When no
 /// width change arrives for `delay`, the drag has paused or ended, and the
 /// last layout is the one worth showing.

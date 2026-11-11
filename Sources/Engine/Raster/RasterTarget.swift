@@ -1,8 +1,5 @@
 import CoreGraphics
 
-/// What a rasterized bitmap is made for: device pixels per point, and the
-/// colour space of the screen that shows it.
-///
 /// Core Animation converts a bitmap in another colour space one pixel at a
 /// time while it commits, on the presenter's thread: ~0.42 ms per 256 × 256
 /// tile. Drawing in the screen's colour space moves that work to raster time,

@@ -3,8 +3,6 @@ import Foundation
 
 // MARK: - LayoutTree
 
-/// Arena of layout nodes. One tree belongs to one document (`DOMTree`).
-///
 /// Nodes are append-only: removing a subtree writes `nil` into the hole and
 /// never reuses the ID, so a stale `LayoutID` cannot point at another node.
 struct LayoutTree: @unchecked Sendable {
@@ -167,9 +165,9 @@ struct LayoutTree: @unchecked Sendable {
         return ids
     }
 
-    /// Borrows the node in place. Reading one field through it copies only
-    /// that field, and writing through it changes the stored node without
-    /// copying the rest of it (kind payload, children, font).
+    /// Reading one field through it copies only that field, and writing
+    /// through it changes the stored node without copying the rest of it
+    /// (kind payload, children, font).
     subscript(node id: LayoutID) -> LayoutNode {
         _read {
             guard !nodes[id.raw].state.isRemoved else {
@@ -267,8 +265,6 @@ struct LayoutTree: @unchecked Sendable {
         nodes[id.raw] = .removed(dom: dom)
     }
 
-    /// Removes dependency edges owned by and pointing at the given nodes.
-    ///
     /// Must run before the nodes are cleared, because the used-field mask is
     /// read from each node.
     mutating func removeDependencyEdges(for ids: Set<LayoutID>) {
@@ -325,8 +321,8 @@ struct LayoutTree: @unchecked Sendable {
         return removed
     }
 
-    /// A detached node and the descendants it still owns. A child another
-    /// parent adopted is skipped: its parent link points elsewhere.
+    /// A child another parent adopted is skipped: its parent link points
+    /// elsewhere.
     private func collectDetachedSubtree(
         _ id: LayoutID,
         into removed: inout Set<LayoutID>,
@@ -533,8 +529,7 @@ struct LayoutTree: @unchecked Sendable {
         markDependents(of: .layout(id, field))
     }
 
-    /// Fields written together by `setFrame`, `setPosition`, and
-    /// `setTextMetrics`. Static, so a call does not allocate an array.
+    /// Static, so a call does not allocate an array.
     private static let frameFields: [LayoutField] = [.zoom, .x, .y, .width]
     private static let positionFields: [LayoutField] = [.x, .y]
     private static let textMetricFields: [LayoutField] = [.width, .height, .ascent, .descent]
@@ -978,12 +973,10 @@ extension LayoutTree {
     }
 
     // MARK: Payloads
-    //
-    // Each kind's payload is borrowed through a subscript. Reading copies only
-    // what the caller reads. Writing moves the payload out of the node for the
-    // duration, so the arrays inside are changed without being copied; the
-    // node holds `vacatedKind` meanwhile, and exclusive access to the tree
-    // means nothing can read it in between.
+    // Reading copies only what the caller reads. Writing moves the payload out
+    // of the node for the duration, so the arrays inside are changed without
+    // being copied; the node holds `vacatedKind` meanwhile, and exclusive
+    // access to the tree means nothing can read it in between.
 
     subscript(document id: LayoutID) -> DocumentData {
         _read {

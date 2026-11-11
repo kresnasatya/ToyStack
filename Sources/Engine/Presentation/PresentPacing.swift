@@ -1,12 +1,8 @@
 import Foundation
 
-/// When the presenter runs its next follow-up present.
-///
-/// Follow-up presents finish a staged layer generation or deferred tile
-/// binds without waiting for the engine to send another frame. They are one
-/// display frame apart, counted from the start of the previous present.
-/// Counting from its end would add the commit (6-14 ms for a 30-tile chunk)
-/// to every gap.
+/// They are one display frame apart, counted from the start of the previous
+/// present. Counting from its end would add the commit (6-14 ms for a
+/// 30-tile chunk) to every gap.
 public enum PresentPacing {
     public static let interval: TimeInterval = 1.0 / 60.0
 

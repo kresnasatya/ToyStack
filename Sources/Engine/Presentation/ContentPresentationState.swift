@@ -1,8 +1,5 @@
 import CoreGraphics
 
-/// Decides whether a presented frame binds new content or only previews the
-/// view size the content was laid out at.
-///
 /// Content and presentation are separate revisions. A resize presents the same
 /// content several times at different sizes; those presents must preview from
 /// the size at which the content was last bound. Repeated previews are
@@ -14,9 +11,8 @@ public struct ContentPresentationState {
     }
 
     public private(set) var baseViewSize: CGSize?
-    /// Width, in view pixels, of the layout whose layers are on screen. A
-    /// bound frame can still be staging behind older layers, so this can lag
-    /// the last bind.
+    /// A bound frame can still be staging behind older layers, so this can
+    /// lag the last bind.
     public private(set) var shownContentWidth: CGFloat?
     private var lastRevision: PresentedRevision?
 
@@ -62,15 +58,9 @@ public struct ContentPresentationState {
         return sameWidth(contentWidth(layoutSize: layoutSize, viewSize: viewSize), viewSize.width)
     }
 
-    /// Whether a frame's layer generation should be uploaded behind the layers
-    /// on screen, which came from generation `shown` (nil: nothing is on
-    /// screen, so the frame binds directly).
-    ///
-    /// Any newer generation is uploaded, whatever width it was laid out at.
     /// During a drag the layout trails the window by a frame or two, so it
     /// almost never has the window's exact width; it is still closer to the
-    /// window than the older layers on screen. Once on screen it is previewed
-    /// from its own width like any other layers.
+    /// window than the older layers on screen.
     public static func stages(generation: UInt64, shown: UInt64?) -> Bool {
         guard let shown else { return false }
         return generation != shown

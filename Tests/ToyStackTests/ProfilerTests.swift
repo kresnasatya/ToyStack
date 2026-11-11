@@ -3,9 +3,8 @@ import Testing
 
 @testable import Engine
 
-/// Each thread records into its own window. Background layout used to write
-/// into whatever window the main thread had open, so a main-thread
-/// `profile.paint` carried stray `layout.*` counts.
+/// Background layout used to write into whatever window the main thread had
+/// open, so a main-thread `profile.paint` carried stray `layout.*` counts.
 @Suite
 struct ProfilerTests {
     @Test func countsFromAnotherThreadStayOutOfThisWindow() {

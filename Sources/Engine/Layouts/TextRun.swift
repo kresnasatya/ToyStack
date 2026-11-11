@@ -1,7 +1,5 @@
 import Foundation
 
-/// A shared text run for one block's inline items.
-///
 /// The run owns the UTF-16 text and the character range of every item, so a
 /// line fragment only stores `(start item, count)`.
 final class TextRun {

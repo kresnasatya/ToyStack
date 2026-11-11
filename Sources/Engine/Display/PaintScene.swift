@@ -2,12 +2,9 @@ import CoreGraphics
 
 // MARK: - PaintScene
 
-/// A frozen paint input: layout geometry, computed style, and the DOM facts
-/// paint needs, copied out of the live trees.
-///
-/// One `PaintFrame` per frame. Node children are indices into the same
-/// frame's `nodes`, so the tree is data and paint can walk it without touching
-/// a `Frame`, a `LayoutTree`, or a `DOMTree`.
+/// Node children are indices into the same frame's `nodes`, so the tree is
+/// data and paint can walk it without touching a `Frame`, a `LayoutTree`, or a
+/// `DOMTree`.
 struct PaintScene {
     var frames: [PaintFrame]
 }

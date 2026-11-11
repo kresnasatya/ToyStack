@@ -14,6 +14,7 @@ This is a project to build a toy browser engine with Swift programming language.
 - Use `+=` for counts, indexes, sizes, offsets, and quantities; overflow is a bug and must trap.
 - Use `&+=` only for generation, revision, or sequence tokens where wrapping is accepted and the value is used for equality or difference. Never use `&+=` to hide an overflow bug.
 - No comments by default. Write a comment ONLY to explain *why* the code does something that the code cannot say by itself: a browser spec rule, a workaround, a non-obvious constraint, or a trade-off that was chosen on purpose. Never write a comment that says *what* the code does.
+- A comment that mixes *what* and *why* keeps only the *why* sentences. A *why* sentence may name the code it is about (e.g. `LayoutInputTable`), but must not describe again what that code does.
 - If a comment is needed to explain *what*, fix the code instead: rename the variable or function, or move the step into a function with a clear name.
 - Do not leave commented-out code, change-log comments (e.g. `// added X`, `// fixed bug`), or comments that repeat the type or function name.
 - When a comment cites a spec (CSS, HTML, DOM), cite the exact section number and make sure the claim matches the spec text.

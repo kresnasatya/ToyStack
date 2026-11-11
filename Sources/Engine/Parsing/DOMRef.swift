@@ -1,11 +1,7 @@
 import Foundation
 
-/// Lightweight view over one node in a `DOMTree`.
-///
-/// The view carries no node data; it resolves `id` against the tree on each
-/// access. The tree reference is strong on purpose: a layout object that
-/// survives a document swap must resolve against its own tree, not trap on a
-/// dead one.
+/// The tree reference is strong on purpose: a layout object that survives a
+/// document swap must resolve against its own tree, not trap on a dead one.
 @MainActor
 struct DOMRef {
     let id: NodeID

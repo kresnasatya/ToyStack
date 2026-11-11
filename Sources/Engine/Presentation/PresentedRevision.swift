@@ -1,5 +1,3 @@
-/// Identity of one presented frame.
-///
 /// `content` changes only when the engine commits new content. `sequence`
 /// changes on every dispatch and is used to de-duplicate present work. The
 /// presentation state compares `content` only, so a resize can preview the

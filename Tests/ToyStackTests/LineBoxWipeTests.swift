@@ -3,8 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// A line that only moves vertically must keep the text it paints.
-///
 /// A width reflow places lines with `collectsBoxes == true`: each line keeps
 /// its text as `LineData.content.boxes` values and has no text children. A
 /// later pass that only moves those lines used to rebuild the boxes from the

@@ -1,6 +1,3 @@
-/// Moves a layout tree to another thread without keeping a second reference
-/// to it.
-///
 /// A value in a task's capture list lives as long as the task, so a captured
 /// tree is never the only owner of its storage. `take()` moves the tree out
 /// instead. A background layout job uses it so its first write does not copy

@@ -366,7 +366,7 @@ final class ContentPresenter: @unchecked Sendable {
     /// Once the window width stops changing, drops an upload laid out for a
     /// width the window no longer has, so the final layout starts at once
     /// instead of waiting for a stale one. An upload this present finishes
-    /// within `budget` is kept. Returns true when it skipped.
+    /// within `budget` is kept.
     private func skipStaleGeneration(viewSize: CGSize, budget: PresentUploadBudget) -> Bool {
         let skipped: Bool = staging.skipStale(
             settled: resizeSettle.isSettled(at: lastPresentStart),
@@ -401,12 +401,8 @@ final class ContentPresenter: @unchecked Sendable {
         return (layer?.contents as AnyObject?) !== placed.image
     }
 
-    /// Uploads one budgeted chunk of the staged generation behind the
-    /// still-visible layers. Only a fully bound generation replaces them; the
-    /// newest waiting frame then starts on the next present. Runs on every
-    /// present, previews included, so a resize cannot stall the upload.
-    /// `skipped` is true when this present dropped a stale upload first.
-    /// `budget` is the one the skip check used in this present.
+    /// Runs on every present, previews included, so a resize cannot stall the
+    /// upload.
     private func stageGeneration(viewSize: CGSize, skipped: Bool, budget: PresentUploadBudget) {
         guard let entry: GenerationStaging<PresentedFrame>.Entry = staging.current else { return }
         let frame: PresentedFrame = entry.frame

@@ -3,8 +3,7 @@ import CoreGraphics
 struct ScrollTargetState {
     var iframes: [IframeTarget]
     var blocks: [ScrollBlockTarget]
-    /// Bumped whenever the lists may be wrong: a new tree, a structure change,
-    /// or a change to display or overflow. Only compared for equality.
+    /// Only compared for equality.
     private(set) var revision: UInt64
     var builtRevision: UInt64
 
@@ -19,8 +18,8 @@ struct ScrollTargetState {
         revision &+= 1
     }
 
-    /// Drops every target. The revision keeps counting up, so a pass recorded
-    /// before the clear can never look current.
+    /// The revision keeps counting up, so a pass recorded before the clear
+    /// can never look current.
     mutating func clear() {
         iframes = []
         blocks = []

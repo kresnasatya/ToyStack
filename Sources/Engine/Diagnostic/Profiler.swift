@@ -5,15 +5,9 @@ struct ProfileMetric {
     var count: Int = 0
 }
 
-/// Accumulates recursive work (per node, per rule, per word) into windows.
-///
-/// Each thread records into its own window, so recording takes no lock. The
-/// main thread's window works as the single window always did: `reset()`
-/// opens it and `emitProfile` writes it as one `profile.<phase>` counter. A
-/// background layout job opens and emits its own window on its thread.
-///
+/// Each thread records into its own window, so recording takes no lock.
 /// Names are string literals, keyed by their address, so recording does not
-/// hash a string. A name built at runtime goes through `count(named:)`.
+/// hash a string.
 final class Profiler: @unchecked Sendable {
     let enabled: Bool
     private let windowKey: pthread_key_t
@@ -60,7 +54,7 @@ final class Profiler: @unchecked Sendable {
         window.pointee.add(name, nanos: 0, count: amount)
     }
 
-    /// For a name built at runtime. Slower than a literal: the name is hashed.
+    /// Slower than a literal: the name is hashed.
     func count(named name: String, by amount: Int = 1) {
         guard enabled else { return }
         window.pointee.add(named: name, nanos: 0, count: amount)
@@ -80,8 +74,8 @@ final class Profiler: @unchecked Sendable {
         measure?.counter(event, args, frame: frame)
     }
 
-    /// This thread's window. Held through a raw pointer: only the owning
-    /// thread touches it, so no retain, release, or exclusivity check per call.
+    /// Held through a raw pointer: only the owning thread touches it, so no
+    /// retain, release, or exclusivity check per call.
     private var window: UnsafeMutablePointer<ProfileWindow> {
         if let raw: UnsafeMutableRawPointer = pthread_getspecific(windowKey) {
             return raw.assumingMemoryBound(to: ProfileWindow.self)
@@ -99,8 +93,8 @@ let profiler: Profiler = Profiler(
 
 // MARK: - ProfileWindow
 
-/// One thread's metrics. Literal names map to a slot in `metrics`, so adding
-/// to a known name is one pointer lookup and an in-place update.
+/// Literal names map to a slot in `metrics`, so adding to a known name is
+/// one pointer lookup and an in-place update.
 private struct ProfileWindow {
     private var slots: [UnsafeRawPointer: Int] = [:]
     private var names: [StaticString] = []

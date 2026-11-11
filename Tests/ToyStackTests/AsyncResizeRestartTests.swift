@@ -383,8 +383,7 @@ struct AsyncResizeRestartTests {
         try #require(page.frame.isLayoutInFlight)
     }
 
-    /// Compares the installed layout with one built from nothing on the same
-    /// DOM. Detaches the browser so that rebuild runs synchronously.
+    /// Detaches the browser so that rebuild runs synchronously.
     private static func expectMatchesFullLayout(
         _ page: LayoutTestPage,
         browser: Browser,

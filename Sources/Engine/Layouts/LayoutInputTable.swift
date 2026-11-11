@@ -1,13 +1,10 @@
 import Foundation
 
-/// The single static description of what every layout field reads.
-///
-/// One entry per node kind and field. This table is the only place that
-/// declares an edge: `DependencyIndex.rebuild(from:)` reconstructs the reverse
-/// index from it alone.
+/// This table is the only place that declares an edge:
+/// `DependencyIndex.rebuild(from:)` reconstructs the reverse index from it
+/// alone.
 enum LayoutInputTable {
-    /// Style changes that can alter which fields are inputs, not just their
-    /// values. Only these need the dependency table reindexed.
+    /// Only these need the dependency table reindexed.
     static let structuralStyleProperties: Set<StyleProperty> = [
         .display, .position, .direction, .whiteSpace, .aspectRatio, .maxWidth,
     ]

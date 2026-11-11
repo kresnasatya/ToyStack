@@ -3,8 +3,8 @@ import Foundation
 
 // MARK: - PaintBuildSink
 
-/// Frames discovered while building one scene. `owners[i]` owns `scenes[i]`,
-/// so paint results can be handed back after the pass.
+/// `owners[i]` owns `scenes[i]`, so paint results can be handed back after
+/// the pass.
 struct PaintBuildSink {
     var owners: [Frame] = []
     var scenes: [PaintFrame] = []
@@ -12,8 +12,6 @@ struct PaintBuildSink {
 
 // MARK: - PaintSceneBuilder
 
-/// Copies everything paint reads out of the live trees.
-///
 /// This is the only paint code that touches the layout tree and `DOMRef`. It
 /// also collects the few DOM facts that decide ops (focus rings, caret, iframe
 /// scrollbars), so the pass itself stays on values.
@@ -84,8 +82,6 @@ struct PaintSceneBuilder {
         return index
     }
 
-    /// Style input of everything paint caches for this node.
-    ///
     /// A block caches its own emitted ops, so its own style revision is the
     /// whole input. A line caches its text ops, whose colours come from the
     /// inherited style owner of each box; the line generation is compared

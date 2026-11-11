@@ -21,15 +21,15 @@ class Frame {
     private var styleSnapshotRevision: UInt64 = .max
     private var layoutInputsKey: LayoutInputsKey?
     private var layoutInFlight: Bool = false
-    /// Set when the document changes while a background pass runs. A viewport
-    /// change does not set it; the pass's `LayoutJobKey` already records that.
+    /// A viewport change does not set it; the pass's `LayoutJobKey` already
+    /// records that.
     private var layoutInFlightDirty: Bool = false
     private var layoutJobMovesViewportOnly: Bool = false
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
-    /// The viewport moved since the last pass started. The next pass marks
-    /// the document geometry dirty on the tree it lays out; the installed tree
-    /// is never marked, so it stays paintable while that pass runs.
+    /// The next pass marks the document geometry dirty on the tree it lays
+    /// out; the installed tree is never marked, so it stays paintable while
+    /// that pass runs.
     private var viewportGeometryPending: Bool = false
     private var layoutSize: CGSize = .zero
     private(set) var paintedLayoutSize: CGSize = .zero
@@ -47,8 +47,8 @@ class Frame {
         state.document.meta.url = newURL
     }
 
-    /// The one path that swaps the document. Layout and display state point at
-    /// the old tree, so they are reset here instead of in a property observer.
+    /// Layout and display state point at the old tree, so they are reset here
+    /// instead of in a property observer.
     func replaceDOM(_ newDOM: DOMTree) {
         guard dom !== newDOM else { return }
         newDOM.links.tab = tab
@@ -789,10 +789,8 @@ class Frame {
     var installedLayoutSize: CGSize { layoutSize }
     var needsPaint: Bool { state.display.paint.isNeeded }
 
-    /// True while a background pass runs for a document that changed since
-    /// the installed tree was built. A pass that only moves the viewport
-    /// leaves the installed tree a valid picture of the document, so the tab
-    /// may keep painting it.
+    /// A pass that only moves the viewport leaves the installed tree a valid
+    /// picture of the document, so the tab may keep painting it.
     var layoutBlocksPaint: Bool {
         return layoutInFlight && (!layoutJobMovesViewportOnly || layoutInFlightDirty)
     }
@@ -1241,8 +1239,8 @@ class Frame {
         }
     }
 
-    /// Returns the inputs for the next layout pass. When nothing but the width
-    /// changed, the previous inputs are still correct, so they are reused.
+    /// When nothing but the width changed, the previous inputs are still
+    /// correct, so they are reused.
     private func resolveLayoutInputs(
         stylesDirty: Bool,
         viewportStyle: Bool,
@@ -1324,9 +1322,9 @@ class Frame {
         dom.layoutBox = box
         browser?.measure.stop("layout.async.start.tree")
         browser?.measure.start("layout.async.start.refresh")
-        // The job gets its own copy. Only the inputs are replaced here; the
-        // node storage stays shared until the worker writes to it, so the
-        // geometry mark is applied there and the main thread copies nothing.
+        // Only the inputs are replaced here; the node storage stays shared
+        // until the worker writes to it, so the geometry mark is applied
+        // there and the main thread copies nothing.
         var tree: LayoutTree = box.tree
         box.startRecordingEdits()
         tree.refreshInputs(resolved.inputs)
@@ -1377,10 +1375,9 @@ class Frame {
         }
     }
 
-    /// Installs a finished pass. A pass that started before the viewport moved
-    /// is still a complete layout for the viewport it started with. Installing
-    /// it keeps a drag showing new layouts; the current viewport is laid out
-    /// next. Returns false when the result was dropped.
+    /// A pass that started before the viewport moved is still a complete
+    /// layout for the viewport it started with. Installing it keeps a drag
+    /// showing new layouts; the current viewport is laid out next.
     private func finishAsyncLayout(
         _ tree: LayoutTree,
         effects: [LayoutEffect],
@@ -1445,9 +1442,7 @@ class Frame {
         return true
     }
 
-    /// Does now what the next frame-clock tick would do after an install:
-    /// starts the pass for the current viewport and presents the installed
-    /// tree. Waiting for the tick cost up to a frame per install during a drag.
+    /// Waiting for the tick cost up to a frame per install during a drag.
     /// Animations and rAF callbacks still advance only on the tick.
     private func continueAfterInstall() {
         if state.layout.tree.isDirty {
@@ -1546,12 +1541,9 @@ class Frame {
         state.layout.targets.blocks = blocks
     }
 
-    /// Walks the tree for scroll targets when the lists were built for another
-    /// `revision` or the pass removed a target's node; otherwise refreshes the
-    /// rects of the known targets. `revision` is the one the tree was laid out
-    /// for: the current one for a synchronous pass, the one recorded at job
-    /// start for a background pass, so a change made while the job ran stays
-    /// pending. Returns true when the tree was walked.
+    /// `revision` is the one the tree was laid out for: the current one for a
+    /// synchronous pass, the one recorded at job start for a background pass,
+    /// so a change made while the job ran stays pending.
     private func updateScrollTargets(
         _ doc: LayoutTree,
         removed: Set<LayoutID>,

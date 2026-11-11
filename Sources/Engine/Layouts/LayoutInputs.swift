@@ -3,8 +3,6 @@ import Foundation
 
 // MARK: - LayoutInputs
 
-/// Frozen DOM facts layout reads, keyed by DOM node id.
-///
 /// Layout passes run over these values instead of reaching into the document,
 /// so they no longer need a DOM reference to look at a tag, style, or font.
 struct LayoutInputs {

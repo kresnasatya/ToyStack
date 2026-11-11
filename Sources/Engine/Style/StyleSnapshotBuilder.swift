@@ -2,16 +2,15 @@ import Foundation
 
 // MARK: - StyleSnapshotBuilder
 
-/// Copies the DOM facts selector matching reads. The only style-phase code
-/// that touches `DOMRef`.
+/// The only style-phase code that touches `DOMRef`.
 @MainActor
 enum StyleSnapshotBuilder {
     static func build(root: DOMRef) -> StyleSnapshot {
         return build(dom: root.dom)
     }
 
-    /// Every allocated node, attached or not. Detached nodes have no parent
-    /// and no children, which is what matching saw before the snapshot existed.
+    /// Detached nodes have no parent and no children, which is what matching
+    /// saw before the snapshot existed.
     static func build(dom: DOMTree) -> StyleSnapshot {
         var nodes: [StyleNode?] = []
         var indexByID: [NodeID: Int] = [:]

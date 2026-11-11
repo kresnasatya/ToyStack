@@ -48,9 +48,8 @@ extension LayoutTree {
         return oldPrevious != previous
     }
 
-    /// Keeps the line's placement data when only its frame moves. The
-    /// vertical-only path then shifts `inlineYOffset` instead of writing a
-    /// position for every text child.
+    /// The vertical-only path then shifts `inlineYOffset` instead of
+    /// writing a position for every text child.
     @discardableResult
     mutating func reuseLine(_ id: LayoutID, previous: LayoutID?) -> Bool {
         let oldPrevious: LayoutID? = previousID(of: id)

@@ -19,9 +19,9 @@ struct LayoutNode {
 }
 
 extension LayoutNode {
-    /// What a removed slot holds. The arena never reuses an ID, so the slot
-    /// stays, but the payload, links, and fields are dropped and
-    /// `LayoutTree[node:]` refuses to read it. The kind is only a placeholder.
+    /// The arena never reuses an ID, so the slot stays, but the payload,
+    /// links, and fields are dropped and `LayoutTree[node:]` refuses to read
+    /// it. The kind is only a placeholder.
     static func removed(dom: NodeID) -> LayoutNode {
         return LayoutNode(
             kind: .document(DocumentData(pageZoom: 1)),

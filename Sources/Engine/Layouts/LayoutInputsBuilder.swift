@@ -2,8 +2,8 @@ import Foundation
 
 // MARK: - LayoutInputsBuilder
 
-/// Copies the DOM facts layout reads. The only layout-side code that needs the
-/// document, so passes can move to values one file at a time.
+/// The only layout-side code that needs the document, so passes can move to
+/// values one file at a time.
 @MainActor
 enum LayoutInputsBuilder {
     static func build(dom: DOMTree) -> LayoutInputs {

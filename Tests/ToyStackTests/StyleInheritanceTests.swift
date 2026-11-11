@@ -33,11 +33,10 @@ struct StyleInheritanceTests {
         #expect(child.style.computed.text.font.size == 15)
     }
 
-    /// A percentage chain must resolve to the same number every time it is
-    /// applied. Before the single-resolver change, the flip path and the
-    /// re-inherit path used different arithmetic orders, so a hover after a
-    /// breakpoint resize changed `28.8` into `28.799999999999997` and
-    /// scheduled a full layout.
+    /// Before the single-resolver change, the flip path and the re-inherit
+    /// path used different arithmetic orders, so a hover after a breakpoint
+    /// resize changed `28.8` into `28.799999999999997` and scheduled a full
+    /// layout.
     @Test func hoverAfterFontFlipKeepsPercentageSizesStable() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div class="main"><section id="introduction"><ol><li><a id="link" href="/x">Link text</a><br>description</li></ol></section></div>"#,
@@ -97,9 +96,8 @@ struct StyleInheritanceTests {
         }
     }
 
-    /// Growing back across the breakpoint must leave every painted line box
-    /// with its owner's font. The layout tree is a value snapshot, so each
-    /// check reads the tree the last render installed.
+    /// The layout tree is a value snapshot, so each check reads the tree
+    /// the last render installed.
     @Test func growingBackAcrossTheBreakpointRefreshesLineBoxFonts() throws {
         let paragraph: String = String(
             repeating: "alpha beta gamma delta epsilon zeta eta theta ",

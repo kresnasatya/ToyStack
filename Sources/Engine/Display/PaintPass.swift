@@ -2,8 +2,6 @@ import CoreGraphics
 
 // MARK: - PaintPass
 
-/// Emits display ops from a frozen `PaintScene`.
-///
 /// Everything this pass needs is a value, so it does not touch a `Frame`,
 /// a `LayoutTree`, or a `DOMTree`.
 struct PaintPass {

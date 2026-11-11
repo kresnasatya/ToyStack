@@ -198,25 +198,23 @@ public final class MeasureTime: @unchecked Sendable {
         return currentFrame
     }
 
-    /// Names the current thread for the life of the process. Only for a
-    /// thread the browser owns, like main; work on pooled threads uses a lane.
+    /// Only for a thread the browser owns, like main; work on pooled threads
+    /// uses a lane.
     public func noteThread(_ name: String) {
         lock.lock()
         defer { lock.unlock() }
         noteThreadLocked(tid: threadID(), name: name)
     }
 
-    /// Puts this thread's spans on the one lane named `name` until the
-    /// returned lane ends. A serial queue uses it so its blocks share a lane
-    /// although GCD runs them on different pooled threads.
+    /// A serial queue uses it so its blocks share a lane although GCD runs
+    /// them on different pooled threads.
     public func beginStream(_ name: String) -> TraceLane {
         return beginLane(key: name, name: name)
     }
 
-    /// Puts this thread's spans on a lane of their own, named `name`, until
-    /// the returned lane ends. A concurrent pool uses it: overlapping work on
-    /// two threads stays on two lanes, and the name does not stick to the
-    /// pooled thread once the work is done.
+    /// A concurrent pool uses it: overlapping work on two threads stays on
+    /// two lanes, and the name does not stick to the pooled thread once the
+    /// work is done.
     public func beginThreadLane(_ name: String) -> TraceLane {
         return beginLane(key: "\(name)#\(UInt(bitPattern: pthread_self()))", name: name)
     }
@@ -264,9 +262,8 @@ public final class MeasureTime: @unchecked Sendable {
 
 // MARK: - TraceLane
 
-/// A lane label active on the thread that began it. Call `end()` on that same
-/// thread when the labelled work is done. It restores the label the thread had
-/// before, so lanes nest.
+/// Call `end()` on that same thread when the labelled work is done. It
+/// restores the label the thread had before, so lanes nest.
 public struct TraceLane {
     fileprivate let previous: NSNumber?
 

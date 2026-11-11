@@ -2,8 +2,6 @@ import Foundation
 
 // MARK: - StyleSnapshot
 
-/// Frozen view of the DOM for selector matching.
-///
 /// Matching is a read: it looks at tags, attributes, state flags, and the
 /// `:has` cache. Copying those into values lets the selectors run without a
 /// `DOMTree`, and keeps the pass that mutates styles separate from the pass

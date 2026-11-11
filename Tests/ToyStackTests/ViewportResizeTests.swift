@@ -411,9 +411,7 @@ struct ViewportResizeTests {
     }
 
     /// Reusing a line plan is only correct inside the exact range of widths
-    /// that produce it. Sweep across many break points in both directions,
-    /// through a breakpoint that changes the font, and compare each step with
-    /// a layout built from nothing.
+    /// that produce it.
     @Test func widthSweepKeepsLineBreaksIdenticalToAFullLayout() throws {
         let html: String = #"""
             <p>ab abcdefgh abc abcdefghijkl a abcde abcdefghi abcd abcdefg abcdefghijklmnop ab abc wxyz</p>

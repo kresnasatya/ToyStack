@@ -1,7 +1,5 @@
 import Foundation
 
-/// Finds the nodes a viewport style pass must restyle.
-///
 /// A viewport pass only re-evaluates rules whose media query flipped. Matching
 /// every rule against every node is quadratic, so rules are bucketed by the key
 /// their selector ends with; a node tests only rules for its own tag, id,

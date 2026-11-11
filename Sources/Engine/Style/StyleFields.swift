@@ -12,8 +12,6 @@ final class StyleFields {
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
 
-    /// Properties that changed since layout last asked, consumed on read.
-    ///
     /// Style writes do not reach into the layout tree; the tree asks for this
     /// set when it starts a pass.
     func takeLayoutChanges() -> Set<StyleProperty> {
@@ -23,8 +21,6 @@ final class StyleFields {
         return changes
     }
 
-    /// True when a queued change can move geometry, not just pixels.
-    ///
     /// Paint-only properties (color, opacity, transform, z-index, …) still land
     /// in `layoutChanges` so a later layout sees them, but they must not be the
     /// reason a layout runs: a hover that only recolors text would otherwise
@@ -94,11 +90,8 @@ final class StyleFields {
         profiler.count("style.fields.changed", by: changed.count)
     }
 
-    /// Reapplies only the inherited text properties from the parent.
-    ///
     /// A force-only node did not match a new rule; its own declarations are
-    /// unchanged and only inherited text can move. Returns `nil` when no
-    /// declaration cache is available and the full cascade must run.
+    /// unchanged and only inherited text can move.
     func reapplyInherited(parent: ComputedStyle?) -> Bool? {
         guard canReinheritText else { return nil }
         let oldText: TextStyle = storage.computed.text

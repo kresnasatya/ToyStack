@@ -1,8 +1,5 @@
 import CoreGraphics
 
-/// Where a block's inline items break into lines, and the widths that
-/// produce exactly those breaks.
-///
 /// The breaks come from a greedy pass: an item that wraps breaks the line when
 /// `cursorX + width > available`. As long as every such comparison has the
 /// same answer, every `cursorX` is the same too, so the plan holds for any

@@ -1,7 +1,5 @@
 import Foundation
 
-/// Arena of document nodes. One tree belongs to one document.
-///
 /// IDs are append-only: removing a subtree detaches it and never reuses the
 /// ID, so a stale `NodeID` cannot point at another node. The root is always
 /// `NodeID(raw: 0)`.

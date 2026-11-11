@@ -9,9 +9,9 @@ public class Browser: ObservableObject {
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
-    /// Colour space of the screen showing the page. Bitmaps handed to the
-    /// presenter are drawn in it, so Core Animation does not convert every
-    /// pixel when it commits them. Headless runs keep sRGB.
+    /// Bitmaps handed to the presenter are drawn in it, so Core Animation
+    /// does not convert every pixel when it commits them. Headless runs
+    /// keep sRGB.
     public var displayColorSpace: CGColorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
     public var usesAsyncLayout: Bool = false
     private var animationTimer: Timer?
@@ -168,10 +168,9 @@ public class Browser: ObservableObject {
             cancelPreviewPresent()
             return
         }
-        // Hold the old content visible while the pointer moves. Present the
-        // scaled preview from the resize event itself so a long layout cannot
-        // postpone the next preview. The animation tick still owns the final
-        // reflow deadline.
+        // Present the scaled preview from the resize event itself so a long
+        // layout cannot postpone the next preview. The animation tick still
+        // owns the final reflow deadline.
         let now: Date = Date()
         let requiresPreview: Bool = ResizePreviewPolicy.shouldPreview(
             estimatedFrameTime: estimatedFrameTime,
@@ -189,9 +188,8 @@ public class Browser: ObservableObject {
         }
     }
 
-    /// Present at most one resize preview per display frame. AppKit can deliver
-    /// many resize events in one trace frame; each event must update the target
-    /// size, not enqueue another preview.
+    /// AppKit can deliver many resize events in one trace frame; each event
+    /// must update the target size, not enqueue another preview.
     private func requestPreview(now: Date) {
         let elapsed: TimeInterval = now.timeIntervalSince(lastPreviewPresentTime)
         if !previewPresentScheduled, elapsed >= FRAME_BUDGET {

@@ -100,8 +100,7 @@ struct MeasureTimeLaneTests {
 
 // MARK: - TraceLanes
 
-/// Reads which lane each span was recorded on. The last `thread_name` for a
-/// tid wins, as in trace viewers.
+/// The last `thread_name` for a tid wins, as in trace viewers.
 private struct TraceLanes {
     private let tidBySpan: [String: Int]
     private let nameByTid: [Int: String]

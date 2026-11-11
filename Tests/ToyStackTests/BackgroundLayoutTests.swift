@@ -3,8 +3,7 @@ import Testing
 
 @testable import Engine
 
-/// Owns a layout tree while it crosses a background queue. The tree is a value;
-/// the box is only a transport for the async result.
+/// The tree is a value; the box is only a transport for the async result.
 private final class BackgroundLayoutTree: @unchecked Sendable {
     var tree: LayoutTree
 
