@@ -2,9 +2,9 @@ import Foundation
 
 public struct LayerTileCache: Sendable {
     var keys: [TileIndex: TileKey]
-    var scale: Int
+    var scale: TileScale?
 
-    init(scale: Int = -1) {
+    init(scale: TileScale? = nil) {
         self.keys = [:]
         self.scale = scale
     }

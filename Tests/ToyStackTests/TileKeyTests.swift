@@ -8,7 +8,7 @@ import Testing
 @Suite
 struct TileKeyTests {
     private let layer = LayerID(effect: nil, ordinal: 0)
-    private let scale = 1000
+    private let scale: TileScale = TileScale(1)
 
     @Test func tileIndexUsesRowAndColumn() {
         #expect(TileIndex(row: 1, col: 2) == TileIndex(row: 1, col: 2))
@@ -33,11 +33,11 @@ struct TileKeyTests {
     @Test func keySetDistinguishesEveryField() {
         let index = TileIndex(row: 1, col: 2)
         let keys: Set<TileKey> = [
-            TileKey(layer: layer, index: index, contentHash: 1, scale: 1000),
-            TileKey(layer: layer, index: index, contentHash: 2, scale: 1000),
-            TileKey(layer: layer, index: TileIndex(row: 1, col: 3), contentHash: 1, scale: 1000),
-            TileKey(layer: LayerID(effect: nil, ordinal: 1), index: index, contentHash: 1, scale: 1000),
-            TileKey(layer: layer, index: index, contentHash: 1, scale: 2000),
+            TileKey(layer: layer, index: index, contentHash: 1, scale: TileScale(1)),
+            TileKey(layer: layer, index: index, contentHash: 2, scale: TileScale(1)),
+            TileKey(layer: layer, index: TileIndex(row: 1, col: 3), contentHash: 1, scale: TileScale(1)),
+            TileKey(layer: LayerID(effect: nil, ordinal: 1), index: index, contentHash: 1, scale: TileScale(1)),
+            TileKey(layer: layer, index: index, contentHash: 1, scale: TileScale(2)),
         ]
         #expect(keys.count == 5)
     }
@@ -145,14 +145,14 @@ struct TileKeyTests {
         let store = TileStore(tileSize: 128)
         let index0 = TileIndex(row: 0, col: 0)
         let index1 = TileIndex(row: 0, col: 1)
-        let left = TileKey(layer: layer, index: index0, contentHash: 1, scale: 1000)
-        let right = TileKey(layer: layer, index: index1, contentHash: 1, scale: 1000)
+        let left = TileKey(layer: layer, index: index0, contentHash: 1, scale: TileScale(1))
+        let right = TileKey(layer: layer, index: index1, contentHash: 1, scale: TileScale(1))
         store.insert(makeImage(), key: left)
         store.insert(makeImage(), key: right)
         store.beginComposite(viewportTop: 0, viewportBottom: 128)
 
-        let leftAt2x = TileKey(layer: layer, index: index0, contentHash: 1, scale: 2000)
-        let rightAt2x = TileKey(layer: layer, index: index1, contentHash: 1, scale: 2000)
+        let leftAt2x = TileKey(layer: layer, index: index0, contentHash: 1, scale: TileScale(2))
+        let rightAt2x = TileKey(layer: layer, index: index1, contentHash: 1, scale: TileScale(2))
         #expect(kind(of: store.lookup(leftAt2x)) == .missNew)
         #expect(kind(of: store.lookup(rightAt2x)) == .missNew)
         #expect(store.missNew == 2)

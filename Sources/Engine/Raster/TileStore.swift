@@ -10,7 +10,7 @@ final class TileStore: @unchecked Sendable {
     private struct SlotKey: Hashable {
         let layer: LayerID
         let index: TileIndex
-        let scale: Int
+        let scale: TileScale
     }
 
     enum LookUp {

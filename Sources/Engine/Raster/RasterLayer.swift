@@ -112,9 +112,9 @@ public struct RasterLayer: Sendable {
         let lastRow: Int = min(Int((bounds.bottom - 1) / t), Int(region.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
-        let scaleInt: Int = Int((scale * 1000).rounded())
-        if content.tileCache.scale != scaleInt {
-            content.tileCache = LayerTileCache(scale: scaleInt)
+        let tileScale: TileScale = TileScale(scale)
+        if content.tileCache.scale != tileScale {
+            content.tileCache = LayerTileCache(scale: tileScale)
         }
 
         var rowItems: [Int: [DisplayOp]] = [:]
@@ -160,7 +160,7 @@ public struct RasterLayer: Sendable {
                         layer: identity.id,
                         index: index,
                         contentHash: tileHash(inside, tileRect: tileRect),
-                        scale: scaleInt
+                        scale: tileScale
                     )
                     content.tileCache.keys[index] = key
                 }
