@@ -15,13 +15,15 @@ struct TileStrip: Sendable {
 }
 
 extension TileStrip {
-    static func sliceRect(for key: TileKey, in bounds: Rect, scale: CGFloat) -> CGRect {
-        let t: CGFloat = RasterLayer.tileSize
+    static func sliceRect(for key: TileKey, in bounds: Rect, grid: TileGrid) -> CGRect {
+        let pixels: CGFloat = grid.devicePixels
+        let stripLeft: CGFloat = (bounds.left * grid.scale.effective).rounded()
+        let stripTop: CGFloat = (bounds.top * grid.scale.effective).rounded()
         return CGRect(
-            x: (CGFloat(key.index.col) * t - bounds.left) * scale,
-            y: (CGFloat(key.index.row) * t - bounds.top) * scale,
-            width: t * scale,
-            height: t * scale
+            x: CGFloat(key.index.col) * pixels - stripLeft,
+            y: CGFloat(key.index.row) * pixels - stripTop,
+            width: pixels,
+            height: pixels
         )
     }
 }

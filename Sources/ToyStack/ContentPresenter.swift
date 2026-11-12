@@ -218,10 +218,15 @@ final class ContentPresenter: @unchecked Sendable {
             // Keep the last complete frame visible, but fit it into the new
             // viewport so a smaller window does not clip stale content.
             let fit: PreviewFit = PreviewFit(old: previousSize, new: viewSize, scale: scale)
+            let layerPage: CGFloat = presentationState.layerPage(framePage: scale.page, showsOlderLayers: true)
             contentLayer.backgroundColor = frame.viewport.canvasColor
             placeContentLayer(
-                originY: frame.viewport.contentOffset.devicePixelOrigin(previewScale: fit.scale, displayScale: scale.display),
-                scale: scale.page * fit.scale,
+                ContentLayerGeometry(
+                    offset: frame.viewport.contentOffset,
+                    frameScale: scale,
+                    layerPage: layerPage,
+                    previewScale: fit.scale
+                ),
                 viewSize: viewSize
             )
             return
@@ -231,12 +236,18 @@ final class ContentPresenter: @unchecked Sendable {
             contentLayer.contents = nil
         }
         contentLayer.backgroundColor = frame.viewport.canvasColor
+        let showsOlderLayers: Bool = frame.content.source.generation != lastBoundGeneration && !layersByPlacement.isEmpty
+        let layerPage: CGFloat = presentationState.layerPage(framePage: scale.page, showsOlderLayers: showsOlderLayers)
         placeContentLayer(
-            originY: frame.viewport.contentOffset.devicePixelOrigin(previewScale: 1, displayScale: scale.display),
-            scale: scale.page,
+            ContentLayerGeometry(
+                offset: frame.viewport.contentOffset,
+                frameScale: scale,
+                layerPage: layerPage,
+                previewScale: 1
+            ),
             viewSize: viewSize
         )
-        if frame.content.source.generation != lastBoundGeneration, !layersByPlacement.isEmpty {
+        if showsOlderLayers {
             // This generation is staging, or waiting, behind the layers on
             // screen; `stageGeneration` swaps it in once it is complete.
             return
@@ -314,7 +325,7 @@ final class ContentPresenter: @unchecked Sendable {
         // Within one generation, a few edge tiles may still be spread.
         let completeGeneration: Bool = frame.content.source.generation != lastBoundGeneration
         lastBoundGeneration = frame.content.source.generation
-        presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
+        presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize, page: scale.page)
         let overhaul: Bool = replaced || rebinds.count * 2 >= placements.count
         let throttled: Bool = !overhaul && !completeGeneration
         if throttled {
@@ -469,7 +480,7 @@ final class ContentPresenter: @unchecked Sendable {
             layersByPlacement = active
             pendingLayers.removeAll(keepingCapacity: true)
             lastBoundGeneration = entry.generation
-            presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
+            presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize, page: scale.page)
             _ = staging.finish()
         }
         measure.stop("view.updateSublayers")
@@ -616,7 +627,7 @@ final class ContentPresenter: @unchecked Sendable {
             contentLayer.contents = image
             contentLayer.contentsScale = scale.display
         }
-        presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize)
+        presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize, page: scale.page)
 
         contentLayer.transform = CATransform3DIdentity
         contentLayer.contentsGravity = preview ? .resize : .topLeft
@@ -629,10 +640,11 @@ final class ContentPresenter: @unchecked Sendable {
         )
     }
 
-    private func placeContentLayer(originY: CGFloat, scale: CGFloat, viewSize: CGSize) {
+    private func placeContentLayer(_ geometry: ContentLayerGeometry, viewSize: CGSize) {
+        let scale: CGFloat = geometry.scale
         contentLayer.anchorPoint = CGPoint(x: 0, y: 0)
         contentLayer.transform = CATransform3DMakeScale(scale, scale, 1)
-        contentLayer.position = CGPoint(x: 0, y: originY)
+        contentLayer.position = CGPoint(x: 0, y: geometry.originY)
         contentLayer.bounds = CGRect(
             x: 0,
             y: 0,

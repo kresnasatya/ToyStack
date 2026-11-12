@@ -83,7 +83,8 @@ public struct RasterLayer: Sendable {
     }
 
     mutating func pruneTiles(keepTop: CGFloat, keepBottom: CGFloat) {
-        let t: CGFloat = Self.tileSize
+        guard let grid: TileGrid = content.tileCache.grid else { return }
+        let t: CGFloat = grid.size
         tiles = tiles.filter { index, _ in
             let top: CGFloat = CGFloat(index.row) * t
             return top + t > keepTop && top < keepBottom
@@ -92,7 +93,7 @@ public struct RasterLayer: Sendable {
 
     mutating func rasterIfNeeded(
         index layerIndex: Int,
-        scale: CGFloat,
+        grid: TileGrid,
         store: TileStore,
         region: RasterRegion,
         budget: RasterBudget
@@ -105,17 +106,17 @@ public struct RasterLayer: Sendable {
 
         let items: [DisplayOp] = content.items
         let left: CGFloat = bounds.left
-        let t: CGFloat = Self.tileSize
+        let t: CGFloat = grid.size
         let firstCol: Int = max(0, Int(left / t), Int(region.hint.left / t))
         let lastCol: Int = min(Int((bounds.right - 1) / t), Int(region.hint.right / t))
         let firstRow: Int = max(0, Int(bounds.top / t), Int(region.hint.top / t))
         let lastRow: Int = min(Int((bounds.bottom - 1) / t), Int(region.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
-        let tileScale: TileScale = TileScale(scale)
-        if content.tileCache.scale != tileScale {
-            content.tileCache = LayerTileCache(scale: tileScale)
+        if content.tileCache.grid != grid {
+            content.tileCache = LayerTileCache(grid: grid)
         }
+        let tileScale: TileScale = TileScale(grid.scale.effective)
 
         var rowItems: [Int: [DisplayOp]] = [:]
         for item in items {

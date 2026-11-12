@@ -53,23 +53,18 @@ enum RasterDrawList {
         _ layers: [RasterLayer],
         effectStrategies: [LayerEffectStrategy]
     ) -> [LayerPlacement] {
-        let t: CGFloat = RasterLayer.tileSize
         var placements: [LayerPlacement] = []
         for (z, layer) in layers.enumerated() {
             switch effectStrategies[z].kind {
             case .flat:
+                guard let grid: TileGrid = layer.content.tileCache.grid else { break }
                 for index in layer.orderedTileIndices {
                     guard let image: CGImage = layer.tiles[index] else { continue }
                     placements.append(
                         LayerPlacement(
                             key: .tile(zIndex: z, col: index.col, row: index.row),
                             image: image,
-                            frame: CGRect(
-                                x: CGFloat(index.col) * t,
-                                y: CGFloat(index.row) * t,
-                                width: t,
-                                height: t
-                            ),
+                            frame: grid.frame(for: index),
                         )
                     )
                 }

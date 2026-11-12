@@ -14,7 +14,7 @@ public struct PreviewFit: Equatable, Sendable {
         let exact: CGFloat = min(1, min(new.width / old.width, new.height / old.height))
         let scale: CGFloat = Self.wholeTileScale(
             exact,
-            tileDevicePixels: RasterLayer.tileSize * contentScale.effective
+            tileDevicePixels: TileGrid(scale: contentScale).devicePixels
         )
         self.scale = scale
         self.scaledSize = CGSize(width: old.width * scale, height: old.height * scale)

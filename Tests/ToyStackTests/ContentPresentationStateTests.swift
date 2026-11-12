@@ -144,7 +144,8 @@ struct ContentPresentationStateTests {
         )
         state.didShow(
             layoutSize: CGSize(width: 1440, height: 703),
-            viewSize: CGSize(width: 1440, height: 703)
+            viewSize: CGSize(width: 1440, height: 703),
+            page: 1
         )
 
         let decision: ContentPresentationState.Decision = state.decide(
@@ -167,7 +168,8 @@ struct ContentPresentationStateTests {
         )
         state.didShow(
             layoutSize: CGSize(width: 1440, height: 703),
-            viewSize: CGSize(width: 1440, height: 703)
+            viewSize: CGSize(width: 1440, height: 703),
+            page: 1
         )
         // Its layout fits the view, but its layers are still staging behind
         // the 1440 layers on screen, so those are scaled to the new width.
@@ -195,7 +197,8 @@ struct ContentPresentationStateTests {
         var state = ContentPresentationState()
         state.didShow(
             layoutSize: CGSize(width: 1440, height: 703),
-            viewSize: CGSize(width: 1440, height: 703)
+            viewSize: CGSize(width: 1440, height: 703),
+            page: 1
         )
 
         let decision: ContentPresentationState.Decision = state.decide(
@@ -212,7 +215,8 @@ struct ContentPresentationStateTests {
         var state = ContentPresentationState()
         state.didShow(
             layoutSize: CGSize(width: 1300, height: 703),
-            viewSize: CGSize(width: 1300, height: 703)
+            viewSize: CGSize(width: 1300, height: 703),
+            page: 1
         )
 
         let decision: ContentPresentationState.Decision = state.decide(
@@ -292,7 +296,8 @@ struct ContentPresentationStateTests {
         var state = ContentPresentationState()
         state.didShow(
             layoutSize: CGSize(width: 425 / zoom * zoom, height: 705),
-            viewSize: CGSize(width: 425, height: 705)
+            viewSize: CGSize(width: 425, height: 705),
+            page: zoom
         )
 
         let decision: ContentPresentationState.Decision = state.decide(
@@ -316,6 +321,41 @@ struct ContentPresentationStateTests {
         )
 
         #expect(decision == .preview(from: CGSize(width: 424, height: 705)))
+    }
+
+    // MARK: - Zoom while older layers are on screen
+
+    @Test(arguments: [(shown: 1.0, frame: 1.1), (shown: 1.1, frame: 1.1 * 1.1), (shown: 1.1, frame: 1.0)])
+    func olderTilesStayOnDevicePixelsUntilTheNewZoomIsBound(zoom: (shown: CGFloat, frame: CGFloat)) {
+        var state = ContentPresentationState()
+        state.didShow(
+            layoutSize: CGSize(width: 1440, height: 703),
+            viewSize: CGSize(width: 1440, height: 703),
+            page: zoom.shown
+        )
+
+        let page: CGFloat = state.layerPage(framePage: zoom.frame, showsOlderLayers: true)
+        let shownTile: CGFloat = TileGrid(scale: ContentScale(display: 2, page: zoom.shown)).size
+        let tilePixels: CGFloat = shownTile * page * 2
+
+        #expect(abs(tilePixels - tilePixels.rounded()) < 1e-9)
+    }
+
+    @Test func boundLayersFollowTheFrameZoom() {
+        var state = ContentPresentationState()
+        state.didShow(
+            layoutSize: CGSize(width: 1440, height: 703),
+            viewSize: CGSize(width: 1440, height: 703),
+            page: 1
+        )
+
+        #expect(state.layerPage(framePage: 1.1, showsOlderLayers: false) == 1.1)
+    }
+
+    @Test func firstFrameUsesItsOwnZoom() {
+        let state = ContentPresentationState()
+
+        #expect(state.layerPage(framePage: 1.1, showsOlderLayers: true) == 1.1)
     }
 
     // MARK: - Which generations are uploaded

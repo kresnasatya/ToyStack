@@ -163,14 +163,12 @@ private func executeCompositedLayer(
     renderer: any Renderer
 ) {
     let bounds: Rect = layer.compositedBounds()
-    if !layer.tiles.isEmpty {
-        let t: CGFloat = RasterLayer.tileSize
+    if !layer.tiles.isEmpty, let grid: TileGrid = layer.content.tileCache.grid {
         for index in layer.orderedTileIndices {
             guard let image: CGImage = layer.tiles[index] else { continue }
-            let tileLeft: CGFloat = CGFloat(index.col) * t
-            let tileTop: CGFloat = CGFloat(index.row) * t
-            if tileTop + t <= visibleTop || tileTop >= visibleBottom { continue }
-            renderer.drawImage(image, in: Rect(left: tileLeft, top: tileTop, right: tileLeft + t, bottom: tileTop + t))
+            let frame: CGRect = grid.frame(for: index)
+            if frame.maxY <= visibleTop || frame.minY >= visibleBottom { continue }
+            renderer.drawImage(image, in: Rect(left: frame.minX, top: frame.minY, right: frame.maxX, bottom: frame.maxY))
         }
     } else {
         renderer.saveState()

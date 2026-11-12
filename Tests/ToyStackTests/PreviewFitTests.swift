@@ -53,7 +53,7 @@ struct PreviewFitTests {
             new: CGSize(width: 975, height: 700),
             scale: retina
         )
-        let tilePixels: CGFloat = RasterLayer.tileSize * retina.effective * fit.scale
+        let tilePixels: CGFloat = TileGrid(scale: retina).devicePixels * fit.scale
 
         #expect(tilePixels == tilePixels.rounded())
         #expect(fit.scale <= 0.975)
@@ -67,7 +67,7 @@ struct PreviewFitTests {
             new: CGSize(width: 970, height: 700),
             scale: zoomed
         )
-        let tilePixels: CGFloat = RasterLayer.tileSize * zoomed.effective * fit.scale
+        let tilePixels: CGFloat = TileGrid(scale: zoomed).devicePixels * fit.scale
 
         #expect(abs(tilePixels - tilePixels.rounded()) < 1e-9)
         #expect(fit.scale <= 0.97)

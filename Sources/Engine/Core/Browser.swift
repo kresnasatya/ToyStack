@@ -525,7 +525,7 @@ public class Browser: ObservableObject {
                         for index in layers.indices where effectStrategies[index].kind == .flat {
                             strips.append(contentsOf: layers[index].rasterIfNeeded(
                                 index: index,
-                                scale: scale.effective,
+                                grid: TileGrid(scale: scale),
                                 store: store,
                                 region: region,
                                 budget: budget
@@ -571,7 +571,7 @@ public class Browser: ObservableObject {
                                     to: TileStrip.sliceRect(
                                         for: key,
                                         in: strip.bounds,
-                                        scale: inputs.settings.viewport.scale.effective
+                                        grid: TileGrid(scale: inputs.settings.viewport.scale)
                                     )
                                 ) else { continue }
                                 layers[strip.layerIndex].tiles[key.index] = tile

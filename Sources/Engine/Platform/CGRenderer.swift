@@ -16,7 +16,8 @@ public final class CGRenderer: Renderer {
 
     public static func renderBitmap(size: CGSize, target: RasterTarget, backgroundColor: BrowserColor? = nil, _ context: (CGRenderer) -> Void) -> CGImage? {
         let scale: CGFloat = target.scale
-        let pxW = Int(size.width * scale), pxH = Int(size.height * scale)
+        let pxW: Int = Int((size.width * scale).rounded())
+        let pxH: Int = Int((size.height * scale).rounded())
         guard pxW > 0, pxH > 0,
             let ctx = CGContext(data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0, space: target.colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             else { return nil }

@@ -14,6 +14,7 @@ public struct ContentPresentationState {
     /// A bound frame can still be staging behind older layers, so this can
     /// lag the last bind.
     public private(set) var shownContentWidth: CGFloat?
+    public private(set) var shownPage: CGFloat?
     private var lastRevision: PresentedRevision?
 
     public init() {}
@@ -50,8 +51,14 @@ public struct ContentPresentationState {
         return .bind
     }
 
-    public mutating func didShow(layoutSize: CGSize, viewSize: CGSize) {
+    public mutating func didShow(layoutSize: CGSize, viewSize: CGSize, page: CGFloat) {
         shownContentWidth = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
+        shownPage = page
+    }
+
+    public func layerPage(framePage: CGFloat, showsOlderLayers: Bool) -> CGFloat {
+        guard showsOlderLayers, let shownPage else { return framePage }
+        return shownPage
     }
 
     public static func fitsView(layoutSize: CGSize, viewSize: CGSize) -> Bool {
