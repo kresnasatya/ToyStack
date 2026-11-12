@@ -57,7 +57,7 @@ for `Browser.isRenderIdle`. Time is animation time, not wall time:
 `--force-full-layout` is not only a debug switch. Run the same page twice, once
 incremental and once with the flag, and require byte-identical screenshots: an
 incremental layout that diverges from a full rebuild is an under-invalidated
-field. `Tests/ToyStackTests/LayoutOracle.swift` does the same comparison over
+field. `Tests/ToyStackTests/Support/LayoutOracle.swift` does the same comparison over
 geometry and paint commands, so a failing trace can be reproduced as a unit
 test without a screenshot.
 
