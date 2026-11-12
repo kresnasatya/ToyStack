@@ -75,6 +75,8 @@ For multi-file changes, group the diffs by file and include the file path before
 
 11. Every fix or feature starts with a test in `Tests/`. Write the failing test first, confirm it fails for the intended reason, then implement in `Sources/` until it passes. Tests are the blood contract and the simulation harness: cover the failure paths, not only the happy path. Exercise malformed input, I/O errors, cancellation, stale async results, and resource pressure where the code can encounter them. Do not implement behavior that has no test.
 
+12. Tests follow the **Domain Architecture** too. Put each test file in `Tests/ToyStackTests/<Domain>/`, where `<Domain>` is the `Sources/Engine/` folder that holds the code under test. That means the code that does the work, not the type the test happens to call. For example, `appendChild` tests go in `Platform/` because `JSRuntime` does the work, even though the test calls it through `Frame`. Tests that check trace or profile output go in `Diagnostic/`. Helpers shared by tests from more than one domain go in `Tests/ToyStackTests/Support/`. Keep one test suite per file and name the file after the suite. If a suite tests two domains, split it.
+
 ## Commit Style
 
 Write the message for someone who forgot this code, not for the compiler. Lead with the
