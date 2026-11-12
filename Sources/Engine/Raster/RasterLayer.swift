@@ -108,9 +108,9 @@ public struct RasterLayer: Sendable {
         let left: CGFloat = bounds.left
         let t: CGFloat = grid.size
         let firstCol: Int = max(0, Int(left / t), Int(region.hint.left / t))
-        let lastCol: Int = min(Int((bounds.right - 1) / t), Int(region.hint.right / t))
+        let lastCol: Int = min(Self.lastTile(endingAt: bounds.right, size: t), Int(region.hint.right / t))
         let firstRow: Int = max(0, Int(bounds.top / t), Int(region.hint.top / t))
-        let lastRow: Int = min(Int((bounds.bottom - 1) / t), Int(region.hint.bottom / t))
+        let lastRow: Int = min(Self.lastTile(endingAt: bounds.bottom, size: t), Int(region.hint.bottom / t))
         guard firstCol <= lastCol, firstRow <= lastRow else { return [] }
 
         if content.tileCache.grid != grid {
@@ -121,7 +121,7 @@ public struct RasterLayer: Sendable {
         var rowItems: [Int: [DisplayOp]] = [:]
         for item in items {
             let first: Int = max(firstRow, Int(item.rect.top / t))
-            let last: Int = min(lastRow, Int((item.rect.bottom - 1) / t))
+            let last: Int = min(lastRow, Self.lastTile(endingAt: item.rect.bottom, size: t))
             guard first <= last else { continue }
             for row in first...last {
                 rowItems[row, default: []].append(item)
@@ -199,6 +199,10 @@ public struct RasterLayer: Sendable {
 
     var orderedTileIndices: [TileIndex] {
         return tiles.keys.sorted(by: { ($0.row, $0.col) < ($1.row, $1.col) })
+    }
+
+    private static func lastTile(endingAt end: CGFloat, size t: CGFloat) -> Int {
+        return Int((end / t).rounded(.up)) - 1
     }
 
     private func tileHash(_ inside: [DisplayOp], tileRect: Rect) -> Int {
