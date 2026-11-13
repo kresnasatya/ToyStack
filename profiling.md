@@ -326,6 +326,7 @@ a test that runs the style phase without `render()`.
 | `layout.dirtyDescendants` | count | gate checks that returned because a descendant field was dirty |
 | `layout.field.set` | count | layout field writes that changed the value |
 | `layout.field.mark` | count | layout field transitions from clean to dirty |
+| `layout.dependencies.copy` | count | dependency index copied because another tree still held it |
 | `scrollTargets.rebuilt` | count | synchronous layout pass that rescanned the tree for scrollable blocks and iframes |
 | `scrollTargets.reused` | count | synchronous layout pass that reused the target list and only refreshed rects |
 | `layout.mode.block`, `layout.mode.inline` | count | layout modes taken |
@@ -422,6 +423,8 @@ layout. `rebuilt` = 1 when the install walked the whole tree for scroll targets
 target's node removed); 0 when it only refreshed the rects of the known
 targets. A change made while the pass ran is picked up by the next pass.
 During a width-only drag, expect 0.
+
+`layout.async.handoff` (`sharedIndex`): one sample per background layout job, taken on the main thread when the job is handed its tree. `sharedIndex` = 1 when another tree still held the job's dependency index at that moment; the job's first write then copies every edge (`layout.dependencies.copy`). Expect 0.
 
 `tiles`: one sample per composite, reset by `TileStore.beginComposite`.
 

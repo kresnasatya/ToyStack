@@ -1328,12 +1328,14 @@ class Frame {
         var tree: LayoutTree = box.tree
         box.startRecordingEdits()
         tree.refreshInputs(resolved.inputs)
-        let handoff: LayoutTreeHandoff = LayoutTreeHandoff(consume tree)
         // The installed tree is only painted and hit-tested while the job
         // runs; neither reads the dependency index, and the job's tree replaces
         // it on install. Hand the index over so the job is its only owner and
         // its first write does not copy both dictionaries.
         box.tree.dependencies = DependencyIndex()
+        let sharedIndex: Bool = !tree.dependencies.hasNoOtherOwner()
+        browser?.measure.counter("layout.async.handoff", ["sharedIndex": sharedIndex ? 1 : 0])
+        let handoff: LayoutTreeHandoff = LayoutTreeHandoff(consume tree)
         let marksGeometry: Bool = viewportGeometryPending
         viewportGeometryPending = false
         browser?.measure.stop("layout.async.start.refresh")
@@ -1365,10 +1367,10 @@ class Frame {
             measure?.stop("layout.async.document")
             profiler.emitProfile(into: measure, named: "profile.layout", frame: jobFrame)
             lane?.end()
-            let completed: LayoutTree = tree
+            let result: LayoutTreeHandoff = LayoutTreeHandoff(consume tree)
             await MainActor.run { [weak self] in
                 guard let self,
-                    self.finishAsyncLayout(completed, effects: effects, removed: removed, jobID: jobID)
+                    self.finishAsyncLayout(result.take(), effects: effects, removed: removed, jobID: jobID)
                 else { return }
                 self.continueAfterInstall()
             }

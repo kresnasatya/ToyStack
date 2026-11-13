@@ -83,4 +83,48 @@ struct AsyncLayoutTraceTests {
             #expect(trace.contains("\"\(reason)\":"), "decision is missing \(reason)")
         }
     }
+
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
+    func chainedJobsOwnTheDependencyIndex() async throws {
+        let path: String = NSTemporaryDirectory() + "handoff-\(UUID().uuidString).trace"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let html: String = (0..<40).map { index in
+            "<p>Paragraph \(index) has words that wrap when the viewport is narrow.</p>"
+        }.joined()
+        let page: LayoutTestPage = LayoutTestPage(
+            html: html,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let browser: Browser = Browser(tracePath: path)
+        browser.usesAsyncLayout = true
+        page.tab.browser = browser
+        page.frame.setJSRuntime(JSRuntime(frame: page.frame))
+        page.frame.clearPaintRequest()
+
+        page.tab.resize(width: 400, height: 600)
+        page.frame.runAnimationFrame()
+        try #require(page.frame.isLayoutInFlight)
+        page.tab.resize(width: 300, height: 600)
+        let deadline: Date = Date().addingTimeInterval(5)
+        while page.frame.isLayoutInFlight, Date() < deadline {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        browser.measure.close()
+
+        let data: Data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let root: [String: Any] = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let events: [[String: Any]] = try #require(root["traceEvents"] as? [[String: Any]])
+        let shared: [Int] = events
+            .filter({ $0["name"] as? String == "layout.async.handoff" })
+            .compactMap({ ($0["args"] as? [String: Any])?["sharedIndex"] as? Int })
+        try #require(shared.count == 2, "expected one handoff per job, got \(shared)")
+        #expect(shared == [0, 0], "a job shared the dependency index with the tree it replaced: \(shared)")
+    }
 }

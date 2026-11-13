@@ -3,8 +3,33 @@ import Foundation
 /// The graph is rebuilt from `LayoutInputTable`, which is the only place that
 /// declares an edge. A write walks the index once; reads never touch it.
 struct DependencyIndex {
-    private var dependents: [FieldKey: Set<FieldKey>] = [:]
-    private var inputsByDependent: [FieldKey: Set<FieldKey>] = [:]
+    private var storage: DependencyStorage = DependencyStorage()
+
+    private var dependents: [FieldKey: Set<FieldKey>] {
+        _read { yield storage.dependents }
+        _modify {
+            makeUnique()
+            yield &storage.dependents
+        }
+    }
+
+    private var inputsByDependent: [FieldKey: Set<FieldKey>] {
+        _read { yield storage.inputsByDependent }
+        _modify {
+            makeUnique()
+            yield &storage.inputsByDependent
+        }
+    }
+
+    mutating func hasNoOtherOwner() -> Bool {
+        return isKnownUniquelyReferenced(&storage)
+    }
+
+    private mutating func makeUnique() {
+        guard !isKnownUniquelyReferenced(&storage) else { return }
+        profiler.count("layout.dependencies.copy")
+        storage = storage.copy()
+    }
 
     mutating func rebuild(from tree: LayoutTree) {
         dependents.removeAll(keepingCapacity: true)
@@ -159,5 +184,24 @@ struct DependencyIndex {
             keys.insert(input)
         }
         return keys
+    }
+}
+
+// MARK: - DependencyStorage
+
+private final class DependencyStorage {
+    var dependents: [FieldKey: Set<FieldKey>]
+    var inputsByDependent: [FieldKey: Set<FieldKey>]
+
+    init(
+        dependents: [FieldKey: Set<FieldKey>] = [:],
+        inputsByDependent: [FieldKey: Set<FieldKey>] = [:]
+    ) {
+        self.dependents = dependents
+        self.inputsByDependent = inputsByDependent
+    }
+
+    func copy() -> DependencyStorage {
+        return DependencyStorage(dependents: dependents, inputsByDependent: inputsByDependent)
     }
 }
