@@ -458,7 +458,7 @@ presenter was busy. A headless trace has no `present` counter; use rule 4 in
 | `placements` | placements in this frame |
 | `added` | new layer keys created |
 | `removed` | keys hidden this frame |
-| `kept` | keys present before and after |
+| `kept` | keys present before and after; in a staged upload, layers on screen that the staged generation keeps because their tile did not change |
 | `hidden` | total hidden slots after this frame |
 | `unhidden` | hidden keys returned this frame |
 | `purged` | slots destroyed after the grace period |

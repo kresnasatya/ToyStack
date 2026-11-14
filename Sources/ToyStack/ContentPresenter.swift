@@ -396,9 +396,11 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func finishesThisPresent(_ frame: PresentedFrame, budget: PresentUploadBudget) -> Bool {
+        let scale: CGFloat = frame.viewport.scale.effective
         var left: [Int] = []
         for placed in frame.content.placements {
-            if Self.needsBind(pendingLayers[placed.key]?.layer, to: placed) {
+            let layer: CALayer? = pendingLayers[placed.key]?.layer ?? shownSlot(for: placed, scale: scale)?.layer
+            if Self.needsBind(layer, to: placed) {
                 left.append(placed.image.width * placed.image.height)
             }
         }
@@ -412,6 +414,20 @@ final class ContentPresenter: @unchecked Sendable {
         return (layer?.contents as AnyObject?) !== placed.image
     }
 
+    private func shownSlot(for placed: LayerPlacement, scale: CGFloat) -> Slot? {
+        guard let slot: Slot = layersByPlacement[placed.key] else { return nil }
+        let layer: CALayer = slot.layer
+        let shown: ShownLayer = ShownLayer(
+            image: layer.contents as AnyObject?,
+            frame: layer.frame,
+            scale: layer.contentsScale,
+            isVisibleWithoutEffect: !slot.hidden && layer.opacity == 1
+                && layer.compositingFilter == nil && !layer.masksToBounds
+                && CATransform3DIsIdentity(layer.transform)
+        )
+        return shown.canStay(for: placed, scale: scale) ? slot : nil
+    }
+
     /// Runs on every present, previews included, so a resize cannot stall the
     /// upload.
     private func stageGeneration(viewSize: CGSize, skipped: Bool, budget: PresentUploadBudget) {
@@ -423,6 +439,7 @@ final class ContentPresenter: @unchecked Sendable {
         let offset: CGFloat = frame.viewport.contentOffset.origin
         let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
         var added: Int = 0
+        var kept: Int = 0
         var contents: Int = 0
         var contentsPixels: Int = 0
         var rebinds: [LayerRebind] = []
@@ -430,6 +447,10 @@ final class ContentPresenter: @unchecked Sendable {
             let layer: CALayer
             if let slot: Slot = pendingLayers[placed.key] {
                 layer = slot.layer
+            } else if let shown: Slot = shownSlot(for: placed, scale: scale.effective) {
+                pendingLayers[placed.key] = shown
+                kept += 1
+                continue
             } else {
                 layer = makeSublayer(scale: scale.effective)
                 layer.isHidden = true
@@ -440,6 +461,7 @@ final class ContentPresenter: @unchecked Sendable {
                 )
                 added += 1
             }
+            if layersByPlacement[placed.key]?.layer === layer { continue }
             updateSublayer(layer, with: placed, scale: scale.effective)
             if Self.needsBind(layer, to: placed) {
                 rebinds.append(
@@ -467,7 +489,7 @@ final class ContentPresenter: @unchecked Sendable {
         }
         let waiting: Bool = staging.waiting != nil
         if complete {
-            for slot in layersByPlacement.values {
+            for (key, slot) in layersByPlacement where pendingLayers[key]?.layer !== slot.layer {
                 slot.layer.removeFromSuperlayer()
             }
             var active: [LayerPlacementKey: Slot] = pendingLayers
@@ -490,7 +512,7 @@ final class ContentPresenter: @unchecked Sendable {
             "contents": contents,
             "contentsPixels": contentsPixels,
             "deferred": deferred,
-            "kept": 0,
+            "kept": kept,
             "hidden": layersByPlacement.values.filter(\.hidden).count,
             "unhidden": 0,
             "purged": 0,
@@ -511,7 +533,7 @@ final class ContentPresenter: @unchecked Sendable {
     }
 
     private func removePendingLayers() {
-        for slot in pendingLayers.values {
+        for (key, slot) in pendingLayers where layersByPlacement[key]?.layer !== slot.layer {
             slot.layer.removeFromSuperlayer()
         }
         pendingLayers.removeAll(keepingCapacity: true)
