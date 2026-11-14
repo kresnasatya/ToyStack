@@ -1454,6 +1454,11 @@ class Frame {
         tab?.paintAndCommit()
     }
 
+    func startPendingLayout() {
+        guard browser?.usesAsyncLayout == true, !layoutInFlight, state.runtime.schedule.needsRender else { return }
+        render()
+    }
+
     func makeSnapshot() -> FrameSnapshot {
         paintedLayoutSize = layoutSize
         let display: FrameDisplayState = state.display

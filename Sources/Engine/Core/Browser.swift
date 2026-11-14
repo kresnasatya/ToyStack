@@ -184,6 +184,9 @@ public class Browser: ObservableObject {
             cancelPreviewPresent()
         }
         if let tab: BrowserTab = activeTab {
+            if usesAsyncLayout {
+                tab.startPendingLayout()
+            }
             setNeedsAnimationFrame(tab)
         }
     }

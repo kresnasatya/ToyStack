@@ -222,6 +222,12 @@ public class BrowserTab {
         paintAndCommit(allFrames.sorted(by: { $0.windowID < $1.windowID }))
     }
 
+    func startPendingLayout() {
+        for frame in allFrames.sorted(by: { $0.windowID < $1.windowID }) where frame.loaded {
+            frame.startPendingLayout()
+        }
+    }
+
     private func paintAndCommit(_ frames: [Frame]) {
         if frames.contains(where: { $0.isLayoutInFlight }) {
             // A running pass holds paint back, except a pass that only moves
