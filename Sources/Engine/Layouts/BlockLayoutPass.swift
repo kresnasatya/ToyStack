@@ -268,79 +268,13 @@ extension LayoutTree {
         let widthWasDirty: Bool = isDirty(.width, at: id)
         let geometryDirty: Bool = isDirty(.zoom, at: id) || isDirty(.x, at: id)
             || isDirty(.y, at: id) || widthWasDirty
-        profiler.measure("layout.visit") {
+        let visitSpan: ProfileSpan = profiler.begin("layout.visit")
+        do {
             profiler.count("layout.rebuilt")
             if geometryDirty {
-            profiler.measure("layout.visit.geometry", {
-            let zoomValue: CGFloat = resolvedZoom(id)
-            let isAbsolute: Bool = style.position == .absolute
-            let parent: LayoutID = parentID(of: id)!
-
-            let parentX: CGFloat = x(parent)
-            let padLeft: CGFloat = !hasExtraNodes(id)
-                ? style.box.padding.left * zoomValue
-                : 0
-            var frameX: CGFloat
-            if isAbsolute, let l = style.flags.left {
-                frameX = l * zoomValue + padLeft
-            } else {
-                frameX = parentX + padLeft
-            }
-
-            let parentWidth: CGFloat = width(parent)
-            let padHorizontal: CGFloat = !hasExtraNodes(id)
-                ? (style.box.padding.left + style.box.padding.right) * zoomValue
-                : 0
-            var frameWidth: CGFloat
-            if let w = style.box.width {
-                frameWidth = w * zoomValue
-            } else {
-                frameWidth = max(0, parentWidth - padHorizontal)
-            }
-
-            let element = domView(id).element
-            if element?.tag == "li" {
-                frameX += liIndent
-                frameWidth -= liIndent
-            }
-
-            var frameY: CGFloat
-            if isAbsolute, let t = style.flags.top {
-                let padTop: CGFloat = !hasExtraNodes(id)
-                    ? style.box.padding.left * zoomValue
-                    : 0
-                frameY = t * zoomValue + padTop
-            } else {
-                let ownTop: CGFloat = style.box.margin.top * zoomValue
-                let padTop: CGFloat = style.box.padding.top * zoomValue
-                if let previous: LayoutID = blockPrevious(id) {
-                    let prevY: CGFloat = y(previous)
-                    let prevHeight: CGFloat = height(previous)
-                    let prevPadBottom: CGFloat = isBlock(previous)
-                        ? padding(previous, .paddingBottom)
-                        : 0
-                    let prevMarginBottom: CGFloat = isBlock(previous)
-                        ? blockStyle(previous).box.margin.bottom
-                        : 0
-                    frameY = prevY + prevHeight + prevPadBottom
-                        + prevMarginBottom * zoomValue + ownTop + padTop
-                } else {
-                    frameY = y(parent) + ownTop + padTop
-                }
-            }
-
-            if element?.attributes["id"] == "toc" {
-                frameY += VSTEP
-            }
-
-            let oldGeometry: GeometryFields = self[node: id].state.fields.geometry
-            let widthWasUsed: Bool = isUsed(.width, at: id)
-            setFrame(
-                (zoom: zoomValue, x: frameX, y: frameY, width: frameWidth),
-                for: id
-            )
-            countWidthChange(from: oldGeometry, widthWasUsed: widthWasUsed, at: id)
-            })
+                let geometrySpan: ProfileSpan = profiler.begin("layout.visit.geometry")
+                placeBlockFrame(id, style: style)
+                profiler.end(geometrySpan)
             }
             let frameMoved: Bool = geometryDirty
                 && (!frameWasClean || x(id) != oldFrameX || y(id) != oldFrameY)
@@ -351,7 +285,9 @@ extension LayoutTree {
                 }
             }
 
-            let mode: LayoutMode = profiler.measure("layout.mode", { layoutMode(id) })
+            let modeSpan: ProfileSpan = profiler.begin("layout.mode")
+            let mode: LayoutMode = layoutMode(id)
+            profiler.end(modeSpan)
             if mode == .block {
                 profiler.count("layout.mode.block")
                 if isDirty(.children, at: id) {
@@ -381,18 +317,18 @@ extension LayoutTree {
                     self[block: id].changes.childChanges.removeAll()
                 }
                 _ = zoom(id)
-                
+
                 var preservedItems: Bool = false
                 if inlineContentChanged {
                     let preserveObjects: Bool = canRefreshFontsOnly(id)
-                    profiler.measure("layout.inline.refresh", {
-                        preservedItems = refreshInlineItems(id, preservingObjects: preserveObjects)
-                    })
+                    let refreshSpan: ProfileSpan = profiler.begin("layout.inline.refresh")
+                    preservedItems = refreshInlineItems(id, preservingObjects: preserveObjects)
+                    profiler.end(refreshSpan)
                 }
                 let oldPlan: InlineLinePlan? = self[block: id].content.inlineLinePlan
-                let plan: InlineLinePlan? = profiler.measure("layout.inline.plan", {
-                    inlineTextLinePlan(id)
-                })
+                let planSpan: ProfileSpan = profiler.begin("layout.inline.plan")
+                let plan: InlineLinePlan? = inlineTextLinePlan(id)
+                profiler.end(planSpan)
                 let shouldPlace: Bool = inlineContentChanged
                     || plan == nil
                     || plan?.lines != oldPlan?.lines
@@ -405,18 +341,18 @@ extension LayoutTree {
                     skipInlineChildren = true
                 }
                 if shouldPlace {
+                    let placeSpan: ProfileSpan = profiler.begin("layout.inline.place")
                     if canReusePlan, let plan, let oldPlan {
-                        profiler.measure("layout.inline.place", {
-                            placeInlineItems(
-                                id,
-                                plan: plan.lines,
-                                oldPlan: oldPlan.lines,
-                                refreshMetrics: preservedItems
-                            )
-                        })
+                        placeInlineItems(
+                            id,
+                            plan: plan.lines,
+                            oldPlan: oldPlan.lines,
+                            refreshMetrics: preservedItems
+                        )
                     } else {
-                        profiler.measure("layout.inline.place", { placeInlineItems(id) })
+                        placeInlineItems(id)
                     }
+                    profiler.end(placeSpan)
                 } else {
                     setChildrenField(childrenIDs(of: id), of: id)
                 }
@@ -425,29 +361,19 @@ extension LayoutTree {
                 }
             }
         }
+        profiler.end(visitSpan)
 
         var measuredHeight: CGFloat? = nil
         if !skipInlineChildren {
-            profiler.measure("layout.visit.children", {
-                for child in childrenIDs(of: id) { layout(child) }
-            })
+            let childrenSpan: ProfileSpan = profiler.begin("layout.visit.children")
+            for child in childrenIDs(of: id) { layout(child) }
+            profiler.end(childrenSpan)
 
             setHeightInputs(id)
             let heightChildren: [LayoutID] = childrenIDs(of: id)
-            measuredHeight = profiler.measure("layout.height", {
-                heightChildren.reduce(0) { total, childID in
-                    let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
-                    if position == .absolute { return total }
-                    var h: CGFloat = height(childID)
-                    if isBlock(childID) {
-                        let childStyle: BlockStyle = blockStyle(childID)
-                        let childZoom: CGFloat = zoom(childID)
-                        h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
-                        h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
-                    }
-                    return total + h
-                }
-            })
+            let heightSpan: ProfileSpan = profiler.begin("layout.height")
+            measuredHeight = flowHeight(of: heightChildren)
+            profiler.end(heightSpan)
         } else {
             profiler.count("layout.inline.children.skipped")
         }
@@ -484,6 +410,94 @@ extension LayoutTree {
         } else {
             profiler.count("layout.width.same.unmoved")
         }
+    }
+
+    mutating private func placeBlockFrame(_ id: LayoutID, style: BlockStyle) {
+        let zoomValue: CGFloat = resolvedZoom(id)
+        let isAbsolute: Bool = style.position == .absolute
+        let parent: LayoutID = parentID(of: id)!
+
+        let parentX: CGFloat = x(parent)
+        let padLeft: CGFloat = !hasExtraNodes(id)
+            ? style.box.padding.left * zoomValue
+            : 0
+        var frameX: CGFloat
+        if isAbsolute, let l = style.flags.left {
+            frameX = l * zoomValue + padLeft
+        } else {
+            frameX = parentX + padLeft
+        }
+
+        let parentWidth: CGFloat = width(parent)
+        let padHorizontal: CGFloat = !hasExtraNodes(id)
+            ? (style.box.padding.left + style.box.padding.right) * zoomValue
+            : 0
+        var frameWidth: CGFloat
+        if let w = style.box.width {
+            frameWidth = w * zoomValue
+        } else {
+            frameWidth = max(0, parentWidth - padHorizontal)
+        }
+
+        let element = domView(id).element
+        if element?.tag == "li" {
+            frameX += liIndent
+            frameWidth -= liIndent
+        }
+
+        var frameY: CGFloat
+        if isAbsolute, let t = style.flags.top {
+            let padTop: CGFloat = !hasExtraNodes(id)
+                ? style.box.padding.left * zoomValue
+                : 0
+            frameY = t * zoomValue + padTop
+        } else {
+            let ownTop: CGFloat = style.box.margin.top * zoomValue
+            let padTop: CGFloat = style.box.padding.top * zoomValue
+            if let previous: LayoutID = blockPrevious(id) {
+                let prevY: CGFloat = y(previous)
+                let prevHeight: CGFloat = height(previous)
+                let prevPadBottom: CGFloat = isBlock(previous)
+                    ? padding(previous, .paddingBottom)
+                    : 0
+                let prevMarginBottom: CGFloat = isBlock(previous)
+                    ? blockStyle(previous).box.margin.bottom
+                    : 0
+                frameY = prevY + prevHeight + prevPadBottom
+                    + prevMarginBottom * zoomValue + ownTop + padTop
+            } else {
+                frameY = y(parent) + ownTop + padTop
+            }
+        }
+
+        if element?.attributes["id"] == "toc" {
+            frameY += VSTEP
+        }
+
+        let oldGeometry: GeometryFields = self[node: id].state.fields.geometry
+        let widthWasUsed: Bool = isUsed(.width, at: id)
+        setFrame(
+            (zoom: zoomValue, x: frameX, y: frameY, width: frameWidth),
+            for: id
+        )
+        countWidthChange(from: oldGeometry, widthWasUsed: widthWasUsed, at: id)
+    }
+
+    mutating private func flowHeight(of children: [LayoutID]) -> CGFloat {
+        var total: CGFloat = 0
+        for childID in children {
+            let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
+            if position == .absolute { return total }
+            var h: CGFloat = height(childID)
+            if isBlock(childID) {
+                let childStyle: BlockStyle = blockStyle(childID)
+                let childZoom: CGFloat = zoom(childID)
+                h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
+                h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
+            }
+            total += h
+        }
+        return total
     }
 
     private enum LayoutMode {
@@ -1570,7 +1584,7 @@ extension LayoutTree {
         )
     }
 
-    
+
 
     func blockPaintCaret(_ id: LayoutID, into items: inout [DisplayOp]) {
         guard let el = domView(id).element, el.isFocused,
@@ -1922,4 +1936,3 @@ struct InlinePlacement {
         })
     }
 }
-

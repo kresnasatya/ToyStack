@@ -543,6 +543,7 @@ followed at once.
 - `measure.counter` for per-frame integers. All args must be `Int`; put units in
   the documentation, not the name.
 - `profiler.measure` / `profiler.count` inside recursion only.
+- Inside a mutating `LayoutTree` method, use `profiler.begin` / `profiler.end` instead of `profiler.measure`. A closure there captures the tree, and every read-only call inside it copies the whole tree; during a resize that was 17% of layout time.
 - Do not `measure` inside a per-item loop. Accumulate and call `count(name, by:)`
   once, as `style.matchesTrue` does.
 - One name, one meaning. Do not overload args either: `tiles.scroll` is pixels,

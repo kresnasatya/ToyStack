@@ -49,6 +49,29 @@ struct ProfilerTests {
         #expect(profiler.snapshot()["test.merged"]?.count == 7)
     }
 
+    @Test func spanRecordsTheTimeBetweenBeginAndEnd() {
+        let profiler: Profiler = Profiler(enabled: true)
+        profiler.reset()
+
+        let span: ProfileSpan = profiler.begin("test.span")
+        Thread.sleep(forTimeInterval: 0.002)
+        profiler.end(span)
+
+        let metric: ProfileMetric? = profiler.snapshot()["test.span"]
+        #expect(metric?.count == 1)
+        #expect((metric?.nanos ?? 0) >= 2_000_000, "the span lost the time it covered")
+        #expect((metric?.nanos ?? .max) < 1_000_000_000, "the span recorded more than the time it covered")
+    }
+
+    @Test func disabledProfilerRecordsNoSpan() {
+        let profiler: Profiler = Profiler(enabled: false)
+
+        let span: ProfileSpan = profiler.begin("test.span")
+        profiler.end(span)
+
+        #expect(profiler.snapshot()["test.span"] == nil)
+    }
+
     private static func onOtherThread<Result>(_ body: @escaping @Sendable () -> Result) -> Result {
         let box: ThreadResultBox<Result> = ThreadResultBox()
         let done: DispatchSemaphore = DispatchSemaphore(value: 0)

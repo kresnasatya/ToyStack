@@ -49,6 +49,16 @@ final class Profiler: @unchecked Sendable {
         return result
     }
 
+    func begin(_ name: StaticString) -> ProfileSpan {
+        guard enabled else { return ProfileSpan(name: name, start: 0) }
+        return ProfileSpan(name: name, start: DispatchTime.now().uptimeNanoseconds)
+    }
+
+    func end(_ span: ProfileSpan) {
+        guard enabled else { return }
+        record(span.name, nanos: DispatchTime.now().uptimeNanoseconds - span.start)
+    }
+
     func count(_ name: StaticString, by amount: Int = 1) {
         guard enabled else { return }
         window.pointee.add(name, nanos: 0, count: amount)
@@ -90,6 +100,13 @@ final class Profiler: @unchecked Sendable {
 let profiler: Profiler = Profiler(
     enabled: !ProcessInfo.processInfo.arguments.contains("--no-profile")
 )
+
+// MARK: - ProfileSpan
+
+struct ProfileSpan {
+    let name: StaticString
+    let start: UInt64
+}
 
 // MARK: - ProfileWindow
 

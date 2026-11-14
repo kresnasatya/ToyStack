@@ -99,7 +99,10 @@ extension LayoutTree {
         }
         let parent: LayoutID = parentID(of: id)!
         let previous: LayoutID? = previousID(of: id)
-        let lineY: CGFloat = previous.map({ y($0) + height($0) }) ?? y(parent)
+        var lineY: CGFloat = y(parent)
+        if let previous {
+            lineY = y(previous) + height(previous)
+        }
         setFrame(
             (
                 zoom: zoom(parent),
@@ -124,7 +127,11 @@ extension LayoutTree {
             || isDirty(.children, at: id)
             || widthMovesChildren
 
-        let textOnly: Bool = children.allSatisfy({ isText($0) })
+        var textOnly: Bool = true
+        for child in children where !isText(child) {
+            textOnly = false
+            break
+        }
         let hasBoxes: Bool = !self[line: id].content.boxes.isEmpty
         // Only lines backed by text children may take the child fast path.
         // A value line has no children; it keeps its text in `content.boxes`,
@@ -140,13 +147,9 @@ extension LayoutTree {
 
         if verticalOnly, let childOriginY: CGFloat = self[line: id].placement.childOriginY {
             profiler.count("layout.line.place.verticalOnly")
-            profiler.measure("layout.line.place.vertical", {
-                let offset: CGFloat = y(id) - childOriginY
-                self[line: id].placement.inlineYOffset = offset
-            })
-            // Boxes store y relative to the line (`y(child) - childOriginY`),
-            // and this path keeps x, widths, and children, so a line that only
-            // moved still has the right boxes. Only build them if it has none.
+            let verticalSpan: ProfileSpan = profiler.begin("layout.line.place.vertical")
+            self[line: id].placement.inlineYOffset = y(id) - childOriginY
+            profiler.end(verticalSpan)
             if self[line: id].content.boxes.isEmpty {
                 syncInlineBoxes(id)
             } else {
@@ -163,68 +166,72 @@ extension LayoutTree {
         for child in children { layout(child) }
 
         profiler.count("layout.line.place.placed")
-        profiler.measure("layout.line.place", {
-            if hasBoxes, children.isEmpty {
-                layoutLineBoxes(id)
-                return
-            }
-            guard !children.isEmpty else {
-                setField(.ascent, 0, for: id)
-                setField(.descent, 0, for: id)
-                setField(.height, 0, for: id)
-                return
-            }
+        let placeSpan: ProfileSpan = profiler.begin("layout.line.place")
+        placeLineChildren(id, children: children, hasBoxes: hasBoxes)
+        profiler.end(placeSpan)
+    }
 
-            let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
-            guard !inlineChildren.isEmpty else {
-                setField(.height, 0, for: id)
-                return
-            }
+    mutating private func placeLineChildren(_ id: LayoutID, children: [LayoutID], hasBoxes: Bool) {
+        if hasBoxes, children.isEmpty {
+            layoutLineBoxes(id)
+            return
+        }
+        guard !children.isEmpty else {
+            setField(.ascent, 0, for: id)
+            setField(.descent, 0, for: id)
+            setField(.height, 0, for: id)
+            return
+        }
 
-            var maxAscent: CGFloat = 0
-            var maxDescent: CGFloat = 0
-            for child in inlineChildren {
-                maxAscent = max(maxAscent, ascent(child))
-                maxDescent = max(maxDescent, descent(child))
-            }
-            setField(.ascent, maxAscent, for: id)
-            setField(.descent, maxDescent, for: id)
+        let inlineChildren: [LayoutID] = children.filter({ isText($0) || isEmbed($0) })
+        guard !inlineChildren.isEmpty else {
+            setField(.height, 0, for: id)
+            return
+        }
 
-            var nextX: CGFloat = x(id)
-            var previousFont: BrowserFont? = nil
-            let baseline: CGFloat = y(id) + ascent(id)
-            for (index, child) in inlineChildren.enumerated() {
-                if let previousFont, isEmbed(child) {
-                    nextX += previousFont.spaceWidth
-                }
-                let childY: CGFloat = inputs.tag(domID(of: child)) == "sup"
-                    ? baseline - maxAscent
-                    : baseline - ascent(child)
-                setPosition(x: nextX, y: childY, for: child)
-                nextX += inlineWidth(id, index: index, child: child)
-                previousFont = font(child)
-            }
+        var maxAscent: CGFloat = 0
+        var maxDescent: CGFloat = 0
+        for child in inlineChildren {
+            maxAscent = max(maxAscent, ascent(child))
+            maxDescent = max(maxDescent, descent(child))
+        }
+        setField(.ascent, maxAscent, for: id)
+        setField(.descent, maxDescent, for: id)
 
-            for child in children where !isText(child) && !childrenIDs(of: child).isEmpty {
-                layout(child)
+        var nextX: CGFloat = x(id)
+        var previousFont: BrowserFont? = nil
+        let baseline: CGFloat = y(id) + ascent(id)
+        for (index, child) in inlineChildren.enumerated() {
+            if let previousFont, isEmbed(child) {
+                nextX += previousFont.spaceWidth
             }
+            let childY: CGFloat = inputs.tag(domID(of: child)) == "sup"
+                ? baseline - maxAscent
+                : baseline - ascent(child)
+            setPosition(x: nextX, y: childY, for: child)
+            nextX += inlineWidth(id, index: index, child: child)
+            previousFont = font(child)
+        }
 
-            if inputs.style(domID(of: id)).text.direction == .rtl {
-                let usedWidth: CGFloat = contentWidth(id)
-                shiftChildren(id, by: width(id) - usedWidth)
-            }
+        for child in children where !isText(child) && !childrenIDs(of: child).isEmpty {
+            layout(child)
+        }
 
-            if self[line: id].content.centered {
-                let usedWidth: CGFloat = contentWidth(id)
-                shiftChildren(id, by: (width(id) - usedWidth) / 2)
-            }
+        if inputs.style(domID(of: id)).text.direction == .rtl {
+            let usedWidth: CGFloat = contentWidth(id)
+            shiftChildren(id, by: width(id) - usedWidth)
+        }
 
-            setField(.height, ascent(id) + descent(id), for: id)
-            let originY: CGFloat = y(id)
-            self[line: id].placement.childOriginY = originY
-            self[line: id].placement.inlineYOffset = 0
-            syncInlineBoxes(id)
-        })
+        if self[line: id].content.centered {
+            let usedWidth: CGFloat = contentWidth(id)
+            shiftChildren(id, by: (width(id) - usedWidth) / 2)
+        }
+
+        setField(.height, ascent(id) + descent(id), for: id)
+        let originY: CGFloat = y(id)
+        self[line: id].placement.childOriginY = originY
+        self[line: id].placement.inlineYOffset = 0
+        syncInlineBoxes(id)
     }
 
     /// Shadow values for the fragment-node migration. Paint and hit-test still
