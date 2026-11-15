@@ -1,6 +1,8 @@
+import Combine
+
 @MainActor
-final class Bookmarks {
-    private(set) var urls: [String] = []
+final class Bookmarks: ObservableObject {
+    @Published private(set) var urls: [String] = []
 
     func contains(_ url: String) -> Bool {
         urls.contains(url)

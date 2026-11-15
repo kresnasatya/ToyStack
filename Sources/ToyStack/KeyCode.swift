@@ -14,9 +14,7 @@ enum KeyCode {
     static let zero: UInt16 = UInt16(kVK_ANSI_0)
     static let returnKey: UInt16 = UInt16(kVK_Return)
     static let tab: UInt16 = UInt16(kVK_Tab)
-    static let backspace: UInt16 = UInt16(kVK_Delete)
     static let leftArrow: UInt16 = UInt16(kVK_LeftArrow)
-    static let rightArrow: UInt16 = UInt16(kVK_RightArrow)
     static let downArrow: UInt16 = UInt16(kVK_DownArrow)
     static let upArrow: UInt16 = UInt16(kVK_UpArrow)
 }

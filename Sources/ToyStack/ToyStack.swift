@@ -1,8 +1,6 @@
 import Engine
 import SwiftUI
 
-extension Browser: TabManager {}
-
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -51,7 +49,7 @@ struct ToyStack: App {
 
 public struct BrowserView: View {
     @StateObject private var app = Browser()
-    @State private var chrome = Chrome()
+    @State private var addressFocus: AddressFocus = AddressFocus()
     @Environment(\.openWindow) private var openWindow
     @State private var browserWindow: NSWindow?
     let bookmarks: Bookmarks
@@ -61,14 +59,23 @@ public struct BrowserView: View {
     }
 
     public var body: some View {
-        ZStack {
+        ChromeView(browser: app, bookmarks: bookmarks, addressFocus: addressFocus) {
             BrowserContentView(browser: app)
-            Canvas { ctx, size in
-                let chromeRenderer = SwiftUIRenderer(context: ctx)
-                renderDisplayList(chrome.paint(), renderer: chromeRenderer)
-            }
+                .background(app.commitedForcedColors ? Color(engine: BrowserColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
+                .contentShape(Rectangle())
+                .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
+                    app.resize(to: newSize, deferLayout: true)
+                }
+                .gesture(
+                    SpatialTapGesture()
+                        .onEnded({ value in
+                            Task { @MainActor in
+                                addressFocus.blur()
+                                app.activeTab?.click(x: value.location.x, y: value.location.y)
+                            }
+                        })
+                )
         }
-        .background(app.commitedForcedColors ? Color(engine: BrowserColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
         .background(
             WindowReader { window in
                 browserWindow = window
@@ -79,18 +86,24 @@ public struct BrowserView: View {
         .onAppear {
             NSEvent.addLocalMonitorForEvents(
                 matching: .keyDown,
-                handler: { [weak app, chrome] event in
+                handler: { [weak app, addressFocus] event in
                     guard event.window === browserWindow else { return event }
                     guard let app else { return event }
+                    let flags: NSEvent.ModifierFlags = event.modifierFlags
+                    let isBrowserShortcut: Bool =
+                        flags.contains(.control)
+                        || (flags.contains(.command) && event.keyCode == KeyCode.n)
+                        || event.keyCode == KeyCode.tab
+                    let isEditingText: Bool = event.window?.firstResponder is NSTextView
+                    if isEditingText && !isBrowserShortcut {
+                        return event
+                    }
                     Task { @MainActor in
-                        if event.modifierFlags.contains(.command) && event.keyCode == KeyCode.n {
+                        if flags.contains(.command) && event.keyCode == KeyCode.n {
                             openWindow(id: "browser", value: UUID())
-                        } else if event.modifierFlags.contains(.command) && event.keyCode == KeyCode.leftArrow {
+                        } else if flags.contains(.command) && event.keyCode == KeyCode.leftArrow {
                             app.activeTab?.goBack()
                         } else if event.keyCode == KeyCode.downArrow {
-                            print(
-                                "[key] down arrow hasScrollElement=\(app.activeTab?.hasScrollElement ?? false)"
-                            )
                             if let tab = app.activeTab, tab.hasScrollElement {
                                 tab.scrollElementDown()
                             } else {
@@ -103,34 +116,17 @@ public struct BrowserView: View {
                                 app.activeTab?.scrollUp()
                             }
                         } else if event.keyCode == KeyCode.returnKey {
-                            if !(chrome.enter()) {
-                                app.activeTab?.enterKey()
-                            }
-                        } else if event.keyCode == KeyCode.backspace {
-                            if chrome.backspace() {
-                                app.objectWillChange.send()
-                            }
-                        } else if event.keyCode == KeyCode.leftArrow {
-                            if chrome.cursorLeft() {
-                                app.objectWillChange.send()
-                            }
-                        } else if event.keyCode == KeyCode.rightArrow {
-                            if chrome.cursorRight() {
-                                app.objectWillChange.send()
-                            }
+                            app.activeTab?.enterKey()
                         } else if event.keyCode == KeyCode.tab {
-                            if event.modifierFlags.contains(.control) {
+                            if flags.contains(.control) {
                                 app.cycleTabs()
-                            } else {
-                                if chrome.hasFocus {
-                                    chrome.blur()
-                                    app.activeTab?.advanceTab()
-                                } else if !(app.activeTab?.advanceTab() ?? false) {
-                                    chrome.focusAddressBar()
-                                }
-                                app.objectWillChange.send()
+                            } else if isEditingText {
+                                addressFocus.blur()
+                                _ = app.activeTab?.advanceTab()
+                            } else if !(app.activeTab?.advanceTab() ?? false) {
+                                addressFocus.focus()
                             }
-                        } else if event.modifierFlags.contains(.control) {
+                        } else if flags.contains(.control) {
                             switch event.keyCode {
                             case KeyCode.a:
                                 app.toggleAccessibility()
@@ -151,20 +147,14 @@ public struct BrowserView: View {
                             case KeyCode.zero:
                                 app.resetZoom()
                             case KeyCode.l:
-                                app.activeTab?.blur()
-                                chrome.focusAddressBar()
-                                app.objectWillChange.send()
+                                addressFocus.focus()
                             default:
                                 break
                             }
                         } else if let char = event.characters, !char.isEmpty {
                             let scalar = char.unicodeScalars.first!.value
                             if scalar >= 0x20 && scalar < 0x7F {
-                                if !chrome.keypress(char) {
-                                    app.activeTab?.keypress(char)
-                                } else {
-                                    app.objectWillChange.send()
-                                }
+                                app.activeTab?.keypress(char)
                             }
                         }
                     }
@@ -173,7 +163,7 @@ public struct BrowserView: View {
             )
             NSEvent.addLocalMonitorForEvents(
                 matching: .scrollWheel,
-                handler: { [weak app, chrome] event in
+                handler: { [weak app] event in
                     guard event.window === browserWindow else { return event }
                     guard let app else { return event }
                     Task { @MainActor in
@@ -182,15 +172,9 @@ public struct BrowserView: View {
                             ? event.scrollingDeltaY
                             : event.scrollingDeltaY * 18
                         let loc = event.locationInWindow
-                        let x = loc.x
-                        let screenY = app.windowSize.height - loc.y
-                        let contentY = screenY - chrome.bottom
-                        if contentY > 0 {
-                            app.activeTab?.scrollAt(
-                                x: x,
-                                y: contentY,
-                                deltaY: deltaY
-                            )
+                        let y: CGFloat = app.windowSize.height - loc.y
+                        if y > 0 {
+                            app.activeTab?.scrollAt(x: loc.x, y: y, deltaY: deltaY)
                         } else {
                             app.activeTab?.scrollBy(deltaY: deltaY)
                         }
@@ -200,16 +184,14 @@ public struct BrowserView: View {
             )
             NSEvent.addLocalMonitorForEvents(
                 matching: .otherMouseDown,
-                handler: { [weak app, chrome] event in
+                handler: { [weak app] event in
                     guard event.window === browserWindow else { return event }
                     guard let app, event.buttonNumber == 2 else { return event }
                     Task { @MainActor in
                         let loc = event.locationInWindow
-                        let x = loc.x
-                        let y = app.windowSize.height - loc.y
-                        guard y >= chrome.bottom else { return }
-                        let tabY = y - chrome.bottom
-                        if let linkURL = app.activeTab?.linkURL(at: x, y: tabY) {
+                        let y: CGFloat = app.windowSize.height - loc.y
+                        guard y >= 0 else { return }
+                        if let linkURL = app.activeTab?.linkURL(at: loc.x, y: y) {
                             app.newTab(linkURL)
                         }
                     }
@@ -218,19 +200,17 @@ public struct BrowserView: View {
             )
             NSEvent.addLocalMonitorForEvents(
                 matching: .mouseMoved,
-                handler: { [weak app, chrome] event in
+                handler: { [weak app] event in
                     guard event.window === browserWindow else { return event }
                     guard let app else { return event }
                     Task { @MainActor in
                         let loc = event.locationInWindow
-                        let x = loc.x
-                        let y = app.windowSize.height - loc.y
-                        guard y >= chrome.bottom else {
+                        let y: CGFloat = app.windowSize.height - loc.y
+                        guard y >= 0 else {
                             app.activeTab?.clearHover()
                             return
                         }
-                        let tabY = y - chrome.bottom
-                        app.handleHover(x: x, y: tabY)
+                        app.handleHover(x: loc.x, y: y)
                     }
                     return event
                 })
@@ -241,37 +221,12 @@ public struct BrowserView: View {
                 NSApp.keyWindow?.title = newTitle
             }
         )
-        .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
-            app.resize(to: newSize, deferLayout: true)
-            chrome.resize(width: newSize.width)
-        }
-        .gesture(
-            SpatialTapGesture()
-                .onEnded({ value in
-                    Task { @MainActor in
-                        let x = value.location.x
-                        let y = value.location.y
-                        if y < chrome.bottom {
-                            app.activeTab?.blur()
-                            chrome.click(x: x, y: y)
-                            app.objectWillChange.send()
-                        } else {
-                            chrome.blur()
-                            app.activeTab?.click(x: x, y: y - chrome.bottom)
-                        }
-                    }
-                })
-        )
         .task {
             app.usesAsyncLayout = true
             app.displayScale = NSScreen.main?.backingScaleFactor ?? 2.0
             if let space: CGColorSpace = NSScreen.main?.colorSpace?.cgColorSpace {
                 app.displayColorSpace = space
             }
-            chrome.tabManager = app
-            chrome.bookmarks = bookmarks
-            chrome.resize(width: app.windowSize.width)
-            app.topInset = chrome.bottom
             BrowserTab.pageSource = { scheme, path in
                 guard scheme == "about", path == "bookmarks" else { return nil }
                 let items = await MainActor.run {
