@@ -44,6 +44,13 @@ struct LayoutInputs {
         return input(id)?.node.children ?? []
     }
 
+    func hasBlockChild(_ id: NodeID) -> Bool {
+        for child in children(id) where style(child).layout.display == .block {
+            return true
+        }
+        return false
+    }
+
     func parent(_ id: NodeID) -> NodeID? {
         return input(id)?.node.parent
     }

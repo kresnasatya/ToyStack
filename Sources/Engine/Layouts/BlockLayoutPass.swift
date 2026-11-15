@@ -507,15 +507,13 @@ extension LayoutTree {
 
     private func layoutMode(_ id: LayoutID) -> LayoutMode {
         if hasExtraNodes(id) { return .inline }
-        if domView(id).text != nil { return .inline }
-        let hasBlockChild: Bool = domView(id).children.contains(where: {
-            $0.style.computed.layout.display == .block
-        })
-        if hasBlockChild { return .block }
-        if let el = domView(id).element {
-            return (el.children.isEmpty && el.tag != "input" && el.tag != "img" && el.tag != "iframe" && el.tag != "canvas") ? .block : .inline
-        }
-        return .inline
+        let node: NodeID = domID(of: id)
+        let inputs: LayoutInputs = inputs
+        if inputs.text(node) != nil { return .inline }
+        if inputs.hasBlockChild(node) { return .block }
+        guard let tag: String = inputs.tag(node) else { return .inline }
+        let replaced: Bool = tag == "input" || tag == "img" || tag == "iframe" || tag == "canvas"
+        return inputs.children(node).isEmpty && !replaced ? .block : .inline
     }
 
     /// A width-only change that keeps the break plan leaves line contents and
