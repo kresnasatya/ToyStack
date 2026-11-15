@@ -1069,11 +1069,10 @@ class Frame {
         )
     }
 
-    private func viewportFitsInPaintedWindow() -> Bool {
+    private func viewportFitsInPaintedWindow(margin: CGFloat) -> Bool {
         let window: PaintWindow = state.display.painted.window
         guard window != .full else { return true }
 
-        let margin: CGFloat = frameHeight / 2
         return scroll >= window.top + margin
             && scroll + frameHeight <= window.bottom - margin
     }
@@ -1573,7 +1572,7 @@ class Frame {
 
     @discardableResult
     func repaintForScroll() -> Bool {
-        guard !viewportFitsInPaintedWindow() else { return false }
+        guard !viewportFitsInPaintedWindow(margin: frameHeight / 2) else { return false }
 
         state.display.paint.isNeeded = true
         state.display.composite.isNeededForPaint = true
@@ -1583,7 +1582,11 @@ class Frame {
     }
 
     func scrollNeedsPaint() -> Bool {
-        return !viewportFitsInPaintedWindow()
+        return !viewportFitsInPaintedWindow(margin: frameHeight / 2)
+    }
+
+    func paintedWindowCoversViewport() -> Bool {
+        return viewportFitsInPaintedWindow(margin: 0)
     }
 
     private func scrollTo(_ elt: DOMRef) {

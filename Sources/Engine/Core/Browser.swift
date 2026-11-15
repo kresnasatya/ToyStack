@@ -741,16 +741,20 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
-        let needsPaint: Bool = activeTab?.rootFrame.scrollNeedsPaint() ?? false
-        if needsPaint {
+        let frame: Frame? = activeTab?.rootFrame
+        if frame?.scrollNeedsPaint() == true {
             pendingScrollTarget = scroll
             needsScrollPaint = true
             needsAnimationFrame = true
-            return
+
+            // The repaint waits for the next tick. Until then the painted list
+            // still holds everything the viewport shows, so show this scroll now.
+            guard frame?.paintedWindowCoversViewport() == true else { return }
+        } else {
+            needsScrollPaint = false
+            pendingScrollTarget = nil
         }
 
-        needsScrollPaint = false
-        pendingScrollTarget = nil
         activePresentation.scroll.scroll = scroll
 
         if activePresentation.render.content.usesSublayers {
