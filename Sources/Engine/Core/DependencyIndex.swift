@@ -5,7 +5,7 @@ import Foundation
 struct DependencyIndex {
     private var storage: DependencyStorage = DependencyStorage()
 
-    private var dependents: [FieldKey: Set<FieldKey>] {
+    private var dependents: FieldKeyMap {
         _read { yield storage.dependents }
         _modify {
             makeUnique()
@@ -180,7 +180,7 @@ struct DependencyIndex {
     /// so tests can compare the reverse index against `LayoutInputTable`.
     func fieldKeys(for dependent: FieldKey) -> Set<FieldKey> {
         var keys: Set<FieldKey> = []
-        for (input, list) in dependents where list.contains(dependent) {
+        for (input, list) in dependents.pairs where list.contains(dependent) {
             keys.insert(input)
         }
         return keys
@@ -190,11 +190,11 @@ struct DependencyIndex {
 // MARK: - DependencyStorage
 
 private final class DependencyStorage {
-    var dependents: [FieldKey: Set<FieldKey>]
+    var dependents: FieldKeyMap
     var inputsByDependent: [FieldKey: Set<FieldKey>]
 
     init(
-        dependents: [FieldKey: Set<FieldKey>] = [:],
+        dependents: FieldKeyMap = FieldKeyMap(),
         inputsByDependent: [FieldKey: Set<FieldKey>] = [:]
     ) {
         self.dependents = dependents
