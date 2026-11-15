@@ -1440,6 +1440,7 @@ class Frame {
         if needsRelayout {
             state.runtime.schedule.needsRender = true
         }
+        state.display.composite.isNeededForPaint = true
         setNeedsPaint()
         return true
     }
