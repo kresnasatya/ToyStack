@@ -221,6 +221,40 @@ struct HoverTests {
         #expect(label.style.computed.text.color == BrowserColor(cssName: "black"))
     }
 
+    @Test func enteringTwoHoveredAncestorsAtOnceStylesTheirDescendant() throws {
+        let page: LayoutTestPage = nestedHoverPage()
+        let pointer: ElementRef = try #require(page.firstElement(id: "pointer"))
+        let styled: ElementRef = try #require(page.firstElement(id: "styled"))
+        let point: CGPoint = center(try bounds(pointer, in: page))
+
+        page.tab.hover(x: point.x, y: point.y)
+        page.frame.render()
+        page.frame.render()
+
+        #expect(!styled.isHovered)
+        #expect(styled.style.computed.text.color == BrowserColor(cssName: "red"))
+    }
+
+    @Test func leavingTwoHoveredAncestorsAtOnceRestoresTheirDescendant() throws {
+        let page: LayoutTestPage = nestedHoverPage()
+        let pointer: ElementRef = try #require(page.firstElement(id: "pointer"))
+        let styled: ElementRef = try #require(page.firstElement(id: "styled"))
+        let outside: ElementRef = try #require(page.firstElement(id: "outside"))
+        let inside: CGPoint = center(try bounds(pointer, in: page))
+        let away: CGPoint = center(try bounds(outside, in: page))
+
+        page.tab.hover(x: inside.x, y: inside.y)
+        page.frame.render()
+        page.frame.render()
+        #expect(styled.style.computed.text.color == BrowserColor(cssName: "red"))
+
+        page.tab.hover(x: away.x, y: away.y)
+        page.frame.render()
+        page.frame.render()
+
+        #expect(styled.style.computed.text.color == BrowserColor(cssName: "black"))
+    }
+
     @Test func hitTestUsesTheLayoutFromTheSameFrame() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box">content</div>"#,
@@ -251,5 +285,19 @@ struct HoverTests {
         page.frame.render()
 
         #expect(box.isHovered)
+    }
+
+    private func nestedHoverPage() -> LayoutTestPage {
+        return LayoutTestPage(
+            html: """
+                <div id="outer"><div id="inner"><div id="pointer">pointer</div><div id="styled">styled</div></div></div>
+                <div id="outside">outside</div>
+            """, rules: """
+                html { width: 600px; }
+                body { display: block; }
+                div { display: block; }
+                #outer:hover #inner:hover #styled { color: red }
+            """
+        )
     }
 }

@@ -1836,6 +1836,8 @@ class Frame {
         let leaving: Set<NodeID> = Set(state.runtime.interaction.hovered)
         guard entering != leaving else { return }
 
+        let selectors: [any CSSSelector] = state.document.sheets.index.list.index.hoverAncestorSelectors
+        let before: StyleSnapshot? = selectors.isEmpty ? nil : StyleSnapshotBuilder.build(root: nodes)
         var changed: [NodeID] = []
         for element in state.runtime.interaction.hovered where !entering.contains(element) {
             dom.setFlag(\.isHovered, false, of: element)
@@ -1848,19 +1850,16 @@ class Frame {
         }
         state.runtime.interaction.hovered = chain
 
+        for element in changed {
+            noteStyleInvalidation("style.invalidate.hover.node")
+            setNeedsStyle(dom.ref(element))
+        }
+
         // A descendant (e.g. `li:hover span`) can be styled by an ancestor
         // that is still hovered after the descendant left the chain.
         // On exit that ancestor is the only path back to the descendant.
-        for element in changed {
-            let ref: DOMRef = dom.ref(element)
-            if state.document.sheets.index.list.index.hoverStylesDescendants {
-                noteStyleInvalidation("style.invalidate.hover.node")
-                setNeedsStyle(ref)
-                markHoverDescendants(of: ref)
-            } else {
-                noteStyleInvalidation("style.invalidate.hover.node")
-                setNeedsStyle(ref)
-            }
+        if let before {
+            markHoverDescendants(of: changed, selectors: selectors, before: before)
         }
     }
 
@@ -2091,32 +2090,37 @@ class Frame {
         state.layout.tree.isDirty = true
     }
 
-    private func markHoverDescendants(of element: DOMRef) {
-        let selectors: [any CSSSelector] = state.document.sheets.index.list.index.hoverAncestorSelectors
-        guard !selectors.isEmpty else { return }
+    private func markHoverDescendants(
+        of changed: [NodeID],
+        selectors: [any CSSSelector],
+        before: StyleSnapshot
+    ) {
+        let after: StyleSnapshot = StyleSnapshotBuilder.build(root: nodes)
+        let changedSet: Set<NodeID> = Set(changed)
 
-        let newState: Bool = element.isHovered
         var matched: [NodeID: DOMRef] = [:]
-        dom.setFlag(\.isHovered, !newState, of: element.id)
-        collectHoverMatches(
-            under: element,
-            selectors: selectors,
-            snapshot: StyleSnapshotBuilder.build(root: nodes),
-            into: &matched
-        )
-        dom.setFlag(\.isHovered, newState, of: element.id)
-        collectHoverMatches(
-            under: element,
-            selectors: selectors,
-            snapshot: StyleSnapshotBuilder.build(root: nodes),
-            into: &matched
-        )
+
+        for element in changed {
+            let ref: DOMRef = dom.ref(element)
+            guard !hasAncestor(ref, in: changedSet) else { continue }
+            collectHoverMatches(under: ref, selectors: selectors, snapshot: before, into: &matched)
+            collectHoverMatches(under: ref, selectors: selectors, snapshot: after, into: &matched)
+        }
 
         for node in matched.values {
             StyleInvalidation.markNode(node)
         }
 
         noteStyleInvalidation("style.invalidate.hover.matched", by: matched.count)
+    }
+
+    private func hasAncestor(_ node: DOMRef, in set: Set<NodeID>) -> Bool {
+        var current: DOMRef? = node.parent
+        while let ancestor = current {
+            if set.contains(ancestor.id) { return true }
+            current = ancestor.parent
+        }
+        return false
     }
 
     private func collectHoverMatches(
