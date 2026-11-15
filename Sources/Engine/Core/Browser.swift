@@ -258,16 +258,10 @@ public class Browser: ObservableObject {
         guard needsAnimationFrame else {
             return
         }
-        if needsScrollPaint {
-            needsScrollPaint = false
-            let target: CGFloat = pendingScrollTarget ?? activeTab?.rootFrame.scroll ?? 0
-            pendingScrollTarget = nil
-            let repainted: Bool = activeTab?.rootFrame.repaintForScroll() ?? false
-            if repainted {
-                return
-            }
-            activePresentation.scroll.scroll = target
-            dispatchPresent(frameID: currentFrameID)
+        // A raster in flight may still have to present the scroll on this
+        // thread; its completion schedules the repaint once it has.
+        if !compositeInFlight, flushScrollPaint() {
+            return
         }
         let now: Date = Date()
         let allowsDuringPreview: Bool = ResizePreviewPolicy.allowsLayoutDuringPreview(
@@ -714,6 +708,9 @@ public class Browser: ObservableObject {
                     if self.needsComposite || self.needsRaster || self.needsDraw {
                         self.scheduleRasterAndDraw()
                     }
+                    if !self.compositeInFlight {
+                        self.scheduleScrollPaint()
+                    }
                 }
             )
         )
@@ -741,24 +738,15 @@ public class Browser: ObservableObject {
     }
 
     public func applyScroll(_ scroll: CGFloat) {
-        let frame: Frame? = activeTab?.rootFrame
-        if frame?.scrollNeedsPaint() == true {
-            pendingScrollTarget = scroll
-            needsScrollPaint = true
-            needsAnimationFrame = true
-
-            // The repaint waits for the next tick. Until then the painted list
-            // still holds everything the viewport shows, so show this scroll now.
-            guard frame?.paintedWindowCoversViewport() == true else { return }
-        } else {
-            needsScrollPaint = false
-            pendingScrollTarget = nil
+        guard showsScrollBeforeRepaint(scroll) else {
+            scheduleScrollPaint()
+            return
         }
-
         activePresentation.scroll.scroll = scroll
 
         if activePresentation.render.content.usesSublayers {
             dispatchPresent(frameID: currentFrameID)
+            scheduleScrollPaint()
             let step: CGFloat = RasterLayer.tileSize
             if lastTileScroll.isNaN || abs(scroll - lastTileScroll) >= step {
                 lastTileScroll = scroll
@@ -772,21 +760,57 @@ public class Browser: ObservableObject {
     }
 
     public func applyScrollAndUpdateInterest(scroll: CGFloat, interestTop: CGFloat, interestBottom: CGFloat) {
-        let needsPaint: Bool = activeTab?.rootFrame.scrollNeedsPaint() ?? false
-        if needsPaint {
-            pendingScrollTarget = scroll
-            needsScrollPaint = true
-            needsAnimationFrame = true
+        guard showsScrollBeforeRepaint(scroll) else {
+            scheduleScrollPaint()
             return
         }
-
-        needsScrollPaint = false
-        pendingScrollTarget = nil
         activePresentation.scroll.scroll = scroll
         activePresentation.scroll.interestTop = interestTop
         activePresentation.scroll.interestBottom = interestBottom
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
+    }
+
+    /// False when the viewport has left the painted content, so the scroll
+    /// must wait for the repaint to be seen.
+    private func showsScrollBeforeRepaint(_ scroll: CGFloat) -> Bool {
+        guard let frame: Frame = activeTab?.rootFrame, frame.scrollNeedsPaint() else {
+            needsScrollPaint = false
+            pendingScrollTarget = nil
+            return true
+        }
+        pendingScrollTarget = scroll
+        needsScrollPaint = true
+        needsAnimationFrame = true
+        return frame.paintedWindowCoversViewport()
+    }
+
+    /// Runs a pending scroll repaint as soon as the main thread is free: the
+    /// animation timer is not tied to input, so a repaint started on its tick
+    /// can land late in the frame and delay the next scroll event. Call it
+    /// only once the scroll is on screen or cannot be shown without the
+    /// repaint: a scroll whose tiles are still drawing is presented on the
+    /// main thread, so a repaint that starts first holds that scroll back.
+    private func scheduleScrollPaint() {
+        guard needsScrollPaint else { return }
+        Task { @MainActor [weak self] in
+            self?.flushScrollPaint()
+        }
+    }
+
+    /// True when it repainted; the repaint's commit then presents the scroll.
+    @discardableResult
+    private func flushScrollPaint() -> Bool {
+        guard needsScrollPaint else { return false }
+        needsScrollPaint = false
+        let target: CGFloat = pendingScrollTarget ?? activeTab?.rootFrame.scroll ?? 0
+        pendingScrollTarget = nil
+        if activeTab?.rootFrame.repaintForScroll() ?? false {
+            return true
+        }
+        activePresentation.scroll.scroll = target
+        dispatchPresent(frameID: currentFrameID)
+        return false
     }
 
     public func togglePrefersDark() {
