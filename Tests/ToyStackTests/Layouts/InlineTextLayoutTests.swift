@@ -90,4 +90,28 @@ struct InlineTextLayoutTests {
         #expect((profiler.snapshot()["layout.inline.refresh"]?.count ?? 0) > 0)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func rewrapKeepsLinesInTheirOldOrder() throws {
+        let words: String = Array(repeating: "word", count: 60).joined(separator: " ")
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="para">\#(words)</p>"#,
+            rules: """
+                body { display: block; }
+                p { display: block; }
+            """
+        )
+        let p: ElementRef = try #require(page.firstElement(id: "para"))
+        let linesBefore: [LayoutID] = page.lineIDs(in: p)
+        #expect(linesBefore.count >= 3, "the paragraph must wrap onto several lines")
+
+        page.frame.setViewport(width: 300, height: page.frame.frameHeight)
+        page.frame.setNeedsViewportResize()
+        profiler.reset()
+        page.frame.render()
+
+        let linesAfter: [LayoutID] = page.lineIDs(in: p)
+        #expect(Array(linesAfter.prefix(linesBefore.count)) == linesBefore)
+        #expect(profiler.snapshot()["layout.line.children.previous"] == nil)
+        expectIncrementalMatchesFull(page)
+    }
 }

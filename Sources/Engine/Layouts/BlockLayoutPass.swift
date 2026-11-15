@@ -936,7 +936,7 @@ extension LayoutTree {
             reusable[index] = old.line
             used.insert(old.line)
         }
-        var free: [LayoutID] = oldLines.filter({ !used.contains($0) })
+        var free: LinePool = LinePool(oldLines.filter({ !used.contains($0) }))
         let collectsBoxes: Bool = !items.contains(where: { item in
             if case .embed = item { return true }
             return false
@@ -966,7 +966,7 @@ extension LayoutTree {
                 continue
             }
             let line: LayoutID
-            if let freeLine: LayoutID = free.popLast() {
+            if let freeLine: LayoutID = free.take() {
                 line = freeLine
             } else {
                 line = makeLine(dom: domID(of: id), parent: id, previous: previous)
