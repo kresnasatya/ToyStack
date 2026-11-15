@@ -1572,7 +1572,7 @@ class Frame {
 
     @discardableResult
     func repaintForScroll() -> Bool {
-        guard !viewportFitsInPaintedWindow(margin: frameHeight / 2) else { return false }
+        guard scrollNeedsPaint() else { return false }
 
         state.display.paint.isNeeded = true
         state.display.composite.isNeededForPaint = true
@@ -1581,8 +1581,11 @@ class Frame {
         return true
     }
 
+    // The repaint starts one viewport before the painted content runs out, so
+    // a fast flick of up to one viewport per event still lands on painted
+    // content and can be shown while the repaint is pending.
     func scrollNeedsPaint() -> Bool {
-        return !viewportFitsInPaintedWindow(margin: frameHeight / 2)
+        return !viewportFitsInPaintedWindow(margin: frameHeight)
     }
 
     func paintedWindowCoversViewport() -> Bool {

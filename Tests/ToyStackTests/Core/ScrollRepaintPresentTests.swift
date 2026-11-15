@@ -110,6 +110,23 @@ struct ScrollRepaintPresentTests {
         try #require(await page.waitUntilRepainted())
         return presents.first(where: { $0.scroll == target })?.afterRepaint
     }
+
+    @Test func aFlickOfAlmostOneViewportAfterARepaintShowsAtOnce() async throws {
+        let page: ScrollTestBrowser = try await ScrollTestBrowser.open()
+        defer { page.close() }
+        let frame: Frame = page.frame
+        let height: CGFloat = frame.frameHeight
+        try #require(frame.maxScroll > 3 * height)
+
+        page.scroll(by: 1.1 * height)
+        try #require(await page.waitUntilRepainted())
+        let before: CGFloat = frame.scroll
+
+        page.scroll(by: 0.95 * height)
+
+        #expect(frame.scroll > before)
+        #expect(page.browser.activeTabScroll == frame.scroll)
+    }
 }
 
 // MARK: - ScrollTestBrowser
