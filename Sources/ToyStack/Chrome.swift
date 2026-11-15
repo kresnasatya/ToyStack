@@ -378,24 +378,11 @@ public class Chrome {
     @discardableResult
     public func enter() -> Bool {
         if focus == "address bar" {
-            let input = addressBar
             focus = nil
             isAllSelected = false
-            let rawInput = isURL(input) ? input : nil
-            let url: WebURL
-            if let raw = rawInput {
-                if raw.hasPrefix("http://") || raw.hasPrefix("https://") || raw.hasPrefix("file://")
-                    || raw.hasPrefix("about:")
-                {
-                    url = WebURL(raw)
-                } else {
-                    url = WebURL("https://\(raw)")
-                }
-            } else {
-                url = searchURL(for: input)
+            if let url: WebURL = AddressInput.url(for: addressBar) {
+                tabManager?.activeTab?.load(url)
             }
-            tabManager?.activeTab?.load(url)
-            focus = nil
             return true
         }
         return false
@@ -411,16 +398,5 @@ public class Chrome {
         addressBar = tabManager?.activeTab?.url?.toString() ?? ""
         cursorIndex = addressBar.count
         isAllSelected = true
-    }
-
-    private func isURL(_ input: String) -> Bool {
-        input.hasPrefix("http://") || input.hasPrefix("https://") || input.hasPrefix("file://")
-            || input.hasPrefix("about:")
-            || (input.contains(".") && !input.contains(" "))
-    }
-
-    private func searchURL(for query: String) -> WebURL {
-        let escaped = query.replacingOccurrences(of: " ", with: "+")
-        return WebURL("https://google.com/search?q=\(escaped)")
     }
 }
