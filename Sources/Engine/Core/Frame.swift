@@ -1816,6 +1816,9 @@ class Frame {
         else { return }
         tab?.pendingHover = nil
 
+        browser?.measure.start("BrowserTab.hover", category: .input)
+        defer { browser?.measure.stop("BrowserTab.hover") }
+
         var chain: [NodeID] = []
         var current: DOMRef? = doc.hitTest(doc.rootID, x: pending.x, y: pending.y + scroll)
             .map({ DOMRef(id: $0.dom, dom: doc.dom) })

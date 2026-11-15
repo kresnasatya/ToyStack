@@ -162,7 +162,7 @@ A healthy trace has zero warnings and zero clipped ends.
 | `raster` | `raster.*`, `tiles`, `pool` |
 | `present` | `view`, `view.*`, `present.main`, `present` |
 | `frame` | `composite_raster_and_draw`, `BrowserTab.anim*`, `BrowserTab.raf` |
-| `input` | `BrowserTab.scroll*` |
+| `input` | `BrowserTab.scroll*`, `BrowserTab.hover` (explicit category) |
 | `engine` | everything else, including accessibility timers |
 
 Classification is prefix-based in `MeasureTime.category(for:)`, so a new name
@@ -392,6 +392,7 @@ resolving a canvas font.
 | `BrowserTab.layout`, `.rebuildScrollTargets` | main | layout pass |
 | `BrowserTab.paint` | main | display-list build |
 | `BrowserTab.scrollAt`, `.scrollBy` | main | input dispatch |
+| `BrowserTab.hover` | main | pointer move: hit test, hover flags, and marking hover-styled descendants; only on a render with a pending move |
 | `BrowserTab.load*` | main, awaits | load envelope |
 | `raster.queueWait` | `X` | enqueue → `raster.plan` start |
 | `raster.plan`, `raster.composite`, `raster.effect` | compositor | plan work |
