@@ -376,19 +376,26 @@ extension LayoutTree {
         guard let block, let revision: UInt64 = boxRevision(block),
             data.paint.boxRevision == revision
         else { return nil }
-        let children: [LayoutID] = childrenIDs(of: id).filter({ isText($0) })
-        if children.isEmpty { return data.content.boxes }
-        guard children.count == data.content.boxes.count else { return nil }
-        for (box, child) in zip(data.content.boxes, children) {
+        let inline: [LayoutID] = childrenIDs(of: id).filter({ isText($0) || isEmbed($0) })
+        let textIndices: [Int] = inline.indices.filter({ isText(inline[$0]) })
+        if textIndices.isEmpty { return data.content.boxes }
+        guard textIndices.count == data.content.boxes.count else { return nil }
+        for (box, index) in zip(data.content.boxes, textIndices) {
+            let child: LayoutID = inline[index]
             let text: TextData = self[text: child]
             guard box.dom == domID(of: child),
                 box.fragment == text.fragment,
                 box.geometry.x == x(child),
                 box.geometry.y + y(id) == textAbsoluteY(child),
-                box.geometry.width == textTextWidth(child),
-                inlineText(box) == textString(child)
+                box.geometry.width == textTextWidth(child, at: index, in: id),
+                readsTextRun(box) || inlineText(box) == textString(child)
             else { return nil }
         }
         return data.content.boxes
+    }
+
+    private func readsTextRun(_ box: InlineBox) -> Bool {
+        guard let fragment: TextFragment = box.fragment else { return false }
+        return textRuns[fragment.block] != nil
     }
 }
