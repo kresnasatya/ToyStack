@@ -30,7 +30,6 @@ struct RasterCompositorTests {
             settings: RasterSettings(
                 viewport: Viewport(
                     windowSize: CGSize(width: 800, height: 600),
-                    topInset: 0,
                     scale: ContentScale(display: 1, page: 1),
                     colorSpace: RasterTarget.sRGB
                 ),
@@ -88,7 +87,6 @@ struct RasterCompositorTests {
             settings: RasterSettings(
                 viewport: Viewport(
                     windowSize: CGSize(width: 800, height: 600),
-                    topInset: 0,
                     scale: ContentScale(display: 1, page: 1),
                     colorSpace: RasterTarget.sRGB
                 ),

@@ -7,7 +7,6 @@ public class Browser: ObservableObject {
     @Published public var tabs: [BrowserTab] = []
     @Published public private(set) var activeTab: BrowserTab?
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
-    public var topInset: CGFloat = 0
     public var displayScale: CGFloat = 2.0
     /// Bitmaps handed to the presenter are drawn in it, so Core Animation
     /// does not convert every pixel when it commits them. Headless runs
@@ -60,10 +59,7 @@ public class Browser: ObservableObject {
             frameID: frameID,
             content: activePresentation.render.content,
             viewport: PresentedViewport(
-                contentOffset: ContentOffset(
-                    top: topInset,
-                    scroll: activePresentation.scroll.scroll * pageZoom,
-                ),
+                contentOffset: ContentOffset(scroll: activePresentation.scroll.scroll * pageZoom),
                 scale: ContentScale(display: displayScale, page: pageZoom),
                 canvasColor: canvasColor,
                 scrollbar: activeSidebar
@@ -80,7 +76,7 @@ public class Browser: ObservableObject {
     }
 
     public var activeSidebar: (frame: CGRect, color: CGColor)? {
-        let contentHeight: CGFloat = windowSize.height - topInset
+        let contentHeight: CGFloat = windowSize.height
         guard contentHeight > 0,
             let bar = scrollbarBarRect(
                 ScrollbarGeometry(
@@ -89,8 +85,7 @@ public class Browser: ObservableObject {
                     contentWidth: windowSize.width,
                     scroll: activePresentation.scroll.scroll * pageZoom
                 ),
-                forcedColors: activePresentation.preferences.usesForcedColors,
-                topInset: topInset
+                forcedColors: activePresentation.preferences.usesForcedColors
             ),
             case .rrect(let rect, _, let color) = bar
         else { return nil }
@@ -143,7 +138,7 @@ public class Browser: ObservableObject {
 
     public func newTab(_ url: WebURL) {
         let tab: BrowserTab = BrowserTab(
-            tabHeight: windowSize.height - topInset,
+            tabHeight: windowSize.height,
             tabWidth: windowSize.width
         )
         tab.browser = self
@@ -161,7 +156,7 @@ public class Browser: ObservableObject {
     public func resize(to size: CGSize, deferLayout: Bool = false) {
         windowSize = size
         for tab in tabs {
-            tab.resize(width: size.width, height: size.height - topInset)
+            tab.resize(width: size.width, height: size.height)
         }
         guard deferLayout, activeTab != nil else {
             resizePreview.cancel()
@@ -410,7 +405,6 @@ public class Browser: ObservableObject {
             settings: RasterSettings(
                 viewport: Viewport(
                     windowSize: windowSize,
-                    topInset: topInset,
                     scale: ContentScale(display: displayScale, page: pageZoom),
                     colorSpace: displayColorSpace
                 ),
@@ -489,7 +483,7 @@ public class Browser: ObservableObject {
                     measure.stop("raster.composite")
 
                     let scale: ContentScale = inputs.settings.viewport.scale
-                    let tabHeight: CGFloat = inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset
+                    let tabHeight: CGFloat = inputs.settings.viewport.windowSize.height
                     let prefetch: CGFloat = 2 * RasterLayer.tileSize
                     let viewportHeight: CGFloat = tabHeight / scale.page
                     let viewportWidth: CGFloat = inputs.settings.viewport.windowSize.width
@@ -615,7 +609,7 @@ public class Browser: ObservableObject {
                     var contentImage: CGImage? = nil
 
                     if !plan.composition.usesSublayers && inputs.settings.flags.needsDraw {
-                        let regionHeight: CGFloat = inputs.settings.viewport.topInset + plan.batch.tabHeight
+                        let regionHeight: CGFloat = plan.batch.tabHeight
                         measure.start("raster.bitmap")
                         contentImage = inputs.settings.flags.needsDraw
                             ? CGRenderer.renderBitmap(
@@ -633,8 +627,7 @@ public class Browser: ObservableObject {
                                 r.saveState()
                                 ContentTransform(
                                     pageZoom: inputs.settings.viewport.scale.page,
-                                    scroll: regionTop,
-                                    topInset: inputs.settings.viewport.topInset
+                                    scroll: regionTop
                                 ).apply(to: r)
                                 renderDisplayList(drawList, renderer: r)
                                 r.restoreState()

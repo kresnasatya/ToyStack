@@ -23,8 +23,7 @@ private func renderImage(_ browser: Browser, scale: CGFloat) -> CGImage? {
         renderer.saveState()
         ContentTransform(
             pageZoom: browser.pageZoom,
-            scroll: browser.activeTabScroll,
-            topInset: 0
+            scroll: browser.activeTabScroll
         ).apply(to: renderer)
         renderDisplayList(browser.drawList, renderer: renderer)
         renderer.restoreState()

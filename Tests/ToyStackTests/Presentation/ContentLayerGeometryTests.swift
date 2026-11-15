@@ -16,7 +16,7 @@ struct ContentLayerGeometryTests {
 
     @Test func boundLayersUseTheFrameZoomAndScroll() {
         let frameScale: ContentScale = ContentScale(display: 2, page: 1.1)
-        let offset: ContentOffset = ContentOffset(top: 80, scroll: 100 * 1.1)
+        let offset: ContentOffset = ContentOffset(scroll: 100 * 1.1)
 
         let geometry: ContentLayerGeometry = ContentLayerGeometry(
             offset: offset,
@@ -26,12 +26,12 @@ struct ContentLayerGeometryTests {
         )
 
         #expect(geometry.scale == 1.1)
-        #expect(geometry.originY == -30)
+        #expect(geometry.originY == -110)
     }
 
     @Test func olderLayersScrollAtTheirOwnZoom() {
         let frameScale: ContentScale = ContentScale(display: 2, page: 1.1)
-        let offset: ContentOffset = ContentOffset(top: 80, scroll: 100 * 1.1)
+        let offset: ContentOffset = ContentOffset(scroll: 100 * 1.1)
         let page: CGFloat = shownState(page: 1).layerPage(framePage: 1.1, showsOlderLayers: true)
 
         let geometry: ContentLayerGeometry = ContentLayerGeometry(
@@ -42,7 +42,7 @@ struct ContentLayerGeometryTests {
         )
 
         #expect(geometry.scale == 1)
-        #expect(geometry.originY == -20)
+        #expect(geometry.originY == -100)
     }
 
     @Test(arguments: [(shown: 1.0, frame: 1.1), (shown: 1.1, frame: 1.1 * 1.1), (shown: 1.1, frame: 1.0)])
@@ -52,7 +52,7 @@ struct ContentLayerGeometryTests {
         let page: CGFloat = shownState(page: zoom.shown).layerPage(framePage: zoom.frame, showsOlderLayers: true)
 
         let geometry: ContentLayerGeometry = ContentLayerGeometry(
-            offset: ContentOffset(top: 80, scroll: 0),
+            offset: ContentOffset(scroll: 0),
             frameScale: frameScale,
             layerPage: page,
             previewScale: fit.scale
@@ -69,12 +69,12 @@ struct ContentLayerGeometryTests {
         let page: CGFloat = shownState(page: 1).layerPage(framePage: 1.1, showsOlderLayers: true)
 
         let geometry: ContentLayerGeometry = ContentLayerGeometry(
-            offset: ContentOffset(top: 80, scroll: 100 * 1.1),
+            offset: ContentOffset(scroll: 100 * 1.1),
             frameScale: frameScale,
             layerPage: page,
             previewScale: fit.scale
         )
-        let expected: CGFloat = ((80 - 100 * fit.scale) * 2).rounded() / 2
+        let expected: CGFloat = ((-100 * fit.scale) * 2).rounded() / 2
 
         #expect(abs(geometry.originY - expected) < 1e-9)
     }

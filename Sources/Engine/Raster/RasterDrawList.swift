@@ -8,7 +8,7 @@ enum RasterDrawList {
         }
 
         let scale: ContentScale = inputs.settings.viewport.scale
-        let viewportHeight: CGFloat = (inputs.settings.viewport.windowSize.height - inputs.settings.viewport.topInset) / scale.page
+        let viewportHeight: CGFloat = inputs.settings.viewport.windowSize.height / scale.page
         let visibleTop: CGFloat = inputs.scrollState.scroll - 2 * RasterLayer.tileSize
         let visibleBottom: CGFloat = inputs.scrollState.scroll + viewportHeight + 2 * RasterLayer.tileSize
 
