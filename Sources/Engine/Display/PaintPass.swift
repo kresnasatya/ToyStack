@@ -134,7 +134,9 @@ struct PaintPass {
 
         if case .block(let block) = node.content, node.surface.style.layout.overflow == .scroll {
             profiler.count("paint.scroll", by: 1)
-            let box: Rect = node.geometry.rect
+            // CSS Overflow 3 §2.3: the scrollport coincides with the padding box,
+            // so content scrolls inside the border, never over it.
+            let box: Rect = node.geometry.paddingBox
             let visibleTop: CGFloat = box.top + block.scrollOffset
             let visibleBottom: CGFloat = visibleTop + (box.bottom - box.top)
             var visible: [Int] = []
@@ -163,7 +165,8 @@ struct PaintPass {
             node.surface.style.layout.overflow == .hidden
                 || node.surface.style.layout.overflow == .clip
         {
-            let box: Rect = node.geometry.rect
+            // CSS Overflow 3 §3.2: the overflow clip edge defaults to the padding box.
+            let box: Rect = node.geometry.paddingBox
             let radii: CornerRadii = node.surface.style.box.decoration.border.radii
             let scope: EffectScope = session.makeScope(
                 .clip(ClipShape(rect: box, radii: radii)),

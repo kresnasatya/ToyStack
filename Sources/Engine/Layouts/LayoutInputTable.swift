@@ -47,6 +47,8 @@ enum LayoutInputTable {
                 .layout(child, .height),
                 .style(childDom, .paddingTop),
                 .style(childDom, .paddingBottom),
+                .style(childDom, .borderWidth),
+                .style(childDom, .borderStyle),
             ]
         case .previous, .font, .ascent, .descent, .inlineContent:
             return []
@@ -74,6 +76,8 @@ enum LayoutInputTable {
             var keys: [FieldKey] = [
                 .layout(id, .zoom),
                 .style(dom, .paddingLeft),
+                .style(dom, .borderWidth),
+                .style(dom, .borderStyle),
                 .style(dom, .position),
                 .style(dom, .left),
             ]
@@ -86,6 +90,8 @@ enum LayoutInputTable {
                 .style(dom, .paddingTop),
                 .style(dom, .top),
                 .style(dom, .marginTop),
+                .style(dom, .borderWidth),
+                .style(dom, .borderStyle),
             ]
             if let parent { keys.insert(.layout(parent, .y), at: 0) }
             if let previous {
@@ -95,6 +101,8 @@ enum LayoutInputTable {
                     .layout(previous, .height),
                     .style(previousDom, .marginBottom),
                     .style(previousDom, .paddingBottom),
+                    .style(previousDom, .borderWidth),
+                    .style(previousDom, .borderStyle),
                 ]
             }
             return keys
@@ -103,6 +111,8 @@ enum LayoutInputTable {
                 .layout(id, .zoom),
                 .style(dom, .paddingLeft),
                 .style(dom, .paddingRight),
+                .style(dom, .borderWidth),
+                .style(dom, .borderStyle),
                 .style(dom, .width),
             ]
             if let parent { keys.insert(.layout(parent, .width), at: 0) }

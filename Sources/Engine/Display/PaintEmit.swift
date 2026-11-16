@@ -40,7 +40,7 @@ func emitBlock(_ node: PaintNode, block: PaintBlock, into items: inout [DisplayO
     }
 
     if let image: CGImage = block.extras.backgroundImage, style.visual.background.image != nil {
-        let dest: Rect = BackgroundSize(box: box, image: image, zoom: node.geometry.zoom)
+        let dest: Rect = BackgroundSize(box: node.geometry.paddingBox, image: image, zoom: node.geometry.zoom)
             .rect(spec: style.visual.background.size)
         items.append(.clippedImage(
             image: image,
@@ -50,7 +50,12 @@ func emitBlock(_ node: PaintNode, block: PaintBlock, into items: inout [DisplayO
         ))
     }
 
-    if let border: DisplayOp = DisplayOp.fromBorderStyle(style, rect: borderRect(box, style)) {
+    let borderWidth: CGFloat = node.geometry.border
+    if let border: DisplayOp = DisplayOp.fromBorderStyle(
+        style,
+        rect: box.inset(by: borderWidth / 2),
+        width: borderWidth
+    ) {
         items.append(border)
     }
 
@@ -264,20 +269,6 @@ func emitFocusOutline(
     if let outline { items.append(outline) }
 }
 
-// MARK: - Geometry
-
-func borderRect(_ box: Rect, _ style: ComputedStyle) -> Rect {
-    let width: CGFloat = style.box.decoration.border.width
-    guard width > 0 else { return box }
-    let half: CGFloat = width / 2
-    return Rect(
-        left: box.left - half,
-        top: box.top - half,
-        right: box.right + half,
-        bottom: box.bottom + half
-    )
-}
-
 // MARK: - Node scopes
 
 func openScopes(
@@ -410,7 +401,8 @@ func closeIframeScopes(
 
     if let border: DisplayOp = DisplayOp.fromBorderStyle(
         node.surface.style,
-        rect: scopes.rect
+        rect: scopes.rect,
+        width: node.surface.style.box.decoration.border.usedWidth
     ) {
         ops.append(border)
     }

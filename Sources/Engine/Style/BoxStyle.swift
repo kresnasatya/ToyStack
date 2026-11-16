@@ -52,6 +52,12 @@ extension BoxStyle {
             var color: BrowserColor
             var style: LineStyle
             var radii: CornerRadii
+
+            // CSS Backgrounds 3 §3.3: if the border-style is none or hidden,
+            // the used width is 0, so the initial `medium` width takes no space.
+            var usedWidth: CGFloat {
+                return style == .none || style == .hidden ? 0 : width
+            }
         }
 
         struct Outline: Equatable {

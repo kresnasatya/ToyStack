@@ -40,6 +40,15 @@ public struct Rect: Equatable, Sendable {
         )
     }
 
+    func inset(by amount: CGFloat) -> Rect {
+        return Rect(
+            left: left + amount,
+            top: top + amount,
+            right: right - amount,
+            bottom: bottom - amount
+        )
+    }
+
     func union(_ other: Rect) -> Rect {
         return Rect(
             left: min(self.left, other.left), top: min(self.top, other.top),

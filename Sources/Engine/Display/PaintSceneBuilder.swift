@@ -136,7 +136,8 @@ struct PaintSceneBuilder {
                     right: tree.x(id) + tree.width(id),
                     bottom: tree.y(id) + tree.height(id)
                 ),
-                zoom: tree.zoom(id)
+                zoom: tree.zoom(id),
+                border: tree.isBlock(id) ? tree.border(id) : 0
             ),
             surface: PaintSurface(
                 style: style,
@@ -383,7 +384,8 @@ private func placeholder(id: LayoutID, dom: NodeID) -> PaintNode {
         geometry: PaintGeometry(
             rect: Rect(left: 0, top: 0, right: 0, bottom: 0),
             frame: Rect(left: 0, top: 0, right: 0, bottom: 0),
-            zoom: 1
+            zoom: 1,
+            border: 0
         ),
         surface: PaintSurface(
             style: .initial,
