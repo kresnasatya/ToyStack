@@ -378,12 +378,7 @@ struct PaintSceneBuilder {
             BorderPainter(
                 box: area.rect,
                 border: style.box.decoration.border,
-                widths: EdgeInsets(
-                    top: border.top,
-                    right: fragment.closes ? border.right : 0,
-                    bottom: border.bottom,
-                    left: fragment.opens ? border.left : 0
-                )
+                widths: fragment.ownEdges(border, direction: style.text.direction)
             ).emit(into: &ops)
         }
         return ops

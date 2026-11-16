@@ -41,6 +41,25 @@ struct InlineBoxModelTests {
         #expect(page.tree.x(children[b + 1]) == page.tree.x(children[b]) + widths[b] + 7)
     }
 
+    /// A right-to-left element that starts and ends on one line still has
+    /// its left edges on the left and its right edges on the right.
+    @Test func rightToLeftSpanOnOneLineKeepsEachEdgeOnItsOwnSide() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>a <span id="s">b</span> c</p>"#,
+            rules: Self.baseRules + """
+                p { direction: rtl; }
+                #s { padding: 0 6px; border-left: 2px solid red; border-right: 5px solid red; }
+                """
+        )
+        let line: LayoutID = try #require(try lines(page).first)
+        let children: [LayoutID] = page.tree.childrenIDs(of: line)
+        let widths: [CGFloat] = page.tree[line: line].content.inlineWidths
+        let b: Int = try textChild(page, on: line, of: try spanText(page, "s"))
+
+        #expect(page.tree.x(children[b]) == page.tree.x(children[b - 1]) + widths[b - 1] + 8)
+        #expect(page.tree.x(children[b + 1]) == page.tree.x(children[b]) + widths[b] + 11)
+    }
+
     @Test func spanFragmentCoversItsTextPaddingAndBorder() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p>a <span id="s">b</span> c</p>"#,
@@ -106,6 +125,44 @@ struct InlineBoxModelTests {
         #expect(spanLines.dropFirst().dropLast().allSatisfy({ $0[0].opens == false && $0[0].closes == false }))
     }
 
+    /// CSS 2.1 §8.6: in right-to-left text the element's start edges (its
+    /// right padding and border) go on its first line, and its end edges
+    /// (the left ones) on its last.
+    @Test func rightToLeftSpanCarriesItsStartEdgesOnTheRight() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>start <span id="s">one two three four five six seven eight nine ten</span> end</p>"#,
+            rules: """
+                html { width: 160px; }
+                body { display: block; }
+                p { display: block; direction: rtl; }
+                #s { padding: 0 10px; border-left: 2px solid red; border-right: 5px solid blue; }
+                """
+        )
+        let span: ElementRef = try #require(page.firstElement(id: "s"))
+        let text: NodeID = try spanText(page, "s")
+        let owned: [LayoutID] = try lines(page).filter({ line in
+            page.tree[line: line].inlineBoxes.fragments.contains(where: { $0.dom == span.id })
+        })
+        let first: LayoutID = try #require(owned.first)
+        let last: LayoutID = try #require(owned.last)
+
+        func spanPiece(on line: LayoutID) throws -> (fragment: InlineBoxFragment, text: LayoutID) {
+            let fragment: InlineBoxFragment = try #require(page.tree[line: line].inlineBoxes.fragments.first)
+            let child: LayoutID = try #require(page.tree.childrenIDs(of: line).first(where: { page.tree.domID(of: $0) == text }))
+            return (fragment, child)
+        }
+        let opening: (fragment: InlineBoxFragment, text: LayoutID) = try spanPiece(on: first)
+        let closing: (fragment: InlineBoxFragment, text: LayoutID) = try spanPiece(on: last)
+        let index: Int = try textChild(page, on: first, of: text)
+        let width: CGFloat = page.tree[line: first].content.inlineWidths[index]
+        let space: CGFloat = page.tree.font(opening.text).spaceWidth
+
+        #expect(owned.count > 2)
+        #expect(page.tree.x(opening.text) == page.tree.x(first) + opening.fragment.rect.left)
+        #expect(opening.fragment.rect.right == page.tree.x(opening.text) + width - space + 15 - page.tree.x(first))
+        #expect(page.tree.x(closing.text) == page.tree.x(last) + closing.fragment.rect.left + 12)
+    }
+
     @Test func gapsCountTowardLineBreaking() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p><span id="s">one</span> two</p>"#,
@@ -168,6 +225,33 @@ struct InlineBoxModelTests {
         let widths: [CGFloat] = page.tree[line: line].content.inlineWidths
         let b: Int = try textChild(page, on: line, of: try spanText(page, "s"))
         #expect(page.tree.x(children[b]) == page.tree.x(children[b - 1]) + widths[b - 1] + 10)
+        expectAllLayoutFieldsClean(try #require(page.frame.document))
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func turningASpanRightToLeftMovesItsEdgesIncrementally() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>start <span id="s">one two three four five six seven eight nine ten</span> end</p>"#,
+            rules: """
+                html { width: 160px; }
+                body { display: block; }
+                p { display: block; }
+                #s { padding: 0 10px; border-left: 2px solid red; border-right: 5px solid blue; }
+                """
+        )
+        let span: ElementRef = try #require(page.firstElement(id: "s"))
+        let text: NodeID = try spanText(page, "s")
+
+        InlineStyle.set(span, property: "direction", value: "rtl")
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        let first: LayoutID = try #require(try lines(page).first(where: { line in
+            page.tree[line: line].inlineBoxes.fragments.contains(where: { $0.dom == span.id })
+        }))
+        let fragment: InlineBoxFragment = try #require(page.tree[line: first].inlineBoxes.fragments.first)
+        let child: LayoutID = try #require(page.tree.childrenIDs(of: first).first(where: { page.tree.domID(of: $0) == text }))
+        #expect(page.tree.x(child) == page.tree.x(first) + fragment.rect.left)
         expectAllLayoutFieldsClean(try #require(page.frame.document))
         expectIncrementalMatchesFull(page)
     }

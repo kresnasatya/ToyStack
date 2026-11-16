@@ -74,6 +74,30 @@ struct InlineBoxPaintTests {
         #expect(fills(page, "blue") == [Rect(left: last.right - 5, top: last.top, right: last.right, bottom: last.bottom)])
     }
 
+    /// CSS 2.1 §8.6: right-to-left text puts the start edge on the right of
+    /// the first fragment and the end edge on the left of the last.
+    @Test func rightToLeftWrappedSpanDrawsItsStartBorderOnTheRight() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>start <span id="s">one two three four five six seven</span> end</p>"#,
+            rules: """
+                html { width: 160px; }
+                body { display: block; }
+                p { display: block; direction: rtl; }
+                #s { border-left: 3px solid red; border-right: 5px solid blue; }
+                """
+        )
+        paint(page)
+        let owned: [(line: LayoutID, fragment: InlineBoxFragment)] = try lines(page).compactMap { line in
+            page.tree[line: line].inlineBoxes.fragments.first.map({ (line, $0) })
+        }
+        let first: Rect = absolute(page, try #require(owned.first?.fragment), on: try #require(owned.first?.line))
+        let last: Rect = absolute(page, try #require(owned.last?.fragment), on: try #require(owned.last?.line))
+
+        #expect(owned.count > 1)
+        #expect(fills(page, "blue") == [Rect(left: first.right - 5, top: first.top, right: first.right, bottom: first.bottom)])
+        #expect(fills(page, "red") == [Rect(left: last.left, top: last.top, right: last.left + 3, bottom: last.bottom)])
+    }
+
     @Test func backgroundOnlySpanPaintsBehindItsText() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p>a <span id="s">b c</span> d</p>"#,

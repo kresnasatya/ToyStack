@@ -225,7 +225,7 @@ extension LayoutTree {
             // A word's width carries the space after it. That space belongs
             // after the element's end edge, not inside its box.
             var trailingSpace: CGFloat = 0
-            for event in events {
+            for (position, event) in events.enumerated() {
                 switch event {
                 case .child:
                     guard index < inlineChildren.count else { continue }
@@ -233,13 +233,23 @@ extension LayoutTree {
                     trailingSpace = isText(inlineChildren[index]) ? font(inlineChildren[index]).spaceWidth : 0
                     index += 1
                 case .open(let dom, let width, let opens):
-                    open.append(OpenInlineBox(dom: dom, left: nextX, opens: opens))
-                    nextX += width
+                    // Words keep their order across the line whatever the
+                    // direction, so a right-to-left element's end edge sits
+                    // at the left of its fragment and its start at the right.
+                    let end: CGFloat = closingWidth(of: dom, after: position, in: events)
+                    let rightToLeft: Bool = inputs.style(dom).text.direction == .rtl
+                    open.append(OpenInlineBox(
+                        dom: dom,
+                        left: nextX,
+                        rightEdge: rightToLeft ? width : end,
+                        opens: opens
+                    ))
+                    nextX += rightToLeft ? end : width
                     trailingSpace = 0
-                case .close(let dom, let width, let closes):
-                    nextX += width
+                case .close(let dom, _, let closes):
                     guard let start: Int = open.lastIndex(where: { $0.dom == dom }) else { continue }
                     let box: OpenInlineBox = open.remove(at: start)
+                    nextX += box.rightEdge
                     let right: CGFloat = max(box.left, nextX - trailingSpace)
                     fragments.append(inlineBoxFragment(id, box, right: right, closes: closes))
                 }
@@ -366,6 +376,17 @@ extension LayoutTree {
         )
     }
 
+    /// The end edge width of the element opened at `position`: every element
+    /// open on a line is closed on it too, if only by the line break.
+    private func closingWidth(of dom: NodeID, after position: Int, in events: [InlineFlowEvent]) -> CGFloat {
+        for event in events[(position + 1)...] {
+            if case .close(let closing, let width, _) = event, closing == dom {
+                return width
+            }
+        }
+        return 0
+    }
+
     private func inlineWidth(_ id: LayoutID, index: Int, child: LayoutID) -> CGFloat {
         let widths: [CGFloat] = self[line: id].content.inlineWidths
         if index < widths.count {
@@ -480,9 +501,11 @@ extension LayoutTree {
 
 // MARK: - OpenInlineBox
 
-/// An inline element whose start the line has passed but whose end it has not.
+/// An inline element whose start the line has passed but whose end it has
+/// not. `rightEdge` is the room its fragment ends with on this line.
 private struct OpenInlineBox {
     let dom: NodeID
     let left: CGFloat
+    let rightEdge: CGFloat
     let opens: Bool
 }

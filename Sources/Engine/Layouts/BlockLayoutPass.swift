@@ -93,6 +93,7 @@ extension LayoutTree {
             while let node = ancestor, node.style.computed.layout.display == .inline {
                 if boxed.insert(node.id).inserted {
                     inputs.append(.style(node.id, .display))
+                    inputs.append(.style(node.id, .direction))
                     inputs.append(contentsOf: LayoutInputTable.boxEdgeKeys(node.id))
                 }
                 ancestor = node.parent
@@ -1202,17 +1203,23 @@ extension LayoutTree {
         return style.box.paddingAndBorder != .zero
     }
 
+    /// CSS 2.1 §8.6: an element's start edge is its left one in
+    /// left-to-right text and its right one in right-to-left text. Breaking
+    /// lines only needs how much room each line gives up; the line decides
+    /// which side of the fragment it goes on.
     mutating private func placeBoxEdge(
         _ id: LayoutID,
         _ edge: InlineBoxEdge,
         into placement: inout InlinePlacement
     ) {
-        let edges: EdgeInsets = inputs.style(edge.dom).box.paddingAndBorder.scaled(by: zoom(id))
+        let style: ComputedStyle = inputs.style(edge.dom)
+        let edges: EdgeInsets = style.box.paddingAndBorder.scaled(by: zoom(id))
+        let rightToLeft: Bool = style.text.direction == .rtl
         switch edge.side {
         case .start:
-            placement.openBox(edge.dom, width: edges.left, in: &self)
+            placement.openBox(edge.dom, width: rightToLeft ? edges.right : edges.left, in: &self)
         case .end:
-            placement.closeBox(edge.dom, width: edges.right, in: &self)
+            placement.closeBox(edge.dom, width: rightToLeft ? edges.left : edges.right, in: &self)
         }
     }
 
