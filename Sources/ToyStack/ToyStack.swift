@@ -186,14 +186,14 @@ public struct BrowserView: View {
             NSEvent.addLocalMonitorForEvents(
                 matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp],
                 handler: { [weak app] event in
-                    guard event.window === browserWindow, let app else { return event }
+                    guard let window: NSWindow = event.window, window === browserWindow, let app else { return event }
                     let type: NSEvent.EventType = event.type
                     let location: NSPoint = event.locationInWindow
                     let consumed: Bool = MainActor.assumeIsolated {
                         let y: CGFloat = app.windowSize.height - location.y
                         switch type {
                         case .leftMouseDown:
-                            return  y >= 0 && app.pressScrollbar(x: location.x, y: y)
+                            return y >= 0 && window.contentReceivesPress(at: location) && app.pressScrollbar(x: location.x, y: y)
                         case .leftMouseDragged:
                             guard app.isPressingScrollbar else { return false }
                             app.dragScrollbar(y: y)
