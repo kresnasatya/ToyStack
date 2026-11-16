@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { margin: 16px; font-family: sans-serif; }
+  .box { width: 160px; height: 40px; margin: 12px; padding: 6px; background-color: whitesmoke; }
+  .dotted { border: 6px dotted steelblue; }
+  .dashed { border: 4px dashed tomato; }
+  .double { border: 9px double green; }
+  .groove { border: 8px groove gold; }
+  .ridge { border: 8px ridge gold; }
+  .inset { border: 6px inset gray; }
+  .outset { border: 6px outset gray; }
+  .colors { border: 8px solid; border-color: red green blue gold; border-radius: 24px; }
+  .dashed-round { border: 4px dashed purple; border-radius: 20px; }
+  .dotted-round { border: 6px dotted orchid; border-radius: 30px; }
+  .mixed { border-style: solid dashed double dotted; border-width: 6px; border-color: tomato steelblue green orange; }
+  .rtl { direction: rtl; width: 220px; }
+  .rtl span { padding: 0 8px; border-left: 3px solid red; border-right: 6px solid blue; background-color: lightblue; }
+  .mark { background-color: khaki; }
+</style>
+</head>
+<body>
+  <div class="box dotted">dotted</div>
+  <div class="box dashed">dashed</div>
+  <div class="box double">double</div>
+  <div class="box groove">groove</div>
+  <div class="box ridge">ridge</div>
+  <div class="box inset">inset</div>
+  <div class="box outset">outset</div>
+  <div class="box colors">four colors, rounded</div>
+  <div class="box dashed-round">dashed, rounded</div>
+  <div class="box dotted-round">dotted, rounded</div>
+  <div class="box mixed">one style per side</div>
+  <p class="rtl">start <span>one two three four five six seven eight</span> end</p>
+  <p>The <span class="mark">highlight</span> stops at its last letter.</p>
+</body>
+</html>
