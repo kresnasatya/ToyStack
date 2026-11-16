@@ -299,6 +299,12 @@ public class BrowserTab {
         }
     }
 
+    public func scrollTo(offset: CGFloat) {
+        browser?.measure.span("BrowserTab.scrollTo", category: .input) {
+            rootFrame.scrollTo(offset: offset / rootFrame.pageZoom)
+        }
+    }
+
     public func scrollElementDown() {
         focusedFrame.scrollElementDown()
     }

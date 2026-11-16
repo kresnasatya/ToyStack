@@ -1734,8 +1734,12 @@ class Frame {
     }
 
     func scrollBy(deltaY: CGFloat) {
+        scrollTo(offset: scroll - deltaY)
+    }
+
+    func scrollTo(offset: CGFloat) {
         state.runtime.animation.tween = nil
-        state.layout.scroll.offset = max(0, min(scroll - deltaY, maxScroll))
+        state.layout.scroll.offset = max(0, min(offset, maxScroll))
         if !checkInterestRegion() {
             browser?.applyScroll(scroll)
         }

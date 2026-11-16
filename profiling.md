@@ -391,7 +391,7 @@ resolving a canvas font.
 | `BrowserTab.style*` | main | style pass and its sub-parts |
 | `BrowserTab.layout`, `.rebuildScrollTargets` | main | layout pass |
 | `BrowserTab.paint` | main | display-list build |
-| `BrowserTab.scrollAt`, `.scrollBy` | main | input dispatch |
+| `BrowserTab.scrollAt`, `.scrollBy`, `.scrollTo` | main | input dispatch |
 | `BrowserTab.hover` | main | pointer move: hit test, hover flags, and marking hover-styled descendants; only on a render with a pending move |
 | `BrowserTab.load*` | main, awaits | load envelope |
 | `raster.queueWait` | `X` | enqueue → `raster.plan` start |

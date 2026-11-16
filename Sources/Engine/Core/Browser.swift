@@ -30,6 +30,8 @@ public class Browser: ObservableObject {
     private var needsSpeakHoveredNode: Bool = false
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [NodeID: String] = [:]
+    private var scrollbarGrabOffset: CGFloat? = nil
+    public var isPressingScrollbar: Bool { scrollbarGrabOffset != nil }
 
     private var activePresentation: TabPresentation {
         get { activeTab?.presentation ?? TabPresentation.empty }
@@ -75,18 +77,20 @@ public class Browser: ObservableObject {
         return BrowserColor(cssName: name).cgColor
     }
 
-    public var activeSidebar: (frame: CGRect, color: CGColor)? {
+    private var activeScrollbar: ScrollbarGeometry? {
         let contentHeight: CGFloat = windowSize.height
-        guard contentHeight > 0,
-            let bar = scrollbarBarRect(
-                ScrollbarGeometry(
-                    docHeight: activePresentation.scroll.maxScroll * pageZoom + contentHeight,
-                    contentHeight: contentHeight,
-                    contentWidth: windowSize.width,
-                    scroll: activePresentation.scroll.scroll * pageZoom
-                ),
-                forcedColors: activePresentation.preferences.usesForcedColors
-            ),
+        guard contentHeight > 0 else { return nil }
+        return ScrollbarGeometry(
+            docHeight: activePresentation.scroll.maxScroll * pageZoom + contentHeight,
+            contentHeight: contentHeight,
+            contentWidth: windowSize.width,
+            scroll: activePresentation.scroll.scroll * pageZoom
+        )
+    }
+
+    public var activeSidebar: (frame: CGRect, color: CGColor)? {
+        guard let geometry: ScrollbarGeometry = activeScrollbar,
+            let bar = scrollbarBarRect(geometry, forcedColors: activePresentation.preferences.usesForcedColors),
             case .rrect(let rect, _, let color) = bar
         else { return nil }
         return (rect.cgRect, color.cgColor)
@@ -821,6 +825,30 @@ public class Browser: ObservableObject {
     public func toggleForcedColors() {
         forcedColors = !forcedColors
         activeTab?.forcedColors = forcedColors
+    }
+
+    // MARK: Scroll
+
+    public func pressScrollbar(x: CGFloat, y: CGFloat) -> Bool {
+        scrollbarGrabOffset = nil
+        guard let geometry: ScrollbarGeometry = activeScrollbar,
+            geometry.thumbGrabContains(x: x, y: y),
+            let thumb: Rect = geometry.thumbRect
+        else { return false }
+        scrollbarGrabOffset = y - thumb.top
+        return true
+    }
+
+    public func dragScrollbar(y: CGFloat) {
+        guard let grabOffset: CGFloat = scrollbarGrabOffset,
+            let geometry: ScrollbarGeometry = activeScrollbar,
+            let tab: BrowserTab = activeTab
+        else { return }
+        tab.scrollTo(offset: geometry.scroll(forThumbTop: y - grabOffset))
+    }
+
+    public func releaseScrollbar() {
+        scrollbarGrabOffset = nil
     }
 
     // MARK: - Zoom
