@@ -197,10 +197,11 @@ struct PaintSceneBuilder {
                 )
             ))
         case .line:
+            let inlineBoxes: [DisplayOp] = lineInlineBoxes(tree, id, boxes)
             return .line(PaintLine(
-                canCache: tree.lineCanCachePaint(id) && boxes != nil,
+                canCache: tree.lineCanCachePaint(id) && boxes != nil && inlineBoxes.isEmpty,
                 generation: tree[line: id].paint.generation,
-                focusRing: lineFocusRing(tree, id),
+                decorations: inlineBoxes + lineFocusRing(tree, id),
                 inlineText: boxes.map({ lineInlineText(tree, id, $0) }) ?? []
             ))
         case .text:
@@ -334,6 +335,97 @@ struct PaintSceneBuilder {
         ]
     }
 
+    // MARK: - Inline boxes
+
+    /// Backgrounds and borders of the inline elements on one line, outer
+    /// elements first so inner ones paint over them. An element with padding
+    /// or border has a fragment from layout; one with only a background covers
+    /// whatever of its contents landed on this line.
+    private func lineInlineBoxes(_ tree: LayoutTree, _ id: LayoutID, _ boxes: [InlineBox]?) -> [DisplayOp] {
+        var areas: [NodeID: InlineArea] = [:]
+        for fragment in tree[line: id].inlineBoxes.fragments {
+            let rect: Rect = fragment.rect.translated(dx: tree.x(id), dy: tree.y(id))
+            let node: DOMRef = DOMRef(id: fragment.dom, dom: tree.dom)
+            areas[fragment.dom] = InlineArea(rect: rect, depth: inlineDepth(node, line: id, tree: tree), fragment: fragment)
+            coverBackgrounds(rect, from: node.parent, line: (id, tree), into: &areas)
+        }
+        if let boxes {
+            for box in boxes {
+                let rect: Rect = Rect(
+                    left: box.geometry.x,
+                    top: tree.y(id) + box.geometry.y,
+                    right: box.geometry.x + box.geometry.width,
+                    bottom: tree.y(id) + box.geometry.y + box.text.font.linespace
+                )
+                coverBackgrounds(rect, from: DOMRef(id: box.dom, dom: tree.dom).parent, line: (id, tree), into: &areas)
+            }
+        } else {
+            for child in tree.childrenIDs(of: id) where tree.isText(child) || tree.isEmbed(child) {
+                coverBackgrounds(tree.selfRect(child), from: tree.domRef(child).parent, line: (id, tree), into: &areas)
+            }
+        }
+        guard !areas.isEmpty else { return [] }
+
+        var ops: [DisplayOp] = []
+        let zoom: CGFloat = tree.zoom(id)
+        for (dom, area) in areas.sorted(by: { $0.value.depth < $1.value.depth }) {
+            let style: ComputedStyle = DOMRef(id: dom, dom: tree.dom).style.computed
+            if let color: BrowserColor = style.visual.background.color {
+                ops.append(.rect(rect: area.rect, color: color))
+            }
+            guard let fragment: InlineBoxFragment = area.fragment else { continue }
+            let border: EdgeInsets = style.box.decoration.border.usedWidths.scaled(by: zoom)
+            emitBorder(
+                area.rect,
+                border: style.box.decoration.border,
+                widths: EdgeInsets(
+                    top: border.top,
+                    right: fragment.closes ? border.right : 0,
+                    bottom: border.bottom,
+                    left: fragment.opens ? border.left : 0
+                ),
+                into: &ops
+            )
+        }
+        return ops
+    }
+
+    /// Grows the background of every inline ancestor that has one but no
+    /// padding or border of its own to also cover `rect`.
+    private func coverBackgrounds(
+        _ rect: Rect,
+        from start: DOMRef?,
+        line: (id: LayoutID, tree: LayoutTree),
+        into areas: inout [NodeID: InlineArea]
+    ) {
+        let block: NodeID = line.tree.domID(of: line.id)
+        var current: DOMRef? = start
+        while let ancestor = current, ancestor.id != block {
+            let style: ComputedStyle = ancestor.style.computed
+            guard style.layout.display == .inline else { return }
+            if style.visual.background.color != nil, style.box.paddingAndBorder == .zero {
+                if let area: InlineArea = areas[ancestor.id] {
+                    areas[ancestor.id] = InlineArea(rect: area.rect.union(rect), depth: area.depth, fragment: nil)
+                } else {
+                    let depth: Int = inlineDepth(ancestor, line: line.id, tree: line.tree)
+                    areas[ancestor.id] = InlineArea(rect: rect, depth: depth, fragment: nil)
+                }
+            }
+            current = ancestor.parent
+        }
+    }
+
+    private func inlineDepth(_ node: DOMRef, line: LayoutID, tree: LayoutTree) -> Int {
+        let block: NodeID = tree.domID(of: line)
+        var depth: Int = 0
+        var current: DOMRef? = node.parent
+        while let ancestor = current, ancestor.id != block {
+            depth += 1
+            current = ancestor.parent
+        }
+        return depth
+    }
+
     private func focusVisibleInlineAncestor(
         _ start: DOMRef,
         line: LayoutID,
@@ -388,4 +480,14 @@ private func placeholder(id: LayoutID, dom: NodeID) -> PaintNode {
         content: .document,
         links: PaintLinks(id: id, dom: dom, parent: nil, children: [])
     )
+}
+
+// MARK: - InlineArea
+
+/// Where one inline element paints on one line, and how deep it sits under
+/// the block so outer elements paint first.
+private struct InlineArea {
+    let rect: Rect
+    let depth: Int
+    let fragment: InlineBoxFragment?
 }

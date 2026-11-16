@@ -201,7 +201,8 @@ extension LayoutTree {
         var nextX: CGFloat = x(id)
         var previousFont: BrowserFont? = nil
         let baseline: CGFloat = y(id) + ascent(id)
-        for (index, child) in inlineChildren.enumerated() {
+        func place(_ index: Int) {
+            let child: LayoutID = inlineChildren[index]
             if let previousFont, isEmbed(child) {
                 nextX += previousFont.spaceWidth
             }
@@ -212,6 +213,41 @@ extension LayoutTree {
             setPosition(x: nextX + edges.left, y: boxTop + edges.top, for: child)
             nextX += inlineWidth(id, index: index, child: child)
             previousFont = font(child)
+        }
+
+        let events: [InlineFlowEvent] = self[line: id].inlineBoxes.events
+        var fragments: [InlineBoxFragment] = []
+        if events.isEmpty {
+            for index in inlineChildren.indices { place(index) }
+        } else {
+            var open: [OpenInlineBox] = []
+            var index: Int = 0
+            // A word's width carries the space after it. That space belongs
+            // after the element's end edge, not inside its box.
+            var trailingSpace: CGFloat = 0
+            for event in events {
+                switch event {
+                case .child:
+                    guard index < inlineChildren.count else { continue }
+                    place(index)
+                    trailingSpace = isText(inlineChildren[index]) ? font(inlineChildren[index]).spaceWidth : 0
+                    index += 1
+                case .open(let dom, let width, let opens):
+                    open.append(OpenInlineBox(dom: dom, left: nextX, opens: opens))
+                    nextX += width
+                    trailingSpace = 0
+                case .close(let dom, let width, let closes):
+                    nextX += width
+                    guard let start: Int = open.lastIndex(where: { $0.dom == dom }) else { continue }
+                    let box: OpenInlineBox = open.remove(at: start)
+                    let right: CGFloat = max(box.left, nextX - trailingSpace)
+                    fragments.append(inlineBoxFragment(id, box, right: right, closes: closes))
+                }
+            }
+        }
+        if self[line: id].inlineBoxes.fragments != fragments {
+            self[line: id].inlineBoxes.fragments = fragments
+            self[line: id].paint.generation += 1
         }
 
         for child in children where !isText(child) && !childrenIDs(of: child).isEmpty {
@@ -295,6 +331,39 @@ extension LayoutTree {
         for (child, x) in zip(children, shifted) {
             setField(.x, x, for: child)
         }
+        self[line: id].inlineBoxes.fragments = self[line: id].inlineBoxes.fragments.map({ fragment in
+            InlineBoxFragment(
+                dom: fragment.dom,
+                rect: fragment.rect.translated(dx: offset, dy: 0),
+                opens: fragment.opens,
+                closes: fragment.closes
+            )
+        })
+    }
+
+    /// CSS 2.1 §10.6.1: an inline box's vertical padding and border sit
+    /// around its content area, the height its own font gives it, and do not
+    /// make the line taller.
+    private func inlineBoxFragment(
+        _ id: LayoutID,
+        _ box: OpenInlineBox,
+        right: CGFloat,
+        closes: Bool
+    ) -> InlineBoxFragment {
+        let font: BrowserFont = fontFor(box.dom, zoom: zoom(id))
+        let edges: EdgeInsets = inputs.style(box.dom).box.paddingAndBorder.scaled(by: zoom(id))
+        let baseline: CGFloat = ascent(id)
+        return InlineBoxFragment(
+            dom: box.dom,
+            rect: Rect(
+                left: box.left - x(id),
+                top: baseline - font.ascent - edges.top,
+                right: right - x(id),
+                bottom: baseline + font.descent + edges.bottom
+            ),
+            opens: box.opens,
+            closes: closes
+        )
     }
 
     private func inlineWidth(_ id: LayoutID, index: Int, child: LayoutID) -> CGFloat {
@@ -315,11 +384,13 @@ extension LayoutTree {
         let inline: [LayoutID] = childrenIDs(of: id).filter({ isText($0) || isEmbed($0) })
         guard let last: LayoutID = inline.last else { return 0 }
         let trailing: CGFloat = inlineWidth(id, index: inline.count - 1, child: last)
-        return x(last) - inlineEdges(last).left + trailing - x(id)
+        let childEnd: CGFloat = x(last) - inlineEdges(last).left + trailing - x(id)
+        let boxEnd: CGFloat = self[line: id].inlineBoxes.fragments.map(\.rect.right).max() ?? 0
+        return max(childEnd, boxEnd)
     }
 
     func lineCanCachePaint(_ id: LayoutID) -> Bool {
-        return !self[line: id].content.hasEmbed
+        return !self[line: id].content.hasEmbed && self[line: id].inlineBoxes.fragments.isEmpty
     }
 
     private func boxRevision(_ id: LayoutID) -> UInt64? {
@@ -405,4 +476,13 @@ extension LayoutTree {
         guard let fragment: TextFragment = box.fragment else { return false }
         return textRuns[fragment.block] != nil
     }
+}
+
+// MARK: - OpenInlineBox
+
+/// An inline element whose start the line has passed but whose end it has not.
+private struct OpenInlineBox {
+    let dom: NodeID
+    let left: CGFloat
+    let opens: Bool
 }

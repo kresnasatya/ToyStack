@@ -9,7 +9,7 @@ func emit(_ node: PaintNode, into items: inout [DisplayOp]) {
     case .block(let block):
         emitBlock(node, block: block, into: &items)
     case .line(let line):
-        items.append(contentsOf: line.focusRing)
+        items.append(contentsOf: line.decorations)
         for text in line.inlineText {
             items.append(.text(
                 text: text.string,

@@ -46,6 +46,15 @@ extension LayoutTree {
             }
         }
 
+        if isLine(id) {
+            for fragment in self[line: id].inlineBoxes.fragments {
+                let rect: Rect = fragment.rect.translated(dx: self.x(id), dy: self.y(id))
+                if rect.containsPoint(x, y) {
+                    return LayoutHit(layout: id, dom: fragment.dom)
+                }
+            }
+        }
+
         if selfRect(id).containsPoint(x, y) {
             return LayoutHit(layout: id, dom: domID(of: id))
         }

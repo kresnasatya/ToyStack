@@ -78,6 +78,7 @@ extension LayoutTree {
                 inputs.append(.style(child.id, .position))
             }
         }
+        var boxed: Set<NodeID> = []
         for leaf in inlineLeaves(id) {
             let owner: LayoutDOMView = leaf.inheritedStyleOwner
             inputs.append(.style(owner.id, .whiteSpace))
@@ -87,6 +88,14 @@ extension LayoutTree {
                 inputs.append(.style(el.ref.id, .maxWidth))
                 inputs.append(.style(el.ref.id, .boxSizing))
                 inputs.append(contentsOf: LayoutInputTable.boxEdgeKeys(el.ref.id))
+            }
+            var ancestor: LayoutDOMView? = leaf.parent
+            while let node = ancestor, node.style.computed.layout.display == .inline {
+                if boxed.insert(node.id).inserted {
+                    inputs.append(.style(node.id, .display))
+                    inputs.append(contentsOf: LayoutInputTable.boxEdgeKeys(node.id))
+                }
+                ancestor = node.parent
             }
         }
         return inputs
@@ -147,7 +156,7 @@ extension LayoutTree {
                 plan.append(current)
                 current = []
                 cursorX = 0
-            case .embed:
+            case .embed, .boxEdge:
                 return nil
             case .text(var text):
                 if text.hasSoftHypen { return nil }
@@ -893,6 +902,8 @@ extension LayoutTree {
                     placeText(id, text, index: index, into: &placement)
                 case .embed(let element):
                     placeEmbed(id, element, index: index, into: &placement)
+                case .boxEdge(let edge):
+                    placeBoxEdge(id, edge, into: &placement)
                 }
             }
         })
@@ -1109,11 +1120,8 @@ extension LayoutTree {
             }
             profiler.count("layout.inline.items.reused", by: items.count)
         } else {
-            let leaves: [LayoutDOMView] = inlineLeaves(id)
             var items: [InlineItem] = []
-            for leaf in leaves {
-                items.append(contentsOf: makeItems(id, for: leaf))
-            }
+            collectItems(id, into: &items)
             data.content.inlineItems = items
             textRuns[id] = TextRun(items: items)
             if !preservingObjects {
@@ -1145,6 +1153,67 @@ extension LayoutTree {
             return
         }
         for child in n.children { collectLeaves(child, into: &leaves) }
+    }
+
+    /// The same walk as `inlineLeaves`, but it also marks where each inline
+    /// element with padding or border starts and ends. The block's own element
+    /// is never an inline box.
+    private func collectItems(_ id: LayoutID, into items: inout [InlineItem]) {
+        let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
+        if !extraNodes.isEmpty {
+            for node in extraNodes { appendItems(id, node, boxed: true, into: &items) }
+            return
+        }
+        let hasBlockChild: Bool = domView(id).children.contains(where: {
+            $0.style.computed.layout.display == .block
+        })
+        if !hasBlockChild {
+            appendItems(id, domView(id), boxed: false, into: &items)
+            return
+        }
+        for child in domView(id).children where child.style.computed.layout.display != .block {
+            appendItems(id, child, boxed: true, into: &items)
+        }
+    }
+
+    private func appendItems(
+        _ id: LayoutID,
+        _ n: LayoutDOMView,
+        boxed: Bool,
+        into items: inout [InlineItem]
+    ) {
+        guard let el = n.element, el.tag != "br", !isEmbed(el) else {
+            items.append(contentsOf: makeItems(id, for: n))
+            return
+        }
+        let edges: Bool = boxed && hasInlineBoxEdges(el)
+        if edges {
+            items.append(.boxEdge(InlineBoxEdge(dom: el.ref.id, side: .start)))
+        }
+        for child in n.children { appendItems(id, child, boxed: true, into: &items) }
+        if edges {
+            items.append(.boxEdge(InlineBoxEdge(dom: el.ref.id, side: .end)))
+        }
+    }
+
+    private func hasInlineBoxEdges(_ el: LayoutElementView) -> Bool {
+        let style: ComputedStyle = el.style.computed
+        guard style.layout.display == .inline else { return false }
+        return style.box.paddingAndBorder != .zero
+    }
+
+    mutating private func placeBoxEdge(
+        _ id: LayoutID,
+        _ edge: InlineBoxEdge,
+        into placement: inout InlinePlacement
+    ) {
+        let edges: EdgeInsets = inputs.style(edge.dom).box.paddingAndBorder.scaled(by: zoom(id))
+        switch edge.side {
+        case .start:
+            placement.openBox(edge.dom, width: edges.left, in: &self)
+        case .end:
+            placement.closeBox(edge.dom, width: edges.right, in: &self)
+        }
     }
 
     private func isEmbed(_ el: LayoutElementView) -> Bool {
@@ -1522,7 +1591,7 @@ extension LayoutTree {
     /// box-sizing, plus its horizontal padding and border.
     private func embedOuterWidth(_ content: CGFloat, _ node: LayoutElementView, zoom: CGFloat) -> CGFloat {
         let metrics: EmbedMetrics = EmbedMetrics(node)
-        let edges: EdgeInsets = embedBoxEdges(metrics.style, zoom: zoom)
+        let edges: EdgeInsets = metrics.style.box.paddingAndBorder.scaled(by: zoom)
         let used: CGFloat = metrics.specifiedContent(content, attribute: "width", paddingAndBorder: edges.horizontal)
         return used + edges.horizontal
     }
@@ -1727,6 +1796,78 @@ private struct InlinePlacementContext {
     let parent: LayoutID
     var objects: [Int: LayoutID]
     var objectsChanged: Bool = false
+    var boxes: InlineBoxPlacement = InlineBoxPlacement()
+}
+
+private struct PendingInlineBox {
+    let dom: NodeID
+    let width: CGFloat
+}
+
+/// Inline elements with padding or border while the block fills its lines.
+/// An element's start waits for its first child, so a start right before a
+/// line break moves to the next line together with that child. A line with
+/// no such element records no events at all.
+private struct InlineBoxPlacement {
+    var events: [InlineFlowEvent] = []
+    var pending: [PendingInlineBox] = []
+    var open: [NodeID] = []
+    var unrecordedChildren: Int = 0
+
+    var pendingWidth: CGFloat {
+        return pending.reduce(0, { $0 + $1.width })
+    }
+
+    mutating func noteChild() {
+        guard !events.isEmpty || !pending.isEmpty || !open.isEmpty else {
+            unrecordedChildren += 1
+            return
+        }
+        commitPending()
+        events.append(.child)
+    }
+
+    mutating func close(_ dom: NodeID, width: CGFloat) {
+        if pending.contains(where: { $0.dom == dom }) {
+            commitPending()
+        }
+        recordEarlierChildren()
+        events.append(.close(dom: dom, width: width, closes: true))
+        if let index: Int = open.lastIndex(of: dom) {
+            open.remove(at: index)
+        }
+    }
+
+    /// Ends the line inside every element still open; the next line starts
+    /// inside them again, without their start edges.
+    mutating func breakLine() -> [InlineFlowEvent] {
+        if !open.isEmpty {
+            recordEarlierChildren()
+        }
+        for dom in open.reversed() {
+            events.append(.close(dom: dom, width: 0, closes: false))
+        }
+        let finished: [InlineFlowEvent] = events
+        events = open.map({ .open(dom: $0, width: 0, opens: false) })
+        unrecordedChildren = 0
+        return finished
+    }
+
+    private mutating func commitPending() {
+        guard !pending.isEmpty else { return }
+        recordEarlierChildren()
+        for box in pending {
+            events.append(.open(dom: box.dom, width: box.width, opens: true))
+            open.append(box.dom)
+        }
+        pending.removeAll(keepingCapacity: true)
+    }
+
+    private mutating func recordEarlierChildren() {
+        guard unrecordedChildren > 0 else { return }
+        events.insert(contentsOf: Array(repeating: InlineFlowEvent.child, count: unrecordedChildren), at: 0)
+        unrecordedChildren = 0
+    }
 }
 
 private struct PendingTextStyle {
@@ -1826,7 +1967,7 @@ struct InlinePlacement {
             previousChanged = true
             state.content = InlineLineContent()
         }
-        state.cursorX = 0
+        state.cursorX = context.boxes.pendingWidth
     }
 
     @discardableResult
@@ -1839,7 +1980,7 @@ struct InlinePlacement {
         previousChanged = tree.resetLine(line, previous: previous)
         state.currentLine = line
         state.content = InlineLineContent(reuseText: reuseText)
-        state.cursorX = 0
+        state.cursorX = context.boxes.pendingWidth
         return previousChanged
     }
 
@@ -1907,6 +2048,7 @@ struct InlinePlacement {
                     )
                 )
             )
+            context.boxes.noteChild()
             state.content.widths.append(pending.width)
             state.content.pending = nil
             return
@@ -1937,19 +2079,40 @@ struct InlinePlacement {
             measuredWidth: nil,
             for: text
         )
+        context.boxes.noteChild()
         state.content.children.append(text)
         state.content.widths.append(pending.width)
         state.content.pending = nil
     }
 
     mutating func append(_ child: LayoutID, width: CGFloat) {
+        context.boxes.noteChild()
         state.content.children.append(child)
         state.content.widths.append(width)
+    }
+
+    mutating func openBox(_ dom: NodeID, width: CGFloat, in tree: inout LayoutTree) {
+        flushText(in: &tree)
+        context.boxes.pending.append(PendingInlineBox(dom: dom, width: width))
+        state.cursorX += width
+    }
+
+    mutating func closeBox(_ dom: NodeID, width: CGFloat, in tree: inout LayoutTree) {
+        flushText(in: &tree)
+        context.boxes.close(dom, width: width)
+        state.cursorX += width
     }
 
     private mutating func commitLine(_ line: LayoutID, in tree: inout LayoutTree) {
         tree[line: line].content.inlineWidths = state.content.widths
         tree[line: line].content.boxes = state.content.boxes
+        let events: [InlineFlowEvent] = context.boxes.breakLine()
+        if tree[line: line].inlineBoxes.events != events {
+            tree[line: line].inlineBoxes.events = events
+            // The same children can sit at new positions when only the
+            // padding or border around them changed.
+            tree.markField(.x, at: line)
+        }
         profiler.measure("layout.inline.place.lineChildren", {
             tree.setLineChildrenField(
                 state.content.children,

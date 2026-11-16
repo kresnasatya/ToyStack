@@ -7,11 +7,27 @@ struct LineData {
     var content: LineContent
     var paint: LinePaint
     var placement: LinePlacement
+    var inlineBoxes: LineInlineBoxes
 
     init() {
         self.content = LineContent()
         self.paint = LinePaint()
         self.placement = LinePlacement()
+        self.inlineBoxes = LineInlineBoxes()
+    }
+}
+
+// MARK: - LineInlineBoxes
+
+/// Inline elements with padding or border on this line: `events` is what the
+/// block's placement recorded, `fragments` is where the line put them.
+struct LineInlineBoxes {
+    var events: [InlineFlowEvent]
+    var fragments: [InlineBoxFragment]
+
+    init() {
+        self.events = []
+        self.fragments = []
     }
 }
 

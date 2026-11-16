@@ -241,7 +241,7 @@ extension LayoutTree {
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom(id))
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let content: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom(id)
-        let w: CGFloat = content + embedBoxEdges(node.style.computed, zoom: zoom(id)).horizontal
+        let w: CGFloat = content + node.style.computed.box.paddingAndBorder.scaled(by: zoom(id)).horizontal
         let cursorX: CGFloat = buttonCursorX(id)
         if cursorX + w > width(id) { newButtonLine(id) }
         guard let line: LayoutID = childrenIDs(of: id).last else { return }
@@ -364,12 +364,6 @@ extension EmbedMetrics {
 
 // MARK: - Box edges
 
-/// Padding plus used border around an embed's content box: the room it takes
-/// on its line beyond its content size.
-func embedBoxEdges(_ style: ComputedStyle, zoom: CGFloat) -> EdgeInsets {
-    return (style.box.spacing.padding + style.box.decoration.border.usedWidths).scaled(by: zoom)
-}
-
 extension LayoutTree {
     /// Edges scale with the line's zoom, the same zoom the block used to
     /// reserve the embed's room on that line.
@@ -377,8 +371,10 @@ extension LayoutTree {
         return parentID(of: id).map({ zoom($0) }) ?? 1
     }
 
+    /// Padding plus used border around an embed's content box: the room it
+    /// takes on its line beyond its content size.
     func embedEdges(_ id: LayoutID) -> EdgeInsets {
-        return embedBoxEdges(inputs.style(domID(of: id)), zoom: embedEdgeZoom(id))
+        return inputs.style(domID(of: id)).box.paddingAndBorder.scaled(by: embedEdgeZoom(id))
     }
 
     func embedBorderWidths(_ id: LayoutID) -> EdgeInsets {

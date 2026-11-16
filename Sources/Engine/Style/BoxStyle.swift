@@ -8,6 +8,11 @@ struct BoxStyle: Equatable {
     var decoration: Decoration
     var zoom: CGFloat?
 
+    /// Room between a box's content edge and its border edge on each side.
+    var paddingAndBorder: EdgeInsets {
+        return spacing.padding + decoration.border.usedWidths
+    }
+
     static let initial: BoxStyle = BoxStyle(
         size: Size(
             width: nil,
