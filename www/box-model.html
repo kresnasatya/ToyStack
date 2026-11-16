@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>box model</title>
+    <style>
+        body { font-size: 16px; }
+        .sides {
+            width: 300px;
+            height: 40px;
+            border-style: solid;
+            border-width: 2px 6px 10px 14px;
+            border-color: red green blue gold;
+        }
+        .bottom { border-bottom: 3px solid gray; }
+        .round {
+            width: 300px;
+            height: 60px;
+            border: 8px solid steelblue;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .row { height: 30px; background-color: gold; }
+        img { padding: 6px; border: 3px solid tomato; }
+        input { border: 2px solid steelblue; padding: 4px; }
+        .tag { padding: 2px 8px; border: 2px solid steelblue; background-color: lightblue; }
+        .mark { background-color: gold; }
+        .wrap { padding: 0 6px; border-left: 4px solid tomato; border-right: 4px solid green; background-color: lightgreen; }
+        p { width: 420px; }
+    </style>
+</head>
+<body>
+    <div class="sides">each side has its own width and color</div>
+    <div class="bottom">only a bottom border</div>
+    <div class="round">
+        <div class="row">content clips to the inner curve</div>
+        <div class="row">row 2</div>
+        <div class="row">row 3</div>
+    </div>
+    <p>An image <img src="../kresna-me.png" width="60" height="60"> keeps room for its padding and border, and so does <input value="an input">.</p>
+    <p>Inline <span class="tag">tag</span> and <span class="mark">marked <b>bold</b> text</span> here.</p>
+    <p>Before <span class="wrap">this span is long enough to wrap across more than one line of text</span> after.</p>
+</body>
+</html>
