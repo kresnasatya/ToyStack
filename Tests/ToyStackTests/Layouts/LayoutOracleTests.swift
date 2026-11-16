@@ -202,6 +202,33 @@ struct LayoutOracleTests {
         expectIncrementalMatchesFull(page)
     }
 
+    @Test func elementZoomLaysOutWithoutStaleFields() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><div id="inner"></div></div>"#,
+            rules: """
+                body { display: block; }
+                div { display: block; }
+                #box { zoom: 2; padding-left: 5px; }
+                #inner { height: 10px; }
+                """
+        )
+        let body: LayoutID = try #require(page.firstElement(tag: "body")?.ref.layoutID)
+        let box: ElementRef = try element("box", in: page)
+        let inner: LayoutID = try #require(page.firstElement(id: "inner")?.ref.layoutID)
+
+        #expect(page.tree.x(try #require(box.ref.layoutID)) == page.tree.x(body) + 10)
+        #expect(page.tree.height(inner) == 20)
+        expectAllLayoutFieldsClean(try #require(page.frame.document))
+
+        InlineStyle.set(box, property: "zoom", value: "3")
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        #expect(page.tree.height(try #require(page.firstElement(id: "inner")?.ref.layoutID)) == 30)
+        expectAllLayoutFieldsClean(try #require(page.frame.document))
+        expectIncrementalMatchesFull(page)
+    }
+
     // MARK: - Embedded content
 
     @Test func lazyImageLoadChangesBox() throws {

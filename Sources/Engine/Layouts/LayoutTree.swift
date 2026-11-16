@@ -544,12 +544,14 @@ struct LayoutTree: @unchecked Sendable {
         self[node: id].state.fields.geometry.origin.x = frame.x
         self[node: id].state.fields.geometry.origin.y = frame.y
         self[node: id].state.fields.geometry.size.width = frame.width
-        markUsedClean(Self.frameFields, at: id)
-        registerInputs(of: Self.frameFields, notIn: used, for: id)
-
+        // A box's own x, y, and width depend on its zoom, so announcing the new
+        // zoom marks them dirty; do it before this call stores them as clean.
         if used & LayoutField.zoom.mask == 0 || old.zoom != frame.zoom {
             noteFieldSet(.zoom, at: id)
         }
+        markUsedClean(Self.frameFields, at: id)
+        registerInputs(of: Self.frameFields, notIn: used, for: id)
+
         if used & LayoutField.x.mask == 0 || old.origin.x != frame.x {
             noteFieldSet(.x, at: id)
         }

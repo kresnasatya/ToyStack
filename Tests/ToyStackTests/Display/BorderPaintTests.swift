@@ -44,6 +44,21 @@ struct BorderPaintTests {
         #expect(strokes.first?.width == 4)
     }
 
+    @Test func zoomedBorderIsDrawnAtTheZoomedWidth() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + "#box { zoom: 2; border: 3px solid red; }"
+        )
+        let box: Rect = try paintedBox(page, id: "box")
+
+        let strokes: [(rect: Rect, width: CGFloat)] = page.frame.displayList.compactMap { op in
+            guard case .outline(let rect, _, let width) = op else { return nil }
+            return (rect, width)
+        }
+        #expect(strokes.first?.rect == shrunk(box, by: 3))
+        #expect(strokes.first?.width == 6)
+    }
+
     @Test func backgroundCoversTheBorder() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,

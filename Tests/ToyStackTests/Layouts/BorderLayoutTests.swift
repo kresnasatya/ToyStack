@@ -80,6 +80,17 @@ struct BorderLayoutTests {
         #expect(page.tree.width(box) == 600)
     }
 
+    @Test func borderScalesWithZoom() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + "#box { zoom: 2; border: 3px solid black; }"
+        )
+        let box: LayoutID = try #require(page.firstElement(id: "box")?.ref.layoutID)
+
+        #expect(page.tree.x(box) - page.tree.selfRect(box).left == 6)
+        #expect(page.tree.width(box) == 588)
+    }
+
     @Test func borderIsClickable() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,
