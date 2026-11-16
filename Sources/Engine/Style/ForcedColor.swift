@@ -14,6 +14,10 @@ public enum ForcedColor {
 
 let forcedColorsAppliedKey: String = "-forced-colors"
 
+private let borderColorKeys: [String] = [
+    "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+]
+
 @MainActor
 func usesForcedColors(_ node: DOMRef) -> Bool {
     node.style.unknownValue(forcedColorsAppliedKey) == "active"
@@ -30,8 +34,8 @@ func applyForcedColors(to style: inout [String: String], tag: String?) {
         style["background-color"] = ForcedColor.canvas
     }
 
-    if style["border-color"] != nil {
-        style["border-color"] = ForcedColor.buttonBorder
+    for key in borderColorKeys where style[key] != nil {
+        style[key] = ForcedColor.buttonBorder
     }
 
     if style["outline-color"] != nil {

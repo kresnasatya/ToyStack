@@ -394,7 +394,7 @@ extension LayoutTree {
                 let styleHeightZoom: CGFloat = zoom(id)
                 let usedHeight: CGFloat = size.boxSizing.contentSize(
                     specified: h * styleHeightZoom,
-                    paddingAndBorder: paddingVertical(id) + 2 * border(id)
+                    paddingAndBorder: paddingVertical(id) + borderWidths(id).vertical
                 )
                 setField(.height, usedHeight, for: id)
             } else {
@@ -430,15 +430,15 @@ extension LayoutTree {
         let parent: LayoutID = parentID(of: id)!
 
         let parentX: CGFloat = x(parent)
-        let ownBorder: CGFloat = borderValue(id) * zoomValue
+        let ownBorder: EdgeInsets = borderValues(id).scaled(by: zoomValue)
         let padLeft: CGFloat = !hasExtraNodes(id)
             ? style.box.padding.left * zoomValue
             : 0
         var frameX: CGFloat
         if isAbsolute, let l = style.flags.left {
-            frameX = l * zoomValue + padLeft + ownBorder
+            frameX = l * zoomValue + padLeft + ownBorder.left
         } else {
-            frameX = parentX + padLeft + ownBorder
+            frameX = parentX + padLeft + ownBorder.left
         }
 
         let parentWidth: CGFloat = width(parent)
@@ -449,10 +449,10 @@ extension LayoutTree {
         if let w = style.box.size.width {
             frameWidth = style.box.size.boxSizing.contentSize(
                 specified: w * zoomValue,
-                paddingAndBorder: padHorizontal + 2 * ownBorder
+                paddingAndBorder: padHorizontal + ownBorder.horizontal
             )
         } else {
-            frameWidth = max(0, parentWidth - padHorizontal - 2 * ownBorder)
+            frameWidth = max(0, parentWidth - padHorizontal - ownBorder.horizontal)
         }
 
         let element = domView(id).element
@@ -466,7 +466,7 @@ extension LayoutTree {
             let padTop: CGFloat = !hasExtraNodes(id)
                 ? style.box.padding.left * zoomValue
                 : 0
-            frameY = t * zoomValue + padTop + ownBorder
+            frameY = t * zoomValue + padTop + ownBorder.top
         } else {
             let ownTop: CGFloat = style.box.margin.top * zoomValue
             let padTop: CGFloat = style.box.padding.top * zoomValue
@@ -477,15 +477,15 @@ extension LayoutTree {
                     ? padding(previous, .paddingBottom)
                     : 0
                 let prevBorderBottom: CGFloat = isBlock(previous)
-                    ? border(previous)
+                    ? borderWidths(previous).bottom
                     : 0
                 let prevMarginBottom: CGFloat = isBlock(previous)
                     ? blockStyle(previous).box.margin.bottom
                     : 0
                 frameY = prevY + prevHeight + prevPadBottom + prevBorderBottom
-                    + prevMarginBottom * zoomValue + ownTop + ownBorder + padTop
+                    + prevMarginBottom * zoomValue + ownTop + ownBorder.top + padTop
             } else {
-                frameY = y(parent) + ownTop + ownBorder + padTop
+                frameY = y(parent) + ownTop + ownBorder.top + padTop
             }
         }
 
@@ -512,7 +512,7 @@ extension LayoutTree {
                 let childStyle: BlockStyle = blockStyle(childID)
                 let childZoom: CGFloat = zoom(childID)
                 h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
-                h += 2 * border(childID)
+                h += borderWidths(childID).vertical
                 h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
             }
             total += h
@@ -851,18 +851,18 @@ extension LayoutTree {
     }
 
     func boxHeight(_ id: LayoutID) -> CGFloat {
-        return height(id) + paddingVertical(id) + 2 * border(id)
+        return height(id) + paddingVertical(id) + borderWidths(id).vertical
     }
 
     // MARK: - Border
 
-    private func borderValue(_ id: LayoutID) -> CGFloat {
-        guard !hasExtraNodes(id) else { return 0 }
-        return domView(id).style.computed.box.decoration.border.usedWidth
+    private func borderValues(_ id: LayoutID) -> EdgeInsets {
+        guard !hasExtraNodes(id) else { return .zero }
+        return domView(id).style.computed.box.decoration.border.usedWidths
     }
 
-    func border(_ id: LayoutID) -> CGFloat {
-        return borderValue(id) * zoom(id)
+    func borderWidths(_ id: LayoutID) -> EdgeInsets {
+        return borderValues(id).scaled(by: zoom(id))
     }
 
     // MARK: - Inline items
@@ -1588,17 +1588,19 @@ extension LayoutTree {
     // MARK: - Paint
 
     func blockSelfRect(_ id: LayoutID) -> Rect {
-        let borderWidth: CGFloat = border(id)
-        let top: CGFloat = paintedPadding(id, .paddingTop) + borderWidth
-        let right: CGFloat = paintedPadding(id, .paddingRight) + borderWidth
-        let bottom: CGFloat = paintedPadding(id, .paddingBottom) + borderWidth
-        let left: CGFloat = paintedPadding(id, .paddingLeft) + borderWidth
-        return Rect(
-            left: x(id) - left,
-            top: y(id) - top,
-            right: x(id) + width(id) + right,
-            bottom: y(id) + height(id) + bottom
+        let padding: EdgeInsets = EdgeInsets(
+            top: paintedPadding(id, .paddingTop),
+            right: paintedPadding(id, .paddingRight),
+            bottom: paintedPadding(id, .paddingBottom),
+            left: paintedPadding(id, .paddingLeft)
         )
+        let content: Rect = Rect(
+            left: x(id),
+            top: y(id),
+            right: x(id) + width(id),
+            bottom: y(id) + height(id)
+        )
+        return content.outset(by: padding).outset(by: borderWidths(id))
     }
 
     func blockPaintCaret(_ id: LayoutID, into items: inout [DisplayOp]) {

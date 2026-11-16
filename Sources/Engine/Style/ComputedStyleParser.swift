@@ -11,6 +11,13 @@ enum ComputedStyleParser {
         "border-bottom-left-radius",
     ]
 
+    private static let borderKeys: [(width: String, style: String, color: String)] = [
+        ("border-top-width", "border-top-style", "border-top-color"),
+        ("border-right-width", "border-right-style", "border-right-color"),
+        ("border-bottom-width", "border-bottom-style", "border-bottom-color"),
+        ("border-left-width", "border-left-style", "border-left-color"),
+    ]
+
     static func parse(
         _ css: [String: String],
         parent: ComputedStyle?
@@ -52,14 +59,12 @@ enum ComputedStyleParser {
         )
         style.box.zoom = zoomFactor(take("zoom"))
 
-        let borderWidth: String? = take("border-width")
-        style.box.decoration.border.width = borderWidth == nil
-            ? 3
-            : CSSValueParser.outlineWidth(borderWidth!) ?? 0
-        style.box.decoration.border.style = BoxStyle.Decoration.LineStyle(css: take("border-style"))
-        if let raw = take("border-color") {
-            style.box.decoration.border.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
-        }
+        style.box.decoration.border.sides = BoxStyle.Decoration.Border.Sides(
+            top: borderSide(borderKeys[0], take: take),
+            right: borderSide(borderKeys[1], take: take),
+            bottom: borderSide(borderKeys[2], take: take),
+            left: borderSide(borderKeys[3], take: take)
+        )
         style.box.decoration.border.radii = CSSValueParser.cornerRadii(css) ?? .zero
         for key in radiusKeys {
             unknown.removeValue(forKey: key)
@@ -161,6 +166,21 @@ enum ComputedStyleParser {
     private static func px(_ raw: String?) -> CGFloat? {
         guard let raw, raw.hasSuffix("px"), let value = Double(raw.dropLast(2)) else { return nil }
         return CGFloat(value)
+    }
+
+    private static func borderSide(
+        _ keys: (width: String, style: String, color: String),
+        take: (String) -> String?
+    ) -> BoxStyle.Decoration.Border.Side {
+        var side: BoxStyle.Decoration.Border.Side = .initial
+        if let raw = take(keys.width) {
+            side.width = CSSValueParser.outlineWidth(raw) ?? 0
+        }
+        side.style = BoxStyle.Decoration.LineStyle(css: take(keys.style))
+        if let raw = take(keys.color) {
+            side.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
+        }
+        return side
     }
 
     private static func fontSize(_ raw: String, parent: ComputedStyle?) -> CGFloat? {

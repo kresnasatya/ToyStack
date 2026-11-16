@@ -46,12 +46,3 @@ struct BlockStyleFlags {
     let overflowScroll: Bool
     let directionRTL: Bool
 }
-
-// MARK: - EdgeInsets
-
-struct EdgeInsets: Equatable {
-    let top: CGFloat
-    let right: CGFloat
-    let bottom: CGFloat
-    let left: CGFloat
-}

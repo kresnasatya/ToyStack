@@ -50,14 +50,7 @@ func emitBlock(_ node: PaintNode, block: PaintBlock, into items: inout [DisplayO
         ))
     }
 
-    let borderWidth: CGFloat = node.geometry.border
-    if let border: DisplayOp = DisplayOp.fromBorderStyle(
-        style,
-        rect: box.inset(by: borderWidth / 2),
-        width: borderWidth
-    ) {
-        items.append(border)
-    }
+    emitBorder(box, sides: style.box.decoration.border.sides, widths: node.geometry.border, into: &items)
 
     let outline: DisplayOp? = DisplayOp.fromStyle(style, rect: box)
     if node.surface.state.isFocusVisible && outline == nil {
@@ -269,6 +262,44 @@ func emitFocusOutline(
     if let outline { items.append(outline) }
 }
 
+// MARK: - Border
+
+/// Top and bottom run the full width of the border box; left and right fill
+/// the height between them, so every side stays inside the room layout made.
+func emitBorder(
+    _ box: Rect,
+    sides: BoxStyle.Decoration.Border.Sides,
+    widths: EdgeInsets,
+    into items: inout [DisplayOp]
+) {
+    let innerTop: CGFloat = box.top + widths.top
+    let innerBottom: CGFloat = box.bottom - widths.bottom
+    if widths.top > 0 {
+        items.append(.rect(
+            rect: Rect(left: box.left, top: box.top, right: box.right, bottom: innerTop),
+            color: sides.top.color
+        ))
+    }
+    if widths.right > 0 {
+        items.append(.rect(
+            rect: Rect(left: box.right - widths.right, top: innerTop, right: box.right, bottom: innerBottom),
+            color: sides.right.color
+        ))
+    }
+    if widths.bottom > 0 {
+        items.append(.rect(
+            rect: Rect(left: box.left, top: innerBottom, right: box.right, bottom: box.bottom),
+            color: sides.bottom.color
+        ))
+    }
+    if widths.left > 0 {
+        items.append(.rect(
+            rect: Rect(left: box.left, top: innerTop, right: box.left + widths.left, bottom: innerBottom),
+            color: sides.left.color
+        ))
+    }
+}
+
 // MARK: - Node scopes
 
 func openScopes(
@@ -402,7 +433,7 @@ func closeIframeScopes(
     if let border: DisplayOp = DisplayOp.fromBorderStyle(
         node.surface.style,
         rect: scopes.rect,
-        width: node.surface.style.box.decoration.border.usedWidth
+        width: node.surface.style.box.decoration.border.sides.top.usedWidth
     ) {
         ops.append(border)
     }

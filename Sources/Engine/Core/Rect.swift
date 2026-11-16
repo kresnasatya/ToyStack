@@ -40,12 +40,21 @@ public struct Rect: Equatable, Sendable {
         )
     }
 
-    func inset(by amount: CGFloat) -> Rect {
+    func inset(by edges: EdgeInsets) -> Rect {
         return Rect(
-            left: left + amount,
-            top: top + amount,
-            right: right - amount,
-            bottom: bottom - amount
+            left: left + edges.left,
+            top: top + edges.top,
+            right: right - edges.right,
+            bottom: bottom - edges.bottom
+        )
+    }
+
+    func outset(by edges: EdgeInsets) -> Rect {
+        return Rect(
+            left: left - edges.left,
+            top: top - edges.top,
+            right: right + edges.right,
+            bottom: bottom + edges.bottom
         )
     }
 

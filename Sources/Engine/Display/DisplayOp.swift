@@ -149,7 +149,7 @@ extension DisplayOp {
 
     static func fromBorderStyle(_ style: ComputedStyle, rect: Rect, width: CGFloat) -> DisplayOp? {
         guard width > 0 else { return nil }
-        return .outline(rect: rect, color: style.box.decoration.border.color, width: width)
+        return .outline(rect: rect, color: style.box.decoration.border.sides.top.color, width: width)
     }
 }
 

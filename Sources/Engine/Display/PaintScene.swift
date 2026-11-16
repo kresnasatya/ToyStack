@@ -30,7 +30,7 @@ struct PaintGeometry {
     var rect: Rect
     var frame: Rect
     var zoom: CGFloat
-    var border: CGFloat
+    var border: EdgeInsets
 
     var paddingBox: Rect { rect.inset(by: border) }
 }

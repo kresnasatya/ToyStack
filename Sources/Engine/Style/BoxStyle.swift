@@ -18,7 +18,7 @@ struct BoxStyle: Equatable {
         spacing: Spacing(margin: EdgeInsets(top: 0, right: 0, bottom: 0, left: 0),
                          padding: EdgeInsets(top: 0, right: 0, bottom: 0, left: 0)),
         decoration: Decoration(
-            border: Decoration.Border(width: 3, color: BrowserColor(red: 0, green: 0, blue: 0), style: .none, radii: .zero),
+            border: Decoration.Border(sides: .initial, radii: .zero),
             outline: Decoration.Outline(width: 3, color: nil, style: .none)
         ),
         zoom: nil
@@ -58,15 +58,55 @@ extension BoxStyle {
         var outline: Outline
 
         struct Border: Equatable {
-            var width: CGFloat
-            var color: BrowserColor
-            var style: LineStyle
+            var sides: Sides
             var radii: CornerRadii
 
-            // CSS Backgrounds 3 §3.3: if the border-style is none or hidden,
-            // the used width is 0, so the initial `medium` width takes no space.
-            var usedWidth: CGFloat {
-                return style == .none || style == .hidden ? 0 : width
+            var usedWidths: EdgeInsets {
+                return EdgeInsets(
+                    top: sides.top.usedWidth,
+                    right: sides.right.usedWidth,
+                    bottom: sides.bottom.usedWidth,
+                    left: sides.left.usedWidth
+                )
+            }
+
+            struct Sides: Equatable {
+                var top: Side
+                var right: Side
+                var bottom: Side
+                var left: Side
+
+                static let initial: Sides = Sides(
+                    top: .initial,
+                    right: .initial,
+                    bottom: .initial,
+                    left: .initial
+                )
+
+                func same<Value: Equatable>(_ part: KeyPath<Side, Value>, as other: Sides) -> Bool {
+                    return top[keyPath: part] == other.top[keyPath: part]
+                        && right[keyPath: part] == other.right[keyPath: part]
+                        && bottom[keyPath: part] == other.bottom[keyPath: part]
+                        && left[keyPath: part] == other.left[keyPath: part]
+                }
+            }
+
+            struct Side: Equatable {
+                var width: CGFloat
+                var color: BrowserColor
+                var style: LineStyle
+
+                static let initial: Side = Side(
+                    width: 3,
+                    color: BrowserColor(red: 0, green: 0, blue: 0),
+                    style: .none
+                )
+
+                // CSS Backgrounds 3 §3.3: if the border-style is none or hidden,
+                // the used width is 0, so the initial `medium` width takes no space.
+                var usedWidth: CGFloat {
+                    return style == .none || style == .hidden ? 0 : width
+                }
             }
         }
 

@@ -19,44 +19,72 @@ struct BorderPaintTests {
         return page.tree.selfRect(layout)
     }
 
-    private func shrunk(_ rect: Rect, by amount: CGFloat) -> Rect {
-        return Rect(
-            left: rect.left + amount,
-            top: rect.top + amount,
-            right: rect.right - amount,
-            bottom: rect.bottom - amount
-        )
+    private func fills(_ page: LayoutTestPage) -> [(rect: Rect, color: BrowserColor)] {
+        return page.frame.displayList.compactMap { op in
+            guard case .rect(let rect, let color) = op else { return nil }
+            return (rect, color)
+        }
     }
 
-    @Test func borderIsDrawnInsideTheBorderBox() throws {
+    /// Top and bottom span the whole border box; left and right fill the
+    /// height between them.
+    private func sideRects(_ box: Rect, _ widths: EdgeInsets) -> [Rect] {
+        let innerTop: CGFloat = box.top + widths.top
+        let innerBottom: CGFloat = box.bottom - widths.bottom
+        return [
+            Rect(left: box.left, top: box.top, right: box.right, bottom: innerTop),
+            Rect(left: box.right - widths.right, top: innerTop, right: box.right, bottom: innerBottom),
+            Rect(left: box.left, top: innerBottom, right: box.right, bottom: box.bottom),
+            Rect(left: box.left, top: innerTop, right: box.left + widths.left, bottom: innerBottom),
+        ]
+    }
+
+    @Test func borderFillsEachSideInsideTheBorderBox() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,
             rules: Self.baseRules + "#box { padding: 6px; border: 4px solid red; }"
         )
         let box: Rect = try paintedBox(page, id: "box")
 
-        let strokes: [(rect: Rect, width: CGFloat)] = page.frame.displayList.compactMap { op in
-            guard case .outline(let rect, _, let width) = op else { return nil }
-            return (rect, width)
-        }
-        #expect(strokes.count == 1)
-        #expect(strokes.first?.rect == shrunk(box, by: 2))
-        #expect(strokes.first?.width == 4)
+        #expect(fills(page).map(\.rect) == sideRects(box, EdgeInsets(top: 4, right: 4, bottom: 4, left: 4)))
+        #expect(!page.frame.displayList.contains(where: { $0.name == "outline" }))
     }
 
-    @Test func zoomedBorderIsDrawnAtTheZoomedWidth() throws {
+    @Test func eachSidePaintsItsOwnWidthAndColor() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + """
+                #box { border-style: solid; border-width: 1px 2px 3px 4px;
+                       border-color: red green blue gold; }
+                """
+        )
+        let box: Rect = try paintedBox(page, id: "box")
+        let painted: [(rect: Rect, color: BrowserColor)] = fills(page)
+
+        #expect(painted.map(\.rect) == sideRects(box, EdgeInsets(top: 1, right: 2, bottom: 3, left: 4)))
+        #expect(painted.map(\.color) == ["red", "green", "blue", "gold"].map { BrowserColor(cssName: $0) })
+    }
+
+    @Test func sideWithoutAStyleIsNotPainted() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + "#box { border-bottom: 2px solid gray; }"
+        )
+        let box: Rect = try paintedBox(page, id: "box")
+
+        #expect(fills(page).map(\.rect) == [
+            Rect(left: box.left, top: box.bottom - 2, right: box.right, bottom: box.bottom),
+        ])
+    }
+
+    @Test func zoomedBorderIsPaintedAtTheZoomedWidth() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,
             rules: Self.baseRules + "#box { zoom: 2; border: 3px solid red; }"
         )
         let box: Rect = try paintedBox(page, id: "box")
 
-        let strokes: [(rect: Rect, width: CGFloat)] = page.frame.displayList.compactMap { op in
-            guard case .outline(let rect, _, let width) = op else { return nil }
-            return (rect, width)
-        }
-        #expect(strokes.first?.rect == shrunk(box, by: 3))
-        #expect(strokes.first?.width == 6)
+        #expect(fills(page).map(\.rect) == sideRects(box, EdgeInsets(top: 6, right: 6, bottom: 6, left: 6)))
     }
 
     @Test func backgroundCoversTheBorder() throws {
@@ -76,17 +104,16 @@ struct BorderPaintTests {
             bottom: y + page.tree.height(box) + 5
         )
 
-        let fills: [Rect] = page.frame.displayList.compactMap { op in
-            guard case .rect(let rect, _) = op else { return nil }
-            return rect
-        }
-        #expect(fills.contains(borderBox))
+        #expect(fills(page).first?.rect == borderBox)
+        #expect(fills(page).first?.color == BrowserColor(cssName: "gold"))
     }
 
     @Test func overflowHiddenClipsInsideTheBorder() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"><div></div></div>"#,
-            rules: Self.baseRules + "#box { overflow: hidden; border: 5px solid red; }"
+            rules: Self.baseRules + """
+                #box { overflow: hidden; border-style: solid; border-width: 1px 2px 3px 4px; }
+                """
         )
         let box: Rect = try paintedBox(page, id: "box")
 
@@ -96,7 +123,7 @@ struct BorderPaintTests {
             }
             return shape.rect
         }
-        #expect(clips == [shrunk(box, by: 5)])
+        #expect(clips == [Rect(left: box.left + 4, top: box.top + 1, right: box.right - 2, bottom: box.bottom - 3)])
     }
 
     @Test func scrollBoxScrollsInsideTheBorder() throws {
@@ -112,6 +139,6 @@ struct BorderPaintTests {
             }
             return shape.rect
         }
-        #expect(scrollports == [shrunk(box, by: 5)])
+        #expect(scrollports == [Rect(left: box.left + 5, top: box.top + 5, right: box.right - 5, bottom: box.bottom - 5)])
     }
 }

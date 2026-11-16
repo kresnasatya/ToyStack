@@ -128,14 +128,21 @@ class CSSParser {
         return String(chars[start..<i])
     }
 
+    private static let boxSides: [String] = ["top", "right", "bottom", "left"]
+
     private static func expand(shorthand: String, tokens: [String]) -> [String: String]? {
         switch shorthand {
         case "font": return expandFont(tokens)
         case "background": return expandBackground(tokens)
-        case "border": return expandBorder(tokens, prefix: "border")
-        case "outline": return expandBorder(tokens, prefix: "outline")
-        case "margin": return expandBox(tokens, prefix: "margin")
-        case "padding": return expandBox(tokens, prefix: "padding")
+        case "border": return expandBorder(tokens, into: boxSides.map({ "border-\($0)" }))
+        case "border-top", "border-right", "border-bottom", "border-left":
+            return expandBorder(tokens, into: [shorthand])
+        case "border-width": return expandBox(tokens, prefix: "border", suffix: "-width")
+        case "border-style": return expandBox(tokens, prefix: "border", suffix: "-style")
+        case "border-color": return expandBox(tokens, prefix: "border", suffix: "-color")
+        case "outline": return expandBorder(tokens, into: ["outline"])
+        case "margin": return expandBox(tokens, prefix: "margin", suffix: "")
+        case "padding": return expandBox(tokens, prefix: "padding", suffix: "")
         default: return nil
         }
     }
@@ -170,50 +177,49 @@ class CSSParser {
         return props
     }
 
-    private static func expandBorder(_ tokens: [String], prefix: String) -> [String: String] {
-        var props: [String: String] = [:]
+    private static func expandBorder(_ tokens: [String], into prefixes: [String]) -> [String: String] {
+        var part: [String: String] = [:]
         for token in tokens {
             if token.hasSuffix("px") || token.hasSuffix("em") || borderWidthKeywords.contains(token)
             {
-                props["\(prefix)-width"] = token
+                part["width"] = token
             } else if borderStyleKeywords.contains(token) {
-                props["\(prefix)-style"] = token
+                part["style"] = token
             } else {
-                props["\(prefix)-color"] = token
+                part["color"] = token
+            }
+        }
+        var props: [String: String] = [:]
+        for prefix in prefixes {
+            for (name, value) in part {
+                props["\(prefix)-\(name)"] = value
             }
         }
         return props
     }
 
-    private static func expandBox(_ tokens: [String], prefix: String) -> [String: String] {
+    /// CSS Backgrounds 3 §3.3: a missing bottom copies top, and a missing
+    /// left copies right. Margin and padding spread the same way.
+    private static func expandBox(_ tokens: [String], prefix: String, suffix: String) -> [String: String] {
+        let top: String = tokens[0]
+        let right: String = tokens.count > 1 ? tokens[1] : top
+        let bottom: String = tokens.count > 2 ? tokens[2] : top
+        let left: String = tokens.count > 3 ? tokens[3] : right
         var props: [String: String] = [:]
-        switch tokens.count {
-        case 1:
-            props["\(prefix)-top"] = tokens[0]
-            props["\(prefix)-right"] = tokens[0]
-            props["\(prefix)-bottom"] = tokens[0]
-            props["\(prefix)-left"] = tokens[0]
-        case 2:
-            props["\(prefix)-top"] = tokens[0]
-            props["\(prefix)-right"] = tokens[1]
-            props["\(prefix)-bottom"] = tokens[0]
-            props["\(prefix)-left"] = tokens[1]
-        case 3:
-            props["\(prefix)-top"] = tokens[0]
-            props["\(prefix)-right"] = tokens[1]
-            props["\(prefix)-bottom"] = tokens[2]
-            props["\(prefix)-left"] = tokens[1]
-        default:
-            props["\(prefix)-top"] = tokens[0]
-            props["\(prefix)-right"] = tokens[1]
-            props["\(prefix)-bottom"] = tokens[2]
-            props["\(prefix)-left"] = tokens[3]
+        for (side, value) in zip(boxSides, [top, right, bottom, left]) {
+            props["\(prefix)-\(side)\(suffix)"] = value
         }
         return props
     }
 
+    private static let shorthands: Set<String> = [
+        "font", "border", "outline", "margin", "padding", "background", "transition", "animation",
+        "border-top", "border-right", "border-bottom", "border-left",
+        "border-width", "border-style", "border-color",
+    ]
+
     private static func isShortHand(_ prop: String) -> Bool {
-        ["font", "border", "outline", "margin", "padding", "background", "transition", "animation"].contains(prop)
+        return shorthands.contains(prop)
     }
 
     private func bodyParts() -> (normal: [String: String], important: [String: String]) {

@@ -74,6 +74,21 @@ struct BoxSizingLayoutTests {
         #expect(outerSize(page, box) == CGSize(width: 40, height: 40))
     }
 
+    @Test func borderBoxSubtractsOnlyTheSidesOfEachAxis() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + """
+                #box { box-sizing: border-box; width: 200px; height: 50px;
+                       border-left: 10px solid black; border-top: 4px solid black; }
+                """
+        )
+        let box: LayoutID = try #require(page.firstElement(id: "box")?.ref.layoutID)
+
+        #expect(page.tree.width(box) == 190)
+        #expect(page.tree.height(box) == 46)
+        #expect(outerSize(page, box) == CGSize(width: 200, height: 50))
+    }
+
     @Test func borderBoxWithoutAWidthStillFillsTheParent() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,

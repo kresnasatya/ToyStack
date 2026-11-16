@@ -59,9 +59,9 @@ struct CSSParserTests {
         let rules = CSSParser(css).parse().rules
         #expect(rules.count == 2)
         #expect(rules.allSatisfy({ $0.2["width"] == "420px" }))
-        #expect(rules.allSatisfy({ $0.2["border-width"] == "1px" }))
-        #expect(rules.allSatisfy({ $0.2["border-style"] == "solid" }))
-        #expect(rules.allSatisfy({ $0.2["border-color"] == "black" }))
+        #expect(rules.allSatisfy({ $0.2["border-top-width"] == "1px" }))
+        #expect(rules.allSatisfy({ $0.2["border-left-style"] == "solid" }))
+        #expect(rules.allSatisfy({ $0.2["border-bottom-color"] == "black" }))
         let ids: [String] = rules.compactMap({ ($0.1 as? IDSelector)?.id })
         #expect(ids == ["source", "target"])
     }

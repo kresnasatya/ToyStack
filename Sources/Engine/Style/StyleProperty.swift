@@ -36,9 +36,15 @@ enum StyleProperty: CaseIterable, Hashable {
         case "left": self = .left
         case "top": self = .top
         case "zoom": self = .zoom
-        case "border-width": self = .borderWidth
-        case "border-style": self = .borderStyle
-        case "border-color": self = .borderColor
+        case "border-width", "border-top-width", "border-right-width",
+            "border-bottom-width", "border-left-width":
+            self = .borderWidth
+        case "border-style", "border-top-style", "border-right-style",
+            "border-bottom-style", "border-left-style":
+            self = .borderStyle
+        case "border-color", "border-top-color", "border-right-color",
+            "border-bottom-color", "border-left-color":
+            self = .borderColor
         case "border-radius", "border-top-left-radius", "border-top-right-radius",
             "border-bottom-right-radius", "border-bottom-left-radius":
             self = .borderRadius

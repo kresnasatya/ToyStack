@@ -51,9 +51,9 @@ extension ComputedStyle {
         case .left: return layout.position.left == other.layout.position.left
         case .top: return layout.position.top == other.layout.position.top
         case .zoom: return box.zoom == other.box.zoom
-        case .borderWidth: return box.decoration.border.width == other.box.decoration.border.width
-        case .borderStyle: return box.decoration.border.style == other.box.decoration.border.style
-        case .borderColor: return box.decoration.border.color == other.box.decoration.border.color
+        case .borderWidth: return box.decoration.border.sides.same(\.width, as: other.box.decoration.border.sides)
+        case .borderStyle: return box.decoration.border.sides.same(\.style, as: other.box.decoration.border.sides)
+        case .borderColor: return box.decoration.border.sides.same(\.color, as: other.box.decoration.border.sides)
         case .borderRadius: return box.decoration.border.radii == other.box.decoration.border.radii
         case .outlineWidth: return box.decoration.outline.width == other.box.decoration.outline.width
         case .outlineStyle: return box.decoration.outline.style == other.box.decoration.outline.style

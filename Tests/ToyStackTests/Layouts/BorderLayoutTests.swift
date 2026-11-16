@@ -103,6 +103,60 @@ struct BorderLayoutTests {
         #expect(page.tree.hitTest(box, x: rect.left + 2, y: rect.top + 2)?.dom == element.id)
     }
 
+    @Test func eachSideTakesItsOwnWidth() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div><div id="next"></div>"#,
+            rules: Self.baseRules + """
+                #box { height: 20px; border-style: solid; border-width: 1px 2px 3px 4px; }
+                """
+        )
+        let box: LayoutID = try #require(page.firstElement(id: "box")?.ref.layoutID)
+        let next: LayoutID = try #require(page.firstElement(id: "next")?.ref.layoutID)
+        let rect: Rect = page.tree.selfRect(box)
+
+        #expect(page.tree.x(box) - rect.left == 4)
+        #expect(page.tree.y(box) - rect.top == 1)
+        #expect(rect.right - (page.tree.x(box) + page.tree.width(box)) == 2)
+        #expect(rect.bottom - (page.tree.y(box) + page.tree.height(box)) == 3)
+        #expect(page.tree.width(box) == 594)
+        #expect(page.tree.selfRect(next).top == rect.bottom)
+    }
+
+    @Test func borderOnOneSideLeavesTheOtherSidesEmpty() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div><div id="next"></div>"#,
+            rules: Self.baseRules + "#box { height: 20px; border-bottom: 2px solid gray; }"
+        )
+        let box: LayoutID = try #require(page.firstElement(id: "box")?.ref.layoutID)
+        let next: LayoutID = try #require(page.firstElement(id: "next")?.ref.layoutID)
+        let rect: Rect = page.tree.selfRect(box)
+
+        #expect(page.tree.width(box) == 600)
+        #expect(rect.left == page.tree.x(box))
+        #expect(rect.top == page.tree.y(box))
+        #expect(page.tree.selfRect(next).top == rect.top + 22)
+    }
+
+    @Test func oneSideChangeRelayoutsIncrementally() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="a"></div><div id="b"></div>"#,
+            rules: Self.baseRules + "#a, #b { height: 10px; } #a { border: 1px solid black; }"
+        )
+        let a: ElementRef = try #require(page.firstElement(id: "a"))
+
+        InlineStyle.set(a, property: "border-left-width", value: "9px")
+        InlineStyle.set(a, property: "border-bottom-style", value: "none")
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        let aBox: LayoutID = try #require(a.ref.layoutID)
+        let bBox: LayoutID = try #require(page.firstElement(id: "b")?.ref.layoutID)
+        #expect(page.tree.width(aBox) == 590)
+        #expect(page.tree.selfRect(aBox).bottom == page.tree.y(aBox) + 10)
+        #expect(page.tree.selfRect(bBox).top == page.tree.selfRect(aBox).bottom)
+        expectIncrementalMatchesFull(page)
+    }
+
     @Test func borderChangeRelayoutsIncrementally() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="outer"><div id="a"></div><div id="b"></div></div>"#,
