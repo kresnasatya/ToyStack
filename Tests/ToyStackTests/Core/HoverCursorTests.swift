@@ -1,3 +1,4 @@
+import Combine
 import CoreGraphics
 import Foundation
 import Testing
@@ -150,7 +151,7 @@ struct HoverCursorTests {
         #expect(page.tab.cursor == .auto)
     }
 
-    @Test func browserReportsEachCursorChangeOnce() async throws {
+    @Test func browserPublishesEachCursorChangeOnce() async throws {
         let pagePath: String = NSTemporaryDirectory() + "hover-cursor-\(UUID().uuidString).html"
         defer { try? FileManager.default.removeItem(atPath: pagePath) }
         try #"<div><a id="link" href="/x">a link</a></div><div id="after">plain text</div>"#
@@ -162,7 +163,10 @@ struct HoverCursorTests {
         browser.newTab(WebURL("file://" + pagePath))
         browser.pauseAnimationTimer()
         var reported: [CursorKind] = []
-        browser.onCursorChange = { (kind: CursorKind) in reported.append(kind) }
+        let subscription: AnyCancellable = browser.$cursor.dropFirst().sink { (kind: CursorKind) in
+            reported.append(kind)
+        }
+        defer { subscription.cancel() }
         #expect(await Self.pump({ browser.activeTab?.isLoaded == true }))
         browser.advanceFrame()
         let tab: BrowserTab = try #require(browser.activeTab)
@@ -178,6 +182,7 @@ struct HoverCursorTests {
         browser.advanceFrame()
 
         #expect(reported == [.pointer, .auto])
+        #expect(browser.cursor == .auto)
     }
 
     // MARK: - Helpers

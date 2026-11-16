@@ -8,9 +8,10 @@ public class Browser: ObservableObject {
     @Published public private(set) var activeTab: BrowserTab? {
         didSet {
             guard activeTab !== oldValue else { return }
-            onCursorChange?(activeTab?.cursor ?? .auto)
+            showCursor(of: activeTab)
         }
     }
+    @Published public private(set) var cursor: CursorKind = .auto
     public var windowSize: CGSize = CGSize(width: WIDTH, height: HEIGHT)
     public var displayScale: CGFloat = 2.0
     /// Bitmaps handed to the presenter are drawn in it, so Core Animation
@@ -75,7 +76,6 @@ public class Browser: ObservableObject {
     }
 
     public var onPresent: ((PresentedFrame) -> Void)?
-    public var onCursorChange: ((CursorKind) -> Void)?
     private var lastTileScroll: CGFloat = .nan
 
     public var canvasColor: CGColor {
@@ -1031,7 +1031,13 @@ public class Browser: ObservableObject {
 
     func tabCursorChanged(_ tab: BrowserTab) {
         guard tab === activeTab else { return }
-        onCursorChange?(tab.cursor)
+        showCursor(of: tab)
+    }
+
+    private func showCursor(of tab: BrowserTab?) {
+        let kind: CursorKind = tab?.cursor ?? .auto
+        guard kind != cursor else { return }
+        cursor = kind
     }
 }
 

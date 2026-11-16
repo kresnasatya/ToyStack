@@ -63,6 +63,7 @@ public struct BrowserView: View {
             BrowserContentView(browser: app)
                 .background(app.commitedForcedColors ? Color(engine: BrowserColor(cssName: ForcedColor.canvas)) : (app.commitedPrefersDark ? Color.black : Color.white))
                 .contentShape(Rectangle())
+                .modifier(PageCursor(kind: app.cursor))
                 .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
                     app.resize(to: newSize, deferLayout: true)
                 }

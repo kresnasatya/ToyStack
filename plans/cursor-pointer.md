@@ -14,8 +14,8 @@ flowchart LR
     B --> C[Frame.render: resolveHover]
     C --> D[Frame.resolveCursor]
     D --> E[BrowserTab.setCursor]
-    E -->|only when it changed| F[Browser.onCursorChange]
-    F --> G[ContentLayerView.showCursor]
+    E -->|only when it changed| F[Browser.cursor @Published]
+    F --> G[PageCursor: SwiftUI pointerStyle]
 ```
 
 ## Files
@@ -25,10 +25,10 @@ flowchart LR
 | `Sources/Engine/Style/CursorKind.swift` (new) | `auto` / `default` / `pointer`, keyword parsing, and the inherited lookup along the hover chain |
 | `Sources/Engine/Core/Frame.swift` | `resolveCursor()` after `resolveHover()` at the end of `render()` and after `clearHover()` |
 | `Sources/Engine/Core/BrowserTab.swift` | stores the tab's `cursor`, tells the browser only when it changes |
-| `Sources/Engine/Core/Browser.swift` | `onCursorChange` callback; also fires when the active tab switches |
+| `Sources/Engine/Core/Browser.swift` | publishes `cursor`; follows the active tab when tabs switch |
 | `Sources/Engine/Resources/browser.css` | `a[href] { cursor: pointer }` |
-| `Sources/ToyStack/NSCursor+Engine.swift` (new) | `CursorKind` -> `NSCursor` |
-| `Sources/ToyStack/BrowserContentView.swift` | applies the cursor with a cursor rect plus `NSCursor.set()` |
+| `Sources/ToyStack/PageCursor.swift` (new) | turns `CursorKind` into a SwiftUI `pointerStyle` on the page view |
+| `Sources/ToyStack/ToyStack.swift` | applies `PageCursor(kind: app.cursor)` to the page view |
 | `Tests/ToyStackTests/Core/HoverCursorTests.swift` (new) | behavior tests |
 | `www/cursor-pointer.html` (new) | manual demo page |
 
@@ -56,6 +56,17 @@ flowchart LR
   styles give buttons no `cursor`. Pages that want a hand add
   `button { cursor: pointer }` themselves.
 
+## Why SwiftUI sets the cursor, not AppKit
+
+The first version called `NSCursor.set()` from `ContentLayerView` and added a
+cursor rect. The cursor never changed. A breakpoint on `-[NSCursor set]` showed
+each of our calls followed by
+`SwiftUI.NSHostingView.cursorUpdate(with:)` setting the arrow again, on every
+mouse move and on every display refresh. `ContentLayerView.hitTest` returns
+`nil` so the SwiftUI tap gesture gets clicks; that also makes the hosting view
+the view AppKit asks for the cursor. Telling SwiftUI with `pointerStyle(.link)`
+is the only setting that view respects.
+
 ## Limits
 
 - Only `auto`, `default`, `pointer` are mapped. `auto` is always the arrow (no
@@ -64,3 +75,5 @@ flowchart LR
   the first word of a non-shorthand value.
 - Inside an `<iframe>` the cursor follows the iframe element, because hover
   hit-testing stops at the root frame.
+- `pointerStyle` needs macOS 15. On macOS 13 and 14 the page cursor stays the
+  arrow.

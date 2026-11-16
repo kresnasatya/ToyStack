@@ -9,7 +9,6 @@ final class ContentLayerView: NSView {
     private let scrollbarLayer = CALayer()
     private var presenter: ContentPresenter?
     private weak var browser: Browser?
-    private var cursor: NSCursor = .arrow
 
     private func ensureLayers() {
         guard contentLayer.superlayer == nil else { return }
@@ -35,26 +34,11 @@ final class ContentLayerView: NSView {
 
     func detach() {
         browser?.onPresent = nil
-        browser?.onCursorChange = nil
         presenter = nil
     }
 
     func present(_ frame: PresentedFrame) {
         presenter?.enqueue(frame, viewSize: bounds.size)
-    }
-
-    func showCursor(_ kind: CursorKind) {
-        cursor = NSCursor.engine(kind)
-        guard let window else { return }
-        window.invalidateCursorRects(for: self)
-        let mouse: NSPoint = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-        if bounds.contains(mouse) {
-            cursor.set()
-        }
-    }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: cursor)
     }
 
     func apply(_ browser: Browser) {
@@ -104,9 +88,6 @@ struct BrowserContentView: NSViewRepresentable {
             browser.onPresent = { [weak view] frame in
                 guard let view else { return }
                 view.present(frame)
-            }
-            browser.onCursorChange = { [weak view] kind in
-                view?.showCursor(kind)
             }
             cancellable = browser.objectWillChange.sink { [weak browser, weak view] _ in
                 guard let browser, let view else { return }
