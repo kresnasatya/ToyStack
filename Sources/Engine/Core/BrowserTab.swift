@@ -328,18 +328,35 @@ public class BrowserTab: Identifiable {
         browser?.navigationStateChanged()
     }
 
+    public func reload() {
+        let frame: Frame = rootFrame
+        guard let location: NavigationLocation = currentLocation(of: frame) else { return }
+        guard location.payload == nil || BrowserTab.confirmsResubmit() else { return }
+        frame.load(location.url, payload: location.payload, bypassingCache: true)
+    }
+
+    private func currentLocation(of frame: Frame) -> NavigationLocation? {
+        if let entry: HistoryEntry = history.prefix(historyIndex + 1).last(where: { $0.frame == frame.links.id }) {
+            return entry.state
+        }
+        return frame.url.map({ NavigationLocation(url: $0, payload: nil) })
+    }
+
     private func rewindFrames(after index: Int) {
         var handled: Set<FrameID> = []
         for i in (index + 1)..<history.count {
             let frameID: FrameID = history[i].frame
             guard handled.insert(frameID).inserted else { continue }
             guard let frame = framesByID[frameID], let from = history[i].from else { continue }
-            if from.payload != nil,
-                !BrowserTab.showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?") {
+            if from.payload != nil, !BrowserTab.confirmsResubmit() {
                 continue
             }
             enter(frame, state: from)
         }
+    }
+
+    private static func confirmsResubmit() -> Bool {
+        showConfirm("Resubmit form?", "This page was loaded by submitting a form. Do you want to resubmit it?")
     }
 
     private func replayFrames(from start: Int, through end: Int) {

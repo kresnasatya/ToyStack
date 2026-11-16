@@ -93,7 +93,7 @@ public struct BrowserView: View {
                     let flags: NSEvent.ModifierFlags = event.modifierFlags
                     let isBrowserShortcut: Bool =
                         flags.contains(.control)
-                        || (flags.contains(.command) && [KeyCode.n, KeyCode.w].contains(event.keyCode))
+                        || (flags.contains(.command) && [KeyCode.n, KeyCode.w, KeyCode.r].contains(event.keyCode))
                         || event.keyCode == KeyCode.tab
                     let isEditingText: Bool = event.window?.firstResponder is NSTextView
                     if isEditingText && !isBrowserShortcut {
@@ -106,6 +106,8 @@ public struct BrowserView: View {
                             if let tab: BrowserTab = app.activeTab {
                                 app.closeTab(tab)
                             }
+                        } else if flags.contains(.command) && event.keyCode == KeyCode.r {
+                            app.activeTab?.reload()
                         } else if flags.contains(.command) && event.keyCode == KeyCode.leftArrow {
                             app.activeTab?.goBack()
                         } else if event.keyCode == KeyCode.downArrow {

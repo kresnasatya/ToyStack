@@ -101,7 +101,7 @@ public class WebURL: @unchecked Sendable {
     }
 
     func request(
-        referrer: WebURL? = nil, payload: String? = nil, extraHeaders: [String: String] = [:]
+        referrer: WebURL? = nil, payload: String? = nil, extraHeaders: [String: String] = [:], bypassingCache: Bool = false
     ) async throws -> (
         status: Int, headers: [String: String], content: String
     ) {
@@ -123,7 +123,7 @@ public class WebURL: @unchecked Sendable {
 
         if scheme == "view-source" {
             let innerURL: WebURL = WebURL(path)
-            let (_, _, content) = try await innerURL.request()
+            let (_, _, content) = try await innerURL.request(bypassingCache: bypassingCache)
             let highlighted: String = await MainActor.run {
                 HTMLSyntaxHighlighter(body: content).highlight()
             }
@@ -133,7 +133,7 @@ public class WebURL: @unchecked Sendable {
         let method: String = payload != nil ? "POST" : "GET"
 
         let cacheKey: String = toString()
-        if method == "GET" {
+        if method == "GET" && !bypassingCache {
             if let cached = await ResponseCache.shared.get(cacheKey) {
                 return (cached.status, cached.headers, cached.content)
             }

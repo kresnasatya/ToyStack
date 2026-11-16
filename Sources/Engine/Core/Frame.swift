@@ -210,7 +210,7 @@ class Frame {
 
     // MARK: - Load
 
-    func load(_ url: WebURL, payload: String? = nil) {
+    func load(_ url: WebURL, payload: String? = nil, bypassingCache: Bool = false) {
         guard let networkTaskRunner = tab?.networkTaskRunner else { return }
         let referrer: WebURL? = effectiveReferrer(for: url)
 
@@ -221,7 +221,7 @@ class Frame {
             self.browser?.measure.start("BrowserTab.load.page")
             let result: Result<(status: Int, headers: [String : String], content: String), any Error> =
                 await networkTaskRunner.schedule(name: "load\(url.toString())") {
-                    await self.fetchPage(url: url, referrer: referrer, payload: payload)
+                    await self.fetchPage(url: url, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
                 }
             self.browser?.measure.stop("BrowserTab.load.page")
 
@@ -269,11 +269,11 @@ class Frame {
         }
     }
 
-    private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?) async -> Result<
+    private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?, bypassingCache: Bool) async -> Result<
         (status: Int, headers: [String: String], content: String), Error
     > {
         do {
-            return .success(try await url.request(referrer: referrer, payload: payload))
+            return .success(try await url.request(referrer: referrer, payload: payload, bypassingCache: bypassingCache))
         } catch {
             return .failure(error)
         }

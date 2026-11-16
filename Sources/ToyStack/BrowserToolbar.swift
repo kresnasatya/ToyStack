@@ -21,6 +21,12 @@ struct BrowserToolbar: ToolbarContent {
             }
             .help("Forward")
             .disabled(!(browser.activeTab?.canGoForward ?? false))
+
+            Button(action: { browser.activeTab?.reload() }) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .help("Reload This Page")
+            .disabled(browser.activeTab == nil)
         }
 
         ToolbarItem(placement: .principal) {
