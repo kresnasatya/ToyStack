@@ -35,8 +35,9 @@ enum ComputedStyleParser {
         // MARK: Box
         style.box.size.width = px(take("width"))
         style.box.size.height = px(take("height"))
-        style.box.size.maxWidth = Length(css: take("max-width"))
-        style.box.size.aspectRatio = AspectRatio(css: take("aspect-ratio"))
+        style.box.size.boxSizing = BoxSizing(css: take("box-sizing"))
+        style.box.size.constraints.maxWidth = Length(css: take("max-width"))
+        style.box.size.constraints.aspectRatio = AspectRatio(css: take("aspect-ratio"))
         style.box.spacing.margin = EdgeInsets(
             top: px(take("margin-top")) ?? 0,
             right: px(take("margin-right")) ?? 0,

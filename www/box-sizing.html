@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>box-sizing</title>
+    <style>
+        body { font-size: 16px; }
+        .ruler { width: 300px; height: 10px; background-color: gray; }
+        .box {
+            width: 300px;
+            height: 80px;
+            padding: 20px;
+            border: 10px solid steelblue;
+            background-color: lightblue;
+        }
+        .content { box-sizing: content-box; }
+        .border { box-sizing: border-box; }
+        .gap { height: 20px; }
+        .scroller {
+            box-sizing: border-box;
+            width: 300px;
+            height: 100px;
+            padding: 10px;
+            border: 8px solid tomato;
+            overflow: scroll;
+        }
+        .row { height: 30px; background-color: gold; }
+    </style>
+</head>
+<body>
+    <div class="ruler"></div>
+    <div class="box content">content-box: 300px + padding + border = 360px wide</div>
+    <div class="gap"></div>
+    <div class="ruler"></div>
+    <div class="box border">border-box: exactly 300px wide, 80px tall</div>
+    <div class="gap"></div>
+    <div class="scroller">
+        <div class="row">scrolls inside the border</div>
+        <div class="row">row 2</div>
+        <div class="row">row 3</div>
+        <div class="row">row 4</div>
+    </div>
+</body>
+</html>

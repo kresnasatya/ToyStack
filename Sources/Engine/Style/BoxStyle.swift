@@ -9,7 +9,12 @@ struct BoxStyle: Equatable {
     var zoom: CGFloat?
 
     static let initial: BoxStyle = BoxStyle(
-        size: Size(width: nil, height: nil, maxWidth: nil, aspectRatio: nil),
+        size: Size(
+            width: nil,
+            height: nil,
+            boxSizing: .contentBox,
+            constraints: Size.Constraints(maxWidth: nil, aspectRatio: nil)
+        ),
         spacing: Spacing(margin: EdgeInsets(top: 0, right: 0, bottom: 0, left: 0),
                          padding: EdgeInsets(top: 0, right: 0, bottom: 0, left: 0)),
         decoration: Decoration(
@@ -26,8 +31,13 @@ extension BoxStyle {
     struct Size: Equatable {
         var width: CGFloat?
         var height: CGFloat?
-        var maxWidth: Length?
-        var aspectRatio: AspectRatio?
+        var boxSizing: BoxSizing
+        var constraints: Constraints
+
+        struct Constraints: Equatable {
+            var maxWidth: Length?
+            var aspectRatio: AspectRatio?
+        }
     }
 }
 

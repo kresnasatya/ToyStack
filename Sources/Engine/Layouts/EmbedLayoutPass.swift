@@ -324,7 +324,7 @@ let inputWidthPx: CGFloat = 200
 func imageDisplaySize(_ metrics: EmbedMetrics) -> (width: Double, height: Double) {
     let intrinsicW: Double = metrics.image.map { Double($0.width) } ?? 0
     let intrinsicH: Double = metrics.image.map { Double($0.height) } ?? 0
-    let ratio: AspectRatio? = metrics.style.box.size.aspectRatio
+    let ratio: AspectRatio? = metrics.style.box.size.constraints.aspectRatio
         ?? AspectRatio(intrinsicWidth: intrinsicW, intrinsicHeight: intrinsicH)
     let wAttr: Double? = metrics.attributes["width"].flatMap({ Double($0) })
     let hAttr: Double? = metrics.attributes["height"].flatMap({ Double($0) })
@@ -336,7 +336,7 @@ func imageDisplaySize(_ metrics: EmbedMetrics) -> (width: Double, height: Double
 
 func imageUsedWidth(_ metrics: EmbedMetrics, available: CGFloat, zoom: CGFloat) -> CGFloat {
     let intrinsic: CGFloat = CGFloat(imageDisplaySize(metrics).width) * zoom
-    guard let maxWidth: Length = metrics.style.box.size.maxWidth else {
+    guard let maxWidth: Length = metrics.style.box.size.constraints.maxWidth else {
         return intrinsic
     }
     let limit: CGFloat = maxWidth.resolved(available: available, zoom: zoom)
@@ -345,7 +345,7 @@ func imageUsedWidth(_ metrics: EmbedMetrics, available: CGFloat, zoom: CGFloat) 
 
 func imageUsedHeight(_ metrics: EmbedMetrics, usedWidth: CGFloat, zoom: CGFloat) -> CGFloat {
     let size: (width: Double, height: Double) = imageDisplaySize(metrics)
-    let ratio: AspectRatio? = metrics.style.box.size.aspectRatio
+    let ratio: AspectRatio? = metrics.style.box.size.constraints.aspectRatio
         ?? AspectRatio(intrinsicWidth: size.width, intrinsicHeight: size.height)
     guard let height = ratio?.height(forWidth: Double(usedWidth / zoom)) else {
         return CGFloat(size.height) * zoom
@@ -357,7 +357,7 @@ let iframeDefaultWidthPx: CGFloat = 300
 let iframeDefaultHeightPx: CGFloat = 150
 
 func iframeDisplaySize(_ metrics: EmbedMetrics) -> (width: CGFloat, height: CGFloat) {
-    let ratio: AspectRatio? = metrics.style.box.size.aspectRatio
+    let ratio: AspectRatio? = metrics.style.box.size.constraints.aspectRatio
     let widthAttr: Double? = metrics.attributes["width"].flatMap({ Double($0) })
     let heightAttr: Double? = metrics.attributes["height"].flatMap({ Double($0) })
     let content: (width: Double, height: Double)

@@ -12,8 +12,7 @@ struct BlockStyle {
         self.display = style.layout.display
         self.position = style.layout.position.kind
         self.box = BlockBoxStyle(
-            width: style.box.size.width,
-            height: style.box.size.height,
+            size: style.box.size,
             padding: EdgeInsets(
                 top: max(0, style.box.spacing.padding.top),
                 right: max(0, style.box.spacing.padding.right),
@@ -34,8 +33,7 @@ struct BlockStyle {
 // MARK: - BlockBoxStyle
 
 struct BlockBoxStyle {
-    let width: CGFloat?
-    let height: CGFloat?
+    let size: BoxStyle.Size
     let padding: EdgeInsets
     let margin: EdgeInsets
 }

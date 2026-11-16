@@ -197,6 +197,11 @@ extension LayoutTree {
             .layout(id, .children),
             .layout(id, .zoom),
             .style(domID(of: id), .height),
+            .style(domID(of: id), .boxSizing),
+            .style(domID(of: id), .paddingTop),
+            .style(domID(of: id), .paddingBottom),
+            .style(domID(of: id), .borderWidth),
+            .style(domID(of: id), .borderStyle),
             .style(domID(of: id), .overflow),
         ]
         for child in childrenIDs(of: id) {
@@ -384,9 +389,14 @@ extension LayoutTree {
         var scroll: BlockScroll = storedScroll
         if let sumHeight = measuredHeight {
             scroll.contentHeight = sumHeight
-            if let h: CGFloat = domView(id).style.computed.box.size.height {
+            let size: BoxStyle.Size = domView(id).style.computed.box.size
+            if let h: CGFloat = size.height {
                 let styleHeightZoom: CGFloat = zoom(id)
-                setField(.height, h * styleHeightZoom, for: id)
+                let usedHeight: CGFloat = size.boxSizing.contentSize(
+                    specified: h * styleHeightZoom,
+                    paddingAndBorder: paddingVertical(id) + 2 * border(id)
+                )
+                setField(.height, usedHeight, for: id)
             } else {
                 setField(.height, sumHeight, for: id)
             }
@@ -436,8 +446,11 @@ extension LayoutTree {
             ? (style.box.padding.left + style.box.padding.right) * zoomValue
             : 0
         var frameWidth: CGFloat
-        if let w = style.box.width {
-            frameWidth = w * zoomValue
+        if let w = style.box.size.width {
+            frameWidth = style.box.size.boxSizing.contentSize(
+                specified: w * zoomValue,
+                paddingAndBorder: padHorizontal + 2 * ownBorder
+            )
         } else {
             frameWidth = max(0, parentWidth - padHorizontal - 2 * ownBorder)
         }

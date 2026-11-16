@@ -4,7 +4,7 @@ import Foundation
 
 enum StyleProperty: CaseIterable, Hashable {
     case display, position, overflow, zIndex
-    case width, height, maxWidth, aspectRatio
+    case width, height, boxSizing, maxWidth, aspectRatio
     case marginTop, marginRight, marginBottom, marginLeft
     case paddingTop, paddingRight, paddingBottom, paddingLeft
     case left, top, zoom
@@ -22,6 +22,7 @@ enum StyleProperty: CaseIterable, Hashable {
         case "z-index": self = .zIndex
         case "width": self = .width
         case "height": self = .height
+        case "box-sizing": self = .boxSizing
         case "max-width": self = .maxWidth
         case "aspect-ratio": self = .aspectRatio
         case "margin-top": self = .marginTop
@@ -72,6 +73,7 @@ enum StyleProperty: CaseIterable, Hashable {
         case .zIndex: return "z-index"
         case .width: return "width"
         case .height: return "height"
+        case .boxSizing: return "box-sizing"
         case .maxWidth: return "max-width"
         case .aspectRatio: return "aspect-ratio"
         case .marginTop: return "margin-top"

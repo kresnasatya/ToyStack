@@ -114,6 +114,7 @@ enum LayoutInputTable {
                 .style(dom, .borderWidth),
                 .style(dom, .borderStyle),
                 .style(dom, .width),
+                .style(dom, .boxSizing),
             ]
             if let parent { keys.insert(.layout(parent, .width), at: 0) }
             return keys

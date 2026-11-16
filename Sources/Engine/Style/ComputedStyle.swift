@@ -37,8 +37,9 @@ extension ComputedStyle {
         case .zIndex: return layout.zIndex == other.layout.zIndex
         case .width: return box.size.width == other.box.size.width
         case .height: return box.size.height == other.box.size.height
-        case .maxWidth: return box.size.maxWidth == other.box.size.maxWidth
-        case .aspectRatio: return box.size.aspectRatio == other.box.size.aspectRatio
+        case .boxSizing: return box.size.boxSizing == other.box.size.boxSizing
+        case .maxWidth: return box.size.constraints.maxWidth == other.box.size.constraints.maxWidth
+        case .aspectRatio: return box.size.constraints.aspectRatio == other.box.size.constraints.aspectRatio
         case .marginTop: return box.spacing.margin.top == other.box.spacing.margin.top
         case .marginRight: return box.spacing.margin.right == other.box.spacing.margin.right
         case .marginBottom: return box.spacing.margin.bottom == other.box.spacing.margin.bottom
