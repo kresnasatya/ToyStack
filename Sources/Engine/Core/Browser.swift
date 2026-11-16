@@ -30,8 +30,8 @@ public class Browser: ObservableObject {
     private var needsSpeakHoveredNode: Bool = false
     private var accessibilityFocusNode: AccessibilityNode? = nil
     private var liveRegionTexts: [NodeID: String] = [:]
-    private var scrollbarGrabOffset: CGFloat? = nil
-    public var isPressingScrollbar: Bool { scrollbarGrabOffset != nil }
+    private var scrollbarPress: ScrollbarPress? = nil
+    public var isPressingScrollbar: Bool { scrollbarPress != nil }
 
     private var activePresentation: TabPresentation {
         get { activeTab?.presentation ?? TabPresentation.empty }
@@ -830,17 +830,23 @@ public class Browser: ObservableObject {
     // MARK: Scroll
 
     public func pressScrollbar(x: CGFloat, y: CGFloat) -> Bool {
-        scrollbarGrabOffset = nil
-        guard let geometry: ScrollbarGeometry = activeScrollbar,
-            geometry.thumbGrabContains(x: x, y: y),
-            let thumb: Rect = geometry.thumbRect
-        else { return false }
-        scrollbarGrabOffset = y - thumb.top
+        scrollbarPress = nil
+        guard let geometry: ScrollbarGeometry = activeScrollbar, let tab: BrowserTab = activeTab else { return false }
+        if geometry.thumbGrabContains(x: x, y: y), let thumb: Rect = geometry.thumbRect {
+            scrollbarPress = .thumb(grabOffset: y - thumb.top)
+            return true
+        }
+        guard let pageDelta: CGFloat = geometry.trackPageDelta(x: x, y: y) else { return false }
+        scrollbarPress = .track
+        // Page from the frame's own scroll: once a jump leaves the painted
+        // content, the presented scroll waits for the repaint, and a quick
+        // second press measured from it would land on the same page.
+        tab.scrollBy(deltaY: -pageDelta)
         return true
     }
 
     public func dragScrollbar(y: CGFloat) {
-        guard let grabOffset: CGFloat = scrollbarGrabOffset,
+        guard case .thumb(let grabOffset)? = scrollbarPress,
             let geometry: ScrollbarGeometry = activeScrollbar,
             let tab: BrowserTab = activeTab
         else { return }
@@ -848,7 +854,7 @@ public class Browser: ObservableObject {
     }
 
     public func releaseScrollbar() {
-        scrollbarGrabOffset = nil
+        scrollbarPress = nil
     }
 
     // MARK: - Zoom
@@ -1016,4 +1022,11 @@ public class Browser: ObservableObject {
         setNeedsDrawOnly()
         scheduleRasterAndDraw()
     }
+}
+
+// MARK: - ScrollbarPress
+
+private enum ScrollbarPress {
+    case thumb(grabOffset: CGFloat)
+    case track
 }

@@ -536,6 +536,26 @@ Notes:
 - Presses that miss the thumb return `event` unchanged, so page clicks work as before.
 - `y = windowSize.height − locationInWindow.y` is the same conversion the wheel and hover monitors use.
 
+## Step 5: press the empty track to jump a page
+
+A press on the bar strip above the thumb scrolls up one page, and a press below it scrolls down one
+page. The mouse-up is swallowed, so the page under the bar does not get a click.
+
+- Page size follows Chromium on Mac (`cc/input/scroll_utils.h`, `CalculatePageStep`):
+  `max(87.5% of the window, window − 40)`. That is 560 px for a 600 px window, so about 40 px of
+  the old view stays on screen as context. It lives on `ScrollbarGeometry.pageStep` and `trackPageDelta(x:y:)`.
+- `Browser` now remembers *what* was pressed in a private `ScrollbarPress` enum (`.thumb(grabOffset:)` or
+  `.track`). Moving the mouse after a track press does nothing. The names changed to match:
+  `pressScrollbar`, `releaseScrollbar`, `isPressingScrollbar`.
+- The jump uses `BrowserTab.scrollBy` (the frame's own scroll), not the thumb position on screen.
+  When a jump goes past the painted content, `Browser.applyScroll` holds back the scroll shown on
+  screen until the repaint finishes. A second quick press measured from that held-back value would
+  land on the same page again. `pressesFasterThanTheRepaintEachAddAPage` catches this: measured
+  from the screen value, five presses stop at 1680 instead of 2800.
+- Tests: `Tests/ToyStackTests/Display/ScrollbarGeometryTests.swift` (track math),
+  `Tests/ToyStackTests/Core/ScrollbarTrackTests.swift` (behavior). The page-opening helper moved to
+  `Tests/ToyStackTests/Core/ScrollbarTestPage.swift` so both Core suites share it.
+
 ## Verification
 
 All four steps were tried in a throwaway copy of the repo (not your working tree):
@@ -548,7 +568,7 @@ All four steps were tried in a throwaway copy of the repo (not your working tree
 
 ## Not included
 
-- Clicking the empty track above or below the thumb to jump a page.
+- Holding the mouse down on the track to keep paging until the thumb reaches the pointer.
 - Dragging the scrollbar of an `overflow: scroll` box or an iframe. Those bars are drawn into the
   display list (`PaintSceneBuilder.iframeScrollbar`, `blockPaintScrollbar`), and only the wheel
   scrolls them (`Frame.scrollAt`).
