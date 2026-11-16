@@ -1137,11 +1137,33 @@ extension LayoutTree {
             return blockSelfRect(id)
         case .text:
             return textSelfRect(id)
-        default:
-            let x: CGFloat = x(id)
-            let y: CGFloat = y(id)
-            return Rect(left: x, top: y, right: x + width(id), bottom: y + height(id))
+        case .embed:
+            return contentRect(id).outset(by: embedEdges(id))
+        case .document, .line:
+            return contentRect(id)
         }
+    }
+
+    func contentRect(_ id: LayoutID) -> Rect {
+        let x: CGFloat = x(id)
+        let y: CGFloat = y(id)
+        return Rect(left: x, top: y, right: x + width(id), bottom: y + height(id))
+    }
+
+    /// The used border of a box that lays out its border: blocks and embeds.
+    func borderWidths(_ id: LayoutID) -> EdgeInsets {
+        switch kind(id) {
+        case .block: return blockBorderWidths(id)
+        case .embed: return embedBorderWidths(id)
+        case .document, .line, .text: return .zero
+        }
+    }
+
+    /// Where the content box starts on the page, after any CSS translation.
+    func absoluteContentOrigin(_ id: LayoutID) -> Point {
+        let bounds: Rect = absoluteBounds(id)
+        let rect: Rect = selfRect(id)
+        return Point(x: bounds.left + x(id) - rect.left, y: bounds.top + y(id) - rect.top)
     }
 
     /// Transitional dispatch: block and embed passes still take a ref.

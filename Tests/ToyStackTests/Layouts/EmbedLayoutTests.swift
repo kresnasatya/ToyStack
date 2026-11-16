@@ -40,7 +40,7 @@ struct EmbedLayoutTests {
         )
         let iframe: ElementRef = try #require(page.firstElement(tag: "iframe"))
         let before: LayoutID = try #require(page.firstEmbedID(in: iframe))
-        #expect(page.tree.height(before) == 82)
+        #expect(page.tree.height(before) == 80)
         let beforeHeight: CGFloat = page.tree.height(before)
 
         iframe.attributes["height"] = "120"
@@ -49,7 +49,7 @@ struct EmbedLayoutTests {
         page.frame.render()
 
         let after: LayoutID = try #require(page.firstEmbedID(in: iframe))
-        #expect(page.tree.height(after) == 122)
+        #expect(page.tree.height(after) == 120)
         #expect(page.tree.height(after) - beforeHeight == 40)
     }
 

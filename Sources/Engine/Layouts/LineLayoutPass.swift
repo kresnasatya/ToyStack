@@ -205,10 +205,11 @@ extension LayoutTree {
             if let previousFont, isEmbed(child) {
                 nextX += previousFont.spaceWidth
             }
-            let childY: CGFloat = inputs.tag(domID(of: child)) == "sup"
+            let edges: EdgeInsets = inlineEdges(child)
+            let boxTop: CGFloat = inputs.tag(domID(of: child)) == "sup"
                 ? baseline - maxAscent
                 : baseline - ascent(child)
-            setPosition(x: nextX, y: childY, for: child)
+            setPosition(x: nextX + edges.left, y: boxTop + edges.top, for: child)
             nextX += inlineWidth(id, index: index, child: child)
             previousFont = font(child)
         }
@@ -301,14 +302,20 @@ extension LayoutTree {
         if index < widths.count {
             return widths[index]
         }
-        return width(child)
+        return width(child) + inlineEdges(child).horizontal
+    }
+
+    /// Text has no box of its own; an embed's content sits inside its padding
+    /// and border.
+    private func inlineEdges(_ child: LayoutID) -> EdgeInsets {
+        return isEmbed(child) ? embedEdges(child) : .zero
     }
 
     private func contentWidth(_ id: LayoutID) -> CGFloat {
         let inline: [LayoutID] = childrenIDs(of: id).filter({ isText($0) || isEmbed($0) })
         guard let last: LayoutID = inline.last else { return 0 }
         let trailing: CGFloat = inlineWidth(id, index: inline.count - 1, child: last)
-        return x(last) + trailing - x(id)
+        return x(last) - inlineEdges(last).left + trailing - x(id)
     }
 
     func lineCanCachePaint(_ id: LayoutID) -> Bool {

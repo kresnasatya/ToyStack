@@ -166,11 +166,6 @@ extension DisplayOp {
             width: outline.width
         )
     }
-
-    static func fromBorderStyle(_ style: ComputedStyle, rect: Rect, width: CGFloat) -> DisplayOp? {
-        guard width > 0 else { return nil }
-        return .outline(rect: rect, color: style.box.decoration.border.sides.top.color, width: width)
-    }
 }
 
 private func executeCompositedLayer(

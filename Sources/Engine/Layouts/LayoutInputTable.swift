@@ -238,12 +238,12 @@ enum LayoutInputTable {
             if case .button = data {
                 // `makeEmbed` seeds ascent with `.height`; `layoutButton`
                 // declares `.font` on top of it.
-                return [.layout(id, .height), .layout(id, .font)]
+                return [.layout(id, .height), .layout(id, .font)] + boxEdgeKeys(dom)
             }
-            return [.layout(id, .height)]
+            return [.layout(id, .height)] + boxEdgeKeys(dom)
         case .descent:
             if case .button = data {
-                return [.layout(id, .font)]
+                return [.layout(id, .font)] + boxEdgeKeys(dom)
             }
             return []
         }
@@ -263,15 +263,15 @@ enum LayoutInputTable {
                 .style(dom, .maxWidth),
             ]
             if let parent { keys.insert(.layout(parent, .width), at: 0) }
-            return keys
+            return keys + sizedByAttributeKeys(dom)
         case .input:
             return [.layout(id, .font), .layout(id, .zoom)]
         case .button:
             return [.layout(id, .zoom)]
         case .iframe:
-            return [.layout(id, .zoom), .style(dom, .aspectRatio)]
+            return [.layout(id, .zoom), .style(dom, .aspectRatio)] + sizedByAttributeKeys(dom)
         case .canvas:
-            return [.layout(id, .zoom)]
+            return [.layout(id, .zoom)] + sizedByAttributeKeys(dom)
         }
     }
 
@@ -287,18 +287,32 @@ enum LayoutInputTable {
                 .layout(id, .zoom),
                 .layout(id, .font),
                 .style(dom, .aspectRatio),
-            ]
+            ] + sizedByAttributeKeys(dom)
         case .input:
             return [.layout(id, .font)]
         case .button:
             return [.layout(id, .font)]
         case .iframe:
-            return [.layout(id, .zoom), .style(dom, .aspectRatio)]
+            return [.layout(id, .zoom), .style(dom, .aspectRatio)] + sizedByAttributeKeys(dom)
         case .canvas:
-            return [.layout(id, .zoom)]
+            return [.layout(id, .zoom)] + sizedByAttributeKeys(dom)
         }
     }
 
     // MARK: - Shared
 
+    private static let boxEdgeProperties: [StyleProperty] = [
+        .paddingTop, .paddingRight, .paddingBottom, .paddingLeft, .borderWidth, .borderStyle,
+    ]
+
+    /// Padding and border set how much room a box takes around its content.
+    static func boxEdgeKeys(_ dom: NodeID) -> [FieldKey] {
+        return boxEdgeProperties.map({ .style(dom, $0) })
+    }
+
+    /// Box-sizing turns a width or height attribute into a content size by
+    /// taking the padding and border out of it.
+    private static func sizedByAttributeKeys(_ dom: NodeID) -> [FieldKey] {
+        return [.style(dom, .boxSizing)] + boxEdgeKeys(dom)
+    }
 }

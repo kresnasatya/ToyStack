@@ -21,4 +21,13 @@ struct EdgeInsets: Equatable {
             left: left * factor
         )
     }
+
+    static func + (lhs: EdgeInsets, rhs: EdgeInsets) -> EdgeInsets {
+        return EdgeInsets(
+            top: lhs.top + rhs.top,
+            right: lhs.right + rhs.right,
+            bottom: lhs.bottom + rhs.bottom,
+            left: lhs.left + rhs.left
+        )
+    }
 }

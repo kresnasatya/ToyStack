@@ -137,7 +137,7 @@ struct PaintSceneBuilder {
                     bottom: tree.y(id) + tree.height(id)
                 ),
                 zoom: tree.zoom(id),
-                border: tree.isBlock(id) ? tree.borderWidths(id) : .zero
+                border: tree.borderWidths(id)
             ),
             surface: PaintSurface(
                 style: style,
@@ -291,15 +291,7 @@ struct PaintSceneBuilder {
         _ id: LayoutID,
         _ element: ElementRef?
     ) -> PaintIframe {
-        let diff: CGFloat = tree.zoom(id)
-        let x: CGFloat = tree.x(id)
-        let y: CGFloat = tree.y(id)
-        let inner: Rect = Rect(
-            left: x + diff,
-            top: y + diff,
-            right: x + tree.width(id) - diff,
-            bottom: y + tree.height(id) - diff
-        )
+        let inner: Rect = tree.contentRect(id)
         guard let child: Frame = element?.frame, child.loaded, let doc = child.document else {
             return PaintIframe(frame: nil, inner: inner, scroll: 0, bar: nil)
         }

@@ -178,4 +178,31 @@ struct BorderPaintTests {
         }
         #expect(radii == [.uniform(.px(6))])
     }
+
+    @Test func imageBorderIsPaintedAroundItsPadding() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p><img id="photo" width="50" height="40"></p>"#,
+            rules: Self.baseRules + "p { display: block; } #photo { padding: 4px; border: 3px solid red; }"
+        )
+        page.frame.setNeedsPaint()
+        page.frame.paint()
+        let image: ElementRef = try #require(page.firstElement(id: "photo"))
+        let box: Rect = page.tree.selfRect(try #require(page.firstEmbedID(in: image)))
+
+        #expect(fills(page).map(\.rect) == sideRects(box, EdgeInsets(top: 3, right: 3, bottom: 3, left: 3)))
+    }
+
+    @Test func iframeBorderFillsTheRoomAroundItsContent() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p><iframe id="frame" width="100" height="50"></iframe></p>"#,
+            rules: Self.baseRules + "p { display: block; } #frame { border: 2px solid black; }"
+        )
+        page.frame.setNeedsPaint()
+        page.frame.paint()
+        let iframe: ElementRef = try #require(page.firstElement(id: "frame"))
+        let box: Rect = page.tree.selfRect(try #require(page.firstEmbedID(in: iframe)))
+
+        #expect(fills(page).map(\.rect) == sideRects(box, EdgeInsets(top: 2, right: 2, bottom: 2, left: 2)))
+        #expect(!page.frame.displayList.contains(where: { $0.name == "outline" }))
+    }
 }

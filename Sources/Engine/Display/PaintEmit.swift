@@ -105,9 +105,16 @@ func emitEmbed(_ node: PaintNode, embed: PaintEmbed, into items: inout [DisplayO
         emitButton(node, into: &items)
     case .iframe:
         emitIframe(node, into: &items)
+        return
     case .canvas(let canvas):
         emitCanvas(node, canvas: canvas, into: &items)
     }
+    emitBorder(
+        node.geometry.rect,
+        border: node.surface.style.box.decoration.border,
+        widths: node.geometry.border,
+        into: &items
+    )
 }
 
 func emitImage(_ node: PaintNode, image: PaintImage, into items: inout [DisplayOp]) {
@@ -232,7 +239,7 @@ func emitCanvas(_ node: PaintNode, canvas: PaintCanvas, into items: inout [Displ
     items.append(.image(
         image: image,
         rendering: .auto,
-        rect: node.geometry.rect,
+        rect: node.geometry.frame,
         version: canvas.revision
     ))
 }
@@ -447,13 +454,12 @@ func closeIframeScopes(
     }
     ops.append(.endEffect)
 
-    if let border: DisplayOp = DisplayOp.fromBorderStyle(
-        node.surface.style,
-        rect: scopes.rect,
-        width: node.surface.style.box.decoration.border.sides.top.usedWidth
-    ) {
-        ops.append(border)
-    }
+    emitBorder(
+        scopes.rect,
+        border: node.surface.style.box.decoration.border,
+        widths: node.geometry.border,
+        into: &ops
+    )
     if let outline: DisplayOp = DisplayOp.fromStyle(node.surface.style, rect: scopes.rect) {
         ops.append(outline)
     }

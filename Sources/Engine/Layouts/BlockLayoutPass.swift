@@ -85,6 +85,8 @@ extension LayoutTree {
             if let el = leaf.element {
                 inputs.append(.style(el.ref.id, .aspectRatio))
                 inputs.append(.style(el.ref.id, .maxWidth))
+                inputs.append(.style(el.ref.id, .boxSizing))
+                inputs.append(contentsOf: LayoutInputTable.boxEdgeKeys(el.ref.id))
             }
         }
         return inputs
@@ -861,7 +863,7 @@ extension LayoutTree {
         return domView(id).style.computed.box.decoration.border.usedWidths
     }
 
-    func borderWidths(_ id: LayoutID) -> EdgeInsets {
+    func blockBorderWidths(_ id: LayoutID) -> EdgeInsets {
         return borderValues(id).scaled(by: zoom(id))
     }
 
@@ -1365,7 +1367,7 @@ extension LayoutTree {
         let zoom: CGFloat = zoom(id)
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
-        let w: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom
+        let w: CGFloat = embedOuterWidth(isCheckbox ? font.linespace : inputWidthPx * zoom, node, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1392,7 +1394,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = inputWidthPx * zoom
+        let w: CGFloat = embedOuterWidth(inputWidthPx * zoom, node, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1424,7 +1426,8 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = imageUsedWidth(EmbedMetrics(node), available: available, zoom: zoom)
+        let content: CGFloat = imageUsedWidth(EmbedMetrics(node), available: available, zoom: zoom)
+        let w: CGFloat = embedOuterWidth(content, node, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1457,7 +1460,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = iframeDisplaySize(EmbedMetrics(node)).width * zoom
+        let w: CGFloat = embedOuterWidth(iframeDisplaySize(EmbedMetrics(node)).width * zoom, node, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1490,7 +1493,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = canvasContentSize(attributes: node.attributes).width * zoom
+        let w: CGFloat = embedOuterWidth(canvasContentSize(attributes: node.attributes).width * zoom, node, zoom: zoom)
         if placement.cursorX + w > available { placement.endLine(in: &self) }
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1513,6 +1516,15 @@ extension LayoutTree {
 
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
+    }
+
+    /// The room an embed takes on its line: its content width, after
+    /// box-sizing, plus its horizontal padding and border.
+    private func embedOuterWidth(_ content: CGFloat, _ node: LayoutElementView, zoom: CGFloat) -> CGFloat {
+        let metrics: EmbedMetrics = EmbedMetrics(node)
+        let edges: EdgeInsets = embedBoxEdges(metrics.style, zoom: zoom)
+        let used: CGFloat = metrics.specifiedContent(content, attribute: "width", paddingAndBorder: edges.horizontal)
+        return used + edges.horizontal
     }
 
     private func isInsideAbbr(_ node: LayoutDOMView) -> Bool {
@@ -1594,13 +1606,7 @@ extension LayoutTree {
             bottom: paintedPadding(id, .paddingBottom),
             left: paintedPadding(id, .paddingLeft)
         )
-        let content: Rect = Rect(
-            left: x(id),
-            top: y(id),
-            right: x(id) + width(id),
-            bottom: y(id) + height(id)
-        )
-        return content.outset(by: padding).outset(by: borderWidths(id))
+        return contentRect(id).outset(by: padding).outset(by: blockBorderWidths(id))
     }
 
     func blockPaintCaret(_ id: LayoutID, into items: inout [DisplayOp]) {

@@ -1698,11 +1698,10 @@ class Frame {
         {
             let el: ElementRef? = DOMRef(id: target.node, dom: dom).element
             if let el = el, let child = el.frame, child.loaded {
-                let bounds: Rect = doc.absoluteBounds(target.layout)
-                let border: CGFloat = doc.zoom(target.layout)
+                let origin: Point = doc.absoluteContentOrigin(target.layout)
                 if child.scrollAt(
-                    x: x - bounds.left,
-                    y: adjustedY - bounds.top - border,
+                    x: x - origin.x,
+                    y: adjustedY - origin.y,
                     deltaY: deltaY
                 ) {
                     return true
@@ -1971,9 +1970,8 @@ class Frame {
                     else {
                         return
                     }
-                    let bounds: Rect = tree.absoluteBounds(layoutID)
-                    let border: CGFloat = tree.zoom(layoutID)
-                    child.click(x: x - bounds.left, y: clickY - bounds.top - border)
+                    let origin: Point = tree.absoluteContentOrigin(layoutID)
+                    child.click(x: x - origin.x, y: clickY - origin.y)
                     return
                 } else if let el = node.element, el.tag == "a", let href = el.attributes["href"]
                 {
