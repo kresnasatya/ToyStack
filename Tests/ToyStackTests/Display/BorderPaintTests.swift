@@ -141,4 +141,41 @@ struct BorderPaintTests {
         }
         #expect(scrollports == [Rect(left: box.left + 5, top: box.top + 5, right: box.right - 5, bottom: box.bottom - 5)])
     }
+
+    @Test func roundedBorderIsOneRingBetweenTheCurves() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + "#box { border: 4px solid red; border-radius: 10px; }"
+        )
+        let box: Rect = try paintedBox(page, id: "box")
+
+        let rings: [(outer: ClipShape, inner: ClipShape, color: BrowserColor)] =
+            page.frame.displayList.compactMap { op in
+                guard case .ring(let outer, let inner, let color) = op else { return nil }
+                return (outer, inner, color)
+            }
+        #expect(rings.count == 1)
+        #expect(rings.first?.outer.rect == box)
+        #expect(rings.first?.outer.radii == .uniform(.px(10)))
+        #expect(rings.first?.inner.rect == Rect(left: box.left + 4, top: box.top + 4, right: box.right - 4, bottom: box.bottom - 4))
+        #expect(rings.first?.inner.radii == .uniform(.px(6)))
+        #expect(rings.first?.color == BrowserColor(cssName: "red"))
+        #expect(fills(page).isEmpty)
+    }
+
+    @Test func overflowHiddenClipsToTheInnerCurve() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><div></div></div>"#,
+            rules: Self.baseRules + "#box { overflow: hidden; border: 4px solid red; border-radius: 10px; }"
+        )
+        _ = try paintedBox(page, id: "box")
+
+        let radii: [CornerRadii] = page.frame.displayList.compactMap { op in
+            guard case .beginEffect(let scope) = op, case .clip(let shape) = scope.kind else {
+                return nil
+            }
+            return shape.radii
+        }
+        #expect(radii == [.uniform(.px(6))])
+    }
 }

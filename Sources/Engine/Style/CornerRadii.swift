@@ -93,6 +93,27 @@ extension CornerRadii {
         )
     }
 
+    /// CSS Backgrounds 3 §4.2: the padding edge curve is the border edge
+    /// curve minus the border width on that axis, and never below zero.
+    func inner(in borderBox: Rect, inset borders: EdgeInsets) -> CornerRadii {
+        let outer: CornerRadii = resolved(in: borderBox)
+
+        func corner(_ corner: CornerRadius, horizontal: CGFloat, vertical: CGFloat) -> CornerRadius {
+            let px: (horizontal: CGFloat, vertical: CGFloat) = corner.px ?? (0, 0)
+            return CornerRadius(
+                horizontal: .px(max(0, px.horizontal - horizontal)),
+                vertical: .px(max(0, px.vertical - vertical))
+            )
+        }
+
+        return CornerRadii(
+            topLeft: corner(outer.topLeft, horizontal: borders.left, vertical: borders.top),
+            topRight: corner(outer.topRight, horizontal: borders.right, vertical: borders.top),
+            bottomRight: corner(outer.bottomRight, horizontal: borders.right, vertical: borders.bottom),
+            bottomLeft: corner(outer.bottomLeft, horizontal: borders.left, vertical: borders.bottom)
+        )
+    }
+
     private func overlapFactor(width: CGFloat, height: CGFloat) -> CGFloat {
         let horizontal: [CGFloat] = [topLeft, topRight, bottomRight, bottomLeft].map {
             $0.horizontal.resolved(against: width)

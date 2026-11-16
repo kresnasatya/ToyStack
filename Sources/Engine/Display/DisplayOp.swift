@@ -3,6 +3,7 @@ import CoreGraphics
 public enum DisplayOp: Sendable {
     case rect(rect: Rect, color: BrowserColor)
     case rrect(rect: Rect, radii: CornerRadii, color: BrowserColor)
+    case ring(outer: ClipShape, inner: ClipShape, color: BrowserColor)
     case line(from: Point, to: Point, color: BrowserColor, width: CGFloat)
     case outline(rect: Rect, color: BrowserColor, width: CGFloat)
     case text(text: String, font: BrowserFont, color: BrowserColor, rect: Rect)
@@ -20,6 +21,8 @@ extension DisplayOp {
             .text(_, _, _, let rect), .image(_, _, let rect, _),
             .clippedImage(_, _, let rect, _), .compositedLayer(_, let rect, _, _):
             return rect
+        case .ring(let outer, _, _):
+            return outer.rect
         case .line(let from, let to, _, _):
             return Rect(left: from.x, top: from.y, right: to.x, bottom: to.y)
         case .beginEffect(let scope):
@@ -33,6 +36,7 @@ extension DisplayOp {
         switch self {
         case .rect: return "rect"
         case .rrect: return "rrect"
+        case .ring: return "ring"
         case .line: return "line"
         case .outline: return "outline"
         case .text: return "text"
@@ -50,6 +54,8 @@ extension DisplayOp {
             renderer.fillRect(rect, color: color)
         case .rrect(let rect, let radii, let color):
             renderer.fillRRect(rect, radii: radii, color: color)
+        case .ring(let outer, let inner, let color):
+            renderer.fillRing(outer: outer, inner: inner, color: color)
         case .line(let from, let to, let color, let width):
             renderer.strokeSegment(from: from, to: to, color: color, lineWidth: width)
         case .outline(let rect, let color, let width):
@@ -76,6 +82,12 @@ extension DisplayOp {
             return .rect(rect: rect.translated(dx: dx, dy: dy), color: color)
         case .rrect(let rect, let radii, let color):
             return .rrect(rect: rect.translated(dx: dx, dy: dy), radii: radii, color: color)
+        case .ring(let outer, let inner, let color):
+            return .ring(
+                outer: ClipShape(rect: outer.rect.translated(dx: dx, dy: dy), radii: outer.radii),
+                inner: ClipShape(rect: inner.rect.translated(dx: dx, dy: dy), radii: inner.radii),
+                color: color
+            )
         case .line(let from, let to, let color, let width):
             return .line(
                 from: Point(x: from.x + dx, y: from.y + dy),
@@ -109,6 +121,14 @@ extension DisplayOp {
         case .rrect(_, let radii, let color):
             hasher.combine(color)
             hasher.combine(radii)
+        case .ring(let outer, let inner, let color):
+            hasher.combine(color)
+            hasher.combine(outer.radii)
+            hasher.combine(inner.radii)
+            hasher.combine(inner.rect.left)
+            hasher.combine(inner.rect.top)
+            hasher.combine(inner.rect.right)
+            hasher.combine(inner.rect.bottom)
         case .line(_, _, let color, let width):
             hasher.combine(color)
             hasher.combine(width)

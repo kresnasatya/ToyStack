@@ -50,7 +50,7 @@ func emitBlock(_ node: PaintNode, block: PaintBlock, into items: inout [DisplayO
         ))
     }
 
-    emitBorder(box, sides: style.box.decoration.border.sides, widths: node.geometry.border, into: &items)
+    emitBorder(box, border: style.box.decoration.border, widths: node.geometry.border, into: &items)
 
     let outline: DisplayOp? = DisplayOp.fromStyle(style, rect: box)
     if node.surface.state.isFocusVisible && outline == nil {
@@ -266,12 +266,29 @@ func emitFocusOutline(
 
 /// Top and bottom run the full width of the border box; left and right fill
 /// the height between them, so every side stays inside the room layout made.
+/// A rounded border is one ring between the outer and inner curves, painted
+/// in the color of its first visible side.
 func emitBorder(
     _ box: Rect,
-    sides: BoxStyle.Decoration.Border.Sides,
+    border: BoxStyle.Decoration.Border,
     widths: EdgeInsets,
     into items: inout [DisplayOp]
 ) {
+    let sides: BoxStyle.Decoration.Border.Sides = border.sides
+    if !border.radii.isZero {
+        let visible: BoxStyle.Decoration.Border.Side? = widths.top > 0 ? sides.top
+            : widths.right > 0 ? sides.right
+            : widths.bottom > 0 ? sides.bottom
+            : widths.left > 0 ? sides.left
+            : nil
+        guard let visible else { return }
+        items.append(.ring(
+            outer: ClipShape(rect: box, radii: border.radii.resolved(in: box)),
+            inner: ClipShape(rect: box.inset(by: widths), radii: border.radii.inner(in: box, inset: widths)),
+            color: visible.color
+        ))
+        return
+    }
     let innerTop: CGFloat = box.top + widths.top
     let innerBottom: CGFloat = box.bottom - widths.bottom
     if widths.top > 0 {

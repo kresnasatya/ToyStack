@@ -147,6 +147,7 @@ struct PaintPass {
                 visible.append(child)
             }
             let radii: CornerRadii = node.surface.style.box.decoration.border.radii
+                .inner(in: node.geometry.rect, inset: node.geometry.border)
             let shape: ClipShape = ClipShape(rect: box, radii: radii)
             let scope: EffectScope = session.makeScope(
                 .scroll(shape, offset: block.scrollOffset),
@@ -168,6 +169,7 @@ struct PaintPass {
             // CSS Overflow 3 §3.2: the overflow clip edge defaults to the padding box.
             let box: Rect = node.geometry.paddingBox
             let radii: CornerRadii = node.surface.style.box.decoration.border.radii
+                .inner(in: node.geometry.rect, inset: node.geometry.border)
             let scope: EffectScope = session.makeScope(
                 .clip(ClipShape(rect: box, radii: radii)),
                 node: node.links.dom,

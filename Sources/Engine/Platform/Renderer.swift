@@ -9,6 +9,7 @@ public protocol Renderer {
     func clipRRect(_ rect: Rect, radii: CornerRadii)
     func fillRect(_ rect: Rect, color: BrowserColor)
     func fillRRect(_ rect: Rect, radii: CornerRadii, color: BrowserColor)
+    func fillRing(outer: ClipShape, inner: ClipShape, color: BrowserColor)
     func strokeSegment(from: Point, to: Point, color: BrowserColor, lineWidth: CGFloat)
     func strokeRect(_ rect: Rect, color: BrowserColor, lineWidth: CGFloat)
     func drawText(_ text: String, font: BrowserFont, color: BrowserColor, at point: Point)

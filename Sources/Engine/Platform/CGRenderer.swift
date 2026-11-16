@@ -57,6 +57,13 @@ public final class CGRenderer: Renderer {
         cg.fillPath()
     }
 
+    public func fillRing(outer: ClipShape, inner: ClipShape, color: BrowserColor) {
+        cg.setFillColor(color.cgColor)
+        cg.addPath(roundedRectPath(rect: outer.rect, radii: outer.radii))
+        cg.addPath(roundedRectPath(rect: inner.rect, radii: inner.radii))
+        cg.fillPath(using: .evenOdd)
+    }
+
     public func strokeSegment(from: Point, to: Point, color: BrowserColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)
