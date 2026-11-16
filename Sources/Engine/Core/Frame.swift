@@ -1048,6 +1048,7 @@ class Frame {
         }
 
         resolveHover()
+        resolveCursor()
 
         requestAnimationFrame()
     }
@@ -1814,6 +1815,7 @@ class Frame {
 
     func clearHover() {
         setHoveredElements([])
+        resolveCursor()
     }
 
     private func resolveHover() {
@@ -1836,6 +1838,11 @@ class Frame {
             current = node.parent
         }
         setHoveredElements(chain)
+    }
+
+    private func resolveCursor() {
+        guard parentFrame == nil else { return }
+        tab?.setCursor(CursorKind.inherited(along: state.runtime.interaction.hovered, in: dom))
     }
 
     private func setHoveredElements(_ chain: [NodeID]) {

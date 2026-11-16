@@ -155,6 +155,9 @@ code {
 a {
     color: blue;
 }
+a[href] {
+    cursor: pointer;
+}
 i {
     font-style: italic;
 }
@@ -184,6 +187,7 @@ button {
     font-weight: normal;
     font-style: normal;
     background-color: orange;
+    cursor: pointer;
 }
 
 @media (prefers-color-scheme: dark) {

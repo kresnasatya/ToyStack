@@ -75,6 +75,7 @@ public class BrowserTab {
         return focusedFrame.dom.ref(focused).element
     }
     var pendingHover: CGPoint? = nil
+    public private(set) var cursor: CursorKind = .auto
     var presentation: TabPresentation = .empty
     private(set) var accessibilityTree: AccessibilityNode? = nil
     var needsAccessibility: Bool = false
@@ -440,6 +441,12 @@ public class BrowserTab {
     public func clearHover() {
         pendingHover = nil
         rootFrame.clearHover()
+    }
+
+    func setCursor(_ kind: CursorKind) {
+        guard kind != cursor else { return }
+        cursor = kind
+        browser?.tabCursorChanged(self)
     }
 
     public func enterKey() {
