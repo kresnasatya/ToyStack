@@ -64,6 +64,32 @@ public final class CGRenderer: Renderer {
         cg.fillPath(using: .evenOdd)
     }
 
+    public func fillBorderSide(_ side: BorderSidePaint) {
+        cg.saveGState()
+        // Neighbouring sides share the corner line. Antialiasing both clips
+        // would leave each edge pixel part-covered twice and show a faint
+        // seam, so each pixel goes wholly to one side.
+        cg.setShouldAntialias(false)
+        cg.addPath(side.region.cgPath)
+        cg.clip()
+        cg.setShouldAntialias(true)
+        cg.addPath(roundedRectPath(rect: side.band.outer.rect, radii: side.band.outer.radii))
+        cg.addPath(roundedRectPath(rect: side.band.inner.rect, radii: side.band.inner.radii))
+        cg.clip(using: .evenOdd)
+        if let dash: BorderDash = side.dash {
+            cg.setStrokeColor(side.color.cgColor)
+            cg.setLineWidth(dash.lineWidth)
+            cg.setLineCap(dash.on == 0 ? .round : .butt)
+            cg.setLineDash(phase: 0, lengths: [dash.on, dash.off])
+            cg.addPath(dash.line.path)
+            cg.strokePath()
+        } else {
+            cg.setFillColor(side.color.cgColor)
+            cg.fill(side.band.outer.rect.cgRect)
+        }
+        cg.restoreGState()
+    }
+
     public func strokeSegment(from: Point, to: Point, color: BrowserColor, lineWidth: CGFloat) {
         cg.setStrokeColor(color.cgColor)
         cg.setLineWidth(lineWidth)

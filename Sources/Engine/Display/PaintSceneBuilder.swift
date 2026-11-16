@@ -375,17 +375,16 @@ struct PaintSceneBuilder {
             }
             guard let fragment: InlineBoxFragment = area.fragment else { continue }
             let border: EdgeInsets = style.box.decoration.border.usedWidths.scaled(by: zoom)
-            emitBorder(
-                area.rect,
+            BorderPainter(
+                box: area.rect,
                 border: style.box.decoration.border,
                 widths: EdgeInsets(
                     top: border.top,
                     right: fragment.closes ? border.right : 0,
                     bottom: border.bottom,
                     left: fragment.opens ? border.left : 0
-                ),
-                into: &ops
-            )
+                )
+            ).emit(into: &ops)
         }
         return ops
     }

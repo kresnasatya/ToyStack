@@ -24,7 +24,7 @@ public func roundedRectPath(rect: Rect, radii: CornerRadii) -> CGPath {
 // It's exactly `(4/3)(sqrt2 - 1)`, the value that puts the curve's midpoint (`t = 1/2`) on the arc's 45-degree point.
 // Forcing `B(1/2) = (sqrt2/2, sqrt2/2)` on the unit quarter gives `1/2 + 3k/8 = sqrt2/2`.
 // Worst radial error either side of the midpoint is 2.7e-4 of the radius.
-private let quarterArcKappa: CGFloat = (4.0 / 3.0) * (2.0.squareRoot() - 1.0)
+let quarterArcKappa: CGFloat = (4.0 / 3.0) * (2.0.squareRoot() - 1.0)
 
 private func perCornerRoundedRectPath(rect: Rect, radii: CornerRadii) -> CGPath {
     guard let tl = radii.topLeft.px, let tr = radii.topRight.px,

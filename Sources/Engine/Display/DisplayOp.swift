@@ -4,6 +4,7 @@ public enum DisplayOp: Sendable {
     case rect(rect: Rect, color: BrowserColor)
     case rrect(rect: Rect, radii: CornerRadii, color: BrowserColor)
     case ring(outer: ClipShape, inner: ClipShape, color: BrowserColor)
+    case borderSide(BorderSidePaint)
     case line(from: Point, to: Point, color: BrowserColor, width: CGFloat)
     case outline(rect: Rect, color: BrowserColor, width: CGFloat)
     case text(text: String, font: BrowserFont, color: BrowserColor, rect: Rect)
@@ -23,6 +24,8 @@ extension DisplayOp {
             return rect
         case .ring(let outer, _, _):
             return outer.rect
+        case .borderSide(let side):
+            return side.band.outer.rect
         case .line(let from, let to, _, _):
             return Rect(left: from.x, top: from.y, right: to.x, bottom: to.y)
         case .beginEffect(let scope):
@@ -37,6 +40,7 @@ extension DisplayOp {
         case .rect: return "rect"
         case .rrect: return "rrect"
         case .ring: return "ring"
+        case .borderSide: return "borderSide"
         case .line: return "line"
         case .outline: return "outline"
         case .text: return "text"
@@ -56,6 +60,8 @@ extension DisplayOp {
             renderer.fillRRect(rect, radii: radii, color: color)
         case .ring(let outer, let inner, let color):
             renderer.fillRing(outer: outer, inner: inner, color: color)
+        case .borderSide(let side):
+            renderer.fillBorderSide(side)
         case .line(let from, let to, let color, let width):
             renderer.strokeSegment(from: from, to: to, color: color, lineWidth: width)
         case .outline(let rect, let color, let width):
@@ -88,6 +94,8 @@ extension DisplayOp {
                 inner: ClipShape(rect: inner.rect.translated(dx: dx, dy: dy), radii: inner.radii),
                 color: color
             )
+        case .borderSide(let side):
+            return .borderSide(side.translated(dx: dx, dy: dy))
         case .line(let from, let to, let color, let width):
             return .line(
                 from: Point(x: from.x + dx, y: from.y + dy),
@@ -129,6 +137,27 @@ extension DisplayOp {
             hasher.combine(inner.rect.top)
             hasher.combine(inner.rect.right)
             hasher.combine(inner.rect.bottom)
+        case .borderSide(let side):
+            hasher.combine(side.color)
+            hasher.combine(side.band.outer.radii)
+            hasher.combine(side.band.inner.radii)
+            for value in [side.band.inner.rect.left, side.band.inner.rect.top,
+                          side.band.inner.rect.right, side.band.inner.rect.bottom] {
+                hasher.combine(value)
+            }
+            for point in [side.region.a, side.region.b, side.region.c, side.region.d] {
+                hasher.combine(point.x)
+                hasher.combine(point.y)
+            }
+            if let dash: BorderDash = side.dash {
+                hasher.combine(dash.lineWidth)
+                hasher.combine(dash.on)
+                hasher.combine(dash.off)
+                hasher.combine(dash.line.side)
+                hasher.combine(dash.line.startOverhang)
+                hasher.combine(dash.line.endOverhang)
+                hasher.combine(dash.line.middle.radii)
+            }
         case .line(_, _, let color, let width):
             hasher.combine(color)
             hasher.combine(width)

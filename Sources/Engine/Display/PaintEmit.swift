@@ -50,7 +50,7 @@ func emitBlock(_ node: PaintNode, block: PaintBlock, into items: inout [DisplayO
         ))
     }
 
-    emitBorder(box, border: style.box.decoration.border, widths: node.geometry.border, into: &items)
+    BorderPainter(box: box, border: style.box.decoration.border, widths: node.geometry.border).emit(into: &items)
 
     let outline: DisplayOp? = DisplayOp.fromStyle(style, rect: box)
     if node.surface.state.isFocusVisible && outline == nil {
@@ -109,12 +109,11 @@ func emitEmbed(_ node: PaintNode, embed: PaintEmbed, into items: inout [DisplayO
     case .canvas(let canvas):
         emitCanvas(node, canvas: canvas, into: &items)
     }
-    emitBorder(
-        node.geometry.rect,
+    BorderPainter(
+        box: node.geometry.rect,
         border: node.surface.style.box.decoration.border,
-        widths: node.geometry.border,
-        into: &items
-    )
+        widths: node.geometry.border
+    ).emit(into: &items)
 }
 
 func emitImage(_ node: PaintNode, image: PaintImage, into items: inout [DisplayOp]) {
@@ -269,61 +268,6 @@ func emitFocusOutline(
     if let outline { items.append(outline) }
 }
 
-// MARK: - Border
-
-/// Top and bottom run the full width of the border box; left and right fill
-/// the height between them, so every side stays inside the room layout made.
-/// A rounded border is one ring between the outer and inner curves, painted
-/// in the color of its first visible side.
-func emitBorder(
-    _ box: Rect,
-    border: BoxStyle.Decoration.Border,
-    widths: EdgeInsets,
-    into items: inout [DisplayOp]
-) {
-    let sides: BoxStyle.Decoration.Border.Sides = border.sides
-    if !border.radii.isZero {
-        let visible: BoxStyle.Decoration.Border.Side? = widths.top > 0 ? sides.top
-            : widths.right > 0 ? sides.right
-            : widths.bottom > 0 ? sides.bottom
-            : widths.left > 0 ? sides.left
-            : nil
-        guard let visible else { return }
-        items.append(.ring(
-            outer: ClipShape(rect: box, radii: border.radii.resolved(in: box)),
-            inner: ClipShape(rect: box.inset(by: widths), radii: border.radii.inner(in: box, inset: widths)),
-            color: visible.color
-        ))
-        return
-    }
-    let innerTop: CGFloat = box.top + widths.top
-    let innerBottom: CGFloat = box.bottom - widths.bottom
-    if widths.top > 0 {
-        items.append(.rect(
-            rect: Rect(left: box.left, top: box.top, right: box.right, bottom: innerTop),
-            color: sides.top.color
-        ))
-    }
-    if widths.right > 0 {
-        items.append(.rect(
-            rect: Rect(left: box.right - widths.right, top: innerTop, right: box.right, bottom: innerBottom),
-            color: sides.right.color
-        ))
-    }
-    if widths.bottom > 0 {
-        items.append(.rect(
-            rect: Rect(left: box.left, top: innerBottom, right: box.right, bottom: box.bottom),
-            color: sides.bottom.color
-        ))
-    }
-    if widths.left > 0 {
-        items.append(.rect(
-            rect: Rect(left: box.left, top: innerTop, right: box.left + widths.left, bottom: innerBottom),
-            color: sides.left.color
-        ))
-    }
-}
-
 // MARK: - Node scopes
 
 func openScopes(
@@ -454,12 +398,11 @@ func closeIframeScopes(
     }
     ops.append(.endEffect)
 
-    emitBorder(
-        scopes.rect,
+    BorderPainter(
+        box: scopes.rect,
         border: node.surface.style.box.decoration.border,
-        widths: node.geometry.border,
-        into: &ops
-    )
+        widths: node.geometry.border
+    ).emit(into: &ops)
     if let outline: DisplayOp = DisplayOp.fromStyle(node.surface.style, rect: scopes.rect) {
         ops.append(outline)
     }

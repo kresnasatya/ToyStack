@@ -13,6 +13,15 @@ struct EdgeInsets: Equatable {
     var horizontal: CGFloat { left + right }
     var vertical: CGFloat { top + bottom }
 
+    subscript(side: BoxSide) -> CGFloat {
+        switch side {
+        case .top: return top
+        case .right: return right
+        case .bottom: return bottom
+        case .left: return left
+        }
+    }
+
     func scaled(by factor: CGFloat) -> EdgeInsets {
         return EdgeInsets(
             top: top * factor,

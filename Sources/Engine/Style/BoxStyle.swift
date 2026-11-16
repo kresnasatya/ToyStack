@@ -94,6 +94,15 @@ extension BoxStyle {
                         && bottom[keyPath: part] == other.bottom[keyPath: part]
                         && left[keyPath: part] == other.left[keyPath: part]
                 }
+
+                subscript(side: BoxSide) -> Side {
+                    switch side {
+                    case .top: return top
+                    case .right: return right
+                    case .bottom: return bottom
+                    case .left: return left
+                    }
+                }
             }
 
             struct Side: Equatable {
@@ -127,6 +136,11 @@ extension BoxStyle {
             case solid
             case dashed
             case dotted
+            case double
+            case groove
+            case ridge
+            case inset
+            case outset
             case other(String)
 
             init(css: String?) {
@@ -136,6 +150,11 @@ extension BoxStyle {
                 case "solid": self = .solid
                 case "dashed": self = .dashed
                 case "dotted": self = .dotted
+                case "double": self = .double
+                case "groove": self = .groove
+                case "ridge": self = .ridge
+                case "inset": self = .inset
+                case "outset": self = .outset
                 case let value?: self = .other(value)
                 case nil: self = .none
                 }

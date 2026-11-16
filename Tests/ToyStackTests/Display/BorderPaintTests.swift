@@ -39,6 +39,22 @@ struct BorderPaintTests {
         ]
     }
 
+    private func borderSides(_ page: LayoutTestPage) -> [BorderSidePaint] {
+        return page.frame.displayList.compactMap { op in
+            guard case .borderSide(let side) = op else { return nil }
+            return side
+        }
+    }
+
+    private func corners(_ rect: Rect) -> [Point] {
+        return [
+            Point(x: rect.left, y: rect.top),
+            Point(x: rect.right, y: rect.top),
+            Point(x: rect.right, y: rect.bottom),
+            Point(x: rect.left, y: rect.bottom),
+        ]
+    }
+
     @Test func borderFillsEachSideInsideTheBorderBox() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,
@@ -50,7 +66,10 @@ struct BorderPaintTests {
         #expect(!page.frame.displayList.contains(where: { $0.name == "outline" }))
     }
 
-    @Test func eachSidePaintsItsOwnWidthAndColor() throws {
+    /// Where two colors meet, the corner splits on the line from the outer
+    /// corner to the padding-box corner, inside the region CSS Backgrounds 3
+    /// §4.4 allows for the change.
+    @Test func eachSidePaintsItsOwnWidthAndColorUpToTheCornerLine() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"></div>"#,
             rules: Self.baseRules + """
@@ -59,10 +78,19 @@ struct BorderPaintTests {
                 """
         )
         let box: Rect = try paintedBox(page, id: "box")
-        let painted: [(rect: Rect, color: BrowserColor)] = fills(page)
+        let outer: [Point] = corners(box)
+        let inner: [Point] = corners(box.inset(by: EdgeInsets(top: 1, right: 2, bottom: 3, left: 4)))
+        let painted: [BorderSidePaint] = borderSides(page)
 
-        #expect(painted.map(\.rect) == sideRects(box, EdgeInsets(top: 1, right: 2, bottom: 3, left: 4)))
+        #expect(painted.map(\.region) == [
+            Quad(a: outer[0], b: outer[1], c: inner[1], d: inner[0]),
+            Quad(a: outer[1], b: outer[2], c: inner[2], d: inner[1]),
+            Quad(a: outer[2], b: outer[3], c: inner[3], d: inner[2]),
+            Quad(a: outer[3], b: outer[0], c: inner[0], d: inner[3]),
+        ])
         #expect(painted.map(\.color) == ["red", "green", "blue", "gold"].map { BrowserColor(cssName: $0) })
+        #expect(painted.allSatisfy({ $0.dash == nil }))
+        #expect(fills(page).isEmpty)
     }
 
     @Test func sideWithoutAStyleIsNotPainted() throws {
@@ -161,6 +189,29 @@ struct BorderPaintTests {
         #expect(rings.first?.inner.radii == .uniform(.px(6)))
         #expect(rings.first?.color == BrowserColor(cssName: "red"))
         #expect(fills(page).isEmpty)
+    }
+
+    @Test func roundedBorderPaintsEachSideInItsOwnColor() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"></div>"#,
+            rules: Self.baseRules + """
+                #box { height: 40px; border: 4px solid; border-color: red green blue gold;
+                       border-radius: 12px; }
+                """
+        )
+        let box: Rect = try paintedBox(page, id: "box")
+        let pixels: PagePixels = PagePixels(page.frame.displayList, width: 700, height: 100)
+        let middleX: CGFloat = (box.left + box.right) / 2
+        let middleY: CGFloat = (box.top + box.bottom) / 2
+
+        #expect(pixels.matches(BrowserColor(cssName: "red"), x: middleX, y: box.top + 2))
+        #expect(pixels.matches(BrowserColor(cssName: "green"), x: box.right - 2, y: middleY))
+        #expect(pixels.matches(BrowserColor(cssName: "blue"), x: middleX, y: box.bottom - 2))
+        #expect(pixels.matches(BrowserColor(cssName: "gold"), x: box.left + 2, y: middleY))
+        // Either side of the top-left corner line, still inside the curve.
+        #expect(pixels.matches(BrowserColor(cssName: "red"), x: box.left + 9, y: box.top + 2))
+        #expect(pixels.matches(BrowserColor(cssName: "gold"), x: box.left + 2, y: box.top + 9))
+        #expect(!page.frame.displayList.contains(where: { $0.name == "ring" }))
     }
 
     @Test func overflowHiddenClipsToTheInnerCurve() throws {
