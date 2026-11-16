@@ -5,13 +5,15 @@
     body { margin-top: 16px; margin-left: 16px; }
     .card { cursor: pointer; background-color: lightyellow; padding-top: 8px; padding-bottom: 8px; padding-left: 8px; }
     .plain { cursor: default; }
+    .clickable { cursor: pointer; }
     .hover-only:hover { cursor: pointer; background-color: lightgreen; }
 </style>
 </head>
 <body>
     <p><a href="https://browser.engineering">A link with href shows the pointing hand</a></p>
     <p><a>An anchor without href keeps the arrow</a></p>
-    <p><button>A button shows the pointing hand</button></p>
+    <p><button>A plain button keeps the arrow</button></p>
+    <p><button class="clickable">This button opts in with cursor: pointer</button></p>
     <div class="card">This card declares cursor: pointer, <span>and this span inherits it</span></div>
     <p><a href="https://browser.engineering">Link with <span class="plain">a part that opts out with cursor: default</span></a></p>
     <div class="hover-only">This box gets cursor: pointer only from a :hover rule</div>

@@ -1,10 +1,10 @@
-# Cursor pointer on links, buttons, and `cursor: pointer`
+# Cursor pointer on links and `cursor: pointer`
 
 ## Goal
 
-When the mouse is over `<a href>`, `<button>`, or any element whose `cursor` is
-`pointer` (declared on it or inherited from an ancestor), the macOS cursor turns
-into the pointing hand. Everywhere else it stays the arrow.
+When the mouse is over `<a href>` or any element whose `cursor` is `pointer`
+(declared on it or inherited from an ancestor), the macOS cursor turns into the
+pointing hand. Everywhere else, including `<button>`, it stays the arrow.
 
 ## How it flows
 
@@ -26,7 +26,7 @@ flowchart LR
 | `Sources/Engine/Core/Frame.swift` | `resolveCursor()` after `resolveHover()` at the end of `render()` and after `clearHover()` |
 | `Sources/Engine/Core/BrowserTab.swift` | stores the tab's `cursor`, tells the browser only when it changes |
 | `Sources/Engine/Core/Browser.swift` | `onCursorChange` callback; also fires when the active tab switches |
-| `Sources/Engine/Resources/browser.css` | `a[href] { cursor: pointer }`, `button { cursor: pointer }` |
+| `Sources/Engine/Resources/browser.css` | `a[href] { cursor: pointer }` |
 | `Sources/ToyStack/NSCursor+Engine.swift` (new) | `CursorKind` -> `NSCursor` |
 | `Sources/ToyStack/BrowserContentView.swift` | applies the cursor with a cursor rect plus `NSCursor.set()` |
 | `Tests/ToyStackTests/Core/HoverCursorTests.swift` (new) | behavior tests |
@@ -52,9 +52,9 @@ flowchart LR
 - `inherit`, `unset`, and unsupported values (`cursor: banana`) defer to the parent.
 - A `:hover` rule that sets `cursor` takes effect one render after the hit test,
   the same frame its other `:hover` styles land.
-- Real browsers give `<button>` the arrow; the pointing hand here comes from the
-  `button` rule in `browser.css` because it was requested. Delete that line to
-  match Chrome/Safari/Firefox.
+- `<button>` keeps the arrow, as in Chrome, Safari, and Firefox: their default
+  styles give buttons no `cursor`. Pages that want a hand add
+  `button { cursor: pointer }` themselves.
 
 ## Limits
 

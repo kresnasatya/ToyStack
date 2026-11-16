@@ -24,8 +24,20 @@ struct HoverCursorTests {
         #expect(page.tab.cursor == .auto)
     }
 
-    @Test func buttonShowsPointer() throws {
+    @Test func buttonKeepsTheArrowLikeRealBrowsers() throws {
         let page: LayoutTestPage = Self.page(html: #"<div><button id="save">Save</button></div>"#)
+        let button: ElementRef = try #require(page.firstElement(id: "save"))
+
+        Self.hover(page, at: try Self.center(of: button, in: page))
+
+        #expect(page.tab.cursor == .auto)
+    }
+
+    @Test func pageStylesCanGiveButtonsAPointer() throws {
+        let page: LayoutTestPage = Self.page(
+            html: #"<div><button id="save">Save</button></div>"#,
+            rules: "button { cursor: pointer; }"
+        )
         let button: ElementRef = try #require(page.firstElement(id: "save"))
 
         Self.hover(page, at: try Self.center(of: button, in: page))
