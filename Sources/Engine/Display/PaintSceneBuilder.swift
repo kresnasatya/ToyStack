@@ -340,7 +340,7 @@ struct PaintSceneBuilder {
     /// Backgrounds and borders of the inline elements on one line, outer
     /// elements first so inner ones paint over them. An element with padding
     /// or border has a fragment from layout; one with only a background covers
-    /// whatever of its contents landed on this line.
+    /// whatever of its contents landed on this line, up to its last letter.
     private func lineInlineBoxes(_ tree: LayoutTree, _ id: LayoutID, _ boxes: [InlineBox]?) -> [DisplayOp] {
         var areas: [NodeID: InlineArea] = [:]
         for fragment in tree[line: id].inlineBoxes.fragments {
@@ -351,17 +351,23 @@ struct PaintSceneBuilder {
         }
         if let boxes {
             for box in boxes {
+                // A word's measured width carries the space after it, which
+                // belongs to whatever comes next.
                 let rect: Rect = Rect(
                     left: box.geometry.x,
                     top: tree.y(id) + box.geometry.y,
-                    right: box.geometry.x + box.geometry.width,
+                    right: max(box.geometry.x, box.geometry.x + box.geometry.width - box.text.font.spaceWidth),
                     bottom: tree.y(id) + box.geometry.y + box.text.font.linespace
                 )
                 coverBackgrounds(rect, from: DOMRef(id: box.dom, dom: tree.dom).parent, line: (id, tree), into: &areas)
             }
         } else {
             for child in tree.childrenIDs(of: id) where tree.isText(child) || tree.isEmbed(child) {
-                coverBackgrounds(tree.selfRect(child), from: tree.domRef(child).parent, line: (id, tree), into: &areas)
+                var rect: Rect = tree.selfRect(child)
+                if tree.isText(child) {
+                    rect.right = max(rect.left, rect.right - tree.font(child).spaceWidth)
+                }
+                coverBackgrounds(rect, from: tree.domRef(child).parent, line: (id, tree), into: &areas)
             }
         }
         guard !areas.isEmpty else { return [] }

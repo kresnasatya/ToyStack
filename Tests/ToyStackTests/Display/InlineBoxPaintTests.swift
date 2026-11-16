@@ -98,7 +98,7 @@ struct InlineBoxPaintTests {
         #expect(fills(page, "red") == [Rect(left: last.left, top: last.top, right: last.left + 3, bottom: last.bottom)])
     }
 
-    @Test func backgroundOnlySpanPaintsBehindItsText() throws {
+    @Test func backgroundOnlySpanEndsBeforeTheSpaceAfterIt() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p>a <span id="s">b c</span> d</p>"#,
             rules: Self.baseRules + "#s { background-color: gold; }"
@@ -106,13 +106,16 @@ struct InlineBoxPaintTests {
         paint(page)
         let span: ElementRef = try #require(page.firstElement(id: "s"))
         let line: LayoutID = try #require(try lines(page).first)
-        let texts: [Rect] = page.tree.childrenIDs(of: line)
+        let texts: [LayoutID] = page.tree.childrenIDs(of: line)
             .filter({ page.tree.domID(of: $0) == span.children.first?.id })
-            .map({ page.tree.selfRect($0) })
-        let expected: Rect = try #require(texts.first)
+        let text: LayoutID = try #require(texts.first)
+        let measured: Rect = page.tree.selfRect(text)
+        let space: CGFloat = page.tree.font(text).spaceWidth
 
         #expect(texts.count == 1)
-        #expect(fills(page, "gold") == [expected])
+        #expect(fills(page, "gold") == [
+            Rect(left: measured.left, top: measured.top, right: measured.right - space, bottom: measured.bottom),
+        ])
         let goldIndex: Int = try #require(page.frame.displayList.firstIndex(where: { op in
             if case .rect(_, let color) = op { return color == BrowserColor(cssName: "gold") }
             return false
@@ -122,6 +125,18 @@ struct InlineBoxPaintTests {
             return false
         }))
         #expect(goldIndex < textIndex)
+    }
+
+    @Test func backgroundOnlySpanAroundAPaddedOneEndsAtItsBorder() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>a <em><span id="s">b</span></em> c</p>"#,
+            rules: Self.baseRules + "em { background-color: gold; } #s { padding: 0 4px; }"
+        )
+        paint(page)
+        let line: LayoutID = try #require(try lines(page).first)
+        let fragment: InlineBoxFragment = try #require(page.tree[line: line].inlineBoxes.fragments.first)
+
+        #expect(fills(page, "gold").map(\.right) == [absolute(page, fragment, on: line).right])
     }
 
     @Test func changingASpanBackgroundRepaintsIt() throws {
