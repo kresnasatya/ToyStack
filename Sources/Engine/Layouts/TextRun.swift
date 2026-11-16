@@ -14,12 +14,14 @@ final class TextRun {
         starts.reserveCapacity(items.count)
         ends.reserveCapacity(items.count)
         for item in items {
-            starts.append(text.utf16.count)
             if case .text(let data) = item {
                 if !text.isEmpty {
                     text += " "
                 }
+                starts.append(text.utf16.count)
                 text += data.display ?? data.word
+            } else {
+                starts.append(text.utf16.count)
             }
             ends.append(text.utf16.count)
         }

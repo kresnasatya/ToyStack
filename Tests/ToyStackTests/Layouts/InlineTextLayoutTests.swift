@@ -114,4 +114,22 @@ struct InlineTextLayoutTests {
         #expect(profiler.snapshot()["layout.line.children.previous"] == nil)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func textAfterAnotherPieceDoesNotStartWithTheSpaceBetweenThem() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p>one two <b>three four</b></p>"#,
+            rules: """
+                html { width: 400px; }
+                body { display: block; }
+                p { display: block; }
+                """
+        )
+        let p: ElementRef = try #require(page.firstElement(tag: "p"))
+        let line: LayoutID = try #require(page.lineIDs(in: p).first)
+        let strings: [String] = page.tree.childrenIDs(of: line)
+            .filter({ page.tree.isText($0) })
+            .map({ page.tree.textString($0) })
+
+        #expect(strings == ["one two", "three four"])
+    }
 }
