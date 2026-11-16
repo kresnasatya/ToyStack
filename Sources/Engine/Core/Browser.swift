@@ -163,6 +163,21 @@ public class Browser: ObservableObject {
         startAnimationTimer()
     }
 
+    public func closeTab(_ tab: BrowserTab) {
+        guard let index: Int = tabs.firstIndex(where: { $0 === tab }) else { return }
+        tabs.remove(at: index)
+        tab.browser = nil
+        guard tab === activeTab else { return }
+        guard !tabs.isEmpty else {
+            activeTab = nil
+            pauseAnimationTimer()
+            contentRevision += 1
+            dispatchPresent(frameID: currentFrameID)
+            return
+        }
+        selectTab(tabs[min(index, tabs.count - 1)])
+    }
+
     public func resize(to size: CGSize, deferLayout: Bool = false) {
         windowSize = size
         for tab in tabs {

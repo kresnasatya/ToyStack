@@ -9,6 +9,7 @@ enum KeyCode {
     static let t: UInt16 = UInt16(kVK_ANSI_T)
     static let l: UInt16 = UInt16(kVK_ANSI_L)
     static let n: UInt16 = UInt16(kVK_ANSI_N)
+    static let w: UInt16 = UInt16(kVK_ANSI_W)
     static let equal: UInt16 = UInt16(kVK_ANSI_Equal)
     static let minus: UInt16 = UInt16(kVK_ANSI_Minus)
     static let zero: UInt16 = UInt16(kVK_ANSI_0)

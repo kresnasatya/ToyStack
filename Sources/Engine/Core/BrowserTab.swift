@@ -13,7 +13,7 @@ private struct HistoryEntry {
 }
 
 @MainActor
-public class BrowserTab {
+public class BrowserTab: Identifiable {
     public nonisolated(unsafe) static var showAlert: (String, String) -> Void = { title, message in
         print("[alert] \(title): \(message)")
     }

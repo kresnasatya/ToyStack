@@ -93,7 +93,7 @@ public struct BrowserView: View {
                     let flags: NSEvent.ModifierFlags = event.modifierFlags
                     let isBrowserShortcut: Bool =
                         flags.contains(.control)
-                        || (flags.contains(.command) && event.keyCode == KeyCode.n)
+                        || (flags.contains(.command) && [KeyCode.n, KeyCode.w].contains(event.keyCode))
                         || event.keyCode == KeyCode.tab
                     let isEditingText: Bool = event.window?.firstResponder is NSTextView
                     if isEditingText && !isBrowserShortcut {
@@ -102,6 +102,10 @@ public struct BrowserView: View {
                     Task { @MainActor in
                         if flags.contains(.command) && event.keyCode == KeyCode.n {
                             openWindow(id: "browser", value: UUID())
+                        } else if flags.contains(.command) && event.keyCode == KeyCode.w {
+                            if let tab: BrowserTab = app.activeTab {
+                                app.closeTab(tab)
+                            }
                         } else if flags.contains(.command) && event.keyCode == KeyCode.leftArrow {
                             app.activeTab?.goBack()
                         } else if event.keyCode == KeyCode.downArrow {
@@ -244,6 +248,12 @@ public struct BrowserView: View {
             of: (app.activeTab?.title ?? "ToyStack"),
             perform: { newTitle in
                 NSApp.keyWindow?.title = newTitle
+            }
+        )
+        .onChange(
+            of: app.tabs.isEmpty,
+            perform: { (isEmpty: Bool) in
+                if isEmpty { browserWindow?.close() }
             }
         )
         .task {

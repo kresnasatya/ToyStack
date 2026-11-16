@@ -8,8 +8,8 @@ struct TabStrip: View {
         HStack(spacing: 4) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
-                    ForEach(browser.tabs.indices, id: \.self) { (index: Int) in
-                        tabButton(browser.tabs[index])
+                    ForEach(browser.tabs) { (tab: BrowserTab) in
+                        tabButton(tab)
                     }
                 }
             }
@@ -25,22 +25,34 @@ struct TabStrip: View {
 
     private func tabButton(_ tab: BrowserTab) -> some View {
         let isActive: Bool = tab === browser.activeTab
-        return Button(action: { browser.selectTab(tab) }) {
-            Text(label(for: tab))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(minWidth: 80, maxWidth: 200)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isActive ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear))
-                )
-                .contentShape(Rectangle())
+        return HStack(spacing: 2) {
+            Button(action: { browser.selectTab(tab) }) {
+                Text(label(for: tab))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(minWidth: 80, maxWidth: 200)
+                    .padding(.leading, 10)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(label(for: tab))
+
+            Button(action: { browser.closeTab(tab) }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 6)
+            .help("Close Tab")
         }
-        .buttonStyle(.plain)
         .foregroundStyle(isActive ? .primary : .secondary)
-        .help(label(for: tab))
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isActive ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear))
+        )
     }
 
     private func label(for tab: BrowserTab) -> String {
