@@ -362,8 +362,6 @@ extension EmbedMetrics {
     }
 }
 
-// MARK: - Box edges
-
 extension LayoutTree {
     /// Edges scale with the line's zoom, the same zoom the block used to
     /// reserve the embed's room on that line.
