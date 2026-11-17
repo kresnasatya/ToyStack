@@ -3,9 +3,11 @@ import Network
 
 /// A one-page HTTP server on 127.0.0.1. It sends no `Cache-Control`
 /// header, so the engine keeps its first answer in the response cache.
+/// It speaks no TLS: an https attempt is counted and hung up on.
 final class LocalPageServer: @unchecked Sendable {
     enum Reply {
         case page(String)
+        case redirect(String)
         case hangUp
     }
 
@@ -18,8 +20,10 @@ final class LocalPageServer: @unchecked Sendable {
     private let lock: NSLock = NSLock()
     private var reply: Reply
     private var log: [Request] = []
+    private var tlsAttempts: Int = 0
 
     var requests: [Request] { lock.withLock({ log }) }
+    var secureAttempts: Int { lock.withLock({ tlsAttempts }) }
 
     init(reply: Reply) throws {
         self.listener = try NWListener(using: .tcp, on: .any)
@@ -64,7 +68,10 @@ final class LocalPageServer: @unchecked Sendable {
             [self] (data: Data?, _, isComplete: Bool, error: NWError?) in
             var received: Data = buffer
             if let data { received.append(data) }
-            if let request: Request = Self.parse(received) {
+            if received.first == Self.tlsHandshakeRecord {
+                lock.withLock({ tlsAttempts += 1 })
+                connection.cancel()
+            } else if let request: Request = Self.parse(received) {
                 respond(to: request, on: connection)
             } else if isComplete || error != nil {
                 connection.cancel()
@@ -86,12 +93,21 @@ final class LocalPageServer: @unchecked Sendable {
             let body: Data = Data(html.utf8)
             let head: String =
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
-            connection.send(
-                content: Data(head.utf8) + body,
-                completion: .contentProcessed({ (_: NWError?) in connection.cancel() })
-            )
+            send(Data(head.utf8) + body, on: connection)
+        case .redirect(let location):
+            send(Data("HTTP/1.1 302 Found\r\nLocation: \(location)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8), on: connection)
         }
     }
+
+    private func send(_ data: Data, on connection: NWConnection) {
+        connection.send(
+            content: data,
+            completion: .contentProcessed({ (_: NWError?) in connection.cancel() })
+        )
+    }
+
+    // RFC 8446 §5.1: every TLS connection opens with a handshake record, type 22.
+    private static let tlsHandshakeRecord: UInt8 = 22
 
     private static func parse(_ data: Data) -> Request? {
         let separator: Data = Data("\r\n\r\n".utf8)

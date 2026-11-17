@@ -281,6 +281,9 @@ public struct BrowserView: View {
                     """
                 )
             }
+            if let support: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                await HSTSStore.shared.persist(to: support.appendingPathComponent("ToyStack/hsts.json"))
+            }
             app.newTab(WebURL("https://browser.engineering"))
         }
     }

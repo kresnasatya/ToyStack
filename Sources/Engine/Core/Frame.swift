@@ -219,7 +219,7 @@ class Frame {
             defer { self.browser?.measure.stop("BrowserTab.load") }
 
             self.browser?.measure.start("BrowserTab.load.page")
-            let result: Result<(status: Int, headers: [String : String], content: String), any Error> =
+            let (target, result): (WebURL, Result<(status: Int, headers: [String: String], content: String), any Error>) =
                 await networkTaskRunner.schedule(name: "load\(url.toString())") {
                     await self.fetchPage(url: url, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
                 }
@@ -227,7 +227,7 @@ class Frame {
 
             self.browser?.measure.start("BrowserTab.load.parseHTML")
             profiler.reset()
-            let parsedPage: ResourceLoads? = self.parseHTML(url: url, result: result)
+            let parsedPage: ResourceLoads? = self.parseHTML(url: target, result: result)
             self.browser?.measure.stop("BrowserTab.load.parseHTML")
             profiler.emitProfile(into: self.browser?.measure, named: "profile.load")
             guard let resources = parsedPage else { return }
@@ -260,7 +260,7 @@ class Frame {
             self.browser?.measure.stop("BrowserTab.load.iframes")
 
             self.browser?.measure.start("BrowserTab.load.exec")
-            self.execScripts(url: url, bodies: scriptBodies)
+            self.execScripts(url: target, bodies: scriptBodies)
             self.browser?.measure.stop("BrowserTab.load.exec")
 
             self.js.dispatchWindowLoad()
@@ -269,13 +269,16 @@ class Frame {
         }
     }
 
-    private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?, bypassingCache: Bool) async -> Result<
-        (status: Int, headers: [String: String], content: String), Error
-    > {
+    /// The page is fetched at its HSTS-upgraded address, which becomes the
+    /// frame's URL so the address bar and lock show what was really loaded.
+    private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?, bypassingCache: Bool) async -> (
+        WebURL, Result<(status: Int, headers: [String: String], content: String), Error>
+    ) {
+        let target: WebURL = await HSTSStore.shared.upgrade(url)
         do {
-            return .success(try await url.request(referrer: referrer, payload: payload, bypassingCache: bypassingCache))
+            return (target, .success(try await target.request(referrer: referrer, payload: payload, bypassingCache: bypassingCache)))
         } catch {
-            return .failure(error)
+            return (target, .failure(error))
         }
     }
 

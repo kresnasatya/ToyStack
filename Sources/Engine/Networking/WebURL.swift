@@ -136,6 +136,13 @@ public class WebURL: @unchecked Sendable {
             return (status: 200, headers: [:], content: highlighted)
         }
 
+        let secureURL: WebURL = await HSTSStore.shared.upgrade(self)
+        if secureURL !== self {
+            return try await secureURL.request(
+                referrer: referrer, payload: payload, extraHeaders: extraHeaders, bypassingCache: bypassingCache
+            )
+        }
+
         let method: String = payload != nil ? "POST" : "GET"
 
         let cacheKey: String = toString()
@@ -147,7 +154,7 @@ public class WebURL: @unchecked Sendable {
 
         let urlRequest: URLRequest = await makeHTTPRequest(method: method, referrer: referrer, payload: payload, extraHeaders: extraHeaders)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: HSTSRedirect.shared)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             fatalError("Invalid response type")
@@ -252,6 +259,10 @@ public class WebURL: @unchecked Sendable {
             }
         }
 
+        if let rule: String = headers["strict-transport-security"], let responseURL: URL = httpResponse.url {
+            await HSTSStore.shared.note(rule, from: WebURL(responseURL.absoluteString))
+        }
+
         if let setCookie = headers["set-cookie"] {
             var cookieStr: String = setCookie
             var cookieParams: [String: String] = [:]
@@ -292,8 +303,13 @@ public class WebURL: @unchecked Sendable {
             return (status: 200, headers: ["content-type": mimeType], data: Data(path.utf8))
         }
 
+        let secureURL: WebURL = await HSTSStore.shared.upgrade(self)
+        if secureURL !== self {
+            return try await secureURL.requestRawBytes(referrer: referrer)
+        }
+
         let urlRequest: URLRequest = await makeHTTPRequest(method: "GET", referrer: referrer, payload: nil, extraHeaders: [:])
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: HSTSRedirect.shared)
         guard let httpResponse = response as? HTTPURLResponse else {
             fatalError("Invalid response type")
         }

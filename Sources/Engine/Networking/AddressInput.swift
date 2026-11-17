@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 
 public enum AddressInput {
@@ -106,7 +105,7 @@ private struct TypedHost {
         }
         if host.hasPrefix("[") {
             let inside: String = String(host.dropFirst().dropLast())
-            guard Self.isIPAddress(inside, family: AF_INET6) else {
+            guard IPAddress.isV6(inside) else {
                 return nil
             }
             name = "[\(inside.lowercased())]"
@@ -171,7 +170,7 @@ private struct TypedHost {
     }
 
     private static func kind(of name: String) -> Kind {
-        if isIPAddress(name, family: AF_INET) {
+        if IPAddress.isV4(name) {
             return .ipAddress
         }
         if name == "localhost" || name.hasSuffix(".localhost") {
@@ -182,10 +181,5 @@ private struct TypedHost {
         }
         let topLevel: String = String(name[name.index(after: lastDot)...])
         return TopLevelDomains.contains(topLevel) ? .knownDomain : .unknownDomain
-    }
-
-    private static func isIPAddress(_ text: String, family: Int32) -> Bool {
-        var address: in6_addr = in6_addr()
-        return inet_pton(family, text, &address) == 1
     }
 }
