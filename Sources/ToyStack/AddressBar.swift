@@ -44,7 +44,7 @@ struct AddressBar: NSViewRepresentable {
             let typed: String = textView.string
             control.window?.makeFirstResponder(nil)
             if let address: TypedAddress = AddressInput.address(for: typed) {
-                browser?.activeTab?.load(address.url)
+                browser?.activeTab?.open(address)
             }
             return true
         }

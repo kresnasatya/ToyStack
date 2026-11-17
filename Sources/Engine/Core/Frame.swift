@@ -210,7 +210,7 @@ class Frame {
 
     // MARK: - Load
 
-    func load(_ url: WebURL, payload: String? = nil, bypassingCache: Bool = false) {
+    func load(_ url: WebURL, payload: String? = nil, bypassingCache: Bool = false, fallback: WebURL? = nil) {
         guard let networkTaskRunner = tab?.networkTaskRunner else { return }
         let referrer: WebURL? = effectiveReferrer(for: url)
 
@@ -221,8 +221,19 @@ class Frame {
             self.browser?.measure.start("BrowserTab.load.page")
             let (target, result): (WebURL, Result<(status: Int, headers: [String: String], content: String), any Error>) =
                 await networkTaskRunner.schedule(name: "load\(url.toString())") {
-                    await self.fetchPage(url: url, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
+                    let first: WebURL = await HTTPFallback.firstAttempt(url, fallback: fallback)
+                    let fetched: (WebURL, Result<(status: Int, headers: [String: String], content: String), any Error>) =
+                        await self.fetchPage(url: first, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
+                    guard case .failure(let error) = fetched.1,
+                        let retry: WebURL = await HTTPFallback.retry(after: error, fallback: fallback)
+                    else {
+                        return fetched
+                    }
+                    return await self.fetchPage(url: retry, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
                 }
+            if target !== url {
+                self.tab?.replaceURL(url, with: target)
+            }
             self.browser?.measure.stop("BrowserTab.load.page")
 
             self.browser?.measure.start("BrowserTab.load.parseHTML")

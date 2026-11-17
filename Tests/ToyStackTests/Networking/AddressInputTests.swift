@@ -122,6 +122,31 @@ import Testing
         #expect(Self.url("[::zz]")?.hasPrefix("https://google.com/search?q=") == true)
     }
 
+    // MARK: - Fallback to http
+
+    @Test func guessedHTTPSCanFallBackToTheSameAddressOverHTTP() {
+        #expect(Self.fallback("example.com/docs?page=2#top") == "http://example.com/docs?page=2#top")
+        #expect(Self.fallback("foo.notarealtld/") == "http://foo.notarealtld/")
+    }
+
+    @Test(arguments: [
+        "https://example.com/",
+        "http://example.com/",
+        "localhost:8000",
+        "127.0.0.1",
+        "intranet/",
+        "hello world",
+    ])
+    func addressWithoutAGuessedHTTPSHasNoFallback(_ typed: String) {
+        let address: TypedAddress? = AddressInput.address(for: typed)
+        #expect(address != nil)
+        #expect(address?.fallback == nil)
+    }
+
+    private static func fallback(_ typed: String) -> String? {
+        AddressInput.address(for: typed)?.fallback?.toString()
+    }
+
     private static func url(_ typed: String) -> String? {
         AddressInput.address(for: typed)?.url.toString()
     }

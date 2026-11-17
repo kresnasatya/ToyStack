@@ -21,13 +21,13 @@ public enum AddressInput {
         if input.hasPrefix("?") {
             return search(String(input.dropFirst()))
         }
-        if let url: WebURL = fixedUpURL(input) {
-            return TypedAddress(url: url)
+        if let address: TypedAddress = fixedUpAddress(input) {
+            return address
         }
         return search(input)
     }
 
-    private static func fixedUpURL(_ input: String) -> WebURL? {
+    private static func fixedUpAddress(_ input: String) -> TypedAddress? {
         if input.contains(where: { (c: Character) -> Bool in c.isWhitespace || c == "@" }) {
             return nil
         }
@@ -41,10 +41,13 @@ public enum AddressInput {
         guard host.kind.isAlwaysAddress || typedAsAddress else {
             return nil
         }
-        let scheme: String = host.kind.usesHTTPS ? "https" : "http"
         let port: String = host.port.map({ (port: Int) -> String in ":\(port)" }) ?? ""
         let path: String = rest.hasPrefix("/") ? String(rest) : "/" + rest
-        return WebURL("\(scheme)://\(host.name)\(port)\(path)")
+        let plain: WebURL = WebURL("http://\(host.name)\(port)\(path)")
+        guard host.kind.usesHTTPS else {
+            return TypedAddress(url: plain)
+        }
+        return TypedAddress(url: WebURL("https://\(host.name)\(port)\(path)"), fallback: plain)
     }
 
     private static func search(_ text: String) -> TypedAddress? {

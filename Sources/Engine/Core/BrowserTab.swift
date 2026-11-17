@@ -4,6 +4,10 @@ import Foundation
 private struct NavigationLocation {
     let url: WebURL
     let payload: String?
+
+    func replacing(_ requested: WebURL, with loaded: WebURL) -> NavigationLocation {
+        url === requested ? NavigationLocation(url: loaded, payload: payload) : self
+    }
 }
 
 private struct HistoryEntry {
@@ -129,6 +133,24 @@ public class BrowserTab: Identifiable {
     func load(_ url: WebURL, payload: String? = nil, in frame: Frame) {
         recordNavigation(url: url, payload: payload, frame: frame)
         frame.load(url, payload: payload)
+    }
+
+    public func open(_ address: TypedAddress) {
+        recordNavigation(url: address.url, payload: nil, frame: rootFrame)
+        rootFrame.load(address.url, fallback: address.fallback)
+    }
+
+    /// A load can end at another address than the one asked for: HSTS turned
+    /// http into https, or a guessed https fell back to http. History keeps
+    /// the address that loaded so reload, back and forward return to it.
+    func replaceURL(_ requested: WebURL, with loaded: WebURL) {
+        history = history.map({ (entry: HistoryEntry) -> HistoryEntry in
+            HistoryEntry(
+                state: entry.state.replacing(requested, with: loaded),
+                frame: entry.frame,
+                from: entry.from?.replacing(requested, with: loaded)
+            )
+        })
     }
 
     private func recordNavigation(url: WebURL, payload: String?, frame: Frame) {
