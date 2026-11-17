@@ -147,6 +147,19 @@ import Testing
         AddressInput.address(for: typed)?.fallback?.toString()
     }
 
+    // MARK: - Did you mean
+
+    @Test func singleWordSearchAlsoOffersTheMachineWithThatName() {
+        let address: TypedAddress? = AddressInput.address(for: "Intranet")
+        #expect(address?.url.toString() == "https://google.com/search?q=Intranet")
+        #expect(address?.alternate?.toString() == "http://intranet/")
+    }
+
+    @Test(arguments: ["hello world", "?intranet", "example.com", "intranet/", "foo.notarealtld", "c++", "weather?today"])
+    func otherInputOffersNoAlternate(_ typed: String) {
+        #expect(AddressInput.address(for: typed)?.alternate == nil)
+    }
+
     private static func url(_ typed: String) -> String? {
         AddressInput.address(for: typed)?.url.toString()
     }

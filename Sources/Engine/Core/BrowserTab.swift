@@ -28,6 +28,11 @@ public class BrowserTab: Identifiable {
     public nonisolated(unsafe) static var pageSource: ((_ scheme: String, _ path: String) async -> (
         status: Int, headers: [String: String], content: String
     )?)? = nil
+    public nonisolated(unsafe) static var hostExists: (String) async -> Bool = HostLookup.exists
+
+    /// A machine on the local network whose name the user searched for.
+    public private(set) var didYouMean: WebURL? = nil
+    private var navigationSequence: UInt64 = 0
 
     private nonisolated(unsafe) var visitedURL: Set<String> = []
     var hasVisitedURLs: Bool { !visitedURL.isEmpty }
@@ -139,6 +144,31 @@ public class BrowserTab: Identifiable {
     public func open(_ address: TypedAddress) {
         recordNavigation(url: address.url, payload: nil, frame: rootFrame)
         rootFrame.load(address.url, fallback: address.fallback)
+        if let alternate: WebURL = address.alternate {
+            offerIfItExists(alternate)
+        }
+    }
+
+    public func dismissDidYouMean() {
+        didYouMean = nil
+        browser?.navigationStateChanged()
+    }
+
+    /// The lookup can finish after the user has moved on, so its answer only
+    /// counts while the navigation that asked is still the latest one.
+    private func offerIfItExists(_ alternate: WebURL) {
+        let sequence: UInt64 = navigationSequence
+        Task { [weak self] in
+            guard await BrowserTab.hostExists(alternate.host) else { return }
+            guard let self, self.navigationSequence == sequence else { return }
+            self.didYouMean = alternate
+            self.browser?.navigationStateChanged()
+        }
+    }
+
+    private func startTopLevelNavigation() {
+        navigationSequence &+= 1
+        didYouMean = nil
     }
 
     /// A load can end at another address than the one asked for: HSTS turned
@@ -167,6 +197,9 @@ public class BrowserTab: Identifiable {
             )
         )
         historyIndex = history.count - 1
+        if frame === rootFrame {
+            startTopLevelNavigation()
+        }
         browser?.navigationStateChanged()
     }
 
@@ -341,6 +374,7 @@ public class BrowserTab: Identifiable {
         guard let target: Int = nearestLiveIndex(from: historyIndex - 1, direction: -1) else { return }
         rewindFrames(after: target)
         historyIndex = target
+        startTopLevelNavigation()
         browser?.navigationStateChanged()
     }
 
@@ -348,6 +382,7 @@ public class BrowserTab: Identifiable {
         guard let target: Int = nearestLiveIndex(from: historyIndex + 1, direction: 1) else { return }
         replayFrames(from: historyIndex + 1, through: target)
         historyIndex = target
+        startTopLevelNavigation()
         browser?.navigationStateChanged()
     }
 

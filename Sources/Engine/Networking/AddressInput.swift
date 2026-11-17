@@ -24,7 +24,7 @@ public enum AddressInput {
         if let address: TypedAddress = fixedUpAddress(input) {
             return address
         }
-        return search(input)
+        return search(input, alternate: machineAddress(input))
     }
 
     private static func fixedUpAddress(_ input: String) -> TypedAddress? {
@@ -50,12 +50,19 @@ public enum AddressInput {
         return TypedAddress(url: WebURL("https://\(host.name)\(port)\(path)"), fallback: plain)
     }
 
-    private static func search(_ text: String) -> TypedAddress? {
+    private static func machineAddress(_ input: String) -> WebURL? {
+        guard let host: TypedHost = TypedHost(Substring(input)), host.kind == .singleLabel else {
+            return nil
+        }
+        return WebURL("http://\(host.name)/")
+    }
+
+    private static func search(_ text: String, alternate: WebURL? = nil) -> TypedAddress? {
         let query: String = searchQuery(text)
         if query.isEmpty {
             return nil
         }
-        return TypedAddress(url: WebURL(searchPrefix + query))
+        return TypedAddress(url: WebURL(searchPrefix + query), alternate: alternate)
     }
 
     private static func searchQuery(_ text: String) -> String {

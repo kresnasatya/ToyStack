@@ -18,6 +18,7 @@ struct ChromeView<Page: View>: View {
         VStack(spacing: 0) {
             TabStrip(browser: browser)
             Divider()
+            DidYouMeanBar(browser: browser)
             page
         }
         .toolbar {
