@@ -224,14 +224,21 @@ class Frame {
                     let first: WebURL = await HTTPFallback.firstAttempt(url, fallback: fallback)
                     let fetched: (WebURL, Result<(status: Int, headers: [String: String], content: String), any Error>) =
                         await self.fetchPage(url: first, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
-                    guard case .failure(let error) = fetched.1,
+                    guard first === url, case .failure(let error) = fetched.1,
                         let retry: WebURL = await HTTPFallback.retry(after: error, fallback: fallback)
                     else {
                         return fetched
                     }
-                    return await self.fetchPage(url: retry, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
+                    let retried: (WebURL, Result<(status: Int, headers: [String: String], content: String), any Error>) =
+                        await self.fetchPage(url: retry, referrer: referrer, payload: payload, bypassingCache: bypassingCache)
+                    if case .success = retried.1 {
+                        await HTTPFallback.noteLoaded(retry)
+                    }
+                    return retried
                 }
-            if target !== url {
+            // A failed load keeps the address the user asked for, so Reload
+            // tries it again instead of a fallback that also failed.
+            if target !== url, case .success = result {
                 self.tab?.replaceURL(url, with: target)
             }
             self.browser?.measure.stop("BrowserTab.load.page")

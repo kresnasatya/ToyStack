@@ -62,6 +62,43 @@ struct HTTPFallbackNavigationTests {
         await HTTPOnlyHosts.shared.forget("127.0.0.1")
     }
 
+    @Test func siteThatFailsOverHTTPTooStaysOnHTTPS() async throws {
+        let server: LocalPageServer = try LocalPageServer(reply: .hangUp)
+        defer { server.stop() }
+        let (browser, tab, port): (Browser, BrowserTab, Int) = try await Self.open(server)
+        await HTTPOnlyHosts.shared.forget("127.0.0.1")
+
+        tab.open(Self.guess("127.0.0.1", port: port))
+        #expect(await Self.pump({ !server.requests.isEmpty }))
+        await Self.finishQueuedFetches(browser)
+        #expect(await !HTTPOnlyHosts.shared.contains("127.0.0.1"))
+        let attemptsBeforeReload: Int = server.secureAttempts
+
+        tab.reload()
+
+        #expect(await Self.pump({ server.secureAttempts > attemptsBeforeReload }))
+        await HTTPOnlyHosts.shared.forget("127.0.0.1")
+    }
+
+    @Test func rememberedHostThatFailsOverHTTPIsNotFetchedTwice() async throws {
+        let server: LocalPageServer = try LocalPageServer(reply: .hangUp)
+        defer { server.stop() }
+        let (browser, tab, port): (Browser, BrowserTab, Int) = try await Self.open(server)
+        // URLSession retries a GET whose connection is dropped, so count how
+        // many requests one engine fetch makes before checking the navigation.
+        _ = try? await WebURL("http://127.0.0.1:\(port)/page").request(bypassingCache: true)
+        let requestsPerFetch: Int = server.requests.count
+        await HTTPOnlyHosts.shared.remember("127.0.0.1")
+
+        tab.open(Self.guess("127.0.0.1", port: port))
+        #expect(await Self.pump({ server.requests.count > requestsPerFetch }))
+        await Self.finishQueuedFetches(browser)
+
+        #expect(server.requests.count == 2 * requestsPerFetch)
+        #expect(server.secureAttempts == 0)
+        await HTTPOnlyHosts.shared.forget("127.0.0.1")
+    }
+
     @Test func httpsOnlySiteNeverFallsBack() async throws {
         let server: LocalPageServer = try LocalPageServer(reply: .page("<p>plain site</p>"))
         defer { server.stop() }

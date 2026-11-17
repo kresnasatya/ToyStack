@@ -34,12 +34,18 @@ enum HTTPFallback {
 
     /// An https-only host never falls back. Its retry would be upgraded back
     /// to https anyway, so falling back would only repeat the failed (maybe
-    /// timed-out) attempt and wrongly remember the host as http-only.
+    /// timed-out) attempt.
     static func retry(after error: any Error, fallback: WebURL?) async -> WebURL? {
         guard let fallback: WebURL, applies(after: error), await !HSTSStore.shared.isKnown(fallback.host) else {
             return nil
         }
-        await HTTPOnlyHosts.shared.remember(fallback.host)
         return fallback
+    }
+
+    /// Only a page that really loaded over http proves the host has no https.
+    /// A dropped connection or timeout fails http as well, and must not pin
+    /// a working https site to plain http.
+    static func noteLoaded(_ fallback: WebURL) async {
+        await HTTPOnlyHosts.shared.remember(fallback.host)
     }
 }

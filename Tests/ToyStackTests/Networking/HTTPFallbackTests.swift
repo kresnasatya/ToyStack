@@ -64,14 +64,15 @@ import Testing
         await HTTPOnlyHosts.shared.forget(host)
     }
 
-    @Test func ordinaryHostIsRetriedOverHTTPAndRemembered() async {
+    /// Only a page that really loads over http proves the host is http-only;
+    /// the navigation remembers it then, not the retry decision.
+    @Test func ordinaryHostIsRetriedOverHTTPWithoutBeingRememberedYet() async {
         let host: String = "plain-\(UUID().uuidString.lowercased()).example"
         let fallback: WebURL = WebURL("http://\(host)/")
 
         let retry: WebURL? = await HTTPFallback.retry(after: URLError(.secureConnectionFailed), fallback: fallback)
 
         #expect(retry === fallback)
-        #expect(await HTTPOnlyHosts.shared.contains(host))
-        await HTTPOnlyHosts.shared.forget(host)
+        #expect(await !HTTPOnlyHosts.shared.contains(host))
     }
 }
