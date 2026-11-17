@@ -25,7 +25,9 @@ public class BrowserTab: Identifiable {
         print("[confirm] \(title): \(message)")
         return true
     }
-    public nonisolated(unsafe) static var pageSource: ((_ scheme: String, _ path: String) async -> (
+    // Frames fetch synchronously on the main thread while a script edits the
+    // DOM, so the source must never need the main actor or the page deadlocks.
+    public nonisolated(unsafe) static var pageSource: (@Sendable (_ scheme: String, _ path: String) async -> (
         status: Int, headers: [String: String], content: String
     )?)? = nil
     public nonisolated(unsafe) static var hostExists: (String) async -> Bool = HostLookup.exists
