@@ -251,7 +251,7 @@ class Frame {
             guard let resources = parsedPage else { return }
 
             self.browser?.measure.start("BrowserTab.load.styles")
-            let styleBodies: [(index: Int, body: String)] = await networkTaskRunner.schedule(name: "fetch-styles") {
+            let styleBodies: [(index: Int, url: WebURL, body: String)] = await networkTaskRunner.schedule(name: "fetch-styles") {
                 await self.fetchStyles(urls: resources.styleURLs)
             }
             self.browser?.measure.stop("BrowserTab.load.styles")
@@ -357,6 +357,7 @@ class Frame {
             })
             state.document.meta.title = titleText.isEmpty ? url.toString() : titleText
 
+            state.document.resources.loadedStylesheets = [:]
             state.document.resources.network.allowedOrigins = nil
             state.document.resources.network.referrerPolicy = headers["referrer-policy"] ?? ""
             if let csp = headers["content-security-policy"] {
@@ -405,9 +406,9 @@ class Frame {
 
     private func fetchStyles(
         urls: [(index: Int, url: WebURL, ref: WebURL?)]
-    ) async -> [(index: Int, body: String)] {
+    ) async -> [(index: Int, url: WebURL, body: String)] {
         typealias Response = (status: Int, headers: [String: String], content: String)
-        var result: [(index: Int, body: String)] = []
+        var result: [(index: Int, url: WebURL, body: String)] = []
         var allowed: [ResourceLoad] = []
         for entry in urls {
             guard allowedRequest(entry.url) else {
@@ -426,14 +427,15 @@ class Frame {
                 guard let response,
                     BrowserTab.isUsableStylesheet(status: response.status, headers: response.headers, url: styleURL)
                 else { continue }
-                result.append((i, response.content))
+                result.append((i, styleURL, response.content))
             }
         }
         return result
     }
 
-    private func applyStyles(bodies: [(index: Int, body: String)]) {
-        for (_, body) in bodies.sorted(by: { $0.index < $1.index }) {
+    private func applyStyles(bodies: [(index: Int, url: WebURL, body: String)]) {
+        for (_, styleURL, body) in bodies.sorted(by: { $0.index < $1.index }) {
+            state.document.resources.loadedStylesheets[styleURL.toString()] = body
             let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
             appendStyleRules(parsed.rules)
             mergeKeyframes(parsed.keyframes)
@@ -787,9 +789,7 @@ class Frame {
                 let href = el.attributes["href"]
             {
                 let styleURL: WebURL = url.resolve(href)
-                guard allowedRequest(styleURL) else { continue }
-                guard let (status, headers, body) = styleURL.requestSync() else { continue }
-                guard BrowserTab.isUsableStylesheet(status: status, headers: headers, url: styleURL) else { continue }
+                guard allowedRequest(styleURL), let body: String = stylesheetText(at: styleURL) else { continue }
                 let parsed: (rules: [(String?, any CSSSelector, [String : String])], keyframes: [String : [Keyframe]]) = CSSParser(body).parse()
                 appendStyleRules(parsed.rules)
                 mergeKeyframes(parsed.keyframes)
@@ -802,6 +802,22 @@ class Frame {
             }
         }
         StyleInvalidation.markDocument(nodes)
+    }
+
+    // A DOM change re-collects the page's rules, but a browser downloads each
+    // stylesheet once per page; only a <link> the page never fetched goes out.
+    private func stylesheetText(at styleURL: WebURL) -> String? {
+        let key: String = styleURL.toString()
+        if let body: String = state.document.resources.loadedStylesheets[key] {
+            return body
+        }
+        guard let (status, headers, body) = styleURL.requestSync(),
+            BrowserTab.isUsableStylesheet(status: status, headers: headers, url: styleURL)
+        else {
+            return nil
+        }
+        state.document.resources.loadedStylesheets[key] = body
+        return body
     }
 
     // MARK: - Render
