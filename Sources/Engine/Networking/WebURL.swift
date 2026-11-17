@@ -90,7 +90,13 @@ public class WebURL: @unchecked Sendable {
         }
 
         var defaultPort: Int = scheme == "https" ? 443 : (scheme == "http" ? 80 : 0)
-        if hostPart.contains(":") {
+        if hostPart.hasPrefix("["), let close: String.Index = hostPart.firstIndex(of: "]") {
+            let afterHost: Substring = hostPart[hostPart.index(after: close)...]
+            if afterHost.hasPrefix(":") {
+                defaultPort = Int(afterHost.dropFirst()) ?? defaultPort
+            }
+            hostPart = String(hostPart[...close])
+        } else if hostPart.contains(":") {
             let parts: [String.SubSequence] = hostPart.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             hostPart = String(parts[0])
             defaultPort = Int(parts[1]) ?? defaultPort

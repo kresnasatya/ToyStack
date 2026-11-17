@@ -43,8 +43,8 @@ struct AddressBar: NSViewRepresentable {
             guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
             let typed: String = textView.string
             control.window?.makeFirstResponder(nil)
-            if let url: WebURL = AddressInput.url(for: typed) {
-                browser?.activeTab?.load(url)
+            if let address: TypedAddress = AddressInput.address(for: typed) {
+                browser?.activeTab?.load(address.url)
             }
             return true
         }

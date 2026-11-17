@@ -31,6 +31,7 @@ let package = Package(
                 .process("Resources/runtime.js"),
                 .process("Resources/browser.css"),
                 .process("Resources/Broken_Image.png"),
+                .process("Resources/tlds-alpha-by-domain.txt"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)

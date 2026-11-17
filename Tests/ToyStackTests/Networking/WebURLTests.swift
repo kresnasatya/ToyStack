@@ -40,6 +40,20 @@ import Testing
         #expect(url.host == "example.com")
     }
 
+    @Test func ipv6HostKeepsItsBracketsAndColons() {
+        let url: WebURL = WebURL("http://[::1]/a")
+        #expect(url.host == "[::1]")
+        #expect(url.port == 80)
+        #expect(url.toString() == "http://[::1]/a")
+    }
+
+    @Test func ipv6HostWithPort() {
+        let url: WebURL = WebURL("http://[2001:db8::1]:8080/a")
+        #expect(url.host == "[2001:db8::1]")
+        #expect(url.port == 8080)
+        #expect(url.toString() == "http://[2001:db8::1]:8080/a")
+    }
+
     @Test func missingPathDefaultsToSlash() {
         let url = WebURL("https://example.com")
         #expect(url.path == "/")
