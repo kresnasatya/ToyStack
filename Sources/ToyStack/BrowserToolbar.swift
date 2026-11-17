@@ -34,8 +34,12 @@ struct BrowserToolbar: ToolbarContent {
                 if browser.activeTab?.isSecure ?? false {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(.secondary)
+                } else if browser.activeTab?.isNotSecure ?? false {
+                    Text("Not Secure")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                AddressBar(address: currentAddress ?? "", browser: browser, focus: addressFocus)
+                AddressBar(url: browser.activeTab?.url, browser: browser, focus: addressFocus)
             }
             .frame(minWidth: 240, idealWidth: 560, maxWidth: 800)
         }

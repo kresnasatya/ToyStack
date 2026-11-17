@@ -24,6 +24,7 @@ struct HSTSNavigationTests {
         #expect(await Self.pump({ tab.isLoaded }))
         #expect(tab.url?.toString() == "https://\(host)\(path)")
         #expect(tab.isSecure)
+        #expect(!tab.isNotSecure)
         await HSTSStore.shared.note("max-age=0", from: WebURL("https://\(host)/"))
     }
 
@@ -43,6 +44,7 @@ struct HSTSNavigationTests {
         #expect(await Self.pump({ tab.isLoaded }))
         #expect(tab.url?.toString() == "http://\(host)\(path)")
         #expect(!tab.isSecure)
+        #expect(tab.isNotSecure)
     }
 
     private static func open(_ address: String) throws -> (Browser, BrowserTab) {

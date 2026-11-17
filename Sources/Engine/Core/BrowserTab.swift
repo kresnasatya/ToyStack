@@ -73,6 +73,7 @@ public class BrowserTab: Identifiable {
     var displayList: [DisplayOp] { rootFrame.displayList }
     public var title: String { rootFrame.title }
     public var isSecure: Bool { rootFrame.isSecure }
+    public var isNotSecure: Bool { rootFrame.url?.scheme == "http" }
     public var isLoaded: Bool { rootFrame.loaded }
     var focus: ElementRef? {
         guard let focused = focusedFrame.focus else { return nil }
