@@ -32,4 +32,46 @@ import Testing
     @Test func failureThatIsNotAboutTheNetworkDoesNotFallBack() {
         #expect(HTTPFallback.applies(after: CocoaError(.fileReadNoSuchFile)) == false)
     }
+
+    // MARK: - HTTPS-only hosts
+
+    // Each test uses its own host name, so the shared stores never collide.
+
+    @Test func httpsOnlyHostIsNeitherRetriedOverHTTPNorRememberedAsHTTPOnly() async {
+        let host: String = "hsts-\(UUID().uuidString.lowercased()).example"
+        await HSTSStore.shared.note("max-age=600", from: WebURL("https://\(host)/"))
+
+        let retry: WebURL? = await HTTPFallback.retry(
+            after: URLError(.secureConnectionFailed),
+            fallback: WebURL("http://\(host)/")
+        )
+
+        #expect(retry == nil)
+        #expect(await !HTTPOnlyHosts.shared.contains(host))
+        await HSTSStore.shared.note("max-age=0", from: WebURL("https://\(host)/"))
+    }
+
+    @Test func httpsOnlyHostStartsOverHTTPSEvenIfItOnceFellBack() async {
+        let host: String = "hsts-\(UUID().uuidString.lowercased()).example"
+        await HTTPOnlyHosts.shared.remember(host)
+        await HSTSStore.shared.note("max-age=600", from: WebURL("https://\(host)/"))
+        let secure: WebURL = WebURL("https://\(host)/")
+
+        let first: WebURL = await HTTPFallback.firstAttempt(secure, fallback: WebURL("http://\(host)/"))
+
+        #expect(first === secure)
+        await HSTSStore.shared.note("max-age=0", from: WebURL("https://\(host)/"))
+        await HTTPOnlyHosts.shared.forget(host)
+    }
+
+    @Test func ordinaryHostIsRetriedOverHTTPAndRemembered() async {
+        let host: String = "plain-\(UUID().uuidString.lowercased()).example"
+        let fallback: WebURL = WebURL("http://\(host)/")
+
+        let retry: WebURL? = await HTTPFallback.retry(after: URLError(.secureConnectionFailed), fallback: fallback)
+
+        #expect(retry === fallback)
+        #expect(await HTTPOnlyHosts.shared.contains(host))
+        await HTTPOnlyHosts.shared.forget(host)
+    }
 }

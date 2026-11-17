@@ -1,9 +1,7 @@
 import Foundation
 
 /// When a typed address had its https guessed, these decide whether the page
-/// is tried, or retried, over http. An https-only (HSTS) host still never
-/// goes out over http: every fetch, the fallback included, passes through
-/// `HSTSStore.upgrade` first.
+/// is tried, or retried, over http.
 enum HTTPFallback {
     // Only failures to set up the secure connection. A missing host or no
     // internet would fail the same way over http, and an HTTP error status
@@ -26,14 +24,19 @@ enum HTTPFallback {
 
     /// The http address when this host already failed over https recently.
     static func firstAttempt(_ url: WebURL, fallback: WebURL?) async -> WebURL {
-        guard let fallback: WebURL, await HTTPOnlyHosts.shared.contains(fallback.host) else {
+        guard let fallback: WebURL, await HTTPOnlyHosts.shared.contains(fallback.host),
+            await !HSTSStore.shared.isKnown(fallback.host)
+        else {
             return url
         }
         return fallback
     }
 
+    /// An https-only host never falls back. Its retry would be upgraded back
+    /// to https anyway, so falling back would only repeat the failed (maybe
+    /// timed-out) attempt and wrongly remember the host as http-only.
     static func retry(after error: any Error, fallback: WebURL?) async -> WebURL? {
-        guard let fallback: WebURL, applies(after: error) else {
+        guard let fallback: WebURL, applies(after: error), await !HSTSStore.shared.isKnown(fallback.host) else {
             return nil
         }
         await HTTPOnlyHosts.shared.remember(fallback.host)
