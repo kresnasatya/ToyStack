@@ -34,6 +34,7 @@ public class BrowserTab: Identifiable {
 
     /// A machine on the local network whose name the user searched for.
     public private(set) var didYouMean: WebURL? = nil
+    private var isSelectingText: Bool = false
     private var navigationSequence: UInt64 = 0
 
     private nonisolated(unsafe) var visitedURL: Set<String> = []
@@ -508,6 +509,26 @@ public class BrowserTab: Identifiable {
         let zoom: CGFloat = rootFrame.pageZoom
         rootFrame.click(x: x / zoom, y: y / zoom)
     }
+
+    /// Only the top frame's text is selectable: a press over an iframe lands
+    /// on the top frame's text nearest to it.
+    public func pressText(x: CGFloat, y: CGFloat, clickCount: Int) {
+        let zoom: CGFloat = rootFrame.pageZoom
+        rootFrame.pressText(x: x / zoom, y: y / zoom, clickCount: clickCount)
+        isSelectingText = true
+    }
+
+    public func dragText(x: CGFloat, y: CGFloat) {
+        guard isSelectingText else { return }
+        let zoom: CGFloat = rootFrame.pageZoom
+        rootFrame.dragText(x: x / zoom, y: y / zoom)
+    }
+
+    public func releaseText() {
+        isSelectingText = false
+    }
+
+    public var selectedText: String { rootFrame.selectedText }
 
     public func hover(x: CGFloat, y: CGFloat) {
         let zoom: CGFloat = rootFrame.pageZoom

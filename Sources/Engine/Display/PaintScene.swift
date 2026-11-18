@@ -76,7 +76,8 @@ struct PaintBlockExtras {
 struct PaintLine {
     var canCache: Bool
     var generation: UInt
-    /// Inline element backgrounds and borders, then any focus ring.
+    /// Inline element backgrounds and borders, the selection highlight, then
+    /// any focus ring: everything drawn under the line's text.
     var decorations: [DisplayOp]
     var inlineText: [PaintInlineText]
 }

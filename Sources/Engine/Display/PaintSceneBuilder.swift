@@ -19,6 +19,7 @@ struct PaintBuildSink {
 struct PaintSceneBuilder {
     private(set) var sink: PaintBuildSink = PaintBuildSink()
     private var window: PaintWindow = .full
+    private var highlights: [LayoutID: [Rect]] = [:]
 
     mutating func build(
         root: LayoutID,
@@ -37,7 +38,12 @@ struct PaintSceneBuilder {
         // is still in progress, so a builder-wide array would be reset.
         var revisions: [UInt64] = []
         revisions.reserveCapacity(64)
+        // Restored afterwards for the same reason: this may be an iframe
+        // built in the middle of its parent's scene.
+        let parentHighlights: [LayoutID: [Rect]] = highlights
+        highlights = frame.selectionHighlights(in: tree)
         _ = appendNode(tree, root, parent: nil, nodes: &nodes, revisions: &revisions)
+        highlights = parentHighlights
         sink.scenes[index] = PaintFrame(
             nodes: nodes,
             epoch: frame.paintEpoch,
@@ -198,10 +204,13 @@ struct PaintSceneBuilder {
             ))
         case .line:
             let inlineBoxes: [DisplayOp] = lineInlineBoxes(tree, id, boxes)
+            let selection: [DisplayOp] = selectionHighlightOps(highlights[id] ?? [])
+            // The line cache does not know about the selection, so a cached
+            // line would come back without its highlight.
             return .line(PaintLine(
-                canCache: tree.lineCanCachePaint(id) && boxes != nil && inlineBoxes.isEmpty,
+                canCache: tree.lineCanCachePaint(id) && boxes != nil && inlineBoxes.isEmpty && selection.isEmpty,
                 generation: tree[line: id].paint.generation,
-                decorations: inlineBoxes + lineFocusRing(tree, id),
+                decorations: inlineBoxes + selection + lineFocusRing(tree, id),
                 inlineText: boxes.map({ lineInlineText(tree, id, $0) }) ?? []
             ))
         case .text:

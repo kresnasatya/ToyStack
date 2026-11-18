@@ -68,6 +68,23 @@ public struct BrowserFont: @unchecked Sendable {
             })
         }
     }
+
+    /// How far from the start of `text` each gap between characters sits,
+    /// one entry per gap including both ends. The text is shaped once, so
+    /// kerning across a gap counts, and no prefix lands in the measure cache.
+    func caretOffsets(_ text: String) -> [CGFloat] {
+        let attr: NSAttributedString = NSAttributedString(string: text, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): ctFont
+        ])
+        let line: CTLine = CTLineCreateWithAttributedString(attr)
+        var offsets: [CGFloat] = [0]
+        var index: Int = 0
+        for character in text {
+            index += character.utf16.count
+            offsets.append(CTLineGetOffsetForStringIndex(line, index, nil))
+        }
+        return offsets
+    }
 }
 
 // MARK: - Font Cache

@@ -108,6 +108,11 @@ public struct BrowserView: View {
                             }
                         } else if flags.contains(.command) && event.keyCode == KeyCode.r {
                             app.activeTab?.reload()
+                        } else if flags.contains(.command) && event.keyCode == KeyCode.c {
+                            if let text: String = app.activeTab?.selectedText, !text.isEmpty {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(text, forType: .string)
+                            }
                         } else if flags.contains(.command) && event.keyCode == KeyCode.leftArrow {
                             app.activeTab?.goBack()
                         } else if event.keyCode == KeyCode.downArrow {
@@ -195,16 +200,24 @@ public struct BrowserView: View {
                     guard let window: NSWindow = event.window, window === browserWindow, let app else { return event }
                     let type: NSEvent.EventType = event.type
                     let location: NSPoint = event.locationInWindow
+                    let clickCount: Int = event.clickCount
                     let consumed: Bool = MainActor.assumeIsolated {
                         let y: CGFloat = app.windowSize.height - location.y
                         switch type {
                         case .leftMouseDown:
-                            return y >= 0 && window.contentReceivesPress(at: location) && app.pressScrollbar(x: location.x, y: y)
+                            guard y >= 0, window.contentReceivesPress(at: location) else { return false }
+                            if app.pressScrollbar(x: location.x, y: y) { return true }
+                            app.activeTab?.pressText(x: location.x, y: y, clickCount: clickCount)
+                            return false
                         case .leftMouseDragged:
-                            guard app.isPressingScrollbar else { return false }
+                            guard app.isPressingScrollbar else {
+                                app.activeTab?.dragText(x: location.x, y: y)
+                                return false
+                            }
                             app.dragScrollbar(y: y)
                             return true
                         default:
+                            app.activeTab?.releaseText()
                             guard app.isPressingScrollbar else { return false }
                             app.releaseScrollbar()
                             return true

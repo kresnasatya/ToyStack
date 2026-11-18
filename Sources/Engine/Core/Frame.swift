@@ -33,6 +33,7 @@ class Frame {
     private var viewportGeometryPending: Bool = false
     private var layoutSize: CGSize = .zero
     private(set) var paintedLayoutSize: CGSize = .zero
+    private(set) var textSelection: TextSelection?
 
     var tab: BrowserTab? { links.tab }
     var parentFrame: Frame? { tab?.frame(links.parent) }
@@ -60,6 +61,7 @@ class Frame {
         state.layout.tree.isDirty = true
         state.layout.targets.clear()
         state.runtime.interaction.scrollFocus = nil
+        textSelection = nil
         state.display.composite.updates.removeAll()
         state.runtime.schedule.needsRender = true
         state.display.paint.isNeeded = true
@@ -2047,6 +2049,57 @@ class Frame {
             }
         }
         setNeedsPaint()
+    }
+
+    // MARK: - Text selection
+
+    /// `x` and `y` are in the frame's viewport, like `click`.
+    func pressText(x: CGFloat, y: CGFloat, clickCount: Int) {
+        let unit: TextUnit = TextUnit(clickCount: clickCount)
+        let range: TextRange? = document.flatMap({ tree in
+            PageText(tree: tree).range(of: unit, atX: x, y: y + scroll)
+        })
+        setTextSelection(range.map({ TextSelection(anchor: $0, focus: $0, unit: unit) }))
+    }
+
+    func dragText(x: CGFloat, y: CGFloat) {
+        guard var selection: TextSelection = textSelection,
+            let tree: LayoutTree = document,
+            let focus: TextRange = PageText(tree: tree).range(of: selection.unit, atX: x, y: y + scroll)
+        else { return }
+        selection.focus = focus
+        setTextSelection(selection)
+    }
+
+    var selectedText: String {
+        guard let selection: TextSelection = textSelection, !selection.isCollapsed,
+            let tree: LayoutTree = document
+        else { return "" }
+        let text: PageText = PageText(tree: tree)
+        guard let span: TextSpan = text.span(covering: [selection.anchor, selection.focus]) else { return "" }
+        return text.string(in: span)
+    }
+
+    /// The selection's rectangles on each line of `tree`, in layout
+    /// coordinates.
+    func selectionHighlights(in tree: LayoutTree) -> [LayoutID: [Rect]] {
+        guard let selection: TextSelection = textSelection, !selection.isCollapsed else { return [:] }
+        let text: PageText = PageText(tree: tree)
+        guard let span: TextSpan = text.span(covering: [selection.anchor, selection.focus]) else { return [:] }
+        return text.highlights(in: span)
+    }
+
+    private func setTextSelection(_ selection: TextSelection?) {
+        guard selection != textSelection else { return }
+        let wasShown: Bool = textSelection.map({ !$0.isCollapsed }) ?? false
+        textSelection = selection
+        let isShown: Bool = selection.map({ !$0.isCollapsed }) ?? false
+        guard wasShown || isShown else { return }
+        // No new paint epoch: blocks and unselected lines keep their cached
+        // ops, and a line with a highlight is never served from the cache.
+        state.display.paint.isNeeded = true
+        state.runtime.schedule.needsRender = true
+        requestAnimationFrame()
     }
 
     func enterKey() {

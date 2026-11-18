@@ -22,4 +22,22 @@ struct BrowserFontTests {
         let second: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
         #expect(first.size == second.size)
     }
+
+    @Test func caretOffsetsStepOncePerCharacterAndEndAtTheMeasuredWidth() {
+        let font: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
+
+        let offsets: [CGFloat] = font.caretOffsets("hello")
+
+        #expect(offsets.count == 6)
+        #expect(offsets.first == 0)
+        #expect(zip(offsets, offsets.dropFirst()).allSatisfy({ $0 < $1 }))
+        #expect(abs((offsets.last ?? 0) - font.measure("hello")) < 0.5)
+    }
+
+    @Test func caretOffsetsNeverSplitAnEmoji() {
+        let font: BrowserFont = getFont(size: 16, weight: "normal", style: "roman")
+
+        #expect(font.caretOffsets("a👍🏽b").count == 4)
+        #expect(font.caretOffsets("").count == 1)
+    }
 }

@@ -110,6 +110,42 @@ struct LayoutTestPage {
             .reduce(0, { $0 + tree[text: $1].metrics.width })
     }
 
+    // MARK: - Text points
+
+    /// Where the gap before character `offset` of `word` shows on the page,
+    /// halfway down its line, in page coordinates before any scroll. Reads
+    /// inline boxes when a line paints from them instead of text children.
+    func textPoint(_ word: String, offset: Int) -> CGPoint {
+        let tree: LayoutTree = tree
+        var runs: [(string: String, font: BrowserFont, rect: Rect)] = []
+        for line in treeToList(tree, tree.rootID) where tree.isLine(line) {
+            if let boxes: [InlineBox] = tree.currentInlineBoxes(line) {
+                for box in boxes {
+                    let top: CGFloat = tree.y(line) + box.geometry.y
+                    let rect: Rect = Rect(
+                        left: box.geometry.x,
+                        top: top,
+                        right: box.geometry.x + box.geometry.width,
+                        bottom: top + box.text.font.linespace
+                    )
+                    runs.append((tree.inlineText(box), box.text.font, rect))
+                }
+            } else {
+                for id in tree.childrenIDs(of: line) where tree.isText(id) {
+                    runs.append((tree.textString(id), tree.font(id), tree.textSelfRect(id)))
+                }
+            }
+        }
+        for run in runs {
+            guard let found: Range<String.Index> = run.string.range(of: word) else { continue }
+            let prefix: String = String(run.string[..<found.lowerBound]) + String(word.prefix(offset))
+            return CGPoint(
+                x: run.rect.left + run.font.measure(prefix),
+                y: (run.rect.top + run.rect.bottom) / 2
+            )
+        }
+        preconditionFailure("no laid out text contains \(word)")
+    }
 }
 
 // MARK: - DOMBuilder
