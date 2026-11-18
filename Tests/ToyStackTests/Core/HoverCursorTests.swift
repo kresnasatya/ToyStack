@@ -17,12 +17,12 @@ struct HoverCursorTests {
         #expect(page.tab.cursor == .pointer)
     }
 
-    @Test func anchorWithoutHrefKeepsTheDefaultCursor() throws {
+    @Test func anchorWithoutHrefIsPlainText() throws {
         let page: LayoutTestPage = Self.page(html: #"<div><a id="name">just a name</a></div>"#)
 
         try Self.hover(page, overTextOf: "name")
 
-        #expect(page.tab.cursor == .auto)
+        #expect(page.tab.cursor == .text)
     }
 
     @Test func buttonKeepsTheArrowLikeRealBrowsers() throws {
@@ -32,6 +32,73 @@ struct HoverCursorTests {
         Self.hover(page, at: try Self.center(of: button, in: page))
 
         #expect(page.tab.cursor == .auto)
+    }
+
+    @Test func textShowsTheTextCursor() throws {
+        let page: LayoutTestPage = Self.page(html: #"<div><p id="para">some words</p></div>"#)
+
+        try Self.hover(page, overTextOf: "para")
+
+        #expect(page.tab.cursor == .text)
+    }
+
+    @Test func emptySpaceBesideTextKeepsTheArrow() throws {
+        let page: LayoutTestPage = Self.page(html: #"<div id="card">short</div>"#)
+        let card: ElementRef = try #require(page.firstElement(id: "card"))
+
+        Self.hover(page, at: try Self.center(of: card, in: page))
+
+        #expect(page.tab.cursor == .auto)
+    }
+
+    @Test func declaredCursorWinsOverText() throws {
+        let page: LayoutTestPage = Self.page(
+            html: #"<div><p id="para">some words</p></div>"#,
+            rules: "#para { cursor: default; }"
+        )
+
+        try Self.hover(page, overTextOf: "para")
+
+        #expect(page.tab.cursor == .default)
+    }
+
+    @Test func declaredTextCursorShowsAwayFromText() throws {
+        let page: LayoutTestPage = Self.page(
+            html: #"<div id="card">short</div>"#,
+            rules: "#card { cursor: text; }"
+        )
+        let card: ElementRef = try #require(page.firstElement(id: "card"))
+
+        Self.hover(page, at: try Self.center(of: card, in: page))
+
+        #expect(page.tab.cursor == .text)
+    }
+
+    @Test func textFieldShowsTheTextCursor() throws {
+        let page: LayoutTestPage = Self.page(html: #"<div><input id="name" value="Ada"></div>"#)
+        let input: ElementRef = try #require(page.firstElement(id: "name"))
+
+        Self.hover(page, at: try Self.center(of: input, in: page))
+
+        #expect(page.tab.cursor == .text)
+    }
+
+    @Test func checkboxKeepsTheArrow() throws {
+        let page: LayoutTestPage = Self.page(html: #"<div><input id="agree" type="checkbox"></div>"#)
+        let input: ElementRef = try #require(page.firstElement(id: "agree"))
+
+        Self.hover(page, at: try Self.center(of: input, in: page))
+
+        #expect(page.tab.cursor == .auto)
+    }
+
+    @Test func editableAreaShowsTheTextCursorAwayFromItsText() throws {
+        let page: LayoutTestPage = Self.page(html: #"<div id="notes" contenteditable="true">hi</div>"#)
+        let notes: ElementRef = try #require(page.firstElement(id: "notes"))
+
+        Self.hover(page, at: try Self.center(of: notes, in: page))
+
+        #expect(page.tab.cursor == .text)
     }
 
     @Test func pageStylesCanGiveButtonsAPointer() throws {
@@ -76,7 +143,7 @@ struct HoverCursorTests {
 
         try Self.hover(page, overTextOf: "label")
 
-        #expect(page.tab.cursor == .auto)
+        #expect(page.tab.cursor == .text)
     }
 
     @Test func unsupportedValueFallsBackToTheInheritedCursor() throws {
@@ -133,10 +200,11 @@ struct HoverCursorTests {
         let page: LayoutTestPage = Self.page(
             html: #"<div><a id="link" href="/x">link</a></div><div id="after">plain text</div>"#
         )
+        let after: ElementRef = try #require(page.firstElement(id: "after"))
         try Self.hover(page, overTextOf: "link")
         #expect(page.tab.cursor == .pointer)
 
-        try Self.hover(page, overTextOf: "after")
+        Self.hover(page, at: try Self.center(of: after, in: page))
 
         #expect(page.tab.cursor == .auto)
     }
@@ -181,8 +249,8 @@ struct HoverCursorTests {
         browser.handleHover(x: after.x * zoom, y: after.y * zoom)
         browser.advanceFrame()
 
-        #expect(reported == [.pointer, .auto])
-        #expect(browser.cursor == .auto)
+        #expect(reported == [.pointer, .text])
+        #expect(browser.cursor == .text)
     }
 
     // MARK: - Helpers

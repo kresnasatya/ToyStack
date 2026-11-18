@@ -74,6 +74,29 @@ extension LayoutTree {
         return nil
     }
 
+    /// Whether `cursor: auto` turns into the text cursor at `hit`. Selectable
+    /// text is what `PageText` reads, so a button's label does not count;
+    /// editable means a text field or anything inside `contenteditable`.
+    func showsTextCursor(at hit: LayoutHit) -> Bool {
+        if inputs.text(hit.dom) != nil {
+            var current: LayoutID? = hit.layout
+            while let id = current {
+                if isEmbed(id) { return false }
+                current = parentID(of: id)
+            }
+            return true
+        }
+        if inputs.tag(hit.dom) == "input" {
+            return inputs.attributes(hit.dom)["type"] != "checkbox"
+        }
+        var current: NodeID? = hit.dom
+        while let node = current {
+            if inputs.attributes(node)["contenteditable"] != nil { return true }
+            current = inputs.parent(node)
+        }
+        return false
+    }
+
     func paintOrder(_ children: [LayoutID]) -> [LayoutID] {
         guard
             children.contains(where: {

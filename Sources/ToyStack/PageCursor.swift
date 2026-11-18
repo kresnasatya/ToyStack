@@ -21,6 +21,7 @@ struct PageCursor: ViewModifier {
         switch kind {
         case .auto, .default: return nil
         case .pointer: return .link
+        case .text: return .horizontalText
         }
     }
 }

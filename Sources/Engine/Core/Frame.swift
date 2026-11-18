@@ -31,6 +31,7 @@ class Frame {
     /// out; the installed tree is never marked, so it stays paintable while
     /// that pass runs.
     private var viewportGeometryPending: Bool = false
+    private var hoversText: Bool = false
     private var layoutSize: CGSize = .zero
     private(set) var paintedLayoutSize: CGSize = .zero
     private(set) var textSelection: TextSelection?
@@ -1852,6 +1853,7 @@ class Frame {
     // MARK: - Hover
 
     func clearHover() {
+        hoversText = false
         setHoveredElements([])
         resolveCursor()
     }
@@ -1866,9 +1868,10 @@ class Frame {
         browser?.measure.start("BrowserTab.hover", category: .input)
         defer { browser?.measure.stop("BrowserTab.hover") }
 
+        let hit: LayoutHit? = doc.hitTest(doc.rootID, x: pending.x, y: pending.y + scroll)
+        hoversText = hit.map({ doc.showsTextCursor(at: $0) }) ?? false
         var chain: [NodeID] = []
-        var current: DOMRef? = doc.hitTest(doc.rootID, x: pending.x, y: pending.y + scroll)
-            .map({ DOMRef(id: $0.dom, dom: doc.dom) })
+        var current: DOMRef? = hit.map({ DOMRef(id: $0.dom, dom: doc.dom) })
         while let node = current {
             if node.element != nil {
                 chain.append(node.id)
@@ -1880,7 +1883,8 @@ class Frame {
 
     private func resolveCursor() {
         guard parentFrame == nil else { return }
-        tab?.setCursor(CursorKind.inherited(along: state.runtime.interaction.hovered, in: dom))
+        let declared: CursorKind = CursorKind.inherited(along: state.runtime.interaction.hovered, in: dom)
+        tab?.setCursor(declared.resolved(overText: hoversText))
     }
 
     private func setHoveredElements(_ chain: [NodeID]) {
