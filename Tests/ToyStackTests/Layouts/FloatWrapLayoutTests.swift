@@ -156,11 +156,84 @@ struct FloatWrapLayoutTests {
         profiler.reset()
         page.frame.render()
 
-        // The paragraph beside the float re-checks its floats but finds them
-        // unchanged; neither paragraph breaks its lines again.
+        // Neither paragraph breaks its lines again.
         let metrics: [String: ProfileMetric] = profiler.snapshot()
         #expect(metrics["layout.inline.place.setup"] == nil)
         expectIncrementalMatchesFull(page)
+    }
+
+    @Test func blocksThatReadFloatsAreLeftAloneWhenNoFloatMoves() throws {
+        let html: String = """
+            <div id="f"></div><p id="p">\(Self.words)</p><div id="c"></div>\
+            <div id="bfc">box</div><div id="spacer"></div><div id="tail"></div>
+            """
+        let sizes: String = """
+            #f { width: 100px; height: 60px; }
+            #c { height: 5px; }
+            #bfc { height: 20px; }
+            #spacer { height: 400px; }
+            #tail { height: 10px; }
+            """
+        let floated: LayoutTestPage = page(
+            html,
+            sizes + "#f { float: left; } #c { clear: left; } #bfc { overflow: hidden; }"
+        )
+        let plain: LayoutTestPage = page(html, sizes)
+
+        let floatedVisits: Int? = try visitsForGrowingTheTail(floated)
+        let plainVisits: Int? = try visitsForGrowingTheTail(plain)
+
+        #expect(floatedVisits == plainVisits)
+        expectIncrementalMatchesFull(floated)
+    }
+
+    @Test func removingTheFloatElementGivesLinesTheirFullWidthBack() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="ad"><div id="f"></div></div><p id="p">\#(Self.words)</p>"#,
+            "#f { float: left; width: 100px; height: 60px; }"
+        )
+        let ad: ElementRef = try #require(page.firstElement(id: "ad"))
+        let f: ElementRef = try #require(page.firstElement(id: "f"))
+        #expect(page.frame.dom.remove(f.ref.id, from: ad.ref.id))
+        LayoutInvalidation.childrenChanged(ad.ref)
+        page.frame.markStructureChanged()
+        page.frame.setNeedsStyle(ad.ref)
+        page.frame.render()
+
+        let (block, lines) = try paragraph(page)
+        #expect(lines.allSatisfy({ page.tree.width($0) == page.tree.width(block) }))
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func floatPushedDownByContentAboveItRewrapsAParagraphThatStayed() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="ad"><div id="top"></div><div id="f"></div></div><p id="p">\#(Self.words)</p>"#,
+            """
+            #ad { height: 20px; }
+            #top { height: 0px; }
+            #f { float: left; width: 100px; height: 60px; }
+            """
+        )
+        let top: ElementRef = try #require(page.firstElement(id: "top"))
+        let (block, _) = try paragraph(page)
+        let paragraphTop: CGFloat = page.tree.y(block)
+        InlineStyle.set(top, property: "height", value: "60px")
+        page.frame.setNeedsStyle(top.ref)
+        page.frame.render()
+
+        let (_, lines) = try paragraph(page)
+        #expect(page.tree.y(block) == paragraphTop)
+        #expect(page.tree.width(lines[0]) == page.tree.width(block))
+        expectIncrementalMatchesFull(page)
+    }
+
+    private func visitsForGrowingTheTail(_ page: LayoutTestPage) throws -> Int? {
+        let tail: ElementRef = try #require(page.firstElement(id: "tail"))
+        InlineStyle.set(tail, property: "height", value: "30px")
+        page.frame.setNeedsStyle(tail.ref)
+        profiler.reset()
+        page.frame.render()
+        return profiler.snapshot()["layout.visited"]?.count
     }
 
     /// The paragraph starts 30px above the float, so only a line taller than

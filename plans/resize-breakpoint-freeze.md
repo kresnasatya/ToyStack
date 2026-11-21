@@ -41,5 +41,6 @@ The frame after each crossing is pixel-identical to a fresh load at that width.
 - A normal drag frame still lays out every block (7.7 ms), because every block's width
   changes. Most paragraphs reuse their line plan; the cost is the walk itself.
 - `composite_raster_and_draw` is 5.1 ms median, 11.3 ms p90 during the drag.
-- The float re-check (about 1.1 ms per keystroke while typing at 1300px) is unchanged; it
-  does not affect resizing, where every block is visited anyway.
+- Kept anonymous blocks refresh their inline content, because text with no box of its
+  own (whitespace) reports edits to the parent and the rebuild may be that report
+  (`c589d1e`). That brought the crossing from ~30 to 32–38 ms.

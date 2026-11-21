@@ -116,42 +116,51 @@ extension LayoutTree {
         }
     }
 
-    /// Called once a block's height is final. A float whose margin box moved
-    /// or grew marks the blocks beside its new box; blocks beside its old box
-    /// are already in `wrapped` and re-check themselves.
+    /// Called once a block's height is final. A float that appeared, moved,
+    /// grew, or stopped floating marks the blocks that read floats after it;
+    /// blocks beside its new box that did not read floats yet are marked too.
     mutating func recordFloatBox(_ id: LayoutID) {
         let side: LayoutStyle.FloatSide = blockFloating(id).side
-        guard side != .none else {
-            if self[document: rootID].floats.boxes[id] != nil {
-                self[document: rootID].floats.boxes[id] = nil
-            }
-            return
-        }
-        let box: FloatBox = FloatBox(side: side, rect: marginBox(id))
-        guard self[document: rootID].floats.boxes[id] != box else { return }
+        let old: FloatBox? = self[document: rootID].floats.boxes[id]
+        let box: FloatBox? = side == .none ? nil : FloatBox(side: side, rect: marginBox(id))
+        guard old != box else { return }
         self[document: rootID].floats.boxes[id] = box
-        markBlocksBeside(box, after: id)
+        markMoved(floatReaders(where: { reader in precedes(id, reader) }))
+        if let box {
+            markBlocksBeside(box, after: id)
+        }
     }
 
-    /// Floats, clearance, and shortened lines read floats that are not among a
-    /// block's layout inputs. Blocks that read them are few, so they re-place
-    /// themselves on every pass that does layout work instead.
-    mutating func markFloatDependents() {
+    /// A float its parent dropped from the child list leaves with its box.
+    /// Only blocks inside or after `parent` can have read it, and none of
+    /// them is laid out yet: a parent replaces its children before laying
+    /// them out.
+    mutating func markReadersOfDroppedFloats(_ dropped: [LayoutID], parent: LayoutID) {
+        let floats: Dictionary<LayoutID, FloatBox>.Keys = self[document: rootID].floats.boxes.keys
+        guard !floats.isEmpty else { return }
+        let droppedSet: Set<LayoutID> = Set(dropped)
+        guard floats.contains(where: { isInside($0, droppedSet) }) else { return }
+        markMoved(floatReaders(where: { reader in
+            reader != parent && (precedes(parent, reader) || isInside(reader, [parent]))
+        }))
+    }
+
+    /// Floats removed from the tree between passes moved text that no pass
+    /// saw, so every block that reads floats checks them again. Floats that
+    /// leave during a pass are already forgotten by the sweep.
+    mutating func pruneFloatRegistry() {
         var registry: FloatRegistry = self[document: rootID].floats
         guard !registry.boxes.isEmpty || !registry.positioned.isEmpty || !registry.wrapped.isEmpty else {
             return
         }
+        let floatCount: Int = registry.boxes.count
         registry.boxes = registry.boxes.filter({ contains($0.key) })
         registry.positioned = registry.positioned.filter({ contains($0) && isBlock($0) })
         registry.wrapped = registry.wrapped.filter({ contains($0.key) && isBlock($0.key) })
         registry.anchors = registry.anchors.filter({ contains($0.key) })
         self[document: rootID].floats = registry
-        for id in registry.positioned {
-            markField(.y, at: id)
-        }
-        for id in registry.wrapped.keys {
-            markField(.y, at: id)
-        }
+        guard registry.boxes.count < floatCount else { return }
+        markMoved(floatReaders(where: { _ in true }))
     }
 
     /// Floats, clearing blocks, and blocks moved beside floats: their margin box
@@ -174,6 +183,34 @@ extension LayoutTree {
     }
 
     // MARK: - Helpers
+
+    /// Blocks that read floats: floats, clearing blocks, blocks moved beside
+    /// floats, and blocks whose lines wrap around them. A float is not one
+    /// of their layout inputs, so they are marked when one changes.
+    private func floatReaders(where include: (LayoutID) -> Bool) -> [LayoutID] {
+        let registry: FloatRegistry = self[document: rootID].floats
+        var readers: [LayoutID] = registry.positioned.filter({ contains($0) && include($0) })
+        for reader in registry.wrapped.keys where contains(reader) && include(reader) {
+            readers.append(reader)
+        }
+        return readers
+    }
+
+    private mutating func markMoved(_ readers: [LayoutID]) {
+        for reader in readers {
+            markField(.y, at: reader)
+        }
+    }
+
+    /// Whether `id` or one of its ancestors is in `nodes`.
+    private func isInside(_ id: LayoutID, _ nodes: Set<LayoutID>) -> Bool {
+        var current: LayoutID? = id
+        while let node: LayoutID = current {
+            if nodes.contains(node) { return true }
+            current = parentID(of: node)
+        }
+        return false
+    }
 
     private mutating func markBlocksBeside(_ box: FloatBox, after float: LayoutID) {
         var current: LayoutID = float

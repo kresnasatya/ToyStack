@@ -320,11 +320,14 @@ extension LayoutTree {
         let style: BlockStyle = profiler.measure("layout.blockStyle", { blockStyle(id) })
         var skipInlineChildren: Bool = false
         // Compared against what was stored rather than trusting the dirty
-        // flags: a block that reads floats has its `y` marked on every pass.
+        // flags: a block that reads floats has its `y` marked whenever a float
+        // before it changes.
         let oldGeometry: GeometryFields = self[node: id].state.fields.geometry
         let widthWasDirty: Bool = isDirty(.width, at: id)
+        // Layout reaches a float whenever anything inside it changed, which is
+        // when its shrink-to-fit width can change.
         let geometryDirty: Bool = isDirty(.zoom, at: id) || isDirty(.x, at: id)
-            || isDirty(.y, at: id) || widthWasDirty
+            || isDirty(.y, at: id) || widthWasDirty || shrinksToFit(id, style: style)
         let visitSpan: ProfileSpan = profiler.begin("layout.visit")
         do {
             profiler.count("layout.rebuilt")
@@ -510,10 +513,17 @@ extension LayoutTree {
             )
         }
         let available: CGFloat = max(0, width(parentID(of: id)!) - blockOutsideWidth(id, style: style, zoom: zoomValue))
-        guard style.position != .absolute, blockFloating(id).side != .none else { return available }
+        guard shrinksToFit(id, style: style) else { return available }
         // CSS 2.1 §10.3.5: an auto-width float shrinks to fit its content.
         let preferred: IntrinsicWidths = intrinsicWidths(of: domView(id), zoom: zoomValue, available: available)
         return min(max(preferred.minContent, available), preferred.maxContent)
+    }
+
+    /// An auto-width float takes its width from its content, which is not
+    /// among its layout inputs.
+    private func shrinksToFit(_ id: LayoutID, style: BlockStyle) -> Bool {
+        return style.box.size.width == nil && style.position != .absolute
+            && blockFloating(id).side != .none
     }
 
     /// Margins, padding, and border across a block; an anonymous block has none.

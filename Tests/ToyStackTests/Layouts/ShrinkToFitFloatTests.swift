@@ -71,4 +71,21 @@ struct ShrinkToFitFloatTests {
         #expect(try floatWidth(page) > before * 1.5)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func longerTextWidensTheFloat() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="f">Hi</div><div id="next">after</div>"#,
+            "#f { float: left; }"
+        )
+        let before: CGFloat = try floatWidth(page)
+        let f: ElementRef = try #require(page.firstElement(id: "f"))
+        let text: NodeID = try #require(page.frame.dom.children(of: f.ref.id).first)
+        page.frame.dom.setText("Hello there, a much longer line", of: text)
+        LayoutInvalidation.textChanged(page.frame.dom.ref(text))
+        page.frame.setNeedsStyle(f.ref)
+        page.frame.render()
+
+        #expect(try floatWidth(page) > before * 3)
+        expectIncrementalMatchesFull(page)
+    }
 }

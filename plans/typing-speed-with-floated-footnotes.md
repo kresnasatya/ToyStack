@@ -115,12 +115,19 @@ Typing is now inside a 60 fps frame at both widths.
 | 800px, after fix 2 | — | 1.78 | — | 10.17 | 10.46 |
 | 800px, after fix 3 | 0.41 | 1.73 | 4.54 | 6.71 | 7.05 |
 | 800px, after fix 4 | 0.41 | 1.67 | 1.58 | 3.67 | 4.27 |
+| 1300px, after fix 5 | 0.40 | 1.52 | 1.58 | 3.53 | 4.00 |
+| 800px, after fix 5 | 0.39 | 1.50 | 1.53 | 3.44 | 3.90 |
+
+5. Floats and the blocks that read them are re-checked only when a float changes: every
+   pass marked all of them (`markFloatDependents`), so at 1300px a keystroke visited 43
+   blocks against 4 at 800px. Now a float whose box appears, moves, grows, or goes away
+   marks the readers after it, and a float dropped from its parent's child list marks
+   the readers inside or after that parent. A keystroke at 1300px visits 4 blocks.
+   Floats used to be re-placed every pass, which had also been covering a missing input:
+   an auto-width float's width comes from its content. It is now re-placed whenever
+   layout reaches it, which happens when something inside it changed.
 
 ## Still open
 
-- At 1300px layout still visits 43 blocks per keystroke against 4 at 800px: the floats
-  and the paragraphs that read them are re-checked on every pass (`markFloatDependents`).
-  The checks find nothing to do, yet the walk to them and their float lookups cost about
-  1.1 ms. Tracking which floats changed in a pass would let unchanged readers be skipped.
-- After paint, `composite_raster_and_draw` (~1.9 ms, mostly `raster.plan.tiles`) is the
-  next largest per-keystroke cost.
+- `composite_raster_and_draw` (~1.9 ms, mostly `raster.plan.tiles`) is now the largest
+  per-keystroke cost.

@@ -204,6 +204,7 @@ struct LayoutTree: @unchecked Sendable {
 
     mutating func setChildren(_ children: [LayoutID], of id: LayoutID) {
         let old: [LayoutID] = self[node: id].links.children
+        var dropped: [LayoutID] = []
         if old != children {
             let kept: Set<LayoutID> = Set(children)
             // A child that another parent already adopted is still in the tree.
@@ -211,6 +212,7 @@ struct LayoutTree: @unchecked Sendable {
                 && contains(child) && self[node: child].links.parent == id
             {
                 detached.insert(child)
+                dropped.append(child)
             }
             for child in children {
                 detached.remove(child)
@@ -220,6 +222,9 @@ struct LayoutTree: @unchecked Sendable {
         self[node: id].links.versions.children += 1
         for child in children where self[node: child].links.parent != id {
             self[node: child].links.parent = id
+        }
+        if !dropped.isEmpty {
+            markReadersOfDroppedFloats(dropped, parent: id)
         }
     }
 
@@ -311,6 +316,7 @@ struct LayoutTree: @unchecked Sendable {
                 primaryByNode.removeValue(forKey: dom)
             }
         }
+        self[document: rootID].floats.forget(removed)
         removeDependencyEdges(for: removed)
         profiler.measure("layout.sweep.nodes", {
             for id in removed {
