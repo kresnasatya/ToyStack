@@ -461,11 +461,13 @@ extension LayoutTree {
         let padLeft: CGFloat = !hasExtraNodes(id)
             ? style.box.padding.left * zoomValue
             : 0
+        let marginLeft: CGFloat = !hasExtraNodes(id) ? style.box.margin.left * zoomValue : 0
+        let marginRight: CGFloat = !hasExtraNodes(id) ? style.box.margin.right * zoomValue : 0
         var frameX: CGFloat
         if isAbsolute, let l = style.flags.left {
-            frameX = l * zoomValue + padLeft + ownBorder.left
+            frameX = l * zoomValue + marginLeft + padLeft + ownBorder.left
         } else {
-            frameX = parentX + padLeft + ownBorder.left
+            frameX = parentX + marginLeft + padLeft + ownBorder.left
         }
 
         let parentWidth: CGFloat = width(parent)
@@ -479,7 +481,7 @@ extension LayoutTree {
                 paddingAndBorder: padHorizontal + ownBorder.horizontal
             )
         } else {
-            frameWidth = max(0, parentWidth - padHorizontal - ownBorder.horizontal)
+            frameWidth = max(0, parentWidth - marginLeft - marginRight - padHorizontal - ownBorder.horizontal)
         }
 
         let element = domView(id).element

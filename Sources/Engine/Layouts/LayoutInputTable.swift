@@ -76,6 +76,7 @@ enum LayoutInputTable {
             var keys: [FieldKey] = [
                 .layout(id, .zoom),
                 .style(dom, .paddingLeft),
+                .style(dom, .marginLeft),
                 .style(dom, .borderWidth),
                 .style(dom, .borderStyle),
                 .style(dom, .position),
@@ -111,6 +112,8 @@ enum LayoutInputTable {
                 .layout(id, .zoom),
                 .style(dom, .paddingLeft),
                 .style(dom, .paddingRight),
+                .style(dom, .marginLeft),
+                .style(dom, .marginRight),
                 .style(dom, .borderWidth),
                 .style(dom, .borderStyle),
                 .style(dom, .width),
