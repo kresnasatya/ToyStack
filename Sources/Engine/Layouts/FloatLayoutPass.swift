@@ -130,6 +130,25 @@ extension LayoutTree {
         }
     }
 
+    /// Floats, clearing blocks, and blocks moved beside floats: their margin box
+    /// can sit below the normal flow, and their parent's height must count that.
+    func isPositionedByFloats(_ id: LayoutID) -> Bool {
+        return self[document: rootID].floats.positioned.contains(id)
+    }
+
+    /// CSS 2.1 §9.4.1: floats, absolutely positioned boxes, and blocks whose
+    /// overflow is not visible start a new block formatting context, as does
+    /// the root element.
+    func establishesFormattingContext(_ id: LayoutID) -> Bool {
+        guard let parent: LayoutID = parentID(of: id), isBlock(parent) else { return true }
+        guard !hasExtraNodes(id) else { return false }
+        let layout: LayoutStyle = domView(id).style.computed.layout
+        return layout.position.floating.side != .none
+            || layout.position.kind == .absolute
+            || layout.position.kind == .fixed
+            || layout.overflow != .visible
+    }
+
     // MARK: - Helpers
 
     private mutating func markBlocksBeside(_ box: FloatBox, after float: LayoutID) {
@@ -159,7 +178,12 @@ extension LayoutTree {
         let top: CGFloat = storedCGFloat(.y, at: id)
         if top >= box.rect.bottom { return false }
         if top + storedCGFloat(.height, at: id) < box.rect.top { return true }
-        if !hasExtraNodes(id), establishesFormattingContext(id) { return true }
+        // A block that starts its own formatting context moves beside the float
+        // as a whole; its content never sees the float.
+        if !hasExtraNodes(id), establishesFormattingContext(id) {
+            markField(.y, at: id)
+            return true
+        }
         let children: [LayoutID] = childrenIDs(of: id)
         guard children.contains(where: { isBlock($0) }) else {
             markField(.y, at: id)
@@ -169,19 +193,6 @@ extension LayoutTree {
             return false
         }
         return true
-    }
-
-    /// CSS 2.1 §9.4.1: floats, absolutely positioned boxes, and blocks whose
-    /// overflow is not visible start a new block formatting context, as does
-    /// the root element.
-    private func establishesFormattingContext(_ id: LayoutID) -> Bool {
-        guard let parent: LayoutID = parentID(of: id), isBlock(parent) else { return true }
-        guard !hasExtraNodes(id) else { return false }
-        let layout: LayoutStyle = domView(id).style.computed.layout
-        return layout.position.floating.side != .none
-            || layout.position.kind == .absolute
-            || layout.position.kind == .fixed
-            || layout.overflow != .visible
     }
 
     private func formattingRoot(of id: LayoutID) -> LayoutID? {

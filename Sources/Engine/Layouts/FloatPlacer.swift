@@ -25,22 +25,28 @@ struct FloatPlacer {
                 y = max(y, box.rect.bottom)
             }
         }
+        let found: FloatRoom = room(top: y, width: width)
+        return CGPoint(x: side == .right ? found.right - width : found.left, y: found.top)
+    }
+
+    /// The first band at or below `top` with `width` free between the floats.
+    /// Rules 2, 3, and 7: a box goes beside the floats when it fits and below
+    /// them when it does not; with no float beside it, it may overflow.
+    func room(top: CGFloat, width: CGFloat) -> FloatRoom {
+        var y: CGFloat = top
         while true {
-            var leftEdge: CGFloat = left
-            var rightEdge: CGFloat = right
+            var found: FloatRoom = FloatRoom(top: y, left: left, right: right)
             var nextTop: CGFloat? = nil
             for box in earlier where box.rect.bottom > y && narrows(box) {
                 switch box.side {
-                case .left: leftEdge = max(leftEdge, box.rect.right)
-                case .right: rightEdge = min(rightEdge, box.rect.left)
+                case .left: found.left = max(found.left, box.rect.right)
+                case .right: found.right = min(found.right, box.rect.left)
                 case .none: continue
                 }
                 nextTop = min(nextTop ?? box.rect.bottom, box.rect.bottom)
             }
-            // Rules 2, 3, and 7: beside the earlier floats when it fits, below
-            // them when it does not; a float with none beside it may overflow.
-            guard let below: CGFloat = nextTop, rightEdge - leftEdge < width else {
-                return CGPoint(x: side == .right ? rightEdge - width : leftEdge, y: y)
+            guard let below: CGFloat = nextTop, found.right - found.left < width else {
+                return found
             }
             y = below
         }
@@ -53,4 +59,13 @@ struct FloatPlacer {
         case .none: return false
         }
     }
+}
+
+// MARK: - FloatRoom
+
+/// A band's top and the free span between the floats beside it.
+struct FloatRoom: Equatable {
+    var top: CGFloat
+    var left: CGFloat
+    var right: CGFloat
 }

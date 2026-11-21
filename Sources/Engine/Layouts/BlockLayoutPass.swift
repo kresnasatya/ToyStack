@@ -513,6 +513,7 @@ extension LayoutTree {
         }
 
         var frameY: CGFloat
+        var besideFloats: Bool = false
         if isAbsolute, let t = style.flags.top {
             let padTop: CGFloat = !hasExtraNodes(id)
                 ? style.box.padding.left * zoomValue
@@ -557,8 +558,29 @@ extension LayoutTree {
                 // bottom outer edge of the cleared floats.
                 frameY = max(frameY, bottom + ownBorder.top + padTop)
             }
+            if floating.side == .none, !isAbsolute, !hasExtraNodes(id), establishesFormattingContext(id) {
+                // CSS 2.1 §9.5: a block that starts its own formatting context
+                // keeps its margin box off earlier floats: beside them when it
+                // fits, below them when it does not.
+                let marginTop: CGFloat = frameY - ownTop - ownBorder.top - padTop
+                let placer: FloatPlacer = floatPlacer(for: id, top: marginTop)
+                if !placer.earlier.isEmpty {
+                    besideFloats = true
+                    let outside: CGFloat = marginLeft + ownBorder.horizontal + padHorizontal + marginRight
+                    let isAutoWidth: Bool = style.box.size.width == nil
+                    let needed: CGFloat = isAutoWidth
+                        ? intrinsicWidths(of: domView(id), zoom: zoomValue, available: frameWidth).minContent
+                        : frameWidth
+                    let room: FloatRoom = placer.room(top: marginTop, width: needed + outside)
+                    frameY += room.top - marginTop
+                    frameX = room.left + marginLeft + ownBorder.left + padLeft
+                    if isAutoWidth {
+                        frameWidth = max(0, room.right - room.left - outside)
+                    }
+                }
+            }
         }
-        notePositioned(id, floating.side != .none || floating.clear != .none)
+        notePositioned(id, floating.side != .none || floating.clear != .none || besideFloats)
 
         if element?.attributes["id"] == "toc" {
             frameY += VSTEP
@@ -584,8 +606,9 @@ extension LayoutTree {
                 if floating.side != .none { continue }
                 let childStyle: BlockStyle = blockStyle(childID)
                 let childZoom: CGFloat = zoom(childID)
-                if floating.clear != .none {
-                    // Clearance moved this block down; the gap belongs to the parent.
+                if isPositionedByFloats(childID) {
+                    // Clearance or the floats beside it moved this block down;
+                    // the gap belongs to the parent.
                     let marginTop: CGFloat = y(childID) - childStyle.box.padding.top * childZoom
                         - borderWidths(childID).top - childStyle.box.margin.top * childZoom
                     total = max(total, marginTop - y(parent))
