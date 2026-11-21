@@ -3,8 +3,6 @@ import CoreGraphics
 // MARK: - BlockLayoutPass
 
 extension LayoutTree {
-    static let hiddenElements: Set<String> = ["head", "title", "script", "style"]
-
     // MARK: - Construction
 
     mutating func makeBlock(
@@ -73,13 +71,16 @@ extension LayoutTree {
             .style(domID(of: id), .direction),
         ]
         if extraNodes.isEmpty {
-            for child in domView(id).children {
-                inputs.append(.style(child.id, .display))
-                inputs.append(.style(child.id, .position))
+            for child in self.inputs.allChildren(domID(of: id)) {
+                inputs.append(.style(child, .display))
+                inputs.append(.style(child, .position))
             }
         }
+        var leaves: [LayoutDOMView] = []
+        var hidden: [NodeID] = []
+        collectInline(id, leaves: &leaves, hidden: &hidden)
         var boxed: Set<NodeID> = []
-        for leaf in inlineLeaves(id) {
+        for leaf in leaves {
             let owner: LayoutDOMView = leaf.inheritedStyleOwner
             inputs.append(.style(owner.id, .whiteSpace))
             inputs.append(contentsOf: fontInputs(for: leaf.id, in: self.inputs))
@@ -99,35 +100,49 @@ extension LayoutTree {
                 ancestor = node.parent
             }
         }
+        for node in hidden {
+            inputs.append(.style(node, .display))
+        }
         return inputs
     }
 
     private func inlineLeaves(_ id: LayoutID) -> [LayoutDOMView] {
         var leaves: [LayoutDOMView] = []
+        var hidden: [NodeID] = []
+        collectInline(id, leaves: &leaves, hidden: &hidden)
+        return leaves
+    }
+
+    /// `hidden` gets the `display: none` elements the walk skips. They leave no
+    /// leaf behind, yet showing one must still refresh this block's inline content.
+    private func collectInline(
+        _ id: LayoutID,
+        leaves: inout [LayoutDOMView],
+        hidden: inout [NodeID]
+    ) {
         let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
         if !extraNodes.isEmpty {
-            for node in extraNodes { collectLeaves(node, into: &leaves) }
-            return leaves
+            for node in extraNodes { collectLeaves(node, leaves: &leaves, hidden: &hidden) }
+            return
         }
         let hasBlockChild: Bool = domView(id).children.contains(where: {
             $0.style.computed.layout.display == .block
         })
         if !hasBlockChild {
-            collectLeaves(domView(id), into: &leaves)
-            return leaves
+            collectLeaves(domView(id), leaves: &leaves, hidden: &hidden)
+            return
         }
         for child in domView(id).children where child.style.computed.layout.display != .block {
-            collectLeaves(child, into: &leaves)
+            collectLeaves(child, leaves: &leaves, hidden: &hidden)
         }
-        return leaves
     }
 
     func blockChildrenInputs(_ id: LayoutID) -> [FieldKey] {
         guard layoutMode(id) == .block else { return [] }
         var inputs: [FieldKey] = []
-        for child in domView(id).children {
-            inputs.append(.style(child.id, .display))
-            inputs.append(.style(child.id, .position))
+        for child in self.inputs.allChildren(domID(of: id)) {
+            inputs.append(.style(child, .display))
+            inputs.append(.style(child, .position))
         }
         return inputs
     }
@@ -748,10 +763,7 @@ extension LayoutTree {
     }
 
     private func firstVisibleChild(in nodes: [LayoutDOMView]) -> LayoutDOMView? {
-        return nodes.first(where: { child in
-            guard let el = child.element else { return true }
-            return !LayoutTree.hiddenElements.contains(el.tag)
-        })
+        return nodes.first(where: { $0.style.computed.layout.display != .none })
     }
 
     private func lastFlowChild(_ id: LayoutID, in children: [LayoutID]) -> LayoutID? {
@@ -772,7 +784,7 @@ extension LayoutTree {
         state: inout BlockChildBuild
     ) {
         for child in nodes {
-            if let el = child.element, LayoutTree.hiddenElements.contains(el.tag) {
+            if child.style.computed.layout.display == .none {
                 continue
             }
             let isBlock: Bool = child.style.computed.layout.display == .block
@@ -1143,7 +1155,11 @@ extension LayoutTree {
         return reusablePlan
     }
 
-    private func collectLeaves(_ n: LayoutDOMView, into leaves: inout [LayoutDOMView]) {
+    private func collectLeaves(
+        _ n: LayoutDOMView,
+        leaves: inout [LayoutDOMView],
+        hidden: inout [NodeID]
+    ) {
         if n.text != nil {
             leaves.append(n)
             return
@@ -1153,7 +1169,13 @@ extension LayoutTree {
             leaves.append(n)
             return
         }
-        for child in n.children { collectLeaves(child, into: &leaves) }
+        for child in inputs.allChildren(n.id) {
+            if inputs.isDisplayNone(child) {
+                hidden.append(child)
+            } else {
+                collectLeaves(domView(child), leaves: &leaves, hidden: &hidden)
+            }
+        }
     }
 
     /// The same walk as `inlineLeaves`, but it also marks where each inline

@@ -41,7 +41,19 @@ struct LayoutInputs {
     }
 
     func children(_ id: NodeID) -> [NodeID] {
+        let all: [NodeID] = allChildren(id)
+        guard all.contains(where: { isDisplayNone($0) }) else { return all }
+        return all.filter({ !isDisplayNone($0) })
+    }
+
+    /// Includes `display: none` children, which get no box but must still be
+    /// watched so that showing one relays out its parent.
+    func allChildren(_ id: NodeID) -> [NodeID] {
         return input(id)?.node.children ?? []
+    }
+
+    func isDisplayNone(_ id: NodeID) -> Bool {
+        return input(id)?.style.computed.layout.display == LayoutStyle.Display.none
     }
 
     func hasBlockChild(_ id: NodeID) -> Bool {
