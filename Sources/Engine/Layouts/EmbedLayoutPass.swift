@@ -361,6 +361,32 @@ extension LayoutTree {
         return width(parentID(of: line) ?? line)
     }
 
+    /// The room an embed takes on a line: its content width, after
+    /// box-sizing, plus its horizontal padding and border.
+    func embedLineWidth(_ node: LayoutElementView, available: CGFloat, zoom: CGFloat) -> CGFloat {
+        let metrics: EmbedMetrics = EmbedMetrics(node)
+        let content: CGFloat
+        switch node.tag {
+        case "img":
+            content = imageUsedWidth(metrics, available: available, zoom: zoom)
+        case "input":
+            content = node.attributes["type"] == "checkbox"
+                ? fontFor(node.ref.id, zoom: zoom).linespace
+                : inputWidthPx * zoom
+        case "button":
+            content = inputWidthPx * zoom
+        case "iframe":
+            content = iframeDisplaySize(metrics).width * zoom
+        case "canvas":
+            content = canvasContentSize(attributes: node.attributes).width * zoom
+        default:
+            return 0
+        }
+        let edges: EdgeInsets = metrics.style.box.paddingAndBorder.scaled(by: zoom)
+        let used: CGFloat = metrics.specifiedContent(content, attribute: "width", paddingAndBorder: edges.horizontal)
+        return used + edges.horizontal
+    }
+
     /// The ascent and descent `layoutEmbed` will give this element on a line
     /// of `block`, so line breaking can know a line's height before layout.
     func embedExtent(_ node: LayoutElementView, in block: LayoutID) -> InlineExtent {

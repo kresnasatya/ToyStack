@@ -486,6 +486,7 @@ extension LayoutTree {
         let padHorizontal: CGFloat = !hasExtraNodes(id)
             ? (style.box.padding.left + style.box.padding.right) * zoomValue
             : 0
+        let floating: LayoutStyle.Floating = isAbsolute ? .none : blockFloating(id)
         var frameWidth: CGFloat
         if let w = style.box.size.width {
             frameWidth = style.box.size.boxSizing.contentSize(
@@ -494,6 +495,15 @@ extension LayoutTree {
             )
         } else {
             frameWidth = max(0, parentWidth - marginLeft - marginRight - padHorizontal - ownBorder.horizontal)
+            if floating.side != .none {
+                // CSS 2.1 §10.3.5: an auto-width float shrinks to fit its content.
+                let preferred: IntrinsicWidths = intrinsicWidths(
+                    of: domView(id),
+                    zoom: zoomValue,
+                    available: frameWidth
+                )
+                frameWidth = min(max(preferred.minContent, frameWidth), preferred.maxContent)
+            }
         }
 
         let element = domView(id).element
@@ -501,8 +511,6 @@ extension LayoutTree {
             frameX += liIndent
             frameWidth -= liIndent
         }
-
-        let floating: LayoutStyle.Floating = isAbsolute ? .none : blockFloating(id)
 
         var frameY: CGFloat
         if isAbsolute, let t = style.flags.top {
@@ -1518,8 +1526,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
-        let isCheckbox: Bool = node.attributes["type"] == "checkbox"
-        let w: CGFloat = embedOuterWidth(isCheckbox ? font.linespace : inputWidthPx * zoom, node, zoom: zoom)
+        let w: CGFloat = embedLineWidth(node, available: available, zoom: zoom)
         placement.makeRoom(for: w, extent: embedExtent(node, in: id), blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1546,7 +1553,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = embedOuterWidth(inputWidthPx * zoom, node, zoom: zoom)
+        let w: CGFloat = embedLineWidth(node, available: available, zoom: zoom)
         placement.makeRoom(for: w, extent: embedExtent(node, in: id), blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1578,8 +1585,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let content: CGFloat = imageUsedWidth(EmbedMetrics(node), available: available, zoom: zoom)
-        let w: CGFloat = embedOuterWidth(content, node, zoom: zoom)
+        let w: CGFloat = embedLineWidth(node, available: available, zoom: zoom)
         placement.makeRoom(for: w, extent: embedExtent(node, in: id), blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1612,7 +1618,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = embedOuterWidth(iframeDisplaySize(EmbedMetrics(node)).width * zoom, node, zoom: zoom)
+        let w: CGFloat = embedLineWidth(node, available: available, zoom: zoom)
         placement.makeRoom(for: w, extent: embedExtent(node, in: id), blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1645,7 +1651,7 @@ extension LayoutTree {
     ) {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let w: CGFloat = embedOuterWidth(canvasContentSize(attributes: node.attributes).width * zoom, node, zoom: zoom)
+        let w: CGFloat = embedLineWidth(node, available: available, zoom: zoom)
         placement.makeRoom(for: w, extent: embedExtent(node, in: id), blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
@@ -1668,15 +1674,6 @@ extension LayoutTree {
 
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         placement.cursorX += w + font.spaceWidth
-    }
-
-    /// The room an embed takes on its line: its content width, after
-    /// box-sizing, plus its horizontal padding and border.
-    private func embedOuterWidth(_ content: CGFloat, _ node: LayoutElementView, zoom: CGFloat) -> CGFloat {
-        let metrics: EmbedMetrics = EmbedMetrics(node)
-        let edges: EdgeInsets = metrics.style.box.paddingAndBorder.scaled(by: zoom)
-        let used: CGFloat = metrics.specifiedContent(content, attribute: "width", paddingAndBorder: edges.horizontal)
-        return used + edges.horizontal
     }
 
     private func isInsideAbbr(_ node: LayoutDOMView) -> Bool {
