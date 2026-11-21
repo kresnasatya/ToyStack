@@ -72,6 +72,28 @@ struct ChildListRebuildTests {
         expectIncrementalMatchesFull(page)
     }
 
+    /// Text with no box of its own, like the whitespace after a paragraph,
+    /// reports its change to the parent block, so a kept anonymous block must
+    /// still pick the new text up.
+    @Test func textTypedAfterABlockChildShowsUp() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: "<div id=\"box\"><p>para</p> </div>",
+            rules: css
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let trailing: TextRef = try #require(box.children.last?.text)
+
+        trailing.append("typed")
+        page.frame.setNeedsStyle(box.ref)
+        page.frame.render()
+
+        let texts: [String] = treeToList(page.tree, page.tree.rootID)
+            .filter({ page.tree.isText($0) })
+            .map({ page.tree.textString($0) })
+        #expect(texts.contains("typed"))
+        expectIncrementalMatchesFull(page)
+    }
+
     @Test func blockThatTurnsInlineJoinsARunAndTheRestAreKept() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="box"><p id="b">one</p><p id="c">two</p><p id="d">three</p></div>"#,

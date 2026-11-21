@@ -1001,6 +1001,10 @@ extension LayoutTree {
         profiler.count("layout.children.kept")
         if extraNodes.isEmpty {
             setPrimary(old, for: dom)
+        } else {
+            // Text with no box of its own, such as whitespace, reports its
+            // edits to the parent, and this rebuild may be that report.
+            markField(.inlineContent, at: old)
         }
         setBlockPrevious(old, previous)
         return old
