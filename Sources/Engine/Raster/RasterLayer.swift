@@ -100,11 +100,12 @@ public struct RasterLayer: Sendable {
     ) -> [TileStrip] {
         guard !content.items.isEmpty else { return [] }
         tiles.removeAll(keepingCapacity: true)
-        let bounds: Rect = content.bounds
+        let scroll: LayerScroll? = content.scroll
+        let bounds: Rect = scroll?.visibleBounds(of: content.bounds) ?? content.bounds
         let width: CGFloat = bounds.right - bounds.left
         guard width > 0, bounds.bottom > bounds.top else { return [] }
 
-        let items: [DisplayOp] = content.items
+        let items: [DisplayOp] = scroll?.placed(content.items) ?? content.items
         let left: CGFloat = bounds.left
         let t: CGFloat = grid.size
         let firstCol: Int = max(0, Int(left / t), Int(region.hint.left / t))
@@ -187,7 +188,7 @@ public struct RasterLayer: Sendable {
                             right: CGFloat(lastCol + 1) * t,
                             bottom: rowTop + t
                         ),
-                        items: strip,
+                        content: TileStripContent(items: strip, clips: scroll?.clips ?? []),
                         tiles: missing
                     )
                 )
@@ -207,6 +208,7 @@ public struct RasterLayer: Sendable {
 
     private func tileHash(_ inside: [DisplayOp], tileRect: Rect) -> Int {
         var hasher: Hasher = Hasher()
+        content.scroll?.combineClips(into: &hasher)
         for item in inside {
             if case .rect(let rect, let color) = item {
                 hasher.combine("rect")

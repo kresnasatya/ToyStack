@@ -3,13 +3,13 @@ import CoreGraphics
 struct TileStrip: Sendable {
     let layerIndex: Int
     let bounds: Rect
-    let items: [DisplayOp]
+    let content: TileStripContent
     let tiles: [TileKey]
 
-    init(layerIndex: Int, bounds: Rect, items: [DisplayOp], tiles: [TileKey]) {
+    init(layerIndex: Int, bounds: Rect, content: TileStripContent, tiles: [TileKey]) {
         self.layerIndex = layerIndex
         self.bounds = bounds
-        self.items = items
+        self.content = content
         self.tiles = tiles
     }
 }
@@ -25,5 +25,17 @@ extension TileStrip {
             width: pixels,
             height: pixels
         )
+    }
+}
+
+// MARK: - TileStripContent
+
+struct TileStripContent: Sendable {
+    let items: [DisplayOp]
+    let clips: [ClipShape]
+
+    init(items: [DisplayOp], clips: [ClipShape]) {
+        self.items = items
+        self.clips = clips
     }
 }

@@ -8,7 +8,10 @@ enum TileStripRasterizer {
         )
         return CGRenderer.renderBitmap(size: size, target: target, { r in
             r.translateBy(x: -strip.bounds.left, y: -strip.bounds.top)
-            for item in strip.items {
+            for clip in strip.content.clips {
+                r.clipRRect(clip.rect, radii: clip.radii)
+            }
+            for item in strip.content.items {
                 item.execute(renderer: r)
             }
         })

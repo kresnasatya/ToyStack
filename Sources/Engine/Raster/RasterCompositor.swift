@@ -56,6 +56,7 @@ enum RasterCompositor {
                         id: LayerID(effect: scopeID, ordinal: ordinal)
                     )
                     layer.identity.ancestorChain = Array(scopes.reversed())
+                    layer.content.scroll = LayerScroll.resolve(layer.identity.ancestorChain)
                     compositedLayers.append(layer)
                 }
                 commandIndex += 1

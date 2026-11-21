@@ -204,7 +204,9 @@ private func executeCompositedLayer(
     renderer: any Renderer
 ) {
     let bounds: Rect = layer.compositedBounds()
-    if !layer.tiles.isEmpty, let grid: TileGrid = layer.content.tileCache.grid {
+    // A scroll layer's tiles already carry its scroll offset and clip, and the
+    // bitmap path applies both again through the enclosing scroll effect.
+    if layer.content.scroll == nil, !layer.tiles.isEmpty, let grid: TileGrid = layer.content.tileCache.grid {
         for index in layer.orderedTileIndices {
             guard let image: CGImage = layer.tiles[index] else { continue }
             let frame: CGRect = grid.frame(for: index)

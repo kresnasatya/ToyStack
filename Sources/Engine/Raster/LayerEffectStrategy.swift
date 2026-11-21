@@ -33,12 +33,13 @@ extension LayerEffectStrategy {
         var key: NodeID?
         var blendMode: BrowserBlendMode?
         var clipRect: Rect?
+        var insideScroll: Bool = false
         for scope in layer.identity.ancestorChain {
             let update: EffectUpdate? = scope.placement.node.flatMap { updates[$0] }
             let animated: Bool = update?.isAnimatedTransform ?? scope.placement.animatedTransform
             switch scope.kind {
             case .scroll:
-                kind = max(kind, .scrollFallback)
+                insideScroll = true
             case .blend(let scopeOpacity, let scopeMode):
                 let updatedOpacity: Double = update?.style.opacity ?? scopeOpacity
                 let updatedMode: BrowserBlendMode? = update.map({ $0.style.blendMode }) ?? scopeMode
@@ -79,6 +80,11 @@ extension LayerEffectStrategy {
                 )
                 clipRect = clipRect.map({ $0.intersect(local) }) ?? local
             }
+        }
+        // Flat tiles bake in the scroll offset and scrollport clip; effect images
+        // and their Core Animation placement do not, so those keep the bitmap path.
+        if insideScroll && kind == .ca {
+            kind = .scrollFallback
         }
         let effect: LayerEffect? = kind == .ca
             ? LayerEffect(
