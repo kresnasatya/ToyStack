@@ -163,4 +163,82 @@ struct FloatLayoutTests {
         #expect(page.tree.selfRect(try id(page, "next")).top == fRect.bottom)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func leftFloatsLineUpSideBySide() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="a"></div><div id="b"></div>"#,
+            "#a, #b { float: left; width: 100px; height: 50px; } #b { margin-left: 5px; }"
+        )
+        let a: Rect = page.tree.selfRect(try id(page, "a"))
+        let b: Rect = page.tree.selfRect(try id(page, "b"))
+        #expect(b.left == a.right + 5)
+        #expect(b.top == a.top)
+    }
+
+    @Test func rightFloatsLineUpFromTheRightEdge() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="a"></div><div id="b"></div>"#,
+            "#a, #b { float: right; width: 100px; height: 50px; }"
+        )
+        let body = try bodyRect(page)
+        let a: Rect = page.tree.selfRect(try id(page, "a"))
+        let b: Rect = page.tree.selfRect(try id(page, "b"))
+        #expect(a.right == body.right)
+        #expect(b.right == a.left)
+        #expect(b.top == a.top)
+    }
+
+    @Test func floatThatDoesNotFitBesideEarlierFloatsMovesBelowThem() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="a"></div><div id="b"></div><div id="c"></div>"#,
+            """
+            #a { float: left; width: 250px; height: 50px; }
+            #b { float: right; width: 250px; height: 30px; }
+            #c { float: left; width: 150px; height: 10px; }
+            """
+        )
+        let body = try bodyRect(page)
+        let b: Rect = page.tree.selfRect(try id(page, "b"))
+        let c: Rect = page.tree.selfRect(try id(page, "c"))
+        #expect(c.top == b.bottom)
+        #expect(c.left == page.tree.selfRect(try id(page, "a")).right)
+        #expect(c.left > body.left)
+    }
+
+    @Test func floatIsNeverHigherThanAnEarlierFloat() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="tall"></div><div id="low"></div><div id="later"></div>"#,
+            """
+            #tall { float: left; width: 100px; height: 80px; }
+            #low { float: right; clear: left; width: 100px; height: 20px; }
+            #later { float: right; width: 100px; height: 20px; }
+            """
+        )
+        let low: Rect = page.tree.selfRect(try id(page, "low"))
+        let later: Rect = page.tree.selfRect(try id(page, "later"))
+        #expect(low.top == page.tree.selfRect(try id(page, "tall")).bottom)
+        #expect(later.top == low.top)
+        #expect(later.right == low.left)
+    }
+
+    @Test func wideningAnEarlierFloatPushesTheNextOneDown() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="ad"><div id="a"></div></div><div id="b"></div>"#,
+            """
+            #a { float: left; width: 300px; height: 50px; }
+            #b { float: left; width: 200px; height: 20px; }
+            """
+        )
+        let a: ElementRef = try #require(page.firstElement(id: "a"))
+        InlineStyle.set(a, property: "width", value: "450px")
+        page.frame.setNeedsStyle(a.ref)
+        page.frame.render()
+
+        let body = try bodyRect(page)
+        let aRect: Rect = page.tree.selfRect(try id(page, "a"))
+        let bRect: Rect = page.tree.selfRect(try id(page, "b"))
+        #expect(bRect.top == aRect.bottom)
+        #expect(bRect.left == body.left)
+        expectIncrementalMatchesFull(page)
+    }
 }

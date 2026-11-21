@@ -18,20 +18,23 @@ extension LayoutTree {
     }
 
     /// CSS 2.1 §9.5.2: `clear` looks at every earlier float in the same block
-    /// formatting context, including floats under other parents, and never at
-    /// floats inside another formatting context.
+    /// formatting context, including floats under other parents.
     func floatBottom(before id: LayoutID, clearing clear: LayoutStyle.ClearSide) -> CGFloat? {
-        var bottom: CGFloat? = nil
-        var current: LayoutID = id
-        while let parent: LayoutID = parentID(of: current), isBlock(parent) {
-            for sibling in childrenIDs(of: parent) {
-                if sibling == current { break }
-                collectFloatBottom(in: sibling, clearing: clear, into: &bottom)
-            }
-            if establishesFormattingContext(parent) { break }
-            current = parent
+        return earlierFloats(before: id, where: { clear.clears($0.side) }).map({ $0.rect.bottom }).max()
+    }
+
+    /// Where a float's margin box goes. Earlier floats that end above `top`
+    /// cannot be beside it, cannot hold it down, and cannot be cleared.
+    func floatPlacer(for id: LayoutID, top: CGFloat) -> FloatPlacer {
+        guard let parent: LayoutID = parentID(of: id) else {
+            return FloatPlacer(earlier: [], left: 0, right: 0)
         }
-        return bottom
+        let left: CGFloat = x(parent)
+        return FloatPlacer(
+            earlier: earlierFloats(before: id, where: { $0.rect.bottom > top }),
+            left: left,
+            right: left + width(parent)
+        )
     }
 
     /// The floats an inline block's lines must avoid: earlier floats in the
@@ -39,20 +42,13 @@ extension LayoutTree {
     /// into its content box. A block that starts its own formatting context
     /// keeps outside floats away from its lines.
     func floatExclusions(for id: LayoutID) -> FloatExclusions {
-        let registered: [LayoutID: FloatBox] = self[document: rootID].floats.boxes
-        guard !registered.isEmpty else { return .none }
         if !hasExtraNodes(id), establishesFormattingContext(id) { return .none }
         let left: CGFloat = x(id)
         let right: CGFloat = left + width(id)
         let top: CGFloat = y(id)
-        var root: LayoutID? = nil
-        var boxes: [FloatBox] = []
-        for (float, box) in registered where box.rect.bottom > top && intrudes(box, left: left, right: right) {
-            guard contains(float), precedes(float, id) else { continue }
-            if root == nil { root = formattingRoot(of: id) }
-            guard formattingRoot(of: float) == root else { continue }
-            boxes.append(box)
-        }
+        var boxes: [FloatBox] = earlierFloats(before: id, where: { box in
+            box.rect.bottom > top && intrudes(box, left: left, right: right)
+        })
         guard !boxes.isEmpty else { return .none }
         boxes.sort(by: { a, b in
             if a.rect.top != b.rect.top { return a.rect.top < b.rect.top }
@@ -64,6 +60,22 @@ extension LayoutTree {
         return FloatExclusions(boxes: boxes, left: left, right: right, strut: strut)
     }
 
+    /// Registered floats placed before `id` in the same block formatting
+    /// context. `include` runs first: it is cheap, the tree-order check is not.
+    private func earlierFloats(before id: LayoutID, where include: (FloatBox) -> Bool) -> [FloatBox] {
+        let registered: [LayoutID: FloatBox] = self[document: rootID].floats.boxes
+        guard !registered.isEmpty else { return [] }
+        var root: LayoutID? = nil
+        var boxes: [FloatBox] = []
+        for (float, box) in registered where float != id && include(box) {
+            guard contains(float), precedes(float, id) else { continue }
+            if root == nil { root = formattingRoot(of: id) }
+            guard formattingRoot(of: float) == root else { continue }
+            boxes.append(box)
+        }
+        return boxes
+    }
+
     /// Returns whether the floats differ from the ones the block's lines were
     /// last broken against.
     mutating func noteWrapped(_ id: LayoutID, _ exclusions: FloatExclusions) -> Bool {
@@ -73,11 +85,11 @@ extension LayoutTree {
         return true
     }
 
-    mutating func noteClearing(_ id: LayoutID, _ clears: Bool) {
-        if clears {
-            self[document: rootID].floats.clearing.insert(id)
-        } else if !self[document: rootID].floats.clearing.isEmpty {
-            self[document: rootID].floats.clearing.remove(id)
+    mutating func notePositioned(_ id: LayoutID, _ readsFloats: Bool) {
+        if readsFloats {
+            self[document: rootID].floats.positioned.insert(id)
+        } else if !self[document: rootID].floats.positioned.isEmpty {
+            self[document: rootID].floats.positioned.remove(id)
         }
     }
 
@@ -98,19 +110,19 @@ extension LayoutTree {
         markBlocksBeside(box, after: id)
     }
 
-    /// Clearance and shortened lines read floats that are not among a block's
-    /// layout inputs. Blocks that read them are few, so they re-place
+    /// Floats, clearance, and shortened lines read floats that are not among a
+    /// block's layout inputs. Blocks that read them are few, so they re-place
     /// themselves on every pass that does layout work instead.
     mutating func markFloatDependents() {
         var registry: FloatRegistry = self[document: rootID].floats
-        guard !registry.boxes.isEmpty || !registry.clearing.isEmpty || !registry.wrapped.isEmpty else {
+        guard !registry.boxes.isEmpty || !registry.positioned.isEmpty || !registry.wrapped.isEmpty else {
             return
         }
         registry.boxes = registry.boxes.filter({ contains($0.key) })
-        registry.clearing = registry.clearing.filter({ contains($0) && isBlock($0) })
+        registry.positioned = registry.positioned.filter({ contains($0) && isBlock($0) })
         registry.wrapped = registry.wrapped.filter({ contains($0.key) && isBlock($0.key) })
         self[document: rootID].floats = registry
-        for id in registry.clearing {
+        for id in registry.positioned {
             markField(.y, at: id)
         }
         for id in registry.wrapped.keys {
@@ -119,26 +131,6 @@ extension LayoutTree {
     }
 
     // MARK: - Helpers
-
-    private func collectFloatBottom(
-        in id: LayoutID,
-        clearing clear: LayoutStyle.ClearSide,
-        into bottom: inout CGFloat?
-    ) {
-        guard isBlock(id), !hasExtraNodes(id) else { return }
-        let side: LayoutStyle.FloatSide = blockFloating(id).side
-        if side != .none {
-            if clear.clears(side) {
-                let edge: CGFloat = marginBox(id).bottom
-                bottom = max(bottom ?? edge, edge)
-            }
-            return
-        }
-        if establishesFormattingContext(id) { return }
-        for child in childrenIDs(of: id) {
-            collectFloatBottom(in: child, clearing: clear, into: &bottom)
-        }
-    }
 
     private mutating func markBlocksBeside(_ box: FloatBox, after float: LayoutID) {
         var current: LayoutID = float

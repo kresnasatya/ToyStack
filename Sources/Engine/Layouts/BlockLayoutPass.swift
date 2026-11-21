@@ -503,10 +503,6 @@ extension LayoutTree {
         }
 
         let floating: LayoutStyle.Floating = isAbsolute ? .none : blockFloating(id)
-        if floating.side == .right {
-            let padRight: CGFloat = style.box.padding.right * zoomValue
-            frameX = parentX + parentWidth - marginRight - ownBorder.right - padRight - frameWidth
-        }
 
         var frameY: CGFloat
         if isAbsolute, let t = style.flags.top {
@@ -534,7 +530,19 @@ extension LayoutTree {
             } else {
                 frameY = y(parent) + ownTop + ownBorder.top + padTop
             }
-            if floating.clear != .none,
+            if floating.side != .none {
+                let flowTop: CGFloat = frameY - ownTop - ownBorder.top - padTop
+                let marginBoxWidth: CGFloat = marginLeft + ownBorder.horizontal + padHorizontal
+                    + frameWidth + marginRight
+                let origin: CGPoint = floatPlacer(for: id, top: flowTop).origin(
+                    side: floating.side,
+                    width: marginBoxWidth,
+                    top: flowTop,
+                    clear: floating.clear
+                )
+                frameX = origin.x + marginLeft + ownBorder.left + padLeft
+                frameY = origin.y + ownTop + ownBorder.top + padTop
+            } else if floating.clear != .none,
                 let bottom: CGFloat = floatBottom(before: id, clearing: floating.clear)
             {
                 // CSS 2.1 §9.5.2: clearance puts the top border edge below the
@@ -542,7 +550,7 @@ extension LayoutTree {
                 frameY = max(frameY, bottom + ownBorder.top + padTop)
             }
         }
-        noteClearing(id, floating.clear != .none)
+        notePositioned(id, floating.side != .none || floating.clear != .none)
 
         if element?.attributes["id"] == "toc" {
             frameY += VSTEP

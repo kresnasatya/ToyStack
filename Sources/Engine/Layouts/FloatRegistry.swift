@@ -7,8 +7,9 @@ import CoreGraphics
 struct FloatRegistry {
     /// The margin box of every placed float.
     var boxes: [LayoutID: FloatBox] = [:]
-    /// Blocks with `clear`; they re-place themselves on every layout pass.
-    var clearing: Set<LayoutID> = []
+    /// Floats and blocks with `clear`; they re-place themselves on every
+    /// layout pass.
+    var positioned: Set<LayoutID> = []
     /// Inline blocks whose lines are shortened, with the floats they were
     /// broken against; they re-check those floats on every layout pass.
     var wrapped: [LayoutID: [FloatBox]] = [:]
