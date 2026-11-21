@@ -1,0 +1,603 @@
+<!doctype html>
+<html>
+    <head>
+        <title>VITA: Visual Effects and Animations</title>
+        <style>
+            .vita-mono {
+                font-family: monospace;
+                font-size: 14px;
+            }
+
+            #interval-log {
+                height: 400px;
+                overflow-y: scroll;
+                border: 1px solid #ccc;
+                padding: 4px;
+                font-size: 13px;
+            }
+            .interval-fast {
+                color: green;
+            }
+            .interval-slow {
+                color: red;
+            }
+
+            #bgcolor-box {
+                width: 300px;
+                height: 150px;
+                background-color: lightblue;
+                transition: background-color 2s;
+                padding: 10px;
+            }
+            #bgcolor-box.bgcolor-hot {
+                background-color: orange;
+            }
+
+            .easing-track {
+                position: relative;
+                height: 40px;
+                margin: 8px 0;
+                background: #eee;
+            }
+            .easing-label {
+                display: inline-block;
+                width: 180px;
+                padding: 10px 6px;
+                vertical-align: top;
+            }
+            .easing-box {
+                position: absolute;
+                left: 180px;
+                top: 0;
+                width: 40px;
+                height: 40px;
+                background-color: steelblue;
+                transform: translate(0px, 0px);
+            }
+            #easing-linear {
+                transition: transform 2s linear;
+            }
+            #easing-ease {
+                transition: transform 2s ease;
+            }
+            #easing-ease-in {
+                transition: transform 2s ease-in;
+            }
+            #easing-ease-out {
+                transition: transform 2s ease-out;
+            }
+            #easing-custom {
+                transition: transform 2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            }
+
+            #vita-both {
+                padding-bottom: 60px;
+            }
+            .both-box {
+                transition:
+                    transform 2s,
+                    opacity 2s;
+            }
+
+            #shrink-box {
+                width: 400px;
+                transition: width 2s;
+            }
+
+            .keyframe-narrow {
+                width: 400px;
+                animation: 2s infinite alternate vita-narrow;
+            }
+            @keyframes vita-narrow {
+                from {
+                    width: 400px;
+                }
+                to {
+                    width: 100px;
+                }
+            }
+
+            .keyframe-fade {
+                opacity: 0.999;
+                animation: 2s infinite alternate vita-fade-in-out;
+            }
+            @keyframes vita-fade-in-out {
+                from {
+                    opacity: 0.999;
+                }
+                to {
+                    opacity: 0.1;
+                }
+            }
+
+            .keyframe-linear {
+                opacity: 0.999;
+                animation: vita-fade-easing 2s linear infinite alternate;
+            }
+            .keyframe-ease-in-out {
+                opacity: 0.999;
+                animation: vita-fade-easing 2s ease-in-out infinite alternate;
+            }
+            @keyframes vita-fade-easing {
+                from {
+                    opacity: 0.999;
+                }
+                to {
+                    opacity: 0.1;
+                }
+            }
+
+            #overlap-stage {
+                height: 120px;
+            }
+            .overlap-lane {
+                padding-left: 220px;
+            }
+            #overlap-target {
+                width: 120px;
+                height: 120px;
+                background-color: salmon;
+            }
+            #overlap-mover {
+                width: 120px;
+                height: 120px;
+                background-color: lightblue;
+                opacity: 0.999;
+                transform: translate(0px, -120px);
+                transition: transform 2s;
+            }
+
+            .stack-box {
+                width: 160px;
+                height: 90px;
+            }
+            .stack-a {
+                position: relative;
+                z-index: 3;
+                background-color: tomato;
+            }
+            .stack-b {
+                z-index: 5;
+                background-color: gold;
+                transform: translate(40px, -60px);
+            }
+            .stack-c {
+                position: relative;
+                z-index: 1;
+                background-color: lightblue;
+                transform: translate(80px, -120px);
+            }
+            .stack-spacer {
+                height: 60px;
+            }
+            .stack-ctx {
+                width: 200px;
+                height: 100px;
+            }
+            .stack-p1 {
+                position: relative;
+                z-index: 1;
+                background-color: lightgreen;
+            }
+            .stack-inner {
+                position: relative;
+                z-index: 999;
+                width: 160px;
+                height: 60px;
+                background-color: orchid;
+            }
+            .stack-p2 {
+                position: relative;
+                z-index: 2;
+                background-color: steelblue;
+                transform: translate(60px, -80px);
+            }
+        </style>
+    </head>
+    <body>
+        <h1>VITA: Visual Effects and Animations</h1>
+        <nav>
+            <ul>
+                <li><a href="#vita-blur">Blurred content</a></li>
+                <li><a href="#vita-scroll-box">Scrollable box</a></li>
+                <li><a href="#vita-interval">Set interval timing test</a></li>
+                <li><a href="#vita-bgcolor">Animate background-color</a></li>
+                <li><a href="#vita-easing">Easing functions</a></li>
+                <li>
+                    <a href="#vita-both">
+                        Simultaneous transform and opacity animation
+                    </a>
+                </li>
+                <li><a href="#vita-shrink">Shrink and grow animation</a></li>
+                <li><a href="#vita-keyframes">CSS animation</a></li>
+                <li><a href="#vita-fade">Fade in Fade out</a></li>
+                <li><a href="#vita-linear-ease">Linear ease in out</a></li>
+                <li>
+                    <a href="#vita-overlap">
+                        Overlapped box transform animations
+                    </a>
+                </li>
+                <li><a href="#vita-stacking">Stacking order</a></li>
+            </ul>
+        </nav>
+
+        <section id="vita-blur">
+            <h2>Blurred content</h2>
+            <div
+                style="
+                    filter: blur(4px);
+                    background-color: lightblue;
+                    width: 200px;
+                    height: 100px;
+                "
+            >
+                Blurred content
+            </div>
+            <div
+                style="
+                    filter: blur(4px);
+                    opacity: 0.5;
+                    background-color: red;
+                    width: 100px;
+                    height: 100px;
+                "
+            >
+                Blurred + semi-transparent
+            </div>
+        </section>
+
+        <section id="vita-scroll-box">
+            <h2>Scrollable box</h2>
+            <div
+                style="
+                    overflow: scroll;
+                    height: 150px;
+                    border: 1px solid black;
+                    width: 300px;
+                "
+            >
+                <p>Line 1</p>
+                <p>Line 2</p>
+                <p>Line 3</p>
+                <p>Line 4</p>
+                <p>Line 5</p>
+                <p>Line 6</p>
+                <p>Line 7</p>
+                <p>Line 8</p>
+                <p>Line 9</p>
+                <p>Line 10</p>
+                <p>Line 11</p>
+                <p>Line 12</p>
+                <p>Line 13</p>
+                <p>Line 14</p>
+                <p>Line 15</p>
+            </div>
+            <p>Content below the scrollable box.</p>
+        </section>
+
+        <section id="vita-interval" class="vita-mono">
+            <h2>Set interval timing test</h2>
+            <p>
+                Click "Start". Three intervals log their drift while a
+                requestAnimationFrame loop burns about 5ms per frame. The test
+                waits for a click so the busy loop does not slow down the other
+                animations on this page.
+            </p>
+            <div id="interval-log"></div>
+            <button id="interval-start">Start</button>
+            <button id="interval-stop">Stop</button>
+        </section>
+        <script>
+            (function () {
+                var logEl = document.getElementById("interval-log");
+                var ids = [];
+                var lastTimes = {};
+                var running = false;
+
+                function appendLog(msg, cls) {
+                    var d = document.createElement("div");
+                    d.setAttribute("class", cls || "");
+                    d.innerHTML = msg;
+                    logEl.appendChild(d);
+                    logEl.scrollTop = 10_000_000;
+                }
+
+                function makeExpensiveWork() {
+                    var end = Date.now() + 5;
+                    while (Date.now() < end) {}
+                }
+
+                function makeInterval(label, ms) {
+                    lastTimes[label] = Date.now();
+                    var id = setInterval(function () {
+                        var now = Date.now();
+                        var actual = now - lastTimes[label];
+                        lastTimes[label] = now;
+                        var drift = actual - ms;
+                        var cls =
+                            Math.abs(drift) > ms * 0.2
+                                ? "interval-slow"
+                                : "interval-fast";
+                        appendLog(
+                            label +
+                                ": target=" +
+                                ms +
+                                "ms actual=" +
+                                actual +
+                                "ms drift=" +
+                                drift +
+                                "ms",
+                            cls,
+                        );
+                    }, ms);
+                    ids.push(id);
+                }
+
+                function rafLoop() {
+                    if (!running) return;
+                    makeExpensiveWork();
+                    requestAnimationFrame(rafLoop);
+                }
+
+                document
+                    .getElementById("interval-start")
+                    .addEventListener("click", function () {
+                        if (running) return;
+                        running = true;
+                        appendLog("--- started ---");
+                        makeInterval("fast  (100ms)", 100);
+                        makeInterval("medium(500ms)", 500);
+                        makeInterval("slow (1000ms)", 1000);
+                        requestAnimationFrame(rafLoop);
+                    });
+
+                document
+                    .getElementById("interval-stop")
+                    .addEventListener("click", function () {
+                        if (!running) return;
+                        running = false;
+                        for (var i = 0; i < ids.length; i++) {
+                            clearInterval(ids[i]);
+                        }
+                        ids = [];
+                        appendLog("--- stopped ---");
+                    });
+            })();
+        </script>
+
+        <section id="vita-bgcolor" class="vita-mono">
+            <h2>Animate background-color</h2>
+            <p>Click the button. All three color channels interpolate together.</p>
+            <div id="bgcolor-box">background-color animates over 2s</div>
+            <button id="bgcolor-toggle">Toggle color</button>
+        </section>
+        <script>
+            (function () {
+                var box = document.getElementById("bgcolor-box");
+                var hot = false;
+                document
+                    .getElementById("bgcolor-toggle")
+                    .addEventListener("click", function () {
+                        hot = !hot;
+                        box.setAttribute("class", hot ? "bgcolor-hot" : "");
+                    });
+            })();
+        </script>
+
+        <section id="vita-easing" class="vita-mono">
+            <h2>Easing functions</h2>
+            <p>
+                Click "Run". All five boxes travel 400px over 2s, but with
+                different timing functions. Watch the start and end of each
+                motion.
+            </p>
+            <button id="easing-run">Run</button>
+            <button id="easing-reset">Reset</button>
+
+            <div class="easing-track">
+                <span class="easing-label">linear</span>
+                <div id="easing-linear" class="easing-box"></div>
+            </div>
+            <div class="easing-track">
+                <span class="easing-label">ease (default)</span>
+                <div id="easing-ease" class="easing-box"></div>
+            </div>
+            <div class="easing-track">
+                <span class="easing-label">ease-in</span>
+                <div id="easing-ease-in" class="easing-box"></div>
+            </div>
+            <div class="easing-track">
+                <span class="easing-label">ease-out</span>
+                <div id="easing-ease-out" class="easing-box"></div>
+            </div>
+            <div class="easing-track">
+                <span class="easing-label">cubic-bezier(.68,-.55,.27,1.55)</span>
+                <div id="easing-custom" class="easing-box"></div>
+            </div>
+        </section>
+        <script>
+            (function () {
+                var ids = [
+                    "easing-linear",
+                    "easing-ease",
+                    "easing-ease-in",
+                    "easing-ease-out",
+                    "easing-custom",
+                ];
+
+                function setTransform(value) {
+                    for (var i = 0; i < ids.length; i++) {
+                        var box = document.getElementById(ids[i]);
+                        box.setAttribute("style", "transform: " + value + "; ");
+                    }
+                }
+
+                // The 50ms delay lets ToyStack record the old transform first,
+                // so the transition has a start value to interpolate from.
+                function run() {
+                    setTimeout(function () {
+                        setTransform("translate(400px, 0px)");
+                    }, 50);
+                }
+
+                function reset() {
+                    setTransform("translate(0px, 0px)");
+                }
+
+                document.getElementById("easing-run").addEventListener("click", run);
+                document
+                    .getElementById("easing-reset")
+                    .addEventListener("click", reset);
+            })();
+        </script>
+
+        <section id="vita-both">
+            <h2>Simultaneous transform and opacity animation</h2>
+            <div
+                id="both-mover"
+                class="both-box"
+                style="
+                    background-color: lightblue;
+                    transform: translate(50px, 50px);
+                    opacity: 0.999;
+                "
+            >
+                Test
+            </div>
+            <div
+                class="both-box"
+                style="background-color: lightgreen; transform: translate(0px, 0px)"
+            >
+                test2
+            </div>
+        </section>
+        <script>
+            (function () {
+                var mover = document.getElementById("both-mover");
+                var count = 0;
+                var goUp = false;
+
+                function go() {
+                    goUp = !goUp;
+                    if (goUp)
+                        mover.style =
+                            "background-color:lightblue;transform:translate(0px,0px);opacity:0.1";
+                    else
+                        mover.style =
+                            "background-color:lightblue;transform:translate(50px,50px);opacity:0.999";
+                    setTimeout(go, 16 * 120);
+                }
+
+                function frame() {
+                    if (count == 1) {
+                        go();
+                    } else {
+                        count++;
+                        requestAnimationFrame(frame);
+                    }
+                }
+                requestAnimationFrame(frame);
+            })();
+        </script>
+
+        <section id="vita-shrink">
+            <h2>Shrink and grow animation</h2>
+            <button id="shrink-shrink">Shrink</button>
+            <button id="shrink-grow">grow</button>
+            <div id="shrink-box" style="background-color: lightblue">
+                This is a test line of text for a width animation.
+            </div>
+        </section>
+        <script>
+            (function () {
+                var box = document.getElementById("shrink-box");
+                document
+                    .getElementById("shrink-shrink")
+                    .addEventListener("click", function () {
+                        box.style = "background-color:lightblue;width:100px";
+                    });
+                document
+                    .getElementById("shrink-grow")
+                    .addEventListener("click", function () {
+                        box.style = "background-color:lightblue;width:400px";
+                    });
+            })();
+        </script>
+
+        <section id="vita-keyframes">
+            <h2>CSS animation</h2>
+            <div class="keyframe-narrow" style="background-color: lightblue">
+                This is a test line of text for a width animation.
+            </div>
+        </section>
+
+        <section id="vita-fade">
+            <h2>Fade in Fade out</h2>
+            <div class="keyframe-fade" style="opacity: 0.999">Test</div>
+        </section>
+
+        <section id="vita-linear-ease">
+            <h2>Linear ease in out</h2>
+            <div class="keyframe-linear">linear</div>
+            <div class="keyframe-ease-in-out">ease-in-out</div>
+        </section>
+
+        <section id="vita-overlap">
+            <h2>Overlapped box transform animations</h2>
+            <p>
+                The salmon target is static. The blue mover is composited
+                (opacity: 0.999) and slides on and off the target. At composite
+                time the two boxes do not overlap. Correct: blue (later in the
+                document) stays on top of salmon. Buggy: salmon shows through,
+                flickers, or gets dragged along with the animation.
+            </p>
+            <div id="overlap-stage">
+                <div class="overlap-lane">
+                    <div id="overlap-target">target</div>
+                </div>
+                <div id="overlap-mover">mover</div>
+            </div>
+        </section>
+        <script>
+            (function () {
+                var mover = document.getElementById("overlap-mover");
+                var count = 0;
+                var over = false;
+
+                function go() {
+                    over = !over;
+                    if (over) mover.style = "transform:translate(220px, -120px)";
+                    else mover.style = "transform:translate(0px, -120px)";
+                    setTimeout(go, 16 * 150);
+                }
+
+                function frame() {
+                    if (count == 1) {
+                        go();
+                    } else {
+                        count++;
+                        requestAnimationFrame(frame);
+                    }
+                }
+                requestAnimationFrame(frame);
+            })();
+        </script>
+
+        <section id="vita-stacking">
+            <h2>Stacking order</h2>
+            <p>
+                Top to bottom: A (z3), C (z1), B (no position, so its z-index is
+                ignored). P2 (z2) covers the z999 child because the child cannot
+                escape the P1 (z1) stacking context.
+            </p>
+            <div class="stack-box stack-a">A z3</div>
+            <div class="stack-box stack-b">B z5 static</div>
+            <div class="stack-box stack-c">C z1</div>
+            <div class="stack-spacer"></div>
+            <div class="stack-ctx stack-p1">
+                <div class="stack-inner">child z999</div>
+            </div>
+            <div class="stack-ctx stack-p2">P2 z2</div>
+        </section>
+    </body>
+</html>
