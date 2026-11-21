@@ -68,10 +68,35 @@ Inside layout, from the `profile.layout` counters (medians per keystroke):
 - Every setup is over a 60 fps frame (16.7 ms) once style and paint are added; the
   footnotes move it from 17.4 to 20.4 ms.
 
-## Next steps
+## After the fixes
 
-1. Make `layout.inputs.build` incremental (rebuild only changed nodes). It is the largest
-   cost and is unrelated to floats.
-2. Skip re-breaking a footnoted paragraph when its float signature is unchanged and none
-   of its own floats is dirty, instead of re-breaking it on every visit. That would
-   bring the 1300px tree walk back toward 1 ms.
+1. `52e7beb` `perf: typing no longer re-reads the whole page before layout`: the DOM
+   stamps each node with the revision it last changed at, `LayoutInputs` carry the key
+   they were built at, and the builder rebuilds only nodes changed since then, on the
+   sync and the async (GUI) path. `LayoutInput` became an immutable final class, so a
+   build shares unchanged entries instead of copying them; that also made every layout
+   read of an input cheaper (the 800px tree walk went from 1.04 to 0.33 ms).
+2. `d31ee5d` `perf: paragraphs beside floats keep their lines while typing elsewhere`:
+   a block whose lines depend on floats re-breaks only when its content, its float
+   signature, its position or width, or one of its own floats changed. "Moved" now
+   compares stored geometry instead of trusting the dirty flags.
+
+Same method, three runs each, medians per keystroke in ms:
+
+| Setup | Layout | Total | p90 total | Blocks visited | Paragraphs re-broken |
+| --- | --- | --- | --- | --- | --- |
+| 1300px, before both fixes | 10.81 | 20.43 | 22.42 | 49 | 9 |
+| 1300px, after fix 1 | 3.41 | 12.01 | 12.26 | 49 | 9 |
+| 1300px, after fix 2 | 2.93 | 11.50 | 11.77 | 43 | 1 |
+| 800px, before both fixes | 8.37 | 17.23 | 17.75 | 4 | 1 |
+| 800px, after both fixes | 1.78 | 10.17 | 10.46 | 4 | 1 |
+
+Typing is now inside a 60 fps frame at both widths.
+
+## Still open
+
+- At 1300px layout still visits 43 blocks per keystroke against 4 at 800px: the floats
+  and the paragraphs that read them are re-checked on every pass (`markFloatDependents`).
+  The checks find nothing to do, yet the walk to them and their float lookups cost about
+  1.1 ms. Tracking which floats changed in a pass would let unchanged readers be skipped.
+- Style (3.9 ms) and paint (4.5–4.6 ms) are now most of each keystroke.
