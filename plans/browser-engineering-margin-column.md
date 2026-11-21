@@ -58,30 +58,54 @@ ToyStack could not follow any of this:
    adds `margin-left` to x and takes both margins out of an auto width.
 4. `feat: boxes can float to the left or right edge`: `float`/`clear` in
    `LayoutStyle.Positioning`, plus `FloatLayoutPass.swift`.
+5. `feat: text wraps around floated boxes`: each line gets its own left/right inset
+   from the floats beside it, and drops below them when its first item does not fit
+   (CSS 2.1 §9.5). On browser.engineering itself nothing changes on screen: the margin
+   column's floats end at the body's right edge, so they never reach the text.
 
-## How clear stays correct when layout reuses old results
+## How floats stay correct when layout reuses old results
 
-`clear` must look at every earlier float in the same block formatting context
-(CSS 2.1 §9.5.2). On this page the table of contents clears the ad, and the ad lives
-inside a different parent (`aside`). Those floats are not layout inputs of the clearing
-block, so a change to them would never mark it dirty.
+Floats move things that are not their layout inputs:
 
-Instead, the document keeps the set of clearing blocks (`DocumentData.clearingBlocks`).
-`markClearingBlocks()` marks their `y` dirty on every layout pass that does work, so
-they re-place themselves after every earlier float is already laid out. Clearing blocks
-are rare, so this costs little. `FloatLayoutTests` checks both the cross-parent cases
-(`showingAnEarlierFloatMovesTheClearingBlock` and
-`growingAnEarlierFloatMovesTheClearingBlock`) against a full rebuild.
+- `clear` must look at every earlier float in the same block formatting context
+  (CSS 2.1 §9.5.2). On this page the table of contents clears the ad, and the ad lives
+  inside a different parent (`aside`).
+- A paragraph's lines must avoid every earlier float beside it, wherever that float
+  sits in the tree.
+
+The document keeps a `FloatRegistry` (`DocumentData.floats`):
+
+| Part | What it holds | How it is kept fresh |
+| --- | --- | --- |
+| `boxes` | each float's margin box | written by `recordFloatBox` once the float's height is final |
+| `clearing` | blocks with `clear` | `y` marked dirty on every layout pass that does work |
+| `wrapped` | paragraphs with shortened lines, plus the floats they were broken against | `y` marked dirty on every pass; they re-break only if their floats differ |
+
+When a float's margin box changes, `markBlocksBeside` walks forward through the
+formatting context and marks only the paragraphs that overlap the new box. It stops at
+the first block that starts below the float. Paragraphs beside the old box are already
+in `wrapped`, so shrinking, moving, or removing a float frees them on the next pass.
+Paragraphs far from any float keep reusing their lines.
+
+`FloatLayoutTests` and `FloatWrapLayoutTests` check the cross-parent cases against a full
+rebuild. Turning off the forward walk breaks `showingAFloatWrapsAParagraphThatWasFullWidth`.
+Turning off the recheck breaks `hidingTheFloatGivesLinesTheirFullWidthBack`.
 
 ## Known gaps
 
-- Text does not wrap around floats.
+- A line is checked against a band as tall as the paragraph's own font (its strut). A
+  line made taller by a bigger font or an image can still touch a float just below
+  that band.
+- When working out where the next line starts, an image's height is taken from its
+  last layout. A freshly loaded image can shift the bands by one pass.
 - An auto-width float takes the full available width. It does not shrink to fit its
   content (CSS 2.1 §10.3.5).
 - Two floats on the same side without `clear` can overlap. They are not placed side by
   side.
 - Inline-level floats (for example the book's `span.note { float: right }`) are still
   laid out inline.
+- A block that starts its own formatting context (for example `overflow: hidden`) is
+  not narrowed to sit beside a float. Only line boxes are shortened.
 - A parent only grows to contain its floats through a clearing block (the
   `clear: both` trick). New formatting contexts (CSS 2.1 §10.6.7) do not grow around
   their floats on their own.
@@ -90,7 +114,6 @@ are rare, so this costs little. `FloatLayoutTests` checks both the cross-parent 
 
 ## Next steps
 
-1. Wrap text around floats: give each line its own available width, taken from the
-   floats beside it.
-2. Shrink-to-fit width for floats, which needs each box's preferred width.
-3. Place same-side floats next to each other (CSS 2.1 §9.5.1 rules 2, 3, 7).
+1. Shrink-to-fit width for floats, which needs each box's preferred width.
+2. Place same-side floats next to each other (CSS 2.1 §9.5.1 rules 2, 3, 7).
+3. Float inline-level elements, so the book's margin notes move into the margin column.
