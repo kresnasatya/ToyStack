@@ -466,17 +466,40 @@ style text being drawn (see above), not these errors.
    - Tests: `HTMLParserTests`, `DOMTreeTests`, `DOMDataTests`, `CommentLayoutTests`,
      `LayoutInvalidationTests`, `NodeTraversalTests`, `StreamedSectionSwapTests`. The last
      one runs palm-co.de's `$RC`/`$RS` scripts copied unchanged.
-   - Not done: `[hidden]` / `template { display: none }`. `display: none` is parsed
-     (`LayoutStyle.Display.none`) but layout never reads it, so the rule would do nothing.
-     After the swap the hidden `div`s are removed anyway. No `www/` fixture: the test
-     fixtures cover the same shape.
-2. **Script and style text drawn in `<body>`**: start from `BlockLayoutPass.swift:1175`.
+   - `[hidden]` and `template` were added later with real `display: none` (item 4).
+     No `www/` fixture: the test fixtures cover the same shape.
+2. **Script and style text drawn in `<body>`: done (fixed by 4).** Cause: ToyStack had no
+   `display: none` and hid `head/title/script/style` with a hard-coded tag list. Only the
+   block path checked that list (`consumeBlockChildren`). When no child of a parent was
+   `display: block` (palm-co.de's Tailwind `flex` divs count as "not block"), the inline
+   walks (`collectLeaves`, `appendItems`) drew the script and style text. Smallest repro:
+   `<style>…</style><div style="display:flex">x</div><script>…</script>`.
 3. **Hydration** (`TextEncoder`, `document.documentElement`, …): not recommended. A
    scratch run with `TextEncoder` added stops at React error #405. Behind it, every
    `parentNode`/`getElementById` call makes a new JS wrapper object, so
    `a.parentNode === b.parentNode` is false, and React keeps its data on node objects.
    Hydration needs one wrapper per node first.
-4. **`display: none`**: needed before `[hidden]` and `template` can be hidden.
+4. **`display: none`: done.**
+   - `browser.css` starts with HTML §15.3.1's hidden-elements rule (`area, base, …, script,
+     style, template, title`) plus `[hidden] { display: none; }`. The spec's
+     `:not([hidden=until-found i]):not(embed)` part is left out: ToyStack has no `:not()`.
+   - `LayoutInputs.children` returns only rendered children. `allChildren` keeps the
+     `display: none` ones so `blockChildrenInputs` / `inlineContentInputs` still record their
+     `display`. Without that, showing a hidden element would never relay out its parent.
+     `collectInline` reports the hidden elements its walk skips for the same reason.
+   - `LayoutTree.hiddenElements` is gone. `consumeBlockChildren` / `firstVisibleChild` check
+     `display == .none` instead, because the incremental append path passes children
+     that were not filtered.
+   - Tests: `DisplayNoneLayoutTests`.
+5. **Cascade origin: done** (needed by 4). `[hidden]` (an attribute selector) beat a page's
+   `div { display: block }` because rules were sorted by specificity only.
+   `ImportantSelector` became `OriginSelector(base, origin, isImportant)`, and its priority
+   follows CSS Cascade 4 §6.1: normal browser < normal author < important author <
+   important browser. `CSSParser(_, origin: .userAgent)` builds `defaultStyleSheet`.
+   Tests: `CascadeOriginTests`.
+6. **Still open:** accessibility and focus walk the DOM, not layout. A `display: none`
+   element (for example a `[hidden]` section) can still be read aloud or reached with Tab.
+   `head`/`script`/`style` are already skipped there by tag.
 
 ## Risks
 
