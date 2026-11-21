@@ -480,6 +480,7 @@ extension LayoutTree {
             self[block: id].scroll = scroll
         }
         recordFloatBox(id)
+        recordInk(id)
     }
 
     private func countWidthChange(from old: GeometryFields, widthWasUsed: Bool, at id: LayoutID) {

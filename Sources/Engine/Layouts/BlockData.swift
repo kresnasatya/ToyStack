@@ -48,10 +48,13 @@ struct BlockScroll {
 struct BlockPaint {
     var style: BlockStyle?
     var styleRevision: UInt64
+    /// `nil` until the block is laid out; paint never skips such a block.
+    var ink: InkExtent?
 
     init() {
         self.style = nil
         self.styleRevision = 0
+        self.ink = nil
     }
 }
 

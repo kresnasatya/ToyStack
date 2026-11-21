@@ -380,6 +380,9 @@ Rules:
 
 | Metric | Kind | Meaning |
 |---|---|---|
+| `paint.scene.build` | duration | building the paint scene from the layout tree |
+| `paint.scene.nodes` | count | layout objects in the scene, after skipping those outside the paint window |
+| `paint.pass` | duration | walking the scene into display items |
 | `paint.nodes` | count | layout objects visited by `paintTree` |
 | `paint.own.items` | count | display items produced by the node itself |
 | `paint.cache.hit.blocks`, `paint.cache.store.blocks` | count | block cache hits and stores |
@@ -390,6 +393,14 @@ Rules:
 Layout text does no font work during paint: `DisplayOp.text` carries the font resolved
 in layout. Canvas painting is the exception and can emit `text.font*` while
 resolving a canvas font.
+
+The paint window is the viewport plus two viewport heights above and below. The
+scene leaves out lines and text outside it, and blocks whose ink extent misses it.
+Layout records that extent (`InkLayoutPass`): the block's box plus everything
+inside it, which includes floats and positioned children that hang outside it.
+Two exceptions keep blocks in the scene, because a transform moves painting after
+layout. Ancestors of a transformed node always stay, and while any animation runs
+no block is left out. So `paint.scene.nodes` tracks the window, not the page.
 
 ### Spans outside `profile.*`
 

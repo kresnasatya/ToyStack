@@ -93,10 +93,34 @@ Same method, three runs each, medians per keystroke in ms:
 
 Typing is now inside a 60 fps frame at both widths.
 
+## Style and paint
+
+3. `67884ad` `perf: typing no longer re-copies the page for style matching`: each
+   keystroke copied all ~15,000 nodes into the snapshot selector matching reads (about
+   3 ms of the 3.9 ms style pass) while only three nodes were restyled. The snapshot now
+   keeps the DOM revision it was copied at and recopies only nodes changed since.
+4. Paint leaves out blocks far from the viewport: every keystroke built a paint node for
+   all 1,849 blocks and walked them, although lines and text outside the paint window
+   (viewport plus two screens above and below) were already skipped. Layout now records
+   each block's ink extent, its box plus everything inside it, and the scene builder
+   skips a block whose extent misses the window. The scene shrank from 2,186 to 501
+   nodes; `paint.scene.build` went from 3.31 to 1.17 ms and `paint.pass` from 1.11 to
+   0.32 ms.
+
+| Setup | Style | Layout | Paint | Total | p90 total |
+| --- | --- | --- | --- | --- | --- |
+| 1300px, after fix 2 | 3.94 | 2.93 | 4.67 | 11.50 | 11.77 |
+| 1300px, after fix 3 | 0.42 | 2.91 | 4.73 | 8.07 | 8.35 |
+| 1300px, after fix 4 | 0.40 | 2.84 | 1.58 | 4.83 | 5.32 |
+| 800px, after fix 2 | — | 1.78 | — | 10.17 | 10.46 |
+| 800px, after fix 3 | 0.41 | 1.73 | 4.54 | 6.71 | 7.05 |
+| 800px, after fix 4 | 0.41 | 1.67 | 1.58 | 3.67 | 4.27 |
+
 ## Still open
 
 - At 1300px layout still visits 43 blocks per keystroke against 4 at 800px: the floats
   and the paragraphs that read them are re-checked on every pass (`markFloatDependents`).
   The checks find nothing to do, yet the walk to them and their float lookups cost about
   1.1 ms. Tracking which floats changed in a pass would let unchanged readers be skipped.
-- Style (3.9 ms) and paint (4.5–4.6 ms) are now most of each keystroke.
+- After paint, `composite_raster_and_draw` (~1.9 ms, mostly `raster.plan.tiles`) is the
+  next largest per-keystroke cost.

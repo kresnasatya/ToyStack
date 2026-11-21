@@ -14,4 +14,8 @@ struct PaintWindow: Equatable, Sendable {
     func intersects(_ rect: Rect) -> Bool {
         return rect.bottom >= top && rect.top <= bottom
     }
+
+    func intersects(_ ink: InkExtent) -> Bool {
+        return ink.bottom >= top && ink.top <= bottom
+    }
 }

@@ -79,6 +79,127 @@ struct PaintCullingTests {
 
         #expect(frame.maxScroll == extent)
     }
+
+    @Test func blocksFarBelowTheWindowAreLeftOut() {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: (0..<200).map({ "<div class=\"row\" id=\"r\($0)\"></div>" }).joined(),
+            rules: """
+                body { display: block; }
+                div { display: block; }
+                .row { height: 100px; background-color: blue; }
+                """
+        )
+        let frame: Frame = page.frame
+        frame.setNeedsPaint()
+        profiler.reset()
+        frame.paint()
+
+        let metrics: [String: ProfileMetric] = profiler.snapshot()
+        #expect((metrics["paint.scene.nodes"]?.count ?? 0) < 60)
+        #expect(colorRects(frame.displayList, "blue").allSatisfy({ $0.top < 2000 }))
+
+        frame.setScroll(frame.maxScroll)
+        #expect(frame.repaintForScroll())
+        #expect(colorRects(frame.displayList, "blue").contains(where: { $0.bottom > 19000 }))
+    }
+
+    @Test func floatHangingBelowAShortBlockStillPaints() {
+        let page: LayoutTestPage = scrolledPage(
+            child: #"<div id="hang"></div>"#,
+            rules: "#hang { float: left; width: 50px; height: 5000px; background-color: green; }"
+        )
+        #expect(!colorRects(page.frame.displayList, "green").isEmpty)
+    }
+
+    @Test func absoluteChildPlacedIntoTheWindowStillPaints() {
+        let page: LayoutTestPage = scrolledPage(
+            child: #"<div id="abs"></div>"#,
+            rules: "#abs { position: absolute; top: 3700px; height: 100px; width: 100px; background-color: purple; }"
+        )
+        #expect(!colorRects(page.frame.displayList, "purple").isEmpty)
+    }
+
+    @Test func transformedChildStillPaints() {
+        let page: LayoutTestPage = scrolledPage(
+            child: #"<div id="moved"></div>"#,
+            rules: "#moved { height: 100px; background-color: teal; transform: translate(0px, 3700px); }"
+        )
+        #expect(hasTransformScope(page.frame.displayList))
+    }
+
+    @Test func noBlockIsLeftOutWhileAnAnimationRuns() throws {
+        let page: LayoutTestPage = scrolledPage(
+            child: #"<div id="moved"></div>"#,
+            rules: "#moved { height: 100px; background-color: teal; }"
+        )
+        #expect(colorRects(page.frame.displayList, "teal").isEmpty)
+
+        let moved: ElementRef = try #require(page.firstElement(id: "moved"))
+        page.frame.addAnimation(TransformAnimation(
+            animatedProperty: .transform,
+            oldPoint: CGPoint.zero,
+            newPoint: CGPoint(x: 0, y: 3700),
+            timing: FrameTiming(totalFrames: 60, easing: .linear)
+        ), to: moved.ref)
+        page.frame.setNeedsPaint()
+        page.frame.paint()
+
+        #expect(hasTransformScope(page.frame.displayList))
+    }
+
+    @Test func growingAFloatIntoTheWindowPaintsIt() throws {
+        let page: LayoutTestPage = scrolledPage(
+            child: #"<div id="hang"></div>"#,
+            rules: "#hang { float: left; width: 50px; height: 100px; background-color: green; }"
+        )
+        #expect(colorRects(page.frame.displayList, "green").isEmpty)
+
+        let hang: ElementRef = try #require(page.firstElement(id: "hang"))
+        InlineStyle.set(hang, property: "height", value: "5000px")
+        page.frame.setNeedsStyle(hang.ref)
+        page.frame.render()
+        page.frame.setNeedsPaint()
+        page.frame.paint()
+
+        #expect(!colorRects(page.frame.displayList, "green").isEmpty)
+    }
+}
+
+/// A short block at the top holds `child`; the page is scrolled far enough that
+/// the block itself lies above the paint window.
+@MainActor
+private func scrolledPage(child: String, rules: String) -> LayoutTestPage {
+    let page: LayoutTestPage = LayoutTestPage(
+        html: #"<div id="top">\#(child)</div><div id="spacer"></div>"#,
+        rules: """
+            body { display: block; }
+            div { display: block; }
+            #top { height: 10px; }
+            #spacer { height: 9000px; }
+            """ + rules
+    )
+    page.frame.setScroll(3600)
+    page.frame.setNeedsPaint()
+    page.frame.paint()
+    return page
+}
+
+private func colorRects(_ list: [DisplayOp], _ name: String) -> [Rect] {
+    let color: BrowserColor = BrowserColor(cssName: name)
+    var rects: [Rect] = []
+    for op in list {
+        if case .rect(let rect, let opColor) = op, opColor == color { rects.append(rect) }
+    }
+    return rects
+}
+
+/// A transformed block paints inside a transform scope that the compositor
+/// moves, so the scope, not its contents, shows the block was built.
+private func hasTransformScope(_ list: [DisplayOp]) -> Bool {
+    return list.contains(where: { op in
+        guard case .beginEffect(let scope) = op, case .transform = scope.kind else { return false }
+        return true
+    })
 }
 
 @MainActor

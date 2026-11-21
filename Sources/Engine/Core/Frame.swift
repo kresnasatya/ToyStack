@@ -18,6 +18,7 @@ class Frame {
 
     var state: FrameState
     private var styleSnapshotCache: StyleSnapshot?
+    private var transformedNodes: Set<NodeID> = []
     private var layoutInFlight: Bool = false
     /// A viewport change does not set it; the pass's `LayoutJobKey` already
     /// records that.
@@ -54,6 +55,7 @@ class Frame {
         newDOM.links.tab = tab
         state.document.dom = newDOM
         styleSnapshotCache = nil
+        transformedNodes = []
         state.layout.tree.box = nil
         state.layout.tree.isDirty = true
         state.layout.targets.clear()
@@ -933,6 +935,7 @@ class Frame {
                 for (property, animation) in newAnimations {
                     node.animations[.property(property)] = animation
                 }
+                noteTransform(of: node)
             }
             for (tag, count) in fontChangesByTag {
                 browser?.measure.counter("style.font-size.changed.\(tag)", ["count": count])
@@ -1172,6 +1175,30 @@ class Frame {
         return document.map({ $0.selfRect($0.rootID).bottom }) ?? 0
     }
 
+    /// DOM nodes whose blocks paint builds even outside the paint window: a
+    /// transform moves painting away from where layout put it, and the
+    /// block's ink extent does not know. `nil` while any animation runs,
+    /// since an animation can start moving any node without a new style pass.
+    func nodesKeptByTransforms() -> Set<NodeID>? {
+        guard state.runtime.animation.activeCount == 0 else { return nil }
+        var kept: Set<NodeID> = []
+        for node in transformedNodes {
+            var current: NodeID? = node
+            while let id: NodeID = current, kept.insert(id).inserted {
+                current = dom.parent(of: id)
+            }
+        }
+        return kept
+    }
+
+    private func noteTransform(of node: DOMRef) {
+        if node.style.computed.visual.effects.translation != nil {
+            transformedNodes.insert(node.id)
+        } else {
+            transformedNodes.remove(node.id)
+        }
+    }
+
     func runAnimationFrame() {
         guard js != nil else { return }
         browser?.measure.start("BrowserTab.animFrame")
@@ -1227,6 +1254,9 @@ class Frame {
                     }
                 } else {
                     if dom.removeAnimation(key, from: node.id) != nil { state.runtime.animation.activeCount -= 1 }
+                    if property == .transform {
+                        noteTransform(of: node)
+                    }
                     state.display.composite.isNeededForPaint = true
                     state.display.paint.isNeeded = true
                 }

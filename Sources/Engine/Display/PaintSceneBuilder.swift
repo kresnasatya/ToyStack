@@ -20,6 +20,8 @@ struct PaintSceneBuilder {
     private(set) var sink: PaintBuildSink = PaintBuildSink()
     private var window: PaintWindow = .full
     private var highlights: [LayoutID: [Rect]] = [:]
+    /// Nodes whose blocks are built even off screen; `nil` builds every block.
+    private var keptByTransforms: Set<NodeID>? = nil
 
     mutating func build(
         root: LayoutID,
@@ -41,9 +43,12 @@ struct PaintSceneBuilder {
         // Restored afterwards for the same reason: this may be an iframe
         // built in the middle of its parent's scene.
         let parentHighlights: [LayoutID: [Rect]] = highlights
+        let parentKept: Set<NodeID>? = keptByTransforms
         highlights = frame.selectionHighlights(in: tree)
+        keptByTransforms = frame.nodesKeptByTransforms()
         _ = appendNode(tree, root, parent: nil, nodes: &nodes, revisions: &revisions)
         highlights = parentHighlights
+        keptByTransforms = parentKept
         sink.scenes[index] = PaintFrame(
             nodes: nodes,
             epoch: frame.paintEpoch,
@@ -110,14 +115,22 @@ struct PaintSceneBuilder {
         return style
     }
 
-    /// The same rule the paint pass applies: only line and text nodes are
-    /// window-culled, so absolute and fixed blocks keep their parent chain.
+    /// Lines and text are skipped by their own box, as the paint pass does.
+    /// A block is skipped by its ink extent, which covers floats and
+    /// positioned children hanging outside it, unless a transform inside it
+    /// can move painting somewhere layout does not know about.
     private func culledAtBuild(_ tree: LayoutTree, _ id: LayoutID) -> Bool {
         guard window != .full else { return false }
         switch tree.kind(id) {
         case .line, .text:
             return !window.intersects(tree.selfRect(id))
-        default:
+        case .block:
+            guard let kept: Set<NodeID> = keptByTransforms,
+                let ink: InkExtent = tree[block: id].paint.ink,
+                !kept.contains(tree.domID(of: id))
+            else { return false }
+            return !window.intersects(ink)
+        case .document, .embed:
             return false
         }
     }
