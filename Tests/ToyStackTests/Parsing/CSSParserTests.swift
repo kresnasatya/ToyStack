@@ -78,7 +78,7 @@ struct CSSParserTests {
         let css = "p, .note { color: red !important; }"
         let rules = CSSParser(css).parse().rules
         #expect(rules.count == 2)
-        #expect(rules.allSatisfy({ $0.1 is ImportantSelector }))
+        #expect(rules.allSatisfy({ ($0.1 as? OriginSelector)?.isImportant == true }))
     }
 
     @Test func malformedSelectorListRecoversWithoutUniversalRule() {

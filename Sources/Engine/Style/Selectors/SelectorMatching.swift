@@ -5,8 +5,8 @@ func cascadePriority(_ rule: (String?, any CSSSelector, [String: String])) -> In
 
 func isDescendantRule(_ selector: any CSSSelector) -> Bool {
     if selector is DescendantSelector { return true }
-    if let important = selector as? ImportantSelector {
-        return isDescendantRule(important.base)
+    if let wrapped = selector as? OriginSelector {
+        return isDescendantRule(wrapped.base)
     }
     if let pseudoclass = selector as? PseudoclassSelector {
         return isDescendantRule(pseudoclass.base)

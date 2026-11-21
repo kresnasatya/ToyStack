@@ -14,6 +14,7 @@ struct Keyframe {
 // MARK: - CSSParser
 class CSSParser {
     private let chars: [Character]
+    private let origin: CascadeOrigin
     private var i: Int = 0
     private static let borderStyleKeywords: Set<String> = [
         "none", "hidden", "solid", "dashed", "dotted",
@@ -21,8 +22,16 @@ class CSSParser {
     ]
     private static let borderWidthKeywords: Set<String> = ["thin", "medium", "thick"]
 
-    init(_ s: String) {
+    init(_ s: String, origin: CascadeOrigin = .author) {
         self.chars = Array(s)
+        self.origin = origin
+    }
+
+    // Normal author rules stay bare; every other origin and importance level
+    // is ranked relative to them.
+    private func ruleSelector(_ selector: any CSSSelector, isImportant: Bool) -> any CSSSelector {
+        if origin == .author, !isImportant { return selector }
+        return OriginSelector(base: selector, origin: origin, isImportant: isImportant)
     }
 
     private func skipWhitespace() {
@@ -531,10 +540,10 @@ class CSSParser {
                     skipWhitespace()
                     for sel in selectors {
                         if !parts.normal.isEmpty {
-                            rules.append((media, sel, parts.normal))
+                            rules.append((media, ruleSelector(sel, isImportant: false), parts.normal))
                         }
                         if !parts.important.isEmpty {
-                            rules.append((media, ImportantSelector(base: sel), parts.important))
+                            rules.append((media, ruleSelector(sel, isImportant: true), parts.important))
                         }
                     }
                 }

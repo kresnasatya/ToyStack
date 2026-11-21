@@ -2429,5 +2429,5 @@ let defaultStyleSheet: [(String?, any CSSSelector, [String: String])] = {
     guard let url = EngineResources.bundle.url(forResource: "browser", withExtension: "css"),
         let source = try? String(contentsOf: url, encoding: .utf8)
     else { return [] }
-    return CSSParser(source).parse().rules
+    return CSSParser(source, origin: .userAgent).parse().rules
 }()

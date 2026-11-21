@@ -88,8 +88,8 @@ private func ancestorRequirements(_ selector: any CSSSelector) -> Set<SelectorKe
             $0.formUnion(necessaryKeys($1))
         }
     }
-    if let important = selector as? ImportantSelector {
-        return ancestorRequirements(important.base)
+    if let wrapped = selector as? OriginSelector {
+        return ancestorRequirements(wrapped.base)
     }
     return []
 }
@@ -102,7 +102,7 @@ private func necessaryKeys(_ selector: any CSSSelector) -> Set<SelectorKey> {
         case let seq as SelectorSequence:
             return seq.selectors.reduce(into: [], { $0.formUnion(necessaryKeys($1)) })
         case let pseudoclass as PseudoclassSelector: return necessaryKeys(pseudoclass.base)
-        case let important as ImportantSelector: return necessaryKeys(important.base)
+        case let wrapped as OriginSelector: return necessaryKeys(wrapped.base)
         default: return []
     }
 }
@@ -111,8 +111,8 @@ private func selectorHoversAncestor(_ selector: any CSSSelector) -> Bool {
     if let descendant = selector as? DescendantSelector {
         return descendant.selectors.dropLast().contains(where: selectorContainsHover)
     }
-    if let important = selector as? ImportantSelector {
-        return selectorHoversAncestor(important.base)
+    if let wrapped = selector as? OriginSelector {
+        return selectorHoversAncestor(wrapped.base)
     }
     if let has = selector as? HasSelector {
         return selectorHoversAncestor(has.inner)
@@ -128,8 +128,8 @@ private func selectorContainsHover(_ selector: any CSSSelector) -> Bool {
         return sequence.selectors.contains(where: selectorContainsHover)
     case let descendant as DescendantSelector:
         return descendant.selectors.contains(where: selectorContainsHover)
-    case let important as ImportantSelector:
-        return selectorContainsHover(important.base)
+    case let wrapped as OriginSelector:
+        return selectorContainsHover(wrapped.base)
     case let has as HasSelector:
         return selectorContainsHover(has.inner)
     default:
