@@ -241,7 +241,9 @@ enum LayoutInputTable {
         case .children, .x, .y, .previous, .inlineContent:
             return []
         case .width:
-            return embedWidthInputs(id, parent: parent, dom: dom, data: data)
+            // An image's percentages resolve against the block that owns its line.
+            let container: LayoutID? = parent.map({ tree.parentID(of: $0) ?? $0 })
+            return embedWidthInputs(id, container: container, dom: dom, data: data)
         case .height:
             var keys: [FieldKey] = embedHeightInputs(id, dom: dom, data: data)
             if case .button = data {
@@ -265,7 +267,7 @@ enum LayoutInputTable {
 
     private static func embedWidthInputs(
         _ id: LayoutID,
-        parent: LayoutID?,
+        container: LayoutID?,
         dom: NodeID,
         data: EmbedData
     ) -> [FieldKey] {
@@ -276,7 +278,7 @@ enum LayoutInputTable {
                 .style(dom, .aspectRatio),
                 .style(dom, .maxWidth),
             ]
-            if let parent { keys.insert(.layout(parent, .width), at: 0) }
+            if let container { keys.insert(.layout(container, .width), at: 0) }
             return keys + sizedByAttributeKeys(dom)
         case .input:
             return [.layout(id, .font), .layout(id, .zoom)]

@@ -162,4 +162,49 @@ struct FloatWrapLayoutTests {
         #expect((metrics["layout.inline.place.setup"]?.count ?? 0) <= 1)
         expectIncrementalMatchesFull(page)
     }
+
+    /// The paragraph starts 30px above the float, so only a line taller than
+    /// the paragraph's own font reaches it.
+    private static let lowFloatRules: String = """
+        #f { float: left; width: 100px; height: 20px; }
+        #p { margin-top: -30px; margin-bottom: 0; }
+        """
+
+    @Test func lineWithABigFontIsShortenedByAFloatBelowItsTop() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="f"></div><p id="p"><span style="font-size: 48px">Big</span> \#(Self.words)</p>"#,
+            Self.lowFloatRules
+        )
+        let (block, lines) = try paragraph(page)
+        let float: Rect = try floatRect(page)
+        #expect(page.tree.y(lines[0]) + page.tree.height(lines[0]) > float.top)
+        #expect(page.tree.x(lines[0]) == page.tree.x(block) + 100)
+    }
+
+    @Test func lineWithATallImageUsesTheImageHeightForItsBand() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="f"></div><p id="p"><img width="40" height="60"> \#(Self.words)</p>"#,
+            Self.lowFloatRules
+        )
+        let (block, lines) = try paragraph(page)
+        let float: Rect = try floatRect(page)
+        #expect(page.tree.x(lines[0]) == page.tree.x(block) + 100)
+        #expect(page.tree.y(lines[1]) >= float.bottom)
+        #expect(page.tree.x(lines[1]) == page.tree.x(block))
+        #expect(page.tree.width(lines[1]) == page.tree.width(block))
+    }
+
+    @Test func tallItemThatWouldHitTheFloatStartsTheNextLine() throws {
+        let page: LayoutTestPage = page(
+            #"<div id="f"></div><p id="p">\#(String(repeating: "word ", count: 10))<span style="font-size: 48px">Big</span> \#(Self.words)</p>"#,
+            Self.lowFloatRules + "#f { width: 300px; }"
+        )
+        let (block, lines) = try paragraph(page)
+        let float: Rect = try floatRect(page)
+        let first: LayoutID = lines[0]
+        #expect(page.tree.y(first) + page.tree.height(first) <= float.top)
+        #expect(page.tree.x(first) == page.tree.x(block))
+        let big: LayoutID = lines[1]
+        #expect(page.tree.x(big) == page.tree.x(block) + 300)
+    }
 }

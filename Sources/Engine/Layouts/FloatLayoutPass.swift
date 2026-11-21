@@ -59,7 +59,7 @@ extension LayoutTree {
             return a.rect.left < b.rect.left
         })
         // CSS 2.1 §10.8.1: every line is at least as tall as the block's strut,
-        // so that is the band a line is checked against before its height is known.
+        // so no band a line is checked against is shorter than that.
         let strut: CGFloat = fontFor(id, zoom: zoom(id)).linespace
         return FloatExclusions(boxes: boxes, left: left, right: right, strut: strut)
     }

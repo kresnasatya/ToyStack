@@ -87,26 +87,14 @@ extension LayoutTree {
         layoutEmbedCommon(id)
         guard sizeDirty else { return }
         guard let el = domView(id).element else { return }
-        let available: CGFloat = width(parentID(of: id)!)
-        let metrics: EmbedMetrics = EmbedMetrics(el)
-        let elementZoom: CGFloat = zoom(id)
-        let edges: EdgeInsets = embedEdges(id)
-        let specifiedWidth: CGFloat = imageUsedWidth(metrics, available: available, zoom: elementZoom)
-        let usedWidth: CGFloat = metrics.specifiedContent(
-            specifiedWidth,
-            attribute: "width",
-            paddingAndBorder: edges.horizontal
+        let size: (width: CGFloat, height: CGFloat) = imageUsedSize(
+            EmbedMetrics(el),
+            available: embedContainingWidth(id),
+            zoom: zoom(id),
+            edges: embedEdges(id)
         )
-        setField(.width, usedWidth, for: id)
-        // A height attribute sizes the same box as the width attribute; without
-        // one, the ratio applies to the content width.
-        let usedHeight: CGFloat = metrics.attributes["height"] != nil
-            ? metrics.specifiedContent(
-                imageUsedHeight(metrics, usedWidth: specifiedWidth, zoom: elementZoom),
-                attribute: "height",
-                paddingAndBorder: edges.vertical
-            )
-            : imageUsedHeight(metrics, usedWidth: usedWidth, zoom: elementZoom)
+        let usedHeight: CGFloat = size.height
+        setField(.width, size.width, for: id)
         var data: ImageData
         if case .image(let current) = self[embed: id] {
             data = current
@@ -282,20 +270,14 @@ extension LayoutTree {
         guard let el = domView(id).element else { return }
 
         let metrics: EmbedMetrics = EmbedMetrics(el)
-        let size: (width: CGFloat, height: CGFloat) = iframeDisplaySize(metrics)
-        let edges: EdgeInsets = embedEdges(id)
-        let contentWidth: CGFloat = metrics.specifiedContent(
-            size.width * zoom(id),
-            attribute: "width",
-            paddingAndBorder: edges.horizontal
+        let size: (width: CGFloat, height: CGFloat) = replacedUsedSize(
+            iframeDisplaySize(metrics),
+            metrics: metrics,
+            zoom: zoom(id),
+            edges: embedEdges(id)
         )
-        let contentHeight: CGFloat = metrics.specifiedContent(
-            size.height * zoom(id),
-            attribute: "height",
-            paddingAndBorder: edges.vertical
-        )
-        setField(.width, contentWidth, for: id)
-        setField(.height, contentHeight, for: id)
+        setField(.width, size.width, for: id)
+        setField(.height, size.height, for: id)
         embedSetAscentFromHeight(id)
 
         note(.iframeViewport(node: domID(of: id), width: width(id), height: height(id)))
@@ -313,21 +295,14 @@ extension LayoutTree {
         guard sizeDirty else { return }
         guard let el = domView(id).element else { return }
         let size: (width: CGFloat, height: CGFloat) = canvasContentSize(attributes: el.attributes)
-        let metrics: EmbedMetrics = EmbedMetrics(el)
-        let edges: EdgeInsets = embedEdges(id)
-        let contentWidth: CGFloat = metrics.specifiedContent(
-            size.width * zoom(id),
-            attribute: "width",
-            paddingAndBorder: edges.horizontal
+        let used: (width: CGFloat, height: CGFloat) = replacedUsedSize(
+            size,
+            metrics: EmbedMetrics(el),
+            zoom: zoom(id),
+            edges: embedEdges(id)
         )
-        let contentHeight: CGFloat = metrics.specifiedContent(
-            size.height * zoom(id),
-            attribute: "height",
-            paddingAndBorder: edges.vertical
-        )
-
-        setField(.width, contentWidth, for: id)
-        setField(.height, contentHeight, for: id)
+        setField(.width, used.width, for: id)
+        setField(.height, used.height, for: id)
         embedSetAscentFromHeight(id)
 
         note(.canvasSize(
@@ -378,6 +353,56 @@ extension LayoutTree {
     func embedBorderWidths(_ id: LayoutID) -> EdgeInsets {
         return inputs.style(domID(of: id)).box.decoration.border.usedWidths.scaled(by: embedEdgeZoom(id))
     }
+
+    /// CSS 2.1 §10.1: percentages resolve against the containing block, the
+    /// block that owns the line, not the line, which floats may shorten.
+    private func embedContainingWidth(_ id: LayoutID) -> CGFloat {
+        guard let line: LayoutID = parentID(of: id) else { return 0 }
+        return width(parentID(of: line) ?? line)
+    }
+
+    /// The ascent and descent `layoutEmbed` will give this element on a line
+    /// of `block`, so line breaking can know a line's height before layout.
+    func embedExtent(_ node: LayoutElementView, in block: LayoutID) -> InlineExtent {
+        let lineZoom: CGFloat = zoom(block)
+        let style: ComputedStyle = node.style.computed
+        let embedZoom: CGFloat = lineZoom * (style.box.zoom ?? 1)
+        let edges: EdgeInsets = style.box.paddingAndBorder.scaled(by: lineZoom)
+        let font: BrowserFont = fontFor(node.ref.id, zoom: embedZoom)
+        let metrics: EmbedMetrics = EmbedMetrics(node)
+        switch node.tag {
+        case "img":
+            let size: (width: CGFloat, height: CGFloat) = imageUsedSize(
+                metrics,
+                available: width(block),
+                zoom: embedZoom,
+                edges: edges
+            )
+            return InlineExtent(ascent: max(size.height, font.linespace) + edges.vertical, descent: 0)
+        case "input":
+            return InlineExtent(ascent: font.linespace + edges.vertical, descent: 0)
+        case "button":
+            return InlineExtent(ascent: font.ascent + edges.top, descent: font.descent + edges.bottom)
+        case "iframe":
+            let size: (width: CGFloat, height: CGFloat) = replacedUsedSize(
+                iframeDisplaySize(metrics),
+                metrics: metrics,
+                zoom: embedZoom,
+                edges: edges
+            )
+            return InlineExtent(ascent: size.height + edges.vertical, descent: 0)
+        case "canvas":
+            let size: (width: CGFloat, height: CGFloat) = replacedUsedSize(
+                canvasContentSize(attributes: node.attributes),
+                metrics: metrics,
+                zoom: embedZoom,
+                edges: edges
+            )
+            return InlineExtent(ascent: size.height + edges.vertical, descent: 0)
+        default:
+            return .zero
+        }
+    }
 }
 
 // MARK: - Shared embed measurements
@@ -414,6 +439,43 @@ func imageUsedHeight(_ metrics: EmbedMetrics, usedWidth: CGFloat, zoom: CGFloat)
         return CGFloat(size.height) * zoom
     }
     return CGFloat(height) * zoom
+}
+
+/// A height attribute sizes the same box as the width attribute; without one,
+/// the ratio applies to the content width.
+func imageUsedSize(
+    _ metrics: EmbedMetrics,
+    available: CGFloat,
+    zoom: CGFloat,
+    edges: EdgeInsets
+) -> (width: CGFloat, height: CGFloat) {
+    let specifiedWidth: CGFloat = imageUsedWidth(metrics, available: available, zoom: zoom)
+    let usedWidth: CGFloat = metrics.specifiedContent(
+        specifiedWidth,
+        attribute: "width",
+        paddingAndBorder: edges.horizontal
+    )
+    let usedHeight: CGFloat = metrics.attributes["height"] != nil
+        ? metrics.specifiedContent(
+            imageUsedHeight(metrics, usedWidth: specifiedWidth, zoom: zoom),
+            attribute: "height",
+            paddingAndBorder: edges.vertical
+        )
+        : imageUsedHeight(metrics, usedWidth: usedWidth, zoom: zoom)
+    return (usedWidth, usedHeight)
+}
+
+/// Iframes and canvases: a fixed size in CSS pixels, after box-sizing.
+func replacedUsedSize(
+    _ size: (width: CGFloat, height: CGFloat),
+    metrics: EmbedMetrics,
+    zoom: CGFloat,
+    edges: EdgeInsets
+) -> (width: CGFloat, height: CGFloat) {
+    return (
+        metrics.specifiedContent(size.width * zoom, attribute: "width", paddingAndBorder: edges.horizontal),
+        metrics.specifiedContent(size.height * zoom, attribute: "height", paddingAndBorder: edges.vertical)
+    )
 }
 
 let iframeDefaultWidthPx: CGFloat = 300

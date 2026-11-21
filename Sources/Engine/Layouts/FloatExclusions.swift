@@ -3,8 +3,8 @@ import CoreGraphics
 // MARK: - FloatExclusions
 
 /// The floats beside one inline block, with the block's content edges the
-/// line insets are measured from. `strut` is the band each line is checked
-/// against before its own height is known.
+/// line insets are measured from. A line is checked against the band from its
+/// top down by its height, never less than the block's `strut`.
 struct FloatExclusions {
     let boxes: [FloatBox]
     let left: CGFloat
@@ -15,9 +15,9 @@ struct FloatExclusions {
 
     var isEmpty: Bool { boxes.isEmpty }
 
-    func insets(top: CGFloat, gap: CGFloat) -> LineFloatInsets {
+    func insets(top: CGFloat, gap: CGFloat, height: CGFloat) -> LineFloatInsets {
         var insets: LineFloatInsets = LineFloatInsets(left: 0, right: 0, gap: gap)
-        for box in boxes where overlaps(box, top: top + gap) {
+        for box in boxes where overlaps(box, top: top + gap, height: height) {
             switch box.side {
             case .left: insets.left = max(insets.left, box.rect.right - left)
             case .right: insets.right = max(insets.right, right - box.rect.left)
@@ -29,16 +29,16 @@ struct FloatExclusions {
 
     /// The nearest float bottom that ends the band's shortening, so a line too
     /// narrow for its first item can move down to it.
-    func nextTop(after top: CGFloat) -> CGFloat? {
+    func nextTop(after top: CGFloat, height: CGFloat) -> CGFloat? {
         var next: CGFloat? = nil
-        for box in boxes where overlaps(box, top: top) && intrudes(box) {
+        for box in boxes where overlaps(box, top: top, height: height) && intrudes(box) {
             next = min(next ?? box.rect.bottom, box.rect.bottom)
         }
         return next
     }
 
-    private func overlaps(_ box: FloatBox, top: CGFloat) -> Bool {
-        return box.rect.bottom > top && box.rect.top < top + strut
+    private func overlaps(_ box: FloatBox, top: CGFloat, height: CGFloat) -> Bool {
+        return box.rect.bottom > top && box.rect.top < top + max(strut, height)
     }
 
     private func intrudes(_ box: FloatBox) -> Bool {
