@@ -721,12 +721,15 @@ extension LayoutTree {
         }
     }
 
+    /// Children whose DOM nodes still form the same block keep it, with
+    /// everything it laid out; only the rest are built again.
     mutating private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
         profiler.count("layout.children.rebuilt")
         self[block: id].changes.childChanges.removeAll()
         var state: BlockChildBuild = BlockChildBuild()
-        consumeBlockChildren(id, domView(id).children, state: &state)
-        finishBlockChildren(id, &state)
+        var pool: BlockPool = reusableChildren(of: id)
+        consumeBlockChildren(id, domView(id).children, state: &state, pool: &pool)
+        finishBlockChildren(id, &state, pool: &pool)
         return state.built
     }
 
@@ -765,8 +768,9 @@ extension LayoutTree {
             }
         }
 
-        consumeBlockChildren(id, nodes, state: &state)
-        finishBlockChildren(id, &state)
+        var pool: BlockPool = BlockPool([:])
+        consumeBlockChildren(id, nodes, state: &state, pool: &pool)
+        finishBlockChildren(id, &state, pool: &pool)
         return state.built
     }
 
@@ -850,8 +854,9 @@ extension LayoutTree {
             built: prefix,
             previous: lastFlowChild(id, in: prefix)
         )
-        consumeBlockChildren(id, nodes, state: &state)
-        finishBlockChildren(id, &state)
+        var pool: BlockPool = BlockPool([:])
+        consumeBlockChildren(id, nodes, state: &state, pool: &pool)
+        finishBlockChildren(id, &state, pool: &pool)
 
         var previous: LayoutID? = state.previous
         for id in current[index...] {
@@ -905,7 +910,8 @@ extension LayoutTree {
     mutating private func consumeBlockChildren(
         _ id: LayoutID,
         _ nodes: [LayoutDOMView],
-        state: inout BlockChildBuild
+        state: inout BlockChildBuild,
+        pool: inout BlockPool
     ) {
         for child in nodes {
             if child.style.computed.layout.display == .none {
@@ -917,26 +923,20 @@ extension LayoutTree {
             let isBlock: Bool = child.style.computed.layout.display == .block && !joinsRun
             if isBlock {
                 if let el = child.element, el.tag == "h6" {
-                    flushInlineRun(id, &state)
+                    flushInlineRun(id, &state, pool: &pool)
                     state.pendingRunIn = el
                 } else {
-                    flushInlineRun(id, &state)
+                    flushInlineRun(id, &state, pool: &pool)
                     if let runIn: LayoutElementView = state.pendingRunIn {
                         let run: [NodeID] = [runIn.ref.id, child.id]
-                        let next: LayoutID = makeAnonymousBlock(
-                            extraNodes: run,
-                            parent: id,
-                            previous: state.previous
-                        )
+                        let next: LayoutID = takeBlock(run[0], extraNodes: run, from: &pool, previous: state.previous)
+                            ?? makeAnonymousBlock(extraNodes: run, parent: id, previous: state.previous)
                         state.built.append(next)
                         state.previous = next
                         state.pendingRunIn = nil
                     } else {
-                        let next: LayoutID = makeBlock(
-                            dom: child.id,
-                            parent: id,
-                            previous: state.previous
-                        )
+                        let next: LayoutID = takeBlock(child.id, extraNodes: [], from: &pool, previous: state.previous)
+                            ?? makeBlock(dom: child.id, parent: id, previous: state.previous)
                         state.built.append(next)
                         if !isOutOfFlow(child) {
                             state.previous = next
@@ -949,29 +949,61 @@ extension LayoutTree {
         }
     }
 
-    mutating private func flushInlineRun(_ id: LayoutID, _ state: inout BlockChildBuild) {
+    mutating private func flushInlineRun(
+        _ id: LayoutID,
+        _ state: inout BlockChildBuild,
+        pool: inout BlockPool
+    ) {
         guard !state.inlineRun.isEmpty else { return }
-        let run: [LayoutDOMView] = state.inlineRun
-        let anon: LayoutID = makeAnonymousBlock(
-            extraNodes: run.map({ $0.id }),
-            parent: id,
-            previous: state.previous
-        )
+        let run: [NodeID] = state.inlineRun.map({ $0.id })
+        let anon: LayoutID = takeBlock(run[0], extraNodes: run, from: &pool, previous: state.previous)
+            ?? makeAnonymousBlock(extraNodes: run, parent: id, previous: state.previous)
         state.built.append(anon)
         state.previous = anon
         state.inlineRun = []
     }
 
-    mutating private func finishBlockChildren(_ id: LayoutID, _ state: inout BlockChildBuild) {
-        flushInlineRun(id, &state)
+    mutating private func finishBlockChildren(
+        _ id: LayoutID,
+        _ state: inout BlockChildBuild,
+        pool: inout BlockPool
+    ) {
+        flushInlineRun(id, &state, pool: &pool)
         if let runIn: LayoutElementView = state.pendingRunIn {
-            let next: LayoutID = makeBlock(
-                dom: runIn.ref.id,
-                parent: id,
-                previous: state.previous
-            )
+            let next: LayoutID = takeBlock(runIn.ref.id, extraNodes: [], from: &pool, previous: state.previous)
+                ?? makeBlock(dom: runIn.ref.id, parent: id, previous: state.previous)
             state.built.append(next)
         }
+    }
+
+    /// The children a rebuilt list may take back, keyed by the first DOM node
+    /// each one holds.
+    private func reusableChildren(of id: LayoutID) -> BlockPool {
+        var blocks: [NodeID: LayoutID] = [:]
+        for child in childrenIDs(of: id) where isBlock(child) {
+            blocks[domID(of: child)] = child
+        }
+        return BlockPool(blocks)
+    }
+
+    /// A block is kept only when the same DOM nodes still form it, so its
+    /// lines and descendants are still its own. It gets its new previous
+    /// sibling; the dependency index moves whatever reads that.
+    mutating private func takeBlock(
+        _ dom: NodeID,
+        extraNodes: [NodeID],
+        from pool: inout BlockPool,
+        previous: LayoutID?
+    ) -> LayoutID? {
+        guard let old: LayoutID = pool.take(dom),
+            self[block: old].content.extraNodes == extraNodes
+        else { return nil }
+        profiler.count("layout.children.kept")
+        if extraNodes.isEmpty {
+            setPrimary(old, for: dom)
+        }
+        setBlockPrevious(old, previous)
+        return old
     }
 
     // MARK: - Padding
@@ -2008,6 +2040,21 @@ private struct BlockChildBuild {
     var previous: LayoutID?
     var inlineRun: [LayoutDOMView] = []
     var pendingRunIn: LayoutElementView?
+}
+
+// MARK: - BlockPool
+
+private struct BlockPool {
+    private var blocks: [NodeID: LayoutID]
+
+    init(_ blocks: [NodeID: LayoutID]) {
+        self.blocks = blocks
+    }
+
+    /// Each block can be taken once, so two children never share one.
+    mutating func take(_ node: NodeID) -> LayoutID? {
+        return blocks.removeValue(forKey: node)
+    }
 }
 
 // MARK: - Inline placement

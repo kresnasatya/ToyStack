@@ -331,6 +331,7 @@ a test that runs the style phase without `render()`.
 | `layout.text` | duration | text layout |
 | `layout.rebuilt` | count | block pass bodies that ran; equals `layout.visited` |
 | `layout.children.rebuilt` | count | block-mode child lists rebuilt (inline reflow is not counted) |
+| `layout.children.kept` | count | child blocks a rebuilt list took back because the same DOM nodes still form them |
 | `layout.dirtyDescendants` | count | gate checks that returned because a descendant field was dirty |
 | `layout.field.set` | count | layout field writes that changed the value |
 | `layout.field.mark` | count | layout field transitions from clean to dirty |
@@ -365,7 +366,10 @@ Rules:
   style-driven mark is not included in the next layout's count.
 - `layout.children.rebuilt` only covers block-mode child lists. An inline block
   rebuilds its lines in `placeInlineItems` without bumping it; use
-  `layout.inline.place` and `layout.lines.total` to see inline reflow.
+  `layout.inline.place` and `layout.lines.total` to see inline reflow. A rebuild
+  keeps every child block whose DOM nodes did not change, with its lines and
+  descendants, so compare it with `layout.children.kept`: a rebuild with few
+  kept children re-lays out everything under that block.
 - The `layout.*` durations nest and overlap; do not add them. `layout.visit`
   contains `layout.height` and the line/text work.
 - `text.measure` is `CTLine` creation per cache miss; `text.font` is font
