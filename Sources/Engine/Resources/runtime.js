@@ -152,6 +152,49 @@ Object.defineProperty(Node.prototype, "children", {
   },
 });
 
+function __nodeOrNull(handle) {
+  return handle === -1 ? null : new Node(handle);
+}
+
+Object.defineProperty(Node.prototype, "parentNode", {
+  get: function () {
+    return __nodeOrNull(_getParent(this.handle));
+  },
+});
+
+Object.defineProperty(Node.prototype, "firstChild", {
+  get: function () {
+    return __nodeOrNull(_firstChild(this.handle));
+  },
+});
+
+Object.defineProperty(Node.prototype, "previousSibling", {
+  get: function () {
+    return __nodeOrNull(_previousSibling(this.handle));
+  },
+});
+
+Object.defineProperty(Node.prototype, "nextSibling", {
+  get: function () {
+    return __nodeOrNull(_nextSibling(this.handle));
+  },
+});
+
+Object.defineProperty(Node.prototype, "nodeType", {
+  get: function () {
+    return _nodeType(this.handle);
+  },
+});
+
+Object.defineProperty(Node.prototype, "data", {
+  get: function () {
+    return _getData(this.handle);
+  },
+  set: function (value) {
+    _setData(this.handle, value.toString());
+  },
+});
+
 function Event(type) {
   this.type = type;
   this.do_default = true;

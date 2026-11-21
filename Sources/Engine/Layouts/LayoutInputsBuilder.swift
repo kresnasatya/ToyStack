@@ -73,7 +73,7 @@ enum LayoutInputsBuilder {
             nodes[Int(id.raw)] = LayoutInput(
                 node: LayoutInputNode(
                     parent: dom.parent(of: id),
-                    children: dom.children(of: id),
+                    children: renderedChildren(of: id, in: dom),
                     isFocused: ref.isFocused,
                     isFocusVisible: ref.isFocusVisible
                 ),
@@ -100,5 +100,12 @@ enum LayoutInputsBuilder {
             nodes: nodes,
             styleChanges: styleChanges
         )
+    }
+
+    // Comments stay in the DOM for scripts to walk, but they never get a box.
+    private static func renderedChildren(of id: NodeID, in dom: DOMTree) -> [NodeID] {
+        let children: [NodeID] = dom.children(of: id)
+        guard children.contains(where: { dom.isComment($0) }) else { return children }
+        return children.filter({ !dom.isComment($0) })
     }
 }

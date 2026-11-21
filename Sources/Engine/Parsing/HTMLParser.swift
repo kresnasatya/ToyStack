@@ -58,8 +58,11 @@ class HTMLParser {
             } else if inComment {
                 if body[i...].hasPrefix("-->") {
                     inComment = false
+                    addComment(text)
+                    text = ""
                     i = body.index(i, offsetBy: 3)
                 } else {
+                    text.append(ch)
                     i = body.index(i, offsetBy: 1)
                 }
             } else if inTag {
@@ -115,7 +118,9 @@ class HTMLParser {
             }
         }
 
-        if !inTag && !text.isEmpty {
+        if inComment {
+            addComment(text)
+        } else if !inTag && !text.isEmpty {
             addText(text)
         }
         return finish()
@@ -131,6 +136,14 @@ class HTMLParser {
         }
         implicitTags(nil)
         appendText(text, to: unfinished.last!)
+    }
+
+    private func addComment(_ data: String) {
+        // HTML §13.2.6.4.1-2: a comment before <html> belongs to the Document,
+        // which ToyStack does not model, so it is dropped.
+        if unfinished.count == 1, !sawTag { return }
+        guard let parent: NodeID = unfinished.last else { return }
+        dom.append(dom.createComment(data), to: parent)
     }
 
     private func appendText(_ text: String, to parent: NodeID) {

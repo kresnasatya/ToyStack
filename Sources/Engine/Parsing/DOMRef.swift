@@ -66,6 +66,9 @@ extension DOMRef {
         if let text: DOMTextData = dom.text(id) {
             return "\"\(text.text)\""
         }
+        if let comment: DOMCommentData = dom.comment(id) {
+            return "<!--\(comment.data)-->"
+        }
         return "<missing>"
     }
 }

@@ -220,6 +220,57 @@ struct LayoutInvalidationTests {
         #expect(profiler.snapshot()["layout.rebuilt"] == nil)
         #expect(fixture.narrow.style.computed.visual.effects.translation != nil)
     }
+
+    @Test func appendingACommentKeepsIncrementalLayoutExact() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><p>one</p><p>two</p></div>"#,
+            rules: "body { display: block; } div { display: block; } p { display: block; }"
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let comment: NodeID = page.frame.dom.createComment("x")
+        page.frame.dom.append(comment, to: box.ref.id)
+        LayoutInvalidation.childrenAppend(box.ref, page.frame.dom.ref(comment))
+
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func insertingACommentKeepsIncrementalLayoutExact() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><p>one</p><p id="two">two</p></div>"#,
+            rules: "body { display: block; } div { display: block; } p { display: block; }"
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let two: ElementRef = try #require(page.firstElement(id: "two"))
+        let comment: NodeID = page.frame.dom.createComment("x")
+        page.frame.dom.insert(comment, before: two.ref.id, in: box.ref.id)
+        LayoutInvalidation.childrenInsert(box.ref, page.frame.dom.ref(comment), before: two.ref)
+
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func insertingBeforeACommentKeepsIncrementalLayoutExact() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><p>one</p><!--/$--><p>two</p></div>"#,
+            rules: "body { display: block; } div { display: block; } p { display: block; }"
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let marker: NodeID = page.frame.dom.children(of: box.ref.id)[1]
+        let fresh: NodeID = page.frame.dom.createElement(tag: "p", attributes: [:])
+        page.frame.dom.append(page.frame.dom.createText("new"), to: fresh)
+        page.frame.dom.insert(fresh, before: marker, in: box.ref.id)
+        LayoutInvalidation.childrenInsert(box.ref, page.frame.dom.ref(fresh), before: page.frame.dom.ref(marker))
+
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        expectIncrementalMatchesFull(page)
+    }
 }
 
 @MainActor

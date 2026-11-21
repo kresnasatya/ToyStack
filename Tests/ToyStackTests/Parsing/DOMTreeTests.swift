@@ -60,6 +60,65 @@ struct DOMTreeTests {
         #expect(dom.ref(node).description == "\"world\"")
     }
 
+    // MARK: - Comment data
+    @Test func commentNodeStoresData() {
+        let dom: DOMTree = DOMTree()
+        let node: NodeID = dom.createComment("$?")
+        #expect(dom.comment(node)?.data == "$?")
+        #expect(dom.isComment(node))
+        #expect(!dom.isElement(node))
+        #expect(!dom.isText(node))
+        #expect(dom.ref(node).description == "<!--$?-->")
+    }
+
+    @Test func commentDataCanBeReplacedButTextIsNotAComment() {
+        let dom: DOMTree = DOMTree()
+        let comment: NodeID = dom.createComment("$?")
+        let text: NodeID = dom.createText("hi")
+        dom.setCommentData("$", of: comment)
+        dom.setCommentData("$", of: text)
+        #expect(dom.comment(comment)?.data == "$")
+        #expect(dom.text(text)?.text == "hi")
+        #expect(!dom.isComment(text))
+    }
+
+    // MARK: Siblings
+    @Test func siblingsFollowChildOrder() {
+        let dom: DOMTree = DOMTree()
+        let parent: NodeID = dom.createElement(tag: "div", attributes: [:])
+        let first: NodeID = dom.createText("a")
+        let middle: NodeID = dom.createComment("m")
+        let last: NodeID = dom.createElement(tag: "p", attributes: [:])
+        dom.append(first, to: parent)
+        dom.append(middle, to: parent)
+        dom.append(last, to: parent)
+
+        #expect(dom.previousSibling(of: first) == nil)
+        #expect(dom.nextSibling(of: first) == middle)
+        #expect(dom.previousSibling(of: last) == middle)
+        #expect(dom.nextSibling(of: last) == nil)
+    }
+
+    @Test func detachedNodeHasNoSiblings() {
+        let dom: DOMTree = DOMTree()
+        let node: NodeID = dom.createComment("alone")
+        #expect(dom.previousSibling(of: node) == nil)
+        #expect(dom.nextSibling(of: node) == nil)
+    }
+
+    @Test func cloneSubtreeKeepsComments() {
+        let source: DOMTree = DOMTree()
+        let div: NodeID = source.createElement(tag: "div", attributes: [:])
+        source.append(source.createComment("x"), to: div)
+        source.append(source.createText("y"), to: div)
+
+        let target: DOMTree = DOMTree()
+        target.cloneSubtree(source, div, into: target.root)
+        let clone: NodeID = target.children(of: target.root)[0]
+        let descriptions: [String] = target.children(of: clone).map({ target.ref($0).description })
+        #expect(descriptions == ["<!--x-->", "\"y\""])
+    }
+
     // MARK: Parent-child relationships
     @Test func parentChildLink() {
         let dom: DOMTree = DOMTree()

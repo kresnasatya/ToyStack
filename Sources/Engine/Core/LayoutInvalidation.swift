@@ -8,6 +8,8 @@ enum LayoutInvalidation {
     }
 
     static func childrenAppend(_ parent: DOMRef, _ child: DOMRef) {
+        // A comment never gets a box, so adding one leaves nothing to lay out.
+        guard !child.dom.isComment(child.id) else { return }
         guard let block = nearestBlock(parent), block.box.tree.isBlock(block.id) else {
             childrenChanged(parent)
             return
@@ -23,6 +25,7 @@ enum LayoutInvalidation {
         _ child: DOMRef,
         before reference: DOMRef
     ) {
+        guard !child.dom.isComment(child.id) else { return }
         guard let block = nearestBlock(parent), block.box.tree.isBlock(block.id) else {
             childrenChanged(parent)
             return

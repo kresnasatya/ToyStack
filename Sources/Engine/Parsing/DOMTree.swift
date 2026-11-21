@@ -51,12 +51,20 @@ final class DOMTree {
         return node(id)?.text != nil
     }
 
+    func isComment(_ id: NodeID) -> Bool {
+        return node(id)?.comment != nil
+    }
+
     func element(_ id: NodeID) -> ElementData? {
         return node(id)?.element
     }
 
     func text(_ id: NodeID) -> DOMTextData? {
         return node(id)?.text
+    }
+
+    func comment(_ id: NodeID) -> DOMCommentData? {
+        return node(id)?.comment
     }
 
     func tag(of id: NodeID) -> String? {
@@ -69,6 +77,22 @@ final class DOMTree {
 
     func children(of id: NodeID) -> [NodeID] {
         return node(id)?.base.children ?? []
+    }
+
+    func previousSibling(of id: NodeID) -> NodeID? {
+        return sibling(of: id, offset: -1)
+    }
+
+    func nextSibling(of id: NodeID) -> NodeID? {
+        return sibling(of: id, offset: 1)
+    }
+
+    private func sibling(of id: NodeID, offset: Int) -> NodeID? {
+        guard let parent: NodeID = parent(of: id) else { return nil }
+        let siblings: [NodeID] = children(of: parent)
+        guard let index: Int = siblings.firstIndex(of: id) else { return nil }
+        let target: Int = index + offset
+        return siblings.indices.contains(target) ? siblings[target] : nil
     }
 
     func attributes(of id: NodeID) -> [String: String]? {
@@ -121,6 +145,12 @@ final class DOMTree {
     func createText(_ text: String) -> NodeID {
         return allocate(
             DOMNode(kind: .text(DOMTextData(text: text)), base: DOMBase())
+        )
+    }
+
+    func createComment(_ data: String) -> NodeID {
+        return allocate(
+            DOMNode(kind: .comment(DOMCommentData(data: data)), base: DOMBase())
         )
     }
 
@@ -227,6 +257,14 @@ final class DOMTree {
         }
     }
 
+    func setCommentData(_ value: String, of id: NodeID) {
+        mutate(id) { node in
+            guard case .comment(var data) = node.kind else { return }
+            data.data = value
+            node.kind = .comment(data)
+        }
+    }
+
     func setChecked(_ checked: Bool, of id: NodeID) {
         mutate(id) { node in
             guard case .element(var data) = node.kind else { return }
@@ -286,6 +324,8 @@ final class DOMTree {
             }
         case .text(let data):
             append(createText(data.text), to: parent)
+        case .comment(let data):
+            append(createComment(data.data), to: parent)
         }
     }
 

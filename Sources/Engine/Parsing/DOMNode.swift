@@ -16,5 +16,10 @@ extension DOMNode {
         return data
     }
 
+    var comment: DOMCommentData? {
+        guard case .comment(let data) = kind else { return nil }
+        return data
+    }
+
     var tag: String? { element?.tag }
 }

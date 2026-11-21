@@ -59,6 +59,9 @@ class JSRuntime: @unchecked Sendable {
         if let text = node.text {
             return text.text
         }
+        if let comment: DOMCommentData = node.dom.comment(node.id) {
+            return "<!--\(comment.data)-->"
+        }
         guard let el = node.element else { return "" }
         let attrs: String = el.attributes.map { " \($0.key)=\($0.value)" }.joined()
         let inner: String = el.children.map { serialize($0) }.joined()
@@ -194,16 +197,7 @@ class JSRuntime: @unchecked Sendable {
             semaphore.wait()
         } as @convention(block) (String) -> Void, forKeyedSubscript: "_setCookie" as NSString)
 
-        jsContext.setObject({
-            [weak self] (handle: Int) -> Int in
-            guard let self, let frame = self.frame,
-                let id = self.handleToNode[handle]
-            else { return -1 }
-            return MainActor.assumeIsolated {
-                guard let parent = frame.dom.parent(of: id) else { return -1 }
-                return self.getHandle(frame.dom.ref(parent))
-            }
-        } as @convention(block) (Int) -> Int, forKeyedSubscript: "_getParent" as NSString)
+        registerNodeTraversal()
 
         jsContext.setObject({
             [weak self] (handle: Int) -> String in
@@ -576,6 +570,75 @@ class JSRuntime: @unchecked Sendable {
             requestPaint: { [weak self] in self?.frame?.setNeedsPaint() },
             displayScale: { [weak self] in self?.frame?.tab?.browser?.displayScale ?? 1 }
         ).register()
+    }
+
+    private func registerNodeTraversal() {
+        registerNodeLookup("_getParent", { dom, id in dom.parent(of: id) })
+        registerNodeLookup("_firstChild", { dom, id in dom.children(of: id).first })
+        registerNodeLookup("_previousSibling", { dom, id in dom.previousSibling(of: id) })
+        registerNodeLookup("_nextSibling", { dom, id in dom.nextSibling(of: id) })
+
+        jsContext.setObject({
+            [weak self] (handle: Int) -> Int in
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return 0 }
+            return MainActor.assumeIsolated {
+                guard let node: DOMNode = frame.dom.node(id) else { return 0 }
+                // DOM §4.4: ELEMENT_NODE is 1, TEXT_NODE is 3, COMMENT_NODE is 8.
+                switch node.kind {
+                case .element: return 1
+                case .text: return 3
+                case .comment: return 8
+                }
+            }
+        } as @convention(block) (Int) -> Int, forKeyedSubscript: "_nodeType" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int) -> String in
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return "" }
+            return MainActor.assumeIsolated {
+                return frame.dom.text(id)?.text ?? frame.dom.comment(id)?.data ?? ""
+            }
+        } as @convention(block) (Int) -> String, forKeyedSubscript: "_getData" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int, value: String) in
+            MainActor.assumeIsolated({
+                guard let self, let frame = self.frame,
+                    let id = self.handleToNode[handle]
+                else { return }
+                if frame.dom.isComment(id) {
+                    frame.dom.setCommentData(value, of: id)
+                    return
+                }
+                guard frame.dom.isText(id) else { return }
+                frame.dom.setText(value, of: id)
+                let ref: DOMRef = frame.dom.ref(id)
+                LayoutInvalidation.textChanged(ref)
+                if let parent: DOMRef = ref.parent {
+                    frame.setNeedsStyle(parent)
+                }
+            })
+        } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "_setData" as NSString)
+    }
+
+    private func registerNodeLookup(
+        _ name: String,
+        _ lookup: @escaping @MainActor (DOMTree, NodeID) -> NodeID?
+    ) {
+        jsContext.setObject({
+            [weak self] (handle: Int) -> Int in
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return -1 }
+            return MainActor.assumeIsolated {
+                guard let found: NodeID = lookup(frame.dom, id) else { return -1 }
+                return self.getHandle(frame.dom.ref(found))
+            }
+        } as @convention(block) (Int) -> Int, forKeyedSubscript: name as NSString)
     }
 
     deinit {

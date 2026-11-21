@@ -67,17 +67,45 @@ struct HTMLParserTests {
         #expect(tag(bodyChildren[1], dom) == "br")
     }
 
-    // MARK: - Comments and doctype are skipped
+    // MARK: - Doctype and comments before any tag are skipped
     @Test func doctypeIsIgnored() {
         let dom: DOMTree = HTMLParser(body: "<!DOCTYPE html><p>ok</p>").parse()
         let body: NodeID = children(dom.root, dom)[0]
         #expect(tag(children(body, dom)[0], dom) == "p")
     }
 
-    @Test func htmlIsIgnored() {
+    @Test func commentBeforeAnyTagIsDropped() {
         let dom: DOMTree = HTMLParser(body: "<!-- comment --><p>text</p>").parse()
+        #expect(children(dom.root, dom).count == 1)
         let body: NodeID = children(dom.root, dom)[0]
         #expect(tag(children(body, dom)[0], dom) == "p")
+    }
+
+    // MARK: - Comments inside the document become nodes
+    @Test func commentBetweenTextsIsANode() {
+        let dom: DOMTree = HTMLParser(body: "<p>a<!--$?-->b</p>").parse()
+        let body: NodeID = children(dom.root, dom)[0]
+        let p: NodeID = children(body, dom)[0]
+        let descriptions: [String] = children(p, dom).map({ dom.ref($0).description })
+        #expect(descriptions == ["\"a\"", "<!--$?-->", "\"b\""])
+    }
+
+    @Test func commentKeepsTagLikeText() throws {
+        let dom: DOMTree = HTMLParser(body: "<p><!-- <b>x</b> --></p>").parse()
+        let body: NodeID = children(dom.root, dom)[0]
+        let p: NodeID = children(body, dom)[0]
+        let pChildren: [NodeID] = children(p, dom)
+        #expect(pChildren.count == 1)
+        let comment: NodeID = try #require(pChildren.first)
+        #expect(dom.comment(comment)?.data == " <b>x</b> ")
+    }
+
+    @Test func unclosedCommentRunsToEndOfInput() {
+        let dom: DOMTree = HTMLParser(body: "<p>a<!-- never closed").parse()
+        let body: NodeID = children(dom.root, dom)[0]
+        let p: NodeID = children(body, dom)[0]
+        let descriptions: [String] = children(p, dom).map({ dom.ref($0).description })
+        #expect(descriptions == ["\"a\"", "<!-- never closed-->"])
     }
 
     // MARK: - Syntax highlighter reads tokens without building a document

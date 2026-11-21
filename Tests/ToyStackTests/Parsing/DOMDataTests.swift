@@ -68,8 +68,10 @@ struct DOMDataTests {
     @Test func kindSwitchesAreExhaustive() {
         let element: DOMKind = .element(ElementData(tag: "p", attributes: [:], isChecked: true))
         let text: DOMKind = .text(DOMTextData(text: "hello"))
+        let comment: DOMKind = .comment(DOMCommentData(data: "$?"))
         #expect(describe(element) == "element:p checked:true")
         #expect(describe(text) == "text:hello")
+        #expect(describe(comment) == "comment:$?")
     }
 
     private func describe(_ kind: DOMKind) -> String {
@@ -78,6 +80,8 @@ struct DOMDataTests {
             return "element:\(data.tag) checked:\(data.isChecked)"
         case .text(let data):
             return "text:\(data.text)"
+        case .comment(let data):
+            return "comment:\(data.data)"
         }
     }
 
