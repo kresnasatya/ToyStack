@@ -6,7 +6,7 @@ import Foundation
 enum LayoutInputTable {
     /// Only these need the dependency table reindexed.
     static let structuralStyleProperties: Set<StyleProperty> = [
-        .display, .position, .direction, .whiteSpace, .aspectRatio, .maxWidth,
+        .display, .position, .float, .clear, .direction, .whiteSpace, .aspectRatio, .maxWidth,
     ]
 
     static func inputs(
@@ -81,8 +81,18 @@ enum LayoutInputTable {
                 .style(dom, .borderStyle),
                 .style(dom, .position),
                 .style(dom, .left),
+                .style(dom, .float),
             ]
             if let parent { keys.insert(.layout(parent, .x), at: 0) }
+            if tree.blockFloating(id).side == .right {
+                keys += [
+                    .style(dom, .paddingRight),
+                    .style(dom, .marginRight),
+                    .style(dom, .width),
+                    .style(dom, .boxSizing),
+                ]
+                if let parent { keys.append(.layout(parent, .width)) }
+            }
             return keys
         case .y:
             var keys: [FieldKey] = [
@@ -93,6 +103,7 @@ enum LayoutInputTable {
                 .style(dom, .marginTop),
                 .style(dom, .borderWidth),
                 .style(dom, .borderStyle),
+                .style(dom, .clear),
             ]
             if let parent { keys.insert(.layout(parent, .y), at: 0) }
             if let previous {

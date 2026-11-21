@@ -143,6 +143,7 @@ extension LayoutTree {
         for child in self.inputs.allChildren(domID(of: id)) {
             inputs.append(.style(child, .display))
             inputs.append(.style(child, .position))
+            inputs.append(.style(child, .float))
         }
         return inputs
     }
@@ -242,6 +243,12 @@ extension LayoutTree {
                 inputs.append(.style(domID(of: child), .paddingBottom))
                 inputs.append(.style(domID(of: child), .borderWidth))
                 inputs.append(.style(domID(of: child), .borderStyle))
+                inputs.append(.style(domID(of: child), .float))
+                inputs.append(.style(domID(of: child), .clear))
+                if blockFloating(child).clear != .none {
+                    inputs.append(.layout(child, .y))
+                    inputs.append(.layout(id, .y))
+                }
             }
         }
         return inputs
@@ -406,7 +413,7 @@ extension LayoutTree {
             setHeightInputs(id)
             let heightChildren: [LayoutID] = childrenIDs(of: id)
             let heightSpan: ProfileSpan = profiler.begin("layout.height")
-            measuredHeight = flowHeight(of: heightChildren)
+            measuredHeight = flowHeight(of: heightChildren, in: id)
             profiler.end(heightSpan)
         } else {
             profiler.count("layout.inline.children.skipped")
@@ -490,6 +497,12 @@ extension LayoutTree {
             frameWidth -= liIndent
         }
 
+        let floating: LayoutStyle.Floating = isAbsolute ? .none : blockFloating(id)
+        if floating.side == .right {
+            let padRight: CGFloat = style.box.padding.right * zoomValue
+            frameX = parentX + parentWidth - marginRight - ownBorder.right - padRight - frameWidth
+        }
+
         var frameY: CGFloat
         if isAbsolute, let t = style.flags.top {
             let padTop: CGFloat = !hasExtraNodes(id)
@@ -516,7 +529,15 @@ extension LayoutTree {
             } else {
                 frameY = y(parent) + ownTop + ownBorder.top + padTop
             }
+            if floating.clear != .none,
+                let bottom: CGFloat = floatBottom(before: id, clearing: floating.clear)
+            {
+                // CSS 2.1 §9.5.2: clearance puts the top border edge below the
+                // bottom outer edge of the cleared floats.
+                frameY = max(frameY, bottom + ownBorder.top + padTop)
+            }
         }
+        noteClearing(id, floating.clear != .none)
 
         if element?.attributes["id"] == "toc" {
             frameY += VSTEP
@@ -531,15 +552,23 @@ extension LayoutTree {
         countWidthChange(from: oldGeometry, widthWasUsed: widthWasUsed, at: id)
     }
 
-    mutating private func flowHeight(of children: [LayoutID]) -> CGFloat {
+    mutating private func flowHeight(of children: [LayoutID], in parent: LayoutID) -> CGFloat {
         var total: CGFloat = 0
         for childID in children {
             let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
             if position == .absolute { return total }
             var h: CGFloat = height(childID)
             if isBlock(childID) {
+                let floating: LayoutStyle.Floating = blockFloating(childID)
+                if floating.side != .none { continue }
                 let childStyle: BlockStyle = blockStyle(childID)
                 let childZoom: CGFloat = zoom(childID)
+                if floating.clear != .none {
+                    // Clearance moved this block down; the gap belongs to the parent.
+                    let marginTop: CGFloat = y(childID) - childStyle.box.padding.top * childZoom
+                        - borderWidths(childID).top - childStyle.box.margin.top * childZoom
+                    total = max(total, marginTop - y(parent))
+                }
                 h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
                 h += borderWidths(childID).vertical
                 h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
@@ -733,8 +762,7 @@ extension LayoutTree {
         var previous: LayoutID? = state.previous
         for id in current[index...] {
             setBlockPrevious(id, previous)
-            let isFlow: Bool = hasExtraNodes(id)
-                || domView(id).style.computed.layout.position.kind != .absolute
+            let isFlow: Bool = hasExtraNodes(id) || !isOutOfFlow(domView(id))
             if isFlow { previous = id }
         }
 
@@ -773,7 +801,7 @@ extension LayoutTree {
             if isBlock(id), hasExtraNodes(id) {
                 return id
             }
-            if domView(id).style.computed.layout.position.kind != .absolute {
+            if !isOutOfFlow(domView(id)) {
                 return id
             }
         }
@@ -813,7 +841,7 @@ extension LayoutTree {
                             previous: state.previous
                         )
                         state.built.append(next)
-                        if child.style.computed.layout.position.kind != .absolute {
+                        if !isOutOfFlow(child) {
                             state.previous = next
                         }
                     }

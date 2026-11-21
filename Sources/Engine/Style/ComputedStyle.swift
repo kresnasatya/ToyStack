@@ -33,6 +33,8 @@ extension ComputedStyle {
         switch property {
         case .display: return layout.display == other.layout.display
         case .position: return layout.position.kind == other.layout.position.kind
+        case .float: return layout.position.floating.side == other.layout.position.floating.side
+        case .clear: return layout.position.floating.clear == other.layout.position.floating.clear
         case .overflow: return layout.overflow == other.layout.overflow
         case .zIndex: return layout.zIndex == other.layout.zIndex
         case .width: return box.size.width == other.box.size.width

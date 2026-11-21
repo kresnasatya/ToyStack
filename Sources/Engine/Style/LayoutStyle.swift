@@ -10,7 +10,7 @@ struct LayoutStyle: Equatable {
 
     static let initial: LayoutStyle = LayoutStyle(
         display: .inline,
-        position: Positioning(kind: .staticFlow, left: nil, top: nil),
+        position: Positioning(kind: .staticFlow, left: nil, top: nil, floating: .none),
         overflow: .visible,
         zIndex: 0
     )
@@ -65,6 +65,57 @@ extension LayoutStyle {
         var kind: Position
         var left: CGFloat?
         var top: CGFloat?
+        var floating: Floating
+    }
+}
+
+// MARK: - Float
+
+extension LayoutStyle {
+    /// CSS 2.1 §9.3: floats are one of the three positioning schemes, so they
+    /// live beside `position` rather than beside `display`.
+    struct Floating: Equatable {
+        var side: FloatSide
+        var clear: ClearSide
+
+        static let none: Floating = Floating(side: .none, clear: .none)
+    }
+
+    enum FloatSide: Equatable {
+        case none
+        case left
+        case right
+
+        init(css: String?) {
+            switch css {
+            case "left": self = .left
+            case "right": self = .right
+            default: self = .none
+            }
+        }
+    }
+
+    enum ClearSide: Equatable {
+        case none
+        case left
+        case right
+        case both
+
+        init(css: String?) {
+            switch css {
+            case "left": self = .left
+            case "right": self = .right
+            case "both": self = .both
+            default: self = .none
+            }
+        }
+
+        func clears(_ side: FloatSide) -> Bool {
+            switch (self, side) {
+            case (.both, .left), (.both, .right), (.left, .left), (.right, .right): return true
+            default: return false
+            }
+        }
     }
 }
 

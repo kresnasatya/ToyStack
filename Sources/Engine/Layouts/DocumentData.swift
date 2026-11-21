@@ -5,4 +5,5 @@ import Foundation
 
 struct DocumentData {
     var pageZoom: CGFloat
+    var clearingBlocks: Set<LayoutID> = []
 }

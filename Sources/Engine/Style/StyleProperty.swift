@@ -3,7 +3,7 @@ import Foundation
 // MARK: - StyleProperty
 
 enum StyleProperty: CaseIterable, Hashable {
-    case display, position, overflow, zIndex
+    case display, position, float, clear, overflow, zIndex
     case width, height, boxSizing, maxWidth, aspectRatio
     case marginTop, marginRight, marginBottom, marginLeft
     case paddingTop, paddingRight, paddingBottom, paddingLeft
@@ -18,6 +18,8 @@ enum StyleProperty: CaseIterable, Hashable {
         switch cssName {
         case "display": self = .display
         case "position": self = .position
+        case "float": self = .float
+        case "clear": self = .clear
         case "overflow": self = .overflow
         case "z-index": self = .zIndex
         case "width": self = .width
@@ -75,6 +77,8 @@ enum StyleProperty: CaseIterable, Hashable {
         switch self {
         case .display: return "display"
         case .position: return "position"
+        case .float: return "float"
+        case .clear: return "clear"
         case .overflow: return "overflow"
         case .zIndex: return "z-index"
         case .width: return "width"

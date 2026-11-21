@@ -58,7 +58,11 @@ enum ComputedStyleParser {
         style.layout.position = LayoutStyle.Positioning(
             kind: LayoutStyle.Position(css: take("position")),
             left: units.px(take("left")),
-            top: units.px(take("top"))
+            top: units.px(take("top")),
+            floating: LayoutStyle.Floating(
+                side: LayoutStyle.FloatSide(css: take("float")),
+                clear: LayoutStyle.ClearSide(css: take("clear"))
+            )
         )
         style.layout.overflow = LayoutStyle.Overflow(css: take("overflow"))
         style.layout.zIndex = Int(take("z-index") ?? "0") ?? 0
