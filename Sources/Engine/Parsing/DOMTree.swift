@@ -23,7 +23,7 @@ final class DOMTree {
             base: DOMBase()
         )
         self.nodes = [node]
-        self.lookup = DOMNodeLookup(styles: [node.base.style], isElement: [true])
+        self.lookup = DOMNodeLookup(styles: [node.base.style], isElement: [true], changedAt: [0])
         self.root = root
         self.side = DOMSideTables()
         self.links = DOMLinks()
@@ -41,6 +41,21 @@ final class DOMTree {
             body(NodeID(raw: UInt32(index)))
         }
     }
+
+    /// The `revision` at which a node itself last changed: its data, its
+    /// children, its parent, or its flags. Copies of node data made at an
+    /// earlier revision are still correct for a node that has not changed since.
+    func changeRevision(of id: NodeID) -> UInt64 {
+        guard id.raw < lookup.changedAt.count else { return revision }
+        return lookup.changedAt[Int(id.raw)]
+    }
+
+    /// Reads the style revision without copying the node.
+    func styleRevision(of id: NodeID) -> UInt64 {
+        return lookup.styles[Int(id.raw)].revision
+    }
+
+    var nodeCount: Int { nodes.count }
 
     func isElement(_ id: NodeID) -> Bool {
         guard id.raw < lookup.isElement.count else { return false }
@@ -160,6 +175,7 @@ final class DOMTree {
         lookup.styles.append(node.base.style)
         lookup.isElement.append(node.element != nil)
         revision += 1
+        lookup.changedAt.append(revision)
         return id
     }
 
@@ -336,10 +352,12 @@ final class DOMTree {
         body(&node)
         nodes[Int(id.raw)] = node
         revision += 1
+        lookup.changedAt[Int(id.raw)] = revision
     }
 }
 
 private struct DOMNodeLookup {
     var styles: [StyleFields]
     var isElement: [Bool]
+    var changedAt: [UInt64]
 }

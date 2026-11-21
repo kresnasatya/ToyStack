@@ -7,46 +7,49 @@ import Foundation
 @MainActor
 enum LayoutInputsBuilder {
     static func build(dom: DOMTree) -> LayoutInputs {
-        return build(dom: dom, previous: nil, key: nil)
+        return build(dom: dom, previous: nil)
     }
 
-    static func build(
-        dom: DOMTree,
-        previous: LayoutInputs?,
-        key: LayoutInputsKey?
-    ) -> LayoutInputs {
+    /// Starts from `previous` and rebuilds only the nodes the document changed
+    /// after `previous` was built. An image change still rebuilds everything:
+    /// images are not stamped per node.
+    static func build(dom: DOMTree, previous: LayoutInputs?) -> LayoutInputs {
         let reusable: LayoutInputs?
-        if let key: LayoutInputsKey = key,
+        let baseline: UInt64
+        if let previous, let key: LayoutInputsKey = previous.key,
             key.dom == ObjectIdentifier(dom),
-            key.domRevision == dom.revision,
             key.imageRevision == dom.side.images.revision
         {
             reusable = previous
+            baseline = key.domRevision
         } else {
             reusable = nil
+            baseline = 0
         }
         var nodes: [LayoutInput?] = reusable?.nodes ?? []
-        var styleChanges: [NodeID: Set<StyleProperty>] = [:]
-        dom.forEachNode { id in
-            guard let node: DOMNode = dom.node(id) else { return }
-            while nodes.count <= Int(id.raw) { nodes.append(nil) }
-            let revision: UInt64 = node.base.style.revision
-            let old: LayoutInput? = reusable?.input(id)
-            if let old, old.style.revision == revision {
-                if node.text == nil {
-                    profiler.count("layout.inputs.reused")
-                    return
-                }
-                if let parent: NodeID = node.base.parent,
-                    let parentNode: DOMNode = dom.node(parent),
-                    old.style.font == parentNode.base.style.computed.text.font
-                {
-                    profiler.count("layout.inputs.reused")
-                    return
-                }
+        // Changes the previous inputs still hold have not reached a pass yet.
+        var styleChanges: [NodeID: Set<StyleProperty>] = reusable?.styleChanges ?? [:]
+        let count: Int = dom.nodeCount
+        if nodes.count < count {
+            nodes.append(contentsOf: repeatElement(nil, count: count - nodes.count))
+        }
+        var restyled: [NodeID] = []
+        var touched: Int = 0
+        for index in 0..<count {
+            let id: NodeID = NodeID(raw: UInt32(index))
+            // Revisions are compared before the node is read: most nodes are
+            // unchanged, and reading each one cost more than the whole rebuild.
+            let unchanged: Bool = dom.changeRevision(of: id) <= baseline
+            if unchanged, let oldRevision: UInt64 = nodes[index]?.style.revision,
+                oldRevision == dom.styleRevision(of: id)
+            {
+                continue
             }
+            guard let node: DOMNode = dom.node(id) else { continue }
+            touched += 1
             let changes: Set<StyleProperty> = node.base.style.takeLayoutChanges()
-            if !changes.isEmpty { styleChanges[id] = changes }
+            if !changes.isEmpty { styleChanges[id, default: []].formUnion(changes) }
+            if node.element != nil { restyled.append(id) }
             let font: TextStyle.Font
             if node.text != nil, let parent: NodeID = node.base.parent,
                 let parentNode: DOMNode = dom.node(parent)
@@ -55,22 +58,21 @@ enum LayoutInputsBuilder {
             } else {
                 font = node.base.style.computed.text.font
             }
-            if let old {
-                var updated: LayoutInput = old
-                updated.style = LayoutInputStyle(
+            if unchanged, let old: LayoutInput = nodes[index] {
+                let style: LayoutInputStyle = LayoutInputStyle(
                     computed: node.base.style.computed,
                     font: font,
-                    revision: revision
+                    revision: node.base.style.revision
                 )
-                nodes[Int(id.raw)] = updated
+                nodes[index] = old.restyled(style, forcedColors: usesForcedColors(dom.ref(id)))
                 profiler.count("layout.inputs.style")
-                return
+                continue
             }
             profiler.count("layout.inputs.rebuilt")
             let element: ElementData? = node.element
             let ref: DOMRef = dom.ref(id)
             let elementRef: ElementRef? = ref.element
-            nodes[Int(id.raw)] = LayoutInput(
+            nodes[index] = LayoutInput(
                 node: LayoutInputNode(
                     parent: dom.parent(of: id),
                     children: renderedChildren(of: id, in: dom),
@@ -96,10 +98,37 @@ enum LayoutInputsBuilder {
                 )
             )
         }
+        for parent in restyled {
+            refreshTextFonts(of: parent, in: dom, nodes: &nodes)
+        }
+        if count > touched {
+            profiler.count("layout.inputs.reused", by: count - touched)
+        }
         return LayoutInputs(
             nodes: nodes,
-            styleChanges: styleChanges
+            styleChanges: styleChanges,
+            key: LayoutInputsKey(
+                dom: ObjectIdentifier(dom),
+                domRevision: dom.revision,
+                imageRevision: dom.side.images.revision,
+                styleRevision: StyleRevision.epoch
+            )
         )
+    }
+
+    /// A text node takes its font from its parent, and the parent's font can
+    /// change while the text node's own style does not (a font animation
+    /// writes the parent alone), so restyled parents pass their font down.
+    private static func refreshTextFonts(of parent: NodeID, in dom: DOMTree, nodes: inout [LayoutInput?]) {
+        guard let font: TextStyle.Font = nodes[Int(parent.raw)]?.style.computed.text.font else { return }
+        for child in dom.children(of: parent) where dom.isText(child) {
+            let index: Int = Int(child.raw)
+            guard index < nodes.count, let current: LayoutInput = nodes[index], current.style.font != font
+            else { continue }
+            var style: LayoutInputStyle = current.style
+            style.font = font
+            nodes[index] = current.restyled(style, forcedColors: current.media.forcedColors)
+        }
     }
 
     // Comments stay in the DOM for scripts to walk, but they never get a box.

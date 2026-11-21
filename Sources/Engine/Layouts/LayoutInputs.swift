@@ -8,6 +8,9 @@ import Foundation
 struct LayoutInputs {
     var nodes: [LayoutInput?]
     var styleChanges: [NodeID: Set<StyleProperty>] = [:]
+    /// The document state these inputs were built from. Reusing them later only
+    /// needs to rebuild what changed since this, whatever was built in between.
+    var key: LayoutInputsKey? = nil
 
     func input(_ id: NodeID) -> LayoutInput? {
         guard id.raw < nodes.count else { return nil }
@@ -117,11 +120,31 @@ struct LayoutInputs {
 
 // MARK: - LayoutInput
 
-struct LayoutInput {
-    var node: LayoutInputNode
-    var content: LayoutInputContent
-    var style: LayoutInputStyle
-    var media: LayoutInputMedia
+/// Immutable and shared: a build copies one reference per node, and a node
+/// that did not change keeps the same entry from build to build.
+final class LayoutInput {
+    let node: LayoutInputNode
+    let content: LayoutInputContent
+    let style: LayoutInputStyle
+    let media: LayoutInputMedia
+
+    init(
+        node: LayoutInputNode,
+        content: LayoutInputContent,
+        style: LayoutInputStyle,
+        media: LayoutInputMedia
+    ) {
+        self.node = node
+        self.content = content
+        self.style = style
+        self.media = media
+    }
+
+    func restyled(_ style: LayoutInputStyle, forcedColors: Bool) -> LayoutInput {
+        var media: LayoutInputMedia = self.media
+        media.forcedColors = forcedColors
+        return LayoutInput(node: node, content: content, style: style, media: media)
+    }
 }
 
 struct LayoutInputStyle {

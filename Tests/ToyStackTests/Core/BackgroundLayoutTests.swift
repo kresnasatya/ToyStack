@@ -112,6 +112,41 @@ struct BackgroundLayoutTests {
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
         )
     )
+    func asyncTextEditMatchesMainThread() async throws {
+        let html: String = (0..<40).map { index in
+            "<p id=\"p\(index)\">Paragraph \(index) has words that wrap.</p>"
+        }.joined()
+        let rules: String = "body { display: block; } p { display: block; }"
+        let page: LayoutTestPage = LayoutTestPage(html: html, rules: rules)
+        let control: LayoutTestPage = LayoutTestPage(html: html, rules: rules)
+        let browser: Browser = Browser()
+        browser.usesAsyncLayout = true
+        page.tab.browser = browser
+
+        for target in [page, control] {
+            let paragraph: ElementRef = try #require(target.firstElement(id: "p12"))
+            let text: TextRef = try #require(paragraph.children.first?.text)
+            for word in [" typed", " more", " words that wrap the paragraph again"] {
+                text.append(word)
+                target.frame.setNeedsRender()
+                target.frame.render()
+                for _ in 0..<200 where target.frame.isLayoutInFlight {
+                    try await Task.sleep(nanoseconds: 5_000_000)
+                }
+            }
+        }
+        #expect(!page.frame.isLayoutInFlight)
+
+        let background: String = renderSignature(page.frame)
+        let main: String = renderSignature(control.frame)
+        #expect(background == main, "async edit diverged from main-thread layout")
+    }
+
+    @Test(
+        .enabled(
+            if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
+        )
+    )
     func asyncBreakpointFlipRefreshesLineBoxFonts() async throws {
         let paragraph: String = String(
             repeating: "alpha beta gamma delta epsilon zeta eta theta ",

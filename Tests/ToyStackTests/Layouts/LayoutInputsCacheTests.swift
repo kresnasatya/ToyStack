@@ -50,9 +50,65 @@ struct LayoutInputsCacheTests {
         #expect(box.style.computed.text.color == BrowserColor(cssName: "blue"))
     }
 
-    @Test func documentMutationRebuildsInputs() throws {
+    @Test func textEditRebuildsOnlyTheEditedText() throws {
+        let html: String = (0..<20).map({ "<p id=\"p\($0)\">paragraph \($0)</p>" }).joined()
         let page: LayoutTestPage = LayoutTestPage(
-            html: #"<p id="p">one</p>"#,
+            html: html,
+            rules: """
+                html { width: 600px; }
+                body { display: block; }
+                p { display: block; }
+                """
+        )
+        let paragraph: ElementRef = try #require(page.firstElement(id: "p7"))
+        let text: TextRef = try #require(paragraph.children.first?.text)
+
+        text.append(" more")
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        let metrics: [String: ProfileMetric] = profiler.snapshot()
+        #expect(metrics["layout.inputs.rebuilt"]?.count == 1)
+        #expect((metrics["layout.inputs.reused"]?.count ?? 0) > 20)
+        #expect(page.tree.inputs.text(text.ref.id) == "paragraph 7 more")
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func appendedElementIsBuiltAndItsParentListsIt() throws {
+        let dom: DOMTree = HTMLParser(body: #"<div id="box"><p>one</p></div>"#).parse()
+        let first: LayoutInputs = LayoutInputsBuilder.build(dom: dom)
+        let box: NodeID = try #require(elementID("box", in: dom))
+
+        let added: NodeID = dom.createElement(tag: "p", attributes: ["id": "two"])
+        dom.append(added, to: box)
+        let second: LayoutInputs = LayoutInputsBuilder.build(dom: dom, previous: first)
+
+        #expect(second.allChildren(box).last == added)
+        #expect(second.tag(added) == "p")
+        #expect(second.parent(added) == box)
+    }
+
+    @Test func buildingFromOlderInputsCatchesEveryChangeSinceThem() throws {
+        let dom: DOMTree = HTMLParser(body: #"<p id="a">one</p><p id="b">two</p>"#).parse()
+        let a: NodeID = try #require(elementID("a", in: dom))
+        let b: NodeID = try #require(elementID("b", in: dom))
+        let aText: NodeID = try #require(dom.children(of: a).first)
+        let older: LayoutInputs = LayoutInputsBuilder.build(dom: dom)
+
+        dom.setText("changed", of: aText)
+        _ = LayoutInputsBuilder.build(dom: dom, previous: older)
+        dom.setAttribute("title", "late", of: b)
+        dom.setFlag(\.isFocused, true, of: b)
+        let latest: LayoutInputs = LayoutInputsBuilder.build(dom: dom, previous: older)
+
+        #expect(latest.text(aText) == "changed")
+        #expect(latest.attributes(b)["title"] == "late")
+        #expect(latest.isFocused(b))
+    }
+
+    @Test func textFollowsAFontWrittenOnlyToItsParent() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<p id="p">one two</p>"#,
             rules: """
                 html { width: 600px; }
                 body { display: block; }
@@ -62,12 +118,13 @@ struct LayoutInputsCacheTests {
         let paragraph: ElementRef = try #require(page.firstElement(id: "p"))
         let text: TextRef = try #require(paragraph.children.first?.text)
 
-        text.append(" more")
-        page.frame.setNeedsRender()
+        paragraph.style.mutate({ style in
+            style.text.font.size = 40
+        })
+        page.frame.setNeedsLayout()
         page.frame.render()
 
-        let metrics: [String: ProfileMetric] = profiler.snapshot()
-        #expect(metrics["layout.inputs.reused"] == nil)
+        #expect(page.tree.inputs.font(text.ref.id).size == 40)
     }
 
     @Test func imageChangeRebuildsInputs() throws {
@@ -89,6 +146,17 @@ struct LayoutInputsCacheTests {
         let metrics: [String: ProfileMetric] = profiler.snapshot()
         #expect(metrics["layout.inputs.reused"] == nil)
     }
+}
+
+@MainActor
+private func elementID(_ id: String, in dom: DOMTree) -> NodeID? {
+    var found: NodeID? = nil
+    dom.forEachNode({ node in
+        if found == nil, dom.ref(node).element?.attributes["id"] == id {
+            found = node
+        }
+    })
+    return found
 }
 
 private func makeTestImage() -> CGImage {

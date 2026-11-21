@@ -19,7 +19,6 @@ class Frame {
     var state: FrameState
     private var styleSnapshotCache: StyleSnapshot?
     private var styleSnapshotRevision: UInt64 = .max
-    private var layoutInputsKey: LayoutInputsKey?
     private var layoutInFlight: Bool = false
     /// A viewport change does not set it; the pass's `LayoutJobKey` already
     /// records that.
@@ -57,7 +56,6 @@ class Frame {
         state.document.dom = newDOM
         styleSnapshotCache = nil
         styleSnapshotRevision = .max
-        layoutInputsKey = nil
         state.layout.tree.box = nil
         state.layout.tree.isDirty = true
         state.layout.targets.clear()
@@ -1014,7 +1012,7 @@ class Frame {
             let inputs: LayoutInputs = resolveLayoutInputs(
                 stylesDirty: stylesDirty,
                 viewportStyle: viewportStyle,
-                incremental: true
+                synchronous: true
             ).inputs
             let box: LayoutBox = profiler.measure("layout.prepare", {
                 let box: LayoutBox
@@ -1280,15 +1278,16 @@ class Frame {
     }
 
     /// When nothing but the width changed, the previous inputs are still
-    /// correct, so they are reused.
+    /// correct, so they are reused. Otherwise only the nodes changed since they
+    /// were built are rebuilt; the inputs carry the revision they were built at.
     private func resolveLayoutInputs(
         stylesDirty: Bool,
         viewportStyle: Bool,
-        incremental: Bool
+        synchronous: Bool
     ) -> (inputs: LayoutInputs, reused: Bool) {
         let previousInputs: LayoutInputs? = state.layout.tree.box?.tree.inputs
         let pendingChanges: Bool = !(previousInputs?.styleChanges.isEmpty ?? true)
-        let keyChanged: Bool = layoutInputsKey.map({ key in
+        let keyChanged: Bool = previousInputs?.key.map({ key in
             key.dom != ObjectIdentifier(dom)
                 || key.domRevision != dom.revision
                 || key.imageRevision != dom.side.images.revision
@@ -1297,7 +1296,7 @@ class Frame {
         var reusable: LayoutInputs?
         // Reused inputs carry their pending style changes into the background
         // job. The synchronous path stays strict.
-        let blockedByPending: Bool = pendingChanges && incremental
+        let blockedByPending: Bool = pendingChanges && synchronous
         if !stylesDirty, !viewportStyle, !blockedByPending, !keyChanged, let previousInputs {
             reusable = previousInputs
             profiler.count("layout.inputs.reused", by: previousInputs.nodes.count)
@@ -1316,21 +1315,8 @@ class Frame {
             if let reusable {
                 return reusable
             }
-            if !incremental {
-                return LayoutInputsBuilder.build(dom: dom)
-            }
-            return LayoutInputsBuilder.build(
-                dom: dom,
-                previous: previousInputs,
-                key: layoutInputsKey
-            )
+            return LayoutInputsBuilder.build(dom: dom, previous: previousInputs)
         })
-        layoutInputsKey = LayoutInputsKey(
-            dom: ObjectIdentifier(dom),
-            domRevision: dom.revision,
-            imageRevision: dom.side.images.revision,
-            styleRevision: StyleRevision.epoch
-        )
         return (inputs, reusable != nil)
     }
 
@@ -1346,7 +1332,7 @@ class Frame {
         let resolved: (inputs: LayoutInputs, reused: Bool) = resolveLayoutInputs(
             stylesDirty: stylesDirty,
             viewportStyle: viewportStyle,
-            incremental: false
+            synchronous: false
         )
         browser?.measure.stop("layout.async.start.inputs")
         layoutJobMovesViewportOnly = resolved.reused
