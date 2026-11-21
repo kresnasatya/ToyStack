@@ -64,6 +64,14 @@ enum ComputedStyleParser {
                 clear: LayoutStyle.ClearSide(css: take("clear"))
             )
         )
+        // CSS 2.1 §9.7: an absolutely positioned box does not float, and a
+        // floated box is block-level whatever its display said.
+        let positionKind: LayoutStyle.Position = style.layout.position.kind
+        if positionKind == .absolute || positionKind == .fixed {
+            style.layout.position.floating.side = .none
+        } else if style.layout.position.floating.side != .none, style.layout.display != .none {
+            style.layout.display = .block
+        }
         style.layout.overflow = LayoutStyle.Overflow(css: take("overflow"))
         style.layout.zIndex = Int(take("z-index") ?? "0") ?? 0
 

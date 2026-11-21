@@ -57,10 +57,22 @@ struct LayoutInputs {
     }
 
     func hasBlockChild(_ id: NodeID) -> Bool {
-        for child in children(id) where style(child).layout.display == .block {
+        for child in children(id) where isInFlowBlock(child) {
             return true
         }
         return false
+    }
+
+    /// A float is block-level but leaves the flow: next to inline content it
+    /// is placed with the lines, so it does not split them into blocks.
+    func isInFlowBlock(_ id: NodeID) -> Bool {
+        let layout: LayoutStyle = style(id).layout
+        return layout.display == .block && layout.position.floating.side == .none
+    }
+
+    func isFloat(_ id: NodeID) -> Bool {
+        let layout: LayoutStyle = style(id).layout
+        return layout.display != .none && layout.position.floating.side != .none
     }
 
     func parent(_ id: NodeID) -> NodeID? {

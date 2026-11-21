@@ -37,6 +37,29 @@ extension LayoutTree {
         )
     }
 
+    /// Where a float inside `block`'s inline content goes: beside the floats
+    /// before `block` and the block's `own` floats already placed. Inside a
+    /// block that starts its own formatting context only its own floats count.
+    func floatPlacer(inside block: LayoutID, top: CGFloat, own: [FloatBox]) -> FloatPlacer {
+        let left: CGFloat = x(block)
+        let outside: [FloatBox] = !hasExtraNodes(block) && establishesFormattingContext(block)
+            ? []
+            : earlierFloats(before: block, where: { $0.rect.bottom > top })
+        return FloatPlacer(earlier: outside + own, left: left, right: left + width(block))
+    }
+
+    /// What a block with floats of its own was laid out against: every earlier
+    /// float reaching below its top, even one that leaves its lines alone,
+    /// since its own floats stack beside or below them.
+    func floatContext(for id: LayoutID) -> [FloatBox] {
+        if !hasExtraNodes(id), establishesFormattingContext(id) { return [] }
+        let top: CGFloat = y(id)
+        return earlierFloats(before: id, where: { $0.rect.bottom > top }).sorted(by: { a, b in
+            if a.rect.top != b.rect.top { return a.rect.top < b.rect.top }
+            return a.rect.left < b.rect.left
+        })
+    }
+
     /// The floats an inline block's lines must avoid: earlier floats in the
     /// same block formatting context that reach below the block's top and
     /// into its content box. A block that starts its own formatting context
@@ -76,12 +99,12 @@ extension LayoutTree {
         return boxes
     }
 
-    /// Returns whether the floats differ from the ones the block's lines were
-    /// last broken against.
-    mutating func noteWrapped(_ id: LayoutID, _ exclusions: FloatExclusions) -> Bool {
+    /// Returns whether the floats differ from the ones the block was last laid
+    /// out against.
+    mutating func noteWrapped(_ id: LayoutID, _ boxes: [FloatBox]) -> Bool {
         let old: [FloatBox] = self[document: rootID].floats.wrapped[id] ?? []
-        guard old != exclusions.boxes else { return false }
-        self[document: rootID].floats.wrapped[id] = exclusions.isEmpty ? nil : exclusions.boxes
+        guard old != boxes else { return false }
+        self[document: rootID].floats.wrapped[id] = boxes.isEmpty ? nil : boxes
         return true
     }
 
@@ -121,6 +144,7 @@ extension LayoutTree {
         registry.boxes = registry.boxes.filter({ contains($0.key) })
         registry.positioned = registry.positioned.filter({ contains($0) && isBlock($0) })
         registry.wrapped = registry.wrapped.filter({ contains($0.key) && isBlock($0.key) })
+        registry.anchors = registry.anchors.filter({ contains($0.key) })
         self[document: rootID].floats = registry
         for id in registry.positioned {
             markField(.y, at: id)

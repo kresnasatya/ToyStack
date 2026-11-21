@@ -15,6 +15,10 @@ struct FloatExclusions {
 
     var isEmpty: Bool { boxes.isEmpty }
 
+    func adding(_ box: FloatBox) -> FloatExclusions {
+        return FloatExclusions(boxes: boxes + [box], left: left, right: right, strut: strut)
+    }
+
     func insets(top: CGFloat, gap: CGFloat, height: CGFloat) -> LineFloatInsets {
         var insets: LineFloatInsets = LineFloatInsets(left: 0, right: 0, gap: gap)
         for box in boxes where overlaps(box, top: top + gap, height: height) {

@@ -74,6 +74,7 @@ extension LayoutTree {
             for child in self.inputs.allChildren(domID(of: id)) {
                 inputs.append(.style(child, .display))
                 inputs.append(.style(child, .position))
+                inputs.append(.style(child, .float))
             }
         }
         var leaves: [LayoutDOMView] = []
@@ -88,12 +89,15 @@ extension LayoutTree {
                 inputs.append(.style(el.ref.id, .aspectRatio))
                 inputs.append(.style(el.ref.id, .maxWidth))
                 inputs.append(.style(el.ref.id, .boxSizing))
+                inputs.append(.style(el.ref.id, .display))
+                inputs.append(.style(el.ref.id, .float))
                 inputs.append(contentsOf: LayoutInputTable.boxEdgeKeys(el.ref.id))
             }
             var ancestor: LayoutDOMView? = leaf.parent
             while let node = ancestor, node.style.computed.layout.display == .inline {
                 if boxed.insert(node.id).inserted {
                     inputs.append(.style(node.id, .display))
+                    inputs.append(.style(node.id, .float))
                     inputs.append(.style(node.id, .direction))
                     inputs.append(contentsOf: LayoutInputTable.boxEdgeKeys(node.id))
                 }
@@ -122,18 +126,30 @@ extension LayoutTree {
     ) {
         let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
         if !extraNodes.isEmpty {
-            for node in extraNodes { collectLeaves(node, leaves: &leaves, hidden: &hidden) }
+            for node in extraNodes { collectInlineNode(node, leaves: &leaves, hidden: &hidden) }
             return
         }
-        let hasBlockChild: Bool = domView(id).children.contains(where: {
-            $0.style.computed.layout.display == .block
-        })
+        let hasBlockChild: Bool = domView(id).children.contains(where: { inputs.isInFlowBlock($0.id) })
         if !hasBlockChild {
             collectLeaves(domView(id), leaves: &leaves, hidden: &hidden)
             return
         }
-        for child in domView(id).children where child.style.computed.layout.display != .block {
-            collectLeaves(child, leaves: &leaves, hidden: &hidden)
+        for child in domView(id).children where !inputs.isInFlowBlock(child.id) {
+            collectInlineNode(child, leaves: &leaves, hidden: &hidden)
+        }
+    }
+
+    /// A float inside inline content is one leaf: its own content belongs to
+    /// its own block.
+    private func collectInlineNode(
+        _ n: LayoutDOMView,
+        leaves: inout [LayoutDOMView],
+        hidden: inout [NodeID]
+    ) {
+        if inputs.isFloat(n.id) {
+            leaves.append(n)
+        } else {
+            collectLeaves(n, leaves: &leaves, hidden: &hidden)
         }
     }
 
@@ -173,7 +189,7 @@ extension LayoutTree {
                 plan.append(current)
                 current = []
                 cursorX = 0
-            case .embed, .boxEdge:
+            case .embed, .boxEdge, .float:
                 return nil
             case .text(var text):
                 if text.hasSoftHypen { return nil }
@@ -367,7 +383,11 @@ extension LayoutTree {
                     profiler.end(refreshSpan)
                 }
                 let floats: FloatExclusions = floatExclusions(for: id)
-                let floatsChanged: Bool = noteWrapped(id, floats)
+                let hasOwnFloats: Bool = self[block: id].content.inlineItems.contains(where: { item in
+                    if case .float = item { return true }
+                    return false
+                })
+                let floatsChanged: Bool = noteWrapped(id, hasOwnFloats ? floatContext(for: id) : floats.boxes)
                 let oldPlan: InlineLinePlan? = self[block: id].content.inlineLinePlan
                 let planSpan: ProfileSpan = profiler.begin("layout.inline.plan")
                 // The cached plan assumes one width for every line.
@@ -463,6 +483,35 @@ extension LayoutTree {
         }
     }
 
+    /// The content width `placeBlockFrame` gives a block: its `width`, or the
+    /// room between its margins, shrunk to fit when it is an auto-width float.
+    mutating private func usedBlockWidth(_ id: LayoutID, style: BlockStyle, zoom zoomValue: CGFloat) -> CGFloat {
+        let ownBorder: EdgeInsets = borderValues(id).scaled(by: zoomValue)
+        let padHorizontal: CGFloat = !hasExtraNodes(id)
+            ? (style.box.padding.left + style.box.padding.right) * zoomValue
+            : 0
+        if let w = style.box.size.width {
+            return style.box.size.boxSizing.contentSize(
+                specified: w * zoomValue,
+                paddingAndBorder: padHorizontal + ownBorder.horizontal
+            )
+        }
+        let available: CGFloat = max(0, width(parentID(of: id)!) - blockOutsideWidth(id, style: style, zoom: zoomValue))
+        guard style.position != .absolute, blockFloating(id).side != .none else { return available }
+        // CSS 2.1 §10.3.5: an auto-width float shrinks to fit its content.
+        let preferred: IntrinsicWidths = intrinsicWidths(of: domView(id), zoom: zoomValue, available: available)
+        return min(max(preferred.minContent, available), preferred.maxContent)
+    }
+
+    /// Margins, padding, and border across a block; an anonymous block has none.
+    private func blockOutsideWidth(_ id: LayoutID, style: BlockStyle, zoom zoomValue: CGFloat) -> CGFloat {
+        guard !hasExtraNodes(id) else { return 0 }
+        let ownBorder: EdgeInsets = borderValues(id).scaled(by: zoomValue)
+        let margin: CGFloat = style.box.margin.left + style.box.margin.right
+        let padding: CGFloat = style.box.padding.left + style.box.padding.right
+        return (margin + padding) * zoomValue + ownBorder.horizontal
+    }
+
     mutating private func placeBlockFrame(_ id: LayoutID, style: BlockStyle) {
         let zoomValue: CGFloat = resolvedZoom(id)
         let isAbsolute: Bool = style.position == .absolute
@@ -482,29 +531,11 @@ extension LayoutTree {
             frameX = parentX + marginLeft + padLeft + ownBorder.left
         }
 
-        let parentWidth: CGFloat = width(parent)
         let padHorizontal: CGFloat = !hasExtraNodes(id)
             ? (style.box.padding.left + style.box.padding.right) * zoomValue
             : 0
         let floating: LayoutStyle.Floating = isAbsolute ? .none : blockFloating(id)
-        var frameWidth: CGFloat
-        if let w = style.box.size.width {
-            frameWidth = style.box.size.boxSizing.contentSize(
-                specified: w * zoomValue,
-                paddingAndBorder: padHorizontal + ownBorder.horizontal
-            )
-        } else {
-            frameWidth = max(0, parentWidth - marginLeft - marginRight - padHorizontal - ownBorder.horizontal)
-            if floating.side != .none {
-                // CSS 2.1 §10.3.5: an auto-width float shrinks to fit its content.
-                let preferred: IntrinsicWidths = intrinsicWidths(
-                    of: domView(id),
-                    zoom: zoomValue,
-                    available: frameWidth
-                )
-                frameWidth = min(max(preferred.minContent, frameWidth), preferred.maxContent)
-            }
-        }
+        var frameWidth: CGFloat = usedBlockWidth(id, style: style, zoom: zoomValue)
 
         let element = domView(id).element
         if element?.tag == "li" {
@@ -514,6 +545,9 @@ extension LayoutTree {
 
         var frameY: CGFloat
         var besideFloats: Bool = false
+        // A float inside inline content is placed by the block whose lines it
+        // sits in; that block re-places it whenever it breaks its lines.
+        let anchor: CGPoint? = floating.side != .none ? self[document: rootID].floats.anchors[id] : nil
         if isAbsolute, let t = style.flags.top {
             let padTop: CGFloat = !hasExtraNodes(id)
                 ? style.box.padding.left * zoomValue
@@ -543,7 +577,7 @@ extension LayoutTree {
                 let flowTop: CGFloat = frameY - ownTop - ownBorder.top - padTop
                 let marginBoxWidth: CGFloat = marginLeft + ownBorder.horizontal + padHorizontal
                     + frameWidth + marginRight
-                let origin: CGPoint = floatPlacer(for: id, top: flowTop).origin(
+                let origin: CGPoint = anchor ?? floatPlacer(for: id, top: flowTop).origin(
                     side: floating.side,
                     width: marginBoxWidth,
                     top: flowTop,
@@ -580,7 +614,8 @@ extension LayoutTree {
                 }
             }
         }
-        notePositioned(id, floating.side != .none || floating.clear != .none || besideFloats)
+        let readsFloats: Bool = floating.side != .none ? anchor == nil : floating.clear != .none || besideFloats
+        notePositioned(id, readsFloats)
 
         if element?.attributes["id"] == "toc" {
             frameY += VSTEP
@@ -863,7 +898,10 @@ extension LayoutTree {
             if child.style.computed.layout.display == .none {
                 continue
             }
-            let isBlock: Bool = child.style.computed.layout.display == .block
+            // A float next to inline content joins it, so the lines around
+            // it stay in one block.
+            let joinsRun: Bool = inputs.isFloat(child.id) && !state.inlineRun.isEmpty
+            let isBlock: Bool = child.style.computed.layout.display == .block && !joinsRun
             if isBlock {
                 if let el = child.element, el.tag == "h6" {
                     flushInlineRun(id, &state)
@@ -992,6 +1030,8 @@ extension LayoutTree {
                     placeText(id, text, index: index, into: &placement)
                 case .embed(let element):
                     placeEmbed(id, element, index: index, into: &placement)
+                case .float(let element):
+                    placeInlineFloat(id, element, index: index, into: &placement)
                 case .boxEdge(let edge):
                     placeBoxEdge(id, edge, into: &placement)
                 }
@@ -1003,10 +1043,70 @@ extension LayoutTree {
         if placement.objectsChanged {
             self[block: id].content.inlineObjects = placement.objects
         }
+        // The block's floats follow its lines, so tree order keeps the text
+        // first and floats paint above the lines they sit beside.
+        var floatChildren: [LayoutID] = []
+        for (index, item) in items.enumerated() {
+            if case .float = item, let float: LayoutID = placement.object(at: index) {
+                floatChildren.append(float)
+            }
+        }
         profiler.measure("layout.inline.place.parentChildren", {
-            setInlineChildrenField(placement.lines, of: id)
+            setInlineChildrenField(placement.lines + floatChildren, of: id)
         })
         profiler.count("layout.lines.total", by: placement.lines.count)
+    }
+
+    /// CSS 2.1 §9.5.1 rule 6: a float in inline content goes no higher than the
+    /// top of the line it appears on. It stays on that line when it fits
+    /// beside what the line already holds, and goes below the line otherwise.
+    mutating private func placeInlineFloat(
+        _ id: LayoutID,
+        _ element: LayoutElementView,
+        index: Int,
+        into placement: inout InlinePlacement
+    ) {
+        let float: LayoutID
+        if let cached: LayoutID = placement.object(at: index), contains(cached), isBlock(cached),
+            !hasExtraNodes(cached), domID(of: cached) == element.id, parentID(of: cached) == id
+        {
+            float = cached
+        } else {
+            float = makeBlock(dom: element.id, parent: id, previous: nil)
+            placement.setObject(float, at: index)
+        }
+        let style: BlockStyle = blockStyle(float)
+        let floatZoom: CGFloat = resolvedZoom(float)
+        let marginBoxWidth: CGFloat = usedBlockWidth(float, style: style, zoom: floatZoom)
+            + blockOutsideWidth(float, style: style, zoom: floatZoom)
+        let blockWidth: CGFloat = width(id)
+        let fitsOnLine: Bool = placement.lineIsEmpty
+            || placement.cursorX + marginBoxWidth <= placement.lineWidth(blockWidth)
+        let top: CGFloat = fitsOnLine ? placement.lineTop : placement.lineBottom
+        var own: [FloatBox] = []
+        for (itemIndex, object) in placement.objects
+        where itemIndex < index && contains(object) && parentID(of: object) == id {
+            if let box: FloatBox = self[document: rootID].floats.boxes[object] {
+                own.append(box)
+            }
+        }
+        let floating: LayoutStyle.Floating = blockFloating(float)
+        let origin: CGPoint = floatPlacer(inside: id, top: top, own: own).origin(
+            side: floating.side,
+            width: marginBoxWidth,
+            top: top,
+            clear: floating.clear
+        )
+        self[document: rootID].floats.anchors[float] = origin
+        markField(.x, at: float)
+        markField(.y, at: float)
+        markField(.width, at: float)
+        layout(float)
+        guard let box: FloatBox = self[document: rootID].floats.boxes[float] else { return }
+        let base: FloatExclusions = placement.floats.isEmpty
+            ? FloatExclusions(boxes: [], left: x(id), right: x(id) + blockWidth, strut: fontFor(id, zoom: zoom(id)).linespace)
+            : placement.floats
+        placement.avoid(base.adding(box))
     }
 
     mutating private func refreshReusedLine(
@@ -1250,7 +1350,7 @@ extension LayoutTree {
             if inputs.isDisplayNone(child) {
                 hidden.append(child)
             } else {
-                collectLeaves(domView(child), leaves: &leaves, hidden: &hidden)
+                collectInlineNode(domView(child), leaves: &leaves, hidden: &hidden)
             }
         }
     }
@@ -1264,14 +1364,12 @@ extension LayoutTree {
             for node in extraNodes { appendItems(id, node, boxed: true, into: &items) }
             return
         }
-        let hasBlockChild: Bool = domView(id).children.contains(where: {
-            $0.style.computed.layout.display == .block
-        })
+        let hasBlockChild: Bool = domView(id).children.contains(where: { inputs.isInFlowBlock($0.id) })
         if !hasBlockChild {
             appendItems(id, domView(id), boxed: false, into: &items)
             return
         }
-        for child in domView(id).children where child.style.computed.layout.display != .block {
+        for child in domView(id).children where !inputs.isInFlowBlock(child.id) {
             appendItems(id, child, boxed: true, into: &items)
         }
     }
@@ -1282,6 +1380,12 @@ extension LayoutTree {
         boxed: Bool,
         into items: inout [InlineItem]
     ) {
+        // `boxed` is false only for the block's own element, which may itself
+        // be the float whose content this is.
+        if boxed, let el = n.element, inputs.isFloat(el.id) {
+            items.append(.float(el))
+            return
+        }
         guard let el = n.element, el.tag != "br", !isEmbed(el) else {
             items.append(contentsOf: makeItems(id, for: n))
             return
@@ -2079,6 +2183,20 @@ struct InlinePlacement {
         state.cursor.band.top = top
     }
 
+    var floats: FloatExclusions { state.cursor.floats }
+
+    /// The top of the line being filled, after any drop below a float.
+    var lineTop: CGFloat { state.cursor.band.top + state.cursor.band.insets.gap }
+
+    var lineBottom: CGFloat { lineTop + state.cursor.band.extent.height }
+
+    /// A float placed while the lines break: the current line and every later
+    /// one now avoids it too.
+    mutating func avoid(_ floats: FloatExclusions) {
+        state.cursor.floats = floats
+        grow(.zero)
+    }
+
     /// Whether an item fits on the line once the line has grown to hold it: a
     /// taller line can reach a float its current band misses.
     func fits(_ width: CGFloat, extent: InlineExtent, blockWidth: CGFloat) -> Bool {
@@ -2112,7 +2230,7 @@ struct InlinePlacement {
         blockWidth: CGFloat,
         in tree: inout LayoutTree
     ) {
-        let dropsInstead: Bool = !state.cursor.floats.isEmpty && isLineEmpty
+        let dropsInstead: Bool = !state.cursor.floats.isEmpty && lineIsEmpty
         if !dropsInstead, !fits(width, extent: extent, blockWidth: blockWidth) {
             endLine(in: &tree)
         }
@@ -2123,7 +2241,7 @@ struct InlinePlacement {
     /// CSS 2.1 §9.5: a shortened line box too small for any content moves down
     /// until some content fits or no more floats are beside it.
     mutating func dropBelowFloats(toFit width: CGFloat, extent: InlineExtent, blockWidth: CGFloat) {
-        guard !state.cursor.floats.isEmpty, isLineEmpty else { return }
+        guard !state.cursor.floats.isEmpty, lineIsEmpty else { return }
         let floats: FloatExclusions = state.cursor.floats
         let height: CGFloat = state.cursor.band.extent.union(extent).height
         while !fits(width, extent: extent, blockWidth: blockWidth),
@@ -2137,7 +2255,7 @@ struct InlinePlacement {
         }
     }
 
-    private var isLineEmpty: Bool {
+    var lineIsEmpty: Bool {
         return state.content.children.isEmpty
             && state.content.pending == nil
             && state.content.boxes.isEmpty
@@ -2311,9 +2429,7 @@ struct InlinePlacement {
             tree.markField(.y, at: line)
             tree.markField(.width, at: line)
         }
-        if !state.cursor.floats.isEmpty {
-            state.cursor.band.top += band.insets.gap + band.extent.height
-        }
+        state.cursor.band.top += band.insets.gap + band.extent.height
         let events: [InlineFlowEvent] = context.boxes.breakLine()
         if tree[line: line].inlineBoxes.events != events {
             tree[line: line].inlineBoxes.events = events

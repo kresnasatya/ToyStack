@@ -7,6 +7,13 @@ extension LayoutTree {
     /// line breaking measures it, so a float can be sized before its content
     /// is laid out. `available` is what percentages inside resolve against.
     func intrinsicWidths(of node: LayoutDOMView, zoom: CGFloat, available: CGFloat) -> IntrinsicWidths {
+        // A floated image or other embed is its own content.
+        if let element: LayoutElementView = node.element {
+            let embedWidth: CGFloat = embedLineWidth(element, available: available, zoom: zoom)
+            if embedWidth > 0 {
+                return IntrinsicWidths(minContent: embedWidth, maxContent: embedWidth)
+            }
+        }
         var widths: IntrinsicWidths = .zero
         var line: IntrinsicLine = IntrinsicLine()
         for child in node.children {
