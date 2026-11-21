@@ -87,6 +87,12 @@ private func apply(
         pumpRenderIdle(browser)
     case let .resize(width, height):
         browser.resize(to: CGSize(width: width, height: height))
+    case let .click(x, y):
+        tab.click(x: x, y: y)
+        pumpRenderIdle(browser)
+    case let .key(character):
+        tab.keypress(character)
+        pumpRenderIdle(browser)
     case let .screenshot(path):
         if capture(browser, scale: viewport.scale, to: path) {
             print("Saved: \(path)")

@@ -38,6 +38,8 @@ struct ScheduledEvent {
         case scroll(x: CGFloat, y: CGFloat, deltaY: CGFloat)
         case resize(width: CGFloat, height: CGFloat)
         case screenshot(path: String)
+        case click(x: CGFloat, y: CGFloat)
+        case key(String)
     }
 
     let time: Double
@@ -56,6 +58,8 @@ func usage() -> Never {
                   --screenshot-at <t> <path>     capture after t seconds of animation time
                   --scroll-at <t>:<x>:<y>:<dy>   scroll at t seconds (repeatable)
                   --resize-at <t>:<w>:<h>        resize at t seconds (repeatable)
+                  --click-at <t>:<x>:<y>         click at t seconds, viewport CSS pixels (repeatable)
+                  --type-at <t>:<text>           type text from t seconds, one key per frame (repeatable)
                   --force-full-layout            rebuild every box on every layout pass
                   --no-incremental-layout        pre-0b name for --force-full-layout
                   --width <px>                   viewport width (default 800)
@@ -109,6 +113,12 @@ func parseArguments() -> HeadlessOptions? {
         case "--resize-at":
             guard let event: ScheduledEvent = parseResizeEvent(next(arg)) else { return nil }
             events.append(event)
+        case "--click-at":
+            guard let event: ScheduledEvent = parseClickEvent(next(arg)) else { return nil }
+            events.append(event)
+        case "--type-at":
+            guard let typed: [ScheduledEvent] = parseTypeEvents(next(arg)) else { return nil }
+            events.append(contentsOf: typed)
         case "--trace":
             tracePath = next(arg)
         case "--run-for":
@@ -180,6 +190,33 @@ private func parseResizeEvent(_ value: String) -> ScheduledEvent? {
         time: time,
         action: .resize(width: CGFloat(width), height: CGFloat(height))
     )
+}
+
+private func parseClickEvent(_ value: String) -> ScheduledEvent? {
+    let parts: [String] = value.split(separator: ":", omittingEmptySubsequences: false)
+        .map(String.init)
+    guard parts.count == 3,
+        let time: Double = Double(parts[0]), time >= 0,
+        let x: Double = Double(parts[1]),
+        let y: Double = Double(parts[2])
+    else { return nil }
+    return ScheduledEvent(time: time, action: .click(x: CGFloat(x), y: CGFloat(y)))
+}
+
+/// One key per frame, so every keystroke gets its own render the way a person
+/// typing at less than 60 keys a second does.
+private func parseTypeEvents(_ value: String) -> [ScheduledEvent]? {
+    guard let colon: String.Index = value.firstIndex(of: ":"),
+        let time: Double = Double(value[..<colon]), time >= 0
+    else { return nil }
+    let text: Substring = value[value.index(after: colon)...]
+    guard !text.isEmpty else { return nil }
+    return text.enumerated().map({ index, character in
+        ScheduledEvent(
+            time: time + Double(index) / animationFramesPerSecond,
+            action: .key(String(character))
+        )
+    })
 }
 
 func animationFrameCount(for seconds: Double) -> Int {

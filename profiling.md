@@ -39,6 +39,9 @@ Flags:
 | `--run-for <seconds>` | `seconds × 60` ticks; `--frame-limit` wins if both are given |
 | `--screenshot-at <t> <path>` | capture after `t` seconds of animation time |
 | `--scroll-at <t>:<x>:<y>:<dy>` | scroll at `t` seconds; `x`/`y` are viewport CSS pixels, `dy` is CSS pixels and negative scrolls down; repeatable |
+| `--resize-at <t>:<w>:<h>` | resize the window at `t` seconds; repeatable |
+| `--click-at <t>:<x>:<y>` | click at `t` seconds; `x`/`y` are viewport CSS pixels; repeatable |
+| `--type-at <t>:<text>` | type `text` from `t` seconds, one key per tick so each keystroke renders on its own; repeatable |
 | `--force-full-layout` | recreate the layout tree on every layout pass; the differential oracle |
 | `--no-incremental-layout` | same switch, pre-0b spelling |
 | `--no-profile` | keep spans and counters, drop `profile.*` |
