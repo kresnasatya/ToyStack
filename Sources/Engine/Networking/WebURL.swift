@@ -199,17 +199,17 @@ public class WebURL: @unchecked Sendable {
         return (httpResponse.statusCode, headers, content)
     }
 
-    private func makeHTTPRequest(method: String, referrer: WebURL?, payload: String?, extraHeaders: [String: String]) async -> URLRequest {
+    func makeHTTPRequest(method: String, referrer: WebURL?, payload: String?, extraHeaders: [String: String]) async -> URLRequest {
         var components: URLComponents = Foundation.URLComponents()
         components.scheme = scheme
         components.host = host
         components.port =
             (scheme == "https" && port == 443) || (scheme == "http" && port == 80) ? nil : port
         if let questionIdx = path.firstIndex(of: "?") {
-            components.path = String(path[path.startIndex..<questionIdx])
+            components.percentEncodedPath = PathPercentEncoding.encode(String(path[path.startIndex..<questionIdx]))
             components.percentEncodedQuery = String(path[path.index(after: questionIdx)...])
         } else {
-            components.path = path
+            components.percentEncodedPath = PathPercentEncoding.encode(path)
         }
 
         guard let foundationURL = components.url else {

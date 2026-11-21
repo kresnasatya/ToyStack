@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Engine
@@ -145,5 +146,18 @@ import Testing
         let url: WebURL = WebURL("about:")
         #expect(url.scheme == "about")
         #expect(url.path == "")
+    }
+
+    // MARK: - request URL
+    @Test func requestKeepsPercentEscapesInPath() async {
+        let url: WebURL = WebURL("https://example.com/_next/static/chunks/app/%5Blang%5D/page.js")
+        let request: URLRequest = await url.makeHTTPRequest(method: "GET", referrer: nil, payload: nil, extraHeaders: [:])
+        #expect(request.url?.absoluteString == "https://example.com/_next/static/chunks/app/%5Blang%5D/page.js")
+    }
+
+    @Test func requestWithStrayPercentInPathDoesNotTrap() async {
+        let url: WebURL = WebURL("https://example.com/100%?q=1")
+        let request: URLRequest = await url.makeHTTPRequest(method: "GET", referrer: nil, payload: nil, extraHeaders: [:])
+        #expect(request.url?.absoluteString == "https://example.com/100%25?q=1")
     }
 }
