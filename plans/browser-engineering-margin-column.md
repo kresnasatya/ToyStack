@@ -62,6 +62,19 @@ ToyStack could not follow any of this:
    from the floats beside it, and drops below them when its first item does not fit
    (CSS 2.1 §9.5). On browser.engineering itself nothing changes on screen: the margin
    column's floats end at the body's right edge, so they never reach the text.
+6. `fix: tall lines no longer run into floats below them`: the band a line is checked
+   against grows with the line (`InlineExtent`); an item that would push the line into
+   a float starts the next line. Embeds report their exact height (`embedExtent`).
+7. `fix: floats on the same side line up instead of overlapping`: `FloatPlacer`
+   applies CSS 2.1 §9.5.1 rules 2, 3, 5, and 7. `clear` now reads the registry too.
+8. `fix: floats without a width shrink to fit their content`: §10.3.5, with preferred
+   widths from `IntrinsicWidthPass`.
+9. `fix: overflow: hidden boxes sit beside floats instead of under them`: §9.5,
+   through `FloatPlacer.room`.
+10. `feat: floated text and images inside a paragraph move to the side`: §9.7 makes
+    floats block-level; floats inside inline content are placed while the lines break.
+    The book's footnotes now sit in the margin column, stacked below the table of
+    contents by their `clear: right`.
 
 ## How floats stay correct when layout reuses old results
 
@@ -78,8 +91,9 @@ The document keeps a `FloatRegistry` (`DocumentData.floats`):
 | Part | What it holds | How it is kept fresh |
 | --- | --- | --- |
 | `boxes` | each float's margin box | written by `recordFloatBox` once the float's height is final |
-| `clearing` | blocks with `clear` | `y` marked dirty on every layout pass that does work |
-| `wrapped` | paragraphs with shortened lines, plus the floats they were broken against | `y` marked dirty on every pass; they re-break only if their floats differ |
+| `positioned` | floats, blocks with `clear`, blocks moved beside floats | `y` marked dirty on every layout pass that does work |
+| `wrapped` | paragraphs with shortened lines or floats of their own, plus the floats they were laid out against | `y` marked dirty on every pass; they re-break only if those floats differ |
+| `anchors` | where a paragraph put each float inside its inline content | written while the paragraph breaks its lines |
 
 When a float's margin box changes, `markBlocksBeside` walks forward through the
 formatting context and marks only the paragraphs that overlap the new box. It stops at
@@ -93,27 +107,25 @@ Turning off the recheck breaks `hidingTheFloatGivesLinesTheirFullWidthBack`.
 
 ## Known gaps
 
-- A line is checked against a band as tall as the paragraph's own font (its strut). A
-  line made taller by a bigger font or an image can still touch a float just below
-  that band.
-- When working out where the next line starts, an image's height is taken from its
-  last layout. A freshly loaded image can shift the bands by one pass.
-- An auto-width float takes the full available width. It does not shrink to fit its
-  content (CSS 2.1 §10.3.5).
-- Two floats on the same side without `clear` can overlap. They are not placed side by
-  side.
-- Inline-level floats (for example the book's `span.note { float: right }`) are still
-  laid out inline.
-- A block that starts its own formatting context (for example `overflow: hidden`) is
-  not narrowed to sit beside a float. Only line boxes are shortened.
+- A float inside inline content that does not fit beside the current line goes below
+  the line's height so far; the line can still grow after the float is placed.
+- A paragraph with floats of its own re-breaks all its lines whenever it is visited,
+  and it is visited on every pass while an earlier float reaches below its top. On
+  browser.engineering that is every footnoted paragraph beside the margin column; the
+  cost was not measured.
+- A block that starts its own formatting context keeps its whole margin box off the
+  floats (the spec allows this; browsers let the margin slide under). An earlier float
+  that starts lower than the block's top still narrows it from the top.
+- CSS 2.1 §9.7 also makes absolutely positioned boxes block-level; only floats are.
 - A parent only grows to contain its floats through a clearing block (the
   `clear: both` trick). New formatting contexts (CSS 2.1 §10.6.7) do not grow around
   their floats on their own.
-- `list-style: none` and `#toc:before { content: ... }` are not supported, so the table
-  of contents still shows bullets and has no "Table of Contents" heading.
+- `list-style: none`, `::before`/`::after` content, and CSS counters are not supported,
+  so the table of contents shows bullets and no heading, and footnotes have no numbers.
 
 ## Next steps
 
-1. Shrink-to-fit width for floats, which needs each box's preferred width.
-2. Place same-side floats next to each other (CSS 2.1 §9.5.1 rules 2, 3, 7).
-3. Float inline-level elements, so the book's margin notes move into the margin column.
+1. Measure footnoted paragraphs during typing on browser.engineering (`browser.trace`)
+   before deciding whether their re-breaking needs to be narrower.
+2. Let new formatting contexts grow around their floats (CSS 2.1 §10.6.7).
+3. Generated content (`::before`, counters) so the footnote numbers appear.
