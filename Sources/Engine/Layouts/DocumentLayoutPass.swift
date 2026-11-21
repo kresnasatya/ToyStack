@@ -37,7 +37,7 @@ extension LayoutTree {
             documentLayoutNeeded(root)
         })
         guard needed else { return }
-        markClearingBlocks()
+        markFloatDependents()
         defer {
             setDirtyDescendants(false, at: root)
         }

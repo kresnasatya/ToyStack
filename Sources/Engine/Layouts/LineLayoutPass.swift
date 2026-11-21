@@ -99,6 +99,7 @@ extension LayoutTree {
         }
         let parent: LayoutID = parentID(of: id)!
         let previous: LayoutID? = previousID(of: id)
+        let insets: LineFloatInsets = self[line: id].placement.floatInsets
         var lineY: CGFloat = y(parent)
         if let previous {
             lineY = y(previous) + height(previous)
@@ -106,9 +107,9 @@ extension LayoutTree {
         setFrame(
             (
                 zoom: zoom(parent),
-                x: x(parent),
-                y: lineY,
-                width: width(parent)
+                x: x(parent) + insets.left,
+                y: lineY + insets.gap,
+                width: width(parent) - insets.left - insets.right
             ),
             for: id
         )

@@ -366,11 +366,15 @@ extension LayoutTree {
                     preservedItems = refreshInlineItems(id, preservingObjects: preserveObjects)
                     profiler.end(refreshSpan)
                 }
+                let floats: FloatExclusions = floatExclusions(for: id)
+                let floatsChanged: Bool = noteWrapped(id, floats)
                 let oldPlan: InlineLinePlan? = self[block: id].content.inlineLinePlan
                 let planSpan: ProfileSpan = profiler.begin("layout.inline.plan")
-                let plan: InlineLinePlan? = inlineTextLinePlan(id)
+                // The cached plan assumes one width for every line.
+                let plan: InlineLinePlan? = floats.isEmpty ? inlineTextLinePlan(id) : nil
                 profiler.end(planSpan)
                 let shouldPlace: Bool = inlineContentChanged
+                    || floatsChanged
                     || plan == nil
                     || plan?.lines != oldPlan?.lines
                 let canReusePlan: Bool = !inlineContentChanged || preservedItems
@@ -391,7 +395,7 @@ extension LayoutTree {
                             refreshMetrics: preservedItems
                         )
                     } else {
-                        placeInlineItems(id)
+                        placeInlineItems(id, floats: floats)
                     }
                     profiler.end(placeSpan)
                 } else {
@@ -443,6 +447,7 @@ extension LayoutTree {
         if scroll.contentHeight != storedScroll.contentHeight {
             self[block: id].scroll = scroll
         }
+        recordFloatBox(id)
     }
 
     private func countWidthChange(from old: GeometryFields, widthWasUsed: Bool, at id: LayoutID) {
@@ -572,6 +577,8 @@ extension LayoutTree {
                 h += (childStyle.box.padding.top + childStyle.box.padding.bottom) * childZoom
                 h += borderWidths(childID).vertical
                 h += (childStyle.box.margin.top + childStyle.box.margin.bottom) * childZoom
+            } else if isLine(childID) {
+                h += self[line: childID].placement.floatInsets.gap
             }
             total += h
         }
@@ -921,7 +928,7 @@ extension LayoutTree {
 
     // MARK: - Inline items
 
-    mutating private func placeInlineItems(_ id: LayoutID) {
+    mutating private func placeInlineItems(_ id: LayoutID, floats: FloatExclusions) {
         let data: BlockData = self[block: id]
         let items: [InlineItem] = data.content.inlineItems
         if textRuns[id] == nil {
@@ -933,6 +940,7 @@ extension LayoutTree {
             reusableLines: reusable,
             objects: data.content.inlineObjects
         )
+        placement.wrap(around: floats, from: y(id))
         profiler.measure("layout.inline.place.setup", {
             placement.start(in: &self)
         })
@@ -1379,15 +1387,19 @@ extension LayoutTree {
         let font: BrowserFont = item.fontOverride ?? item.run.font
         let measured: CGFloat = item.measuredWidth ?? font.measure(item.display ?? item.word)
         let w: CGFloat = measured + font.spaceWidth
+        let wraps: Bool = item.run.whiteSpace.wraps
+        if wraps {
+            placement.dropBelowFloats(toFit: w, blockWidth: width(id))
+        }
         let brokeEarly: Bool = {
-            if placement.cursorX + w > width(id) && item.run.whiteSpace.wraps {
+            if placement.cursorX + w > placement.lineWidth(width(id)) && wraps {
                 if item.word.contains("\u{00AD}") {
                     let parts: [String] = item.word.components(separatedBy: "\u{00AD}")
                     var chunk: String = ""
                     var breakIdx: Int = -1
                     for (i, part) in parts.dropLast().enumerated() {
                         let candidate: String = chunk + part + "-"
-                        if placement.cursorX + font.measure(candidate) <= width(id) {
+                        if placement.cursorX + font.measure(candidate) <= placement.lineWidth(width(id)) {
                             chunk = chunk + part
                             breakIdx = i
                         }
@@ -1406,6 +1418,7 @@ extension LayoutTree {
                     }
                 }
                 placement.endLine(in: &self)
+                placement.dropBelowFloats(toFit: w, blockWidth: width(id))
             }
             return false
         }()
@@ -1496,7 +1509,7 @@ extension LayoutTree {
         let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         let isCheckbox: Bool = node.attributes["type"] == "checkbox"
         let w: CGFloat = embedOuterWidth(isCheckbox ? font.linespace : inputWidthPx * zoom, node, zoom: zoom)
-        if placement.cursorX + w > available { placement.endLine(in: &self) }
+        placement.makeRoom(for: w, blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let input: LayoutID
@@ -1523,7 +1536,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = embedOuterWidth(inputWidthPx * zoom, node, zoom: zoom)
-        if placement.cursorX + w > available { placement.endLine(in: &self) }
+        placement.makeRoom(for: w, blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let button: LayoutID
@@ -1556,7 +1569,7 @@ extension LayoutTree {
         let zoom: CGFloat = zoom(id)
         let content: CGFloat = imageUsedWidth(EmbedMetrics(node), available: available, zoom: zoom)
         let w: CGFloat = embedOuterWidth(content, node, zoom: zoom)
-        if placement.cursorX + w > available { placement.endLine(in: &self) }
+        placement.makeRoom(for: w, blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let image: LayoutID
@@ -1589,7 +1602,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = embedOuterWidth(iframeDisplaySize(EmbedMetrics(node)).width * zoom, node, zoom: zoom)
-        if placement.cursorX + w > available { placement.endLine(in: &self) }
+        placement.makeRoom(for: w, blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let iframe: LayoutID
@@ -1622,7 +1635,7 @@ extension LayoutTree {
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
         let w: CGFloat = embedOuterWidth(canvasContentSize(attributes: node.attributes).width * zoom, node, zoom: zoom)
-        if placement.cursorX + w > available { placement.endLine(in: &self) }
+        placement.makeRoom(for: w, blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
         let previous: LayoutID? = placement.children.last
         let canvas: LayoutID
@@ -1953,7 +1966,16 @@ private struct InlinePlacementState {
     var lines: [LayoutID] = []
     var currentLine: LayoutID? = nil
     var content: InlineLineContent = InlineLineContent()
-    var cursorX: CGFloat = 0
+    var cursor: LineCursor = LineCursor()
+}
+
+/// Where the line being filled starts and how much room the floats beside
+/// it leave. `top` is the line's top before any drop below a float.
+private struct LineCursor {
+    var x: CGFloat = 0
+    var top: CGFloat = 0
+    var insets: LineFloatInsets = .zero
+    var floats: FloatExclusions = .none
 }
 
 private struct LinePool {
@@ -2006,8 +2028,48 @@ struct InlinePlacement {
         context.objectsChanged = true
     }
     var cursorX: CGFloat {
-        get { state.cursorX }
-        set { state.cursorX = newValue }
+        get { state.cursor.x }
+        set { state.cursor.x = newValue }
+    }
+
+    func lineWidth(_ blockWidth: CGFloat) -> CGFloat {
+        return blockWidth - state.cursor.insets.left - state.cursor.insets.right
+    }
+
+    mutating func wrap(around floats: FloatExclusions, from top: CGFloat) {
+        state.cursor.floats = floats
+        state.cursor.top = top
+    }
+
+    /// Keeps the old rule of ending a line that cannot take the item, then
+    /// lets the fresh line move below the floats if it is still too narrow.
+    mutating func makeRoom(for width: CGFloat, blockWidth: CGFloat, in tree: inout LayoutTree) {
+        if cursorX + width > lineWidth(blockWidth) {
+            endLine(in: &tree)
+        }
+        dropBelowFloats(toFit: width, blockWidth: blockWidth)
+    }
+
+    /// CSS 2.1 §9.5: a shortened line box too small for any content moves down
+    /// until some content fits or no more floats are beside it.
+    mutating func dropBelowFloats(toFit width: CGFloat, blockWidth: CGFloat) {
+        guard !state.cursor.floats.isEmpty, isLineEmpty else { return }
+        while cursorX + width > lineWidth(blockWidth),
+            let next: CGFloat = state.cursor.floats.nextTop(after: state.cursor.top + state.cursor.insets.gap)
+        {
+            state.cursor.insets = state.cursor.floats.insets(top: state.cursor.top, gap: next - state.cursor.top)
+        }
+    }
+
+    private var isLineEmpty: Bool {
+        return state.content.children.isEmpty
+            && state.content.pending == nil
+            && state.content.boxes.isEmpty
+    }
+
+    private mutating func startCursor() {
+        state.cursor.x = context.boxes.pendingWidth
+        state.cursor.insets = state.cursor.floats.insets(top: state.cursor.top, gap: 0)
     }
 
     mutating func start(in tree: inout LayoutTree) {
@@ -2026,7 +2088,7 @@ struct InlinePlacement {
             previousChanged = true
             state.content = InlineLineContent()
         }
-        state.cursorX = context.boxes.pendingWidth
+        startCursor()
     }
 
     @discardableResult
@@ -2039,7 +2101,7 @@ struct InlinePlacement {
         previousChanged = tree.resetLine(line, previous: previous)
         state.currentLine = line
         state.content = InlineLineContent(reuseText: reuseText)
-        state.cursorX = context.boxes.pendingWidth
+        startCursor()
         return previousChanged
     }
 
@@ -2153,18 +2215,27 @@ struct InlinePlacement {
     mutating func openBox(_ dom: NodeID, width: CGFloat, in tree: inout LayoutTree) {
         flushText(in: &tree)
         context.boxes.pending.append(PendingInlineBox(dom: dom, width: width))
-        state.cursorX += width
+        state.cursor.x += width
     }
 
     mutating func closeBox(_ dom: NodeID, width: CGFloat, in tree: inout LayoutTree) {
         flushText(in: &tree)
         context.boxes.close(dom, width: width)
-        state.cursorX += width
+        state.cursor.x += width
     }
 
     private mutating func commitLine(_ line: LayoutID, in tree: inout LayoutTree) {
         tree[line: line].content.inlineWidths = state.content.widths
         tree[line: line].content.boxes = state.content.boxes
+        if tree[line: line].placement.floatInsets != state.cursor.insets {
+            tree[line: line].placement.floatInsets = state.cursor.insets
+            tree.markField(.x, at: line)
+            tree.markField(.y, at: line)
+            tree.markField(.width, at: line)
+        }
+        if !state.cursor.floats.isEmpty {
+            state.cursor.top += state.cursor.insets.gap + estimatedHeight(in: tree)
+        }
         let events: [InlineFlowEvent] = context.boxes.breakLine()
         if tree[line: line].inlineBoxes.events != events {
             tree[line: line].inlineBoxes.events = events
@@ -2179,5 +2250,27 @@ struct InlinePlacement {
                 previousChanged: previousChanged
             )
         })
+    }
+
+    /// The height `layoutLine` will give this line: the tallest ascent plus
+    /// the deepest descent of its items. Embeds use their last laid-out size.
+    private func estimatedHeight(in tree: LayoutTree) -> CGFloat {
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        for child in state.content.children {
+            if tree.isText(child) {
+                let font: BrowserFont = tree.font(child)
+                ascent = max(ascent, font.ascent)
+                descent = max(descent, font.descent)
+            } else {
+                ascent = max(ascent, tree.ascent(child))
+                descent = max(descent, tree.descent(child))
+            }
+        }
+        for box in state.content.boxes {
+            ascent = max(ascent, box.text.ascent)
+            descent = max(descent, box.text.descent)
+        }
+        return ascent + descent
     }
 }

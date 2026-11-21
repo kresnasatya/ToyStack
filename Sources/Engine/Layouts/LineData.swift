@@ -67,10 +67,24 @@ struct LinePlacement {
     var inlineYOffset: CGFloat
     var childOriginY: CGFloat?
     var declaredInlineChildCount: Int
+    var floatInsets: LineFloatInsets
 
     init() {
         self.inlineYOffset = 0
         self.childOriginY = nil
         self.declaredInlineChildCount = -1
+        self.floatInsets = .zero
     }
+}
+
+// MARK: - LineFloatInsets
+
+/// CSS 2.1 §9.5: a line box next to a float is shortened by the float's
+/// margin box, and moves down below it when even its first item does not fit.
+struct LineFloatInsets: Equatable {
+    var left: CGFloat
+    var right: CGFloat
+    var gap: CGFloat
+
+    static let zero: LineFloatInsets = LineFloatInsets(left: 0, right: 0, gap: 0)
 }
