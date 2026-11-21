@@ -418,16 +418,10 @@ Object.defineProperty(location, "hash", {
   }
 });
 
-window = new Window(_getWindowID());
+var window = __globalThis;
+var self = __globalThis;
+window._id = _getWindowID();
 WINDOWS[window._id] = window;
-
-window.console = console;
-window.document = document;
-window.location = location;
-window.Node = Node;
-window.Event = Event;
-window.XMLHttpRequest = XMLHttpRequest;
-window.MessageEvent = MessageEvent;
 
 Object.defineProperty(window, "origin", {
   get: function () {
@@ -468,6 +462,11 @@ Object.defineProperty(Window.prototype, "parent", {
   },
 });
 
+Object.getOwnPropertyNames(Window.prototype).forEach(function (name) {
+  if (name === "constructor") return;
+  Object.defineProperty(window, name, Object.getOwnPropertyDescriptor(Window.prototype, name));
+});
+
 function MessageEvent(data) {
   this.type = "message";
   this.data = data;
@@ -478,8 +477,6 @@ function requestAnimationFrame(callback) {
   __RAFHandlers.push(callback);
   _requestAnimationFrame();
 }
-
-window.requestAnimationFrame = requestAnimationFrame;
 
 SET_TIMEOUT_REQUESTS = {};
 
