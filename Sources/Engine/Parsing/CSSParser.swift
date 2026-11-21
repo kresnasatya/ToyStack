@@ -21,6 +21,7 @@ class CSSParser {
         "double", "groove", "ridge", "inset", "outset",
     ]
     private static let borderWidthKeywords: Set<String> = ["thin", "medium", "thick"]
+    private static let screenMediaTypes: Set<String> = ["all", "screen"]
 
     init(_ s: String, origin: CascadeOrigin = .author) {
         self.chars = Array(s)
@@ -422,6 +423,27 @@ class CSSParser {
         skipWhitespace()
         guard (try? word()) == "media" else { throw CSSParseError.parseError }
         skipWhitespace()
+        if i < chars.count && chars[i] == "(" {
+            return try mediaFeature()
+        }
+        var mediaType: String = try word().lowercased()
+        if mediaType == "only" {
+            skipWhitespace()
+            mediaType = try word().lowercased()
+        }
+        // ToyStack only draws to a screen, so a print or speech block can never
+        // apply; dropping it like a parse error gives the same result.
+        guard CSSParser.screenMediaTypes.contains(mediaType) else { throw CSSParseError.parseError }
+        skipWhitespace()
+        if i < chars.count && chars[i] == "{" {
+            return MediaFeatures.anyScreen
+        }
+        guard try word().lowercased() == "and" else { throw CSSParseError.parseError }
+        skipWhitespace()
+        return try mediaFeature()
+    }
+
+    private func mediaFeature() throws -> String {
         try literal("(")
         skipWhitespace()
         let prop: String = try word()

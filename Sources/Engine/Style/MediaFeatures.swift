@@ -1,12 +1,15 @@
 import CoreGraphics
 
 struct MediaFeatures {
+    static let anyScreen: String = "media-type:screen"
+
     let preferences: ColorPreferences
     let frameWidth: CGFloat
 
     func matches(_ query: String?) -> Bool {
         guard let m = query else { return true }
         switch m {
+        case MediaFeatures.anyScreen: return true
         case "dark": return preferences.prefersDark
         case "light": return !preferences.prefersDark
         case "forced-colors:active": return preferences.usesForcedColors
