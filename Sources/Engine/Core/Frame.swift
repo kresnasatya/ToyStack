@@ -18,7 +18,6 @@ class Frame {
 
     var state: FrameState
     private var styleSnapshotCache: StyleSnapshot?
-    private var styleSnapshotRevision: UInt64 = .max
     private var layoutInFlight: Bool = false
     /// A viewport change does not set it; the pass's `LayoutJobKey` already
     /// records that.
@@ -55,7 +54,6 @@ class Frame {
         newDOM.links.tab = tab
         state.document.dom = newDOM
         styleSnapshotCache = nil
-        styleSnapshotRevision = .max
         state.layout.tree.box = nil
         state.layout.tree.isDirty = true
         state.layout.targets.clear()
@@ -2364,18 +2362,25 @@ class Frame {
     }
 
     private func cachedStyleSnapshot() -> StyleSnapshot {
-        if let snapshot: StyleSnapshot = styleSnapshotCache,
-            styleSnapshotRevision == dom.revision
-        {
+        guard var snapshot: StyleSnapshot = styleSnapshotCache else {
+            profiler.count("style.snapshot.cacheMiss")
+            let snapshot: StyleSnapshot = profiler.measure("style.snapshot.build", {
+                StyleSnapshotBuilder.build(root: nodes)
+            })
+            styleSnapshotCache = snapshot
+            return snapshot
+        }
+        if snapshot.revision == dom.revision {
             profiler.count("style.snapshot.cacheHit")
             return snapshot
         }
-        profiler.count("style.snapshot.cacheMiss")
-        let snapshot: StyleSnapshot = profiler.measure("style.snapshot.build", {
-            StyleSnapshotBuilder.build(root: nodes)
+        // Taken out of the cache first, so its arrays are not shared and the
+        // update writes them in place instead of copying every node.
+        styleSnapshotCache = nil
+        profiler.measure("style.snapshot.update", {
+            StyleSnapshotBuilder.update(&snapshot, dom: dom)
         })
         styleSnapshotCache = snapshot
-        styleSnapshotRevision = dom.revision
         return snapshot
     }
 

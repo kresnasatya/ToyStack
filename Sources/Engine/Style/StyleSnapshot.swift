@@ -10,6 +10,9 @@ struct StyleSnapshot {
     var nodes: [StyleNode?]
     var indexByID: [NodeID: Int]
     var root: Int
+    /// The `DOMTree.revision` the nodes were copied at; an update recopies only
+    /// the nodes changed after it.
+    var revision: UInt64
 
     func index(of id: NodeID) -> Int? {
         return indexByID[id]

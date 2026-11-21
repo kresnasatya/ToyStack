@@ -285,10 +285,15 @@ pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 | `style.bodyWrites` | count | declarations applied |
 | `style.applied` | count | nodes whose style was applied |
 | `style.scope.direct`, `style.scope.rules`, `style.flipped.queries` | count | reusable-style scope |
+| `style.snapshot.build` | duration | full copy of every node for selector matching; only when there is no cached snapshot |
+| `style.snapshot.update` | duration | refresh of the cached snapshot after a DOM change |
+| `style.snapshot.nodes.updated` | count | nodes the refresh recopied: those changed since the cached snapshot was made |
+| `style.snapshot.cacheHit`, `style.snapshot.cacheMiss` | count | snapshot reused as is, or built from nothing |
 
 The seven `style.apply.*` phases are the measured subset; the enclosing
 `BrowserTab.style` span also contains rules, `:has` precompute, scope, keyframes,
-and invalidation. There is no longer an all-node style snapshot pass.
+and invalidation. The matching snapshot is built once per document and then
+refreshed node by node, so a keystroke recopies only the edited nodes.
 
 `style.visited` counts a node once its clean-subtree gate passes.
 `style.applied` counts nodes the cascade actually recomputed and recorded. On a
