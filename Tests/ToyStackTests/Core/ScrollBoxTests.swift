@@ -76,7 +76,108 @@ struct ScrollBoxTests {
         #expect(Self.hitParagraph(page, x: x, y: below) == nil, "the click reached clipped content")
     }
 
+    @Test func wheelOverABoxWithNothingToScrollMovesThePage() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><p>Short</p></div><div id="tall"></div>"#,
+            rules: Self.chainRules
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
+
+        let moved: Bool = page.frame.scrollAt(x: target.rect.left + 5, y: target.rect.top + 5, deltaY: -40)
+
+        #expect(moved)
+        #expect(box.scrollOffsetY == 0)
+        #expect(page.frame.scroll == 40, "the box swallowed the wheel")
+    }
+
+    @Test func wheelOverABoxAtItsEndMovesThePage() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box">"# + Self.paragraphs + #"</div><div id="tall"></div>"#,
+            rules: Self.chainRules
+        )
+        let box: ElementRef = try #require(page.firstElement(id: "box"))
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
+        let x: CGFloat = target.rect.left + 5
+        let y: CGFloat = target.rect.top + 5
+        page.frame.scrollAt(x: x, y: y, deltaY: -100_000)
+        let end: CGFloat = box.scrollOffsetY
+        try #require(end > 0)
+        try #require(page.frame.scroll == 0)
+
+        page.frame.scrollAt(x: x, y: y, deltaY: -40)
+
+        #expect(box.scrollOffsetY == end)
+        #expect(page.frame.scroll == 40, "the box swallowed the wheel")
+    }
+
+    @Test func innerBoxScrollsBeforeTheBoxAroundIt() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="outer"><div id="inner">"# + Self.paragraphs + "</div>" + Self.paragraphs + "</div>",
+            rules: Self.nestedRules
+        )
+        let outer: ElementRef = try #require(page.firstElement(id: "outer"))
+        let inner: ElementRef = try #require(page.firstElement(id: "inner"))
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.last)
+        try #require(target.node == inner.id)
+
+        page.frame.scrollAt(x: target.rect.left + 5, y: target.rect.top + 5, deltaY: -10)
+
+        #expect(inner.scrollOffsetY == 10)
+        #expect(outer.scrollOffsetY == 0, "the outer box took the wheel meant for the inner one")
+    }
+
+    @Test func innerBoxWithNothingToScrollMovesTheBoxAroundIt() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="outer"><div id="inner"><p>Short</p></div>"# + Self.paragraphs + "</div>",
+            rules: Self.nestedRules
+        )
+        let outer: ElementRef = try #require(page.firstElement(id: "outer"))
+        let inner: ElementRef = try #require(page.firstElement(id: "inner"))
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.last)
+        try #require(target.node == inner.id)
+
+        page.frame.scrollAt(x: target.rect.left + 5, y: target.rect.top + 5, deltaY: -10)
+
+        #expect(inner.scrollOffsetY == 0)
+        #expect(outer.scrollOffsetY == 10)
+        #expect(page.frame.scroll == 0)
+    }
+
+    @Test func pageAtItsTopKeepsTheWheelUnhandled() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="box"><p>Short</p></div><div id="tall"></div>"#,
+            rules: Self.chainRules
+        )
+        let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)
+
+        let moved: Bool = page.frame.scrollAt(x: target.rect.left + 5, y: target.rect.top + 5, deltaY: 40)
+
+        #expect(!moved)
+        #expect(page.frame.scroll == 0)
+    }
+
     // MARK: - Helpers
+
+    private static let paragraphs: String = (0..<20).map { index in
+        "<p>Paragraph \(index) inside the scroll box.</p>"
+    }.joined()
+
+    private static let chainRules: String = """
+        body { display: block; }
+        p { display: block; }
+        div { display: block; }
+        #box { height: 50px; overflow: scroll; }
+        #tall { height: 2000px; }
+        """
+
+    private static let nestedRules: String = """
+        body { display: block; }
+        p { display: block; }
+        div { display: block; }
+        #outer { height: 100px; overflow: scroll; }
+        #inner { height: 50px; overflow: scroll; }
+        """
 
     private static func hitParagraph(_ page: LayoutTestPage, x: CGFloat, y: CGFloat) -> NodeID? {
         guard let hit: LayoutHit = page.tree.hitTest(page.tree.rootID, x: x, y: y) else { return nil }

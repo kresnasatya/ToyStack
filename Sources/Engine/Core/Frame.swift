@@ -1749,19 +1749,18 @@ class Frame {
             }
         }
 
-        if let target = state.layout.targets.blocks.first(where: {
-            $0.rect.containsPoint(x, adjustedY)
-        }),
-            let doc = document,
-            doc.contains(target.layout)
-        {
-            guard let el: ElementRef = DOMRef(id: target.node, dom: dom).element else {
-                return false
-            }
+        // CSS Overscroll Behavior 1 §3: a scroll container that has reached its
+        // boundary passes the scroll up the chain, to the box around it and then
+        // the page. Targets are in tree order, so the innermost box comes last.
+        for target in state.layout.targets.blocks.reversed() where target.rect.containsPoint(x, adjustedY) {
+            guard let doc: LayoutTree = document,
+                doc.contains(target.layout),
+                let el: ElementRef = DOMRef(id: target.node, dom: dom).element
+            else { continue }
             let maxScroll: CGFloat = doc.blockScrollRange(target.layout)
             let current: CGFloat = min(el.scrollOffsetY, maxScroll)
             let next: CGFloat = max(0, min(current - deltaY, maxScroll))
-            guard next != current else { return false }
+            guard next != current else { continue }
             el.scrollOffsetY = next
             state.runtime.interaction.scrollFocus = el.id
             setNeedsPaint()

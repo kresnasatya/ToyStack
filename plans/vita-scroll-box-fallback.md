@@ -69,3 +69,19 @@ percentile 3.4 ms), down from 156 ms. Pixels match the old bitmap output within
 1/255.
 
 Tests: `Tests/ToyStackTests/Raster/ScrollLayerTilesTests.swift`.
+
+## Follow-up: the wheel got stuck over the timing-test log
+
+`Frame.scrollAt` sent the wheel to the first `overflow: scroll` box under the
+cursor and returned `false` when that box could not move. The empty
+`#interval-log` box has nothing to scroll, so it swallowed every wheel event
+and the page stood still. The same happened at the end of any scroll box, and
+for nested boxes the outer one was picked first because targets are kept in
+tree order.
+
+CSS Overscroll Behavior 1 §3 describes scroll chaining: a scroll container
+that has reached its boundary passes the scroll to the ancestor scroll
+container. `scrollAt` now tries the boxes under the cursor innermost first,
+moves the first one that can still move, and otherwise scrolls the page.
+
+Tests: the chaining cases in `Tests/ToyStackTests/Core/ScrollBoxTests.swift`.
