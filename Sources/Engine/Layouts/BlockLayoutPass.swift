@@ -319,9 +319,9 @@ extension LayoutTree {
         profiler.count("layout.visited")
         let style: BlockStyle = profiler.measure("layout.blockStyle", { blockStyle(id) })
         var skipInlineChildren: Bool = false
-        let frameWasClean: Bool = !isDirty(.x, at: id) && !isDirty(.y, at: id)
-        let oldFrameX: CGFloat = frameWasClean ? x(id) : 0
-        let oldFrameY: CGFloat = frameWasClean ? y(id) : 0
+        // Compared against what was stored rather than trusting the dirty
+        // flags: a block that reads floats has its `y` marked on every pass.
+        let oldGeometry: GeometryFields = self[node: id].state.fields.geometry
         let widthWasDirty: Bool = isDirty(.width, at: id)
         let geometryDirty: Bool = isDirty(.zoom, at: id) || isDirty(.x, at: id)
             || isDirty(.y, at: id) || widthWasDirty
@@ -334,8 +334,9 @@ extension LayoutTree {
                 profiler.end(geometrySpan)
             }
             let frameMoved: Bool = geometryDirty
-                && (!frameWasClean || x(id) != oldFrameX || y(id) != oldFrameY)
+                && (x(id) != oldGeometry.origin.x || y(id) != oldGeometry.origin.y)
             let widthChanged: Bool = geometryDirty && widthWasDirty
+            let resized: Bool = geometryDirty && width(id) != oldGeometry.size.width
             if frameMoved {
                 for child in childrenIDs(of: id) where isLine(child) {
                     markField(.y, at: child)
@@ -393,10 +394,21 @@ extension LayoutTree {
                 // The cached plan assumes one width for every line.
                 let plan: InlineLinePlan? = floats.isEmpty ? inlineTextLinePlan(id) : nil
                 profiler.end(planSpan)
-                let shouldPlace: Bool = inlineContentChanged
-                    || floatsChanged
-                    || plan == nil
-                    || plan?.lines != oldPlan?.lines
+                let shouldPlace: Bool
+                if !floats.isEmpty || hasOwnFloats {
+                    // Lines broken around floats change only with what is
+                    // listed here; anything else keeps them as they are.
+                    let ownFloatsDirty: Bool = hasOwnFloats && childrenIDs(of: id).contains(where: { child in
+                        isBlock(child) && blockLayoutNeeded(child)
+                    })
+                    shouldPlace = inlineContentChanged || floatsChanged || frameMoved || resized
+                        || ownFloatsDirty
+                } else {
+                    shouldPlace = inlineContentChanged
+                        || floatsChanged
+                        || plan == nil
+                        || plan?.lines != oldPlan?.lines
+                }
                 let canReusePlan: Bool = !inlineContentChanged || preservedItems
                 if !shouldPlace, widthChanged, !frameMoved,
                     !isDirty(.height, at: id),

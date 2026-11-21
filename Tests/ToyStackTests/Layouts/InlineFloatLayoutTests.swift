@@ -141,4 +141,48 @@ struct InlineFloatLayoutTests {
         #expect(try lines(page, "p").allSatisfy({ page.tree.width($0) == page.tree.width(p) }))
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func footnotedParagraphKeepsItsLinesWhenNothingNearItChanges() throws {
+        let page: LayoutTestPage = page(
+            """
+            <div id="column"></div>\
+            <p id="p">before <span id="n">a note</span> after \(Self.words)</p>\
+            <div id="tail"></div>
+            """,
+            """
+            #column { float: right; width: 100px; height: 400px; margin-right: -120px; }
+            #n { float: right; clear: right; width: 100px; margin-right: -120px; }
+            #tail { height: 10px; }
+            """
+        )
+        let tail: ElementRef = try #require(page.firstElement(id: "tail"))
+        InlineStyle.set(tail, property: "height", value: "30px")
+        page.frame.setNeedsStyle(tail.ref)
+        profiler.reset()
+        page.frame.render()
+
+        let metrics: [String: ProfileMetric] = profiler.snapshot()
+        #expect(metrics["layout.inline.place.setup"] == nil)
+        #expect(try rect(page, "n").top >= rect(page, "column").bottom)
+        expectIncrementalMatchesFull(page)
+    }
+
+    @Test func editingTheNoteStillReplacesItsParagraph() throws {
+        let page: LayoutTestPage = page(
+            #"<p id="p">before <span id="n">note</span> after \#(Self.words)</p>"#,
+            "#n { float: left; width: 100px; }"
+        )
+        let n: ElementRef = try #require(page.firstElement(id: "n"))
+        let text: TextRef = try #require(n.children.first?.text)
+        text.append(" that now runs on long enough to need several lines of its own")
+        page.frame.setNeedsRender()
+        page.frame.render()
+
+        let p: LayoutID = try block(page, "p")
+        let note: Rect = try rect(page, "n")
+        let beside: [LayoutID] = try lines(page, "p").filter({ page.tree.y($0) < note.bottom })
+        #expect(beside.count > 2)
+        #expect(beside.allSatisfy({ page.tree.x($0) == page.tree.x(p) + 100 }))
+        expectIncrementalMatchesFull(page)
+    }
 }

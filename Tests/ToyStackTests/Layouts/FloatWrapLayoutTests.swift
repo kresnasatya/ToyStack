@@ -138,7 +138,7 @@ struct FloatWrapLayoutTests {
         expectIncrementalMatchesFull(page)
     }
 
-    @Test func paragraphBelowTheFloatsIsNotReplacedByAnUnrelatedChange() throws {
+    @Test func paragraphsBesideAndBelowTheFloatKeepTheirLinesOnAnUnrelatedChange() throws {
         let page: LayoutTestPage = page(
             """
             <div id="f"></div><p id="p">\(Self.words)</p>\
@@ -156,10 +156,10 @@ struct FloatWrapLayoutTests {
         profiler.reset()
         page.frame.render()
 
-        // Only the paragraph beside the float re-checks; the one far below
-        // keeps its lines.
+        // The paragraph beside the float re-checks its floats but finds them
+        // unchanged; neither paragraph breaks its lines again.
         let metrics: [String: ProfileMetric] = profiler.snapshot()
-        #expect((metrics["layout.inline.place.setup"]?.count ?? 0) <= 1)
+        #expect(metrics["layout.inline.place.setup"] == nil)
         expectIncrementalMatchesFull(page)
     }
 
