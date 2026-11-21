@@ -76,7 +76,11 @@ final class StyleFields {
         storage.computed = parsed.style
         storage.unknown = parsed.unknown
         inheritedText = textDeclarations ?? [:]
-        canReinheritText = textDeclarations != nil
+        // A box length in em, ex, or ch moves with an inherited font-size, which
+        // the text-only shortcut in `reapplyInherited` would leave stale.
+        canReinheritText = textDeclarations.map({ text in
+            !newValues.contains(where: { text[$0.key] == nil && FontRelativeUnits.isFontRelative($0.value) })
+        }) ?? false
 
         invalidation.dirtyKeys.removeAll()
         invalidation.needsRestyle = false

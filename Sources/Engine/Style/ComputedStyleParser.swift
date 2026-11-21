@@ -29,56 +29,6 @@ enum ComputedStyleParser {
 
         var style: ComputedStyle = ComputedStyle.inheriting(from: parent)
 
-        // MARK: Layout
-        style.layout.display = LayoutStyle.Display(css: take("display"))
-        style.layout.position = LayoutStyle.Positioning(
-            kind: LayoutStyle.Position(css: take("position")),
-            left: px(take("left")),
-            top: px(take("top"))
-        )
-        style.layout.overflow = LayoutStyle.Overflow(css: take("overflow"))
-        style.layout.zIndex = Int(take("z-index") ?? "0") ?? 0
-
-        // MARK: Box
-        style.box.size.width = px(take("width"))
-        style.box.size.height = px(take("height"))
-        style.box.size.boxSizing = BoxSizing(css: take("box-sizing"))
-        style.box.size.constraints.maxWidth = Length(css: take("max-width"))
-        style.box.size.constraints.aspectRatio = AspectRatio(css: take("aspect-ratio"))
-        style.box.spacing.margin = EdgeInsets(
-            top: px(take("margin-top")) ?? 0,
-            right: px(take("margin-right")) ?? 0,
-            bottom: px(take("margin-bottom")) ?? 0,
-            left: px(take("margin-left")) ?? 0
-        )
-        style.box.spacing.padding = EdgeInsets(
-            top: max(0, px(take("padding-top")) ?? 0),
-            right: max(0, px(take("padding-right")) ?? 0),
-            bottom: max(0, px(take("padding-bottom")) ?? 0),
-            left: max(0, px(take("padding-left")) ?? 0)
-        )
-        style.box.zoom = zoomFactor(take("zoom"))
-
-        style.box.decoration.border.sides = BoxStyle.Decoration.Border.Sides(
-            top: borderSide(borderKeys[0], take: take),
-            right: borderSide(borderKeys[1], take: take),
-            bottom: borderSide(borderKeys[2], take: take),
-            left: borderSide(borderKeys[3], take: take)
-        )
-        style.box.decoration.border.radii = CSSValueParser.cornerRadii(css) ?? .zero
-        for key in radiusKeys {
-            unknown.removeValue(forKey: key)
-        }
-
-        let outlineWidth: String? = take("outline-width")
-        style.box.decoration.outline.width = outlineWidth == nil
-            ? 3
-            : CSSValueParser.outlineWidth(outlineWidth!) ?? 0
-        style.box.decoration.outline.style = BoxStyle.Decoration.LineStyle(css: take("outline-style"))
-        if let raw = take("outline-color") {
-            style.box.decoration.outline.color = BrowserColor.parse(raw)
-        }
-
         // MARK: Text
         if let raw = take("color") {
             style.text.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
@@ -100,6 +50,58 @@ enum ComputedStyleParser {
         }
         if let raw = take("direction") {
             style.text.direction = TextDirection(cssValue: raw)
+        }
+        let units: FontRelativeUnits = FontRelativeUnits(font: style.text.font)
+
+        // MARK: Layout
+        style.layout.display = LayoutStyle.Display(css: take("display"))
+        style.layout.position = LayoutStyle.Positioning(
+            kind: LayoutStyle.Position(css: take("position")),
+            left: units.px(take("left")),
+            top: units.px(take("top"))
+        )
+        style.layout.overflow = LayoutStyle.Overflow(css: take("overflow"))
+        style.layout.zIndex = Int(take("z-index") ?? "0") ?? 0
+
+        // MARK: Box
+        style.box.size.width = units.px(take("width"))
+        style.box.size.height = units.px(take("height"))
+        style.box.size.boxSizing = BoxSizing(css: take("box-sizing"))
+        let maxWidth: String? = take("max-width")
+        style.box.size.constraints.maxWidth = units.px(maxWidth).map(Length.px) ?? Length(css: maxWidth)
+        style.box.size.constraints.aspectRatio = AspectRatio(css: take("aspect-ratio"))
+        style.box.spacing.margin = EdgeInsets(
+            top: units.px(take("margin-top")) ?? 0,
+            right: units.px(take("margin-right")) ?? 0,
+            bottom: units.px(take("margin-bottom")) ?? 0,
+            left: units.px(take("margin-left")) ?? 0
+        )
+        style.box.spacing.padding = EdgeInsets(
+            top: max(0, units.px(take("padding-top")) ?? 0),
+            right: max(0, units.px(take("padding-right")) ?? 0),
+            bottom: max(0, units.px(take("padding-bottom")) ?? 0),
+            left: max(0, units.px(take("padding-left")) ?? 0)
+        )
+        style.box.zoom = zoomFactor(take("zoom"))
+
+        style.box.decoration.border.sides = BoxStyle.Decoration.Border.Sides(
+            top: borderSide(borderKeys[0], take: take),
+            right: borderSide(borderKeys[1], take: take),
+            bottom: borderSide(borderKeys[2], take: take),
+            left: borderSide(borderKeys[3], take: take)
+        )
+        style.box.decoration.border.radii = CSSValueParser.cornerRadii(css) ?? .zero
+        for key in radiusKeys {
+            unknown.removeValue(forKey: key)
+        }
+
+        let outlineWidth: String? = take("outline-width")
+        style.box.decoration.outline.width = outlineWidth == nil
+            ? 3
+            : CSSValueParser.outlineWidth(outlineWidth!) ?? 0
+        style.box.decoration.outline.style = BoxStyle.Decoration.LineStyle(css: take("outline-style"))
+        if let raw = take("outline-color") {
+            style.box.decoration.outline.color = BrowserColor.parse(raw)
         }
 
         // MARK: Visual
@@ -163,9 +165,14 @@ enum ComputedStyleParser {
 
     // MARK: - Value helpers
 
-    private static func px(_ raw: String?) -> CGFloat? {
-        guard let raw, raw.hasSuffix("px"), let value = Double(raw.dropLast(2)) else { return nil }
-        return CGFloat(value)
+    private static func fontSize(_ raw: String, parent: ComputedStyle?) -> CGFloat? {
+        let base: TextStyle.Font = parent?.text.font ?? TextStyle.initial.font
+        if raw.hasSuffix("%"), let value = Double(raw.dropLast()) {
+            return base.size * CGFloat(value) / 100
+        }
+        // CSS Values 4 §6.1.1: inside a font-* property, em, ex, and ch resolve
+        // against the parent element's font.
+        return FontRelativeUnits(font: base).px(raw)
     }
 
     private static func borderSide(
@@ -181,17 +188,6 @@ enum ComputedStyleParser {
             side.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
         }
         return side
-    }
-
-    private static func fontSize(_ raw: String, parent: ComputedStyle?) -> CGFloat? {
-        let base: CGFloat = parent?.text.font.size ?? TextStyle.initial.font.size
-        if raw.hasSuffix("%"), let value = Double(raw.dropLast()) {
-            return base * CGFloat(value) / 100
-        }
-        if raw.hasSuffix("px"), let value = Double(raw.dropLast(2)) {
-            return CGFloat(value)
-        }
-        return nil
     }
 
     private static func zoomFactor(_ raw: String?) -> CGFloat? {
