@@ -28,4 +28,38 @@ actor CookieJar {
         }
         storage[host] = (cookie: cookie, params: params, expires: expires)
     }
+
+    /// Stores the cookie from one response's `Set-Cookie` header under the
+    /// host that sent it.
+    func receive(_ setCookie: String, from host: String) {
+        var cookie: String = setCookie
+        var params: [String: String] = [:]
+        if cookie.contains(";") {
+            let parts: [String.SubSequence] = cookie.split(separator: ";", maxSplits: 1)
+            cookie = String(parts[0])
+            if parts.count > 1 {
+                for param in String(parts[1]).split(separator: ";") {
+                    let trimmed: String = param.trimmingCharacters(in: .whitespaces)
+                    if trimmed.contains("=") {
+                        let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
+                        params[String(kv[0]).lowercased()] = String(kv[1]).lowercased()
+                    } else {
+                        params[trimmed.lowercased()] = "true"
+                    }
+                }
+            }
+        }
+        set(host, cookie: cookie, params: params)
+    }
+
+    /// The `Cookie` header for a request to `host`, or nil when none may be sent.
+    /// A SameSite=Lax cookie stays home when another site's page sends a
+    /// non-GET request.
+    func header(for host: String, method: String, referrerHost: String?) -> String? {
+        guard let (cookie, params): (String, [String: String]) = get(host) else { return nil }
+        if let referrerHost, params["samesite"] == "lax", method != "GET", host != referrerHost {
+            return nil
+        }
+        return cookie
+    }
 }

@@ -9,8 +9,12 @@ final class LocalPageServer: @unchecked Sendable {
         case page(String)
         case redirect(String)
         /// Like a site that lives at one address only: a request naming any
-        /// other host is redirected to this one.
-        case canonicalHost(String, page: String)
+        /// other host is redirected to this one. The page sends `cookie` as
+        /// its `Set-Cookie` header when given.
+        case canonicalHost(String, page: String, cookie: String? = nil)
+        /// Like a login gate: a request without `cookie` gets it set and is
+        /// redirected back to the same host; with it, the page is served.
+        case signIn(cookie: String, page: String)
         case hangUp
     }
 
@@ -19,13 +23,21 @@ final class LocalPageServer: @unchecked Sendable {
         let body: String
     }
 
+    private struct Incoming {
+        let request: Request
+        let host: String
+        let cookie: String?
+    }
+
     private let listener: NWListener
     private let lock: NSLock = NSLock()
     private var reply: Reply
-    private var log: [Request] = []
+    private var log: [Incoming] = []
     private var tlsAttempts: Int = 0
 
-    var requests: [Request] { lock.withLock({ log }) }
+    var requests: [Request] { lock.withLock({ log.map(\.request) }) }
+    /// The `Cookie` header of each request, in arrival order.
+    var cookies: [String?] { lock.withLock({ log.map(\.cookie) }) }
     var secureAttempts: Int { lock.withLock({ tlsAttempts }) }
 
     init(reply: Reply) throws {
@@ -74,8 +86,8 @@ final class LocalPageServer: @unchecked Sendable {
             if received.first == Self.tlsHandshakeRecord {
                 lock.withLock({ tlsAttempts += 1 })
                 connection.cancel()
-            } else if let (request, host): (Request, String) = Self.parse(received) {
-                respond(to: request, host: host, on: connection)
+            } else if let incoming: Incoming = Self.parse(received) {
+                respond(to: incoming, on: connection)
             } else if isComplete || error != nil {
                 connection.cancel()
             } else {
@@ -84,36 +96,48 @@ final class LocalPageServer: @unchecked Sendable {
         }
     }
 
-    private func respond(to request: Request, host: String, on connection: NWConnection) {
+    private func respond(to incoming: Incoming, on connection: NWConnection) {
         let current: Reply = lock.withLock({
-            log.append(request)
+            log.append(incoming)
             return reply
         })
         switch current {
         case .hangUp:
             connection.cancel()
         case .page(let html):
-            sendPage(html, on: connection)
+            sendPage(html, cookie: nil, on: connection)
         case .redirect(let location):
-            sendRedirect(to: location, on: connection)
-        case .canonicalHost(let canonical, let html):
-            if host == canonical {
-                sendPage(html, on: connection)
+            sendRedirect(to: location, cookie: nil, on: connection)
+        case .canonicalHost(let canonical, let html, let cookie):
+            if incoming.host == canonical {
+                sendPage(html, cookie: cookie, on: connection)
             } else {
-                sendRedirect(to: "http://\(canonical)/page", on: connection)
+                sendRedirect(to: "http://\(canonical)/page", cookie: nil, on: connection)
+            }
+        case .signIn(let cookie, let html):
+            if incoming.cookie == cookie {
+                sendPage(html, cookie: nil, on: connection)
+            } else {
+                sendRedirect(to: "http://\(incoming.host)/page", cookie: cookie, on: connection)
             }
         }
     }
 
-    private func sendPage(_ html: String, on connection: NWConnection) {
+    private func sendPage(_ html: String, cookie: String?, on connection: NWConnection) {
         let body: Data = Data(html.utf8)
         let head: String =
-            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.count)\r\n\(Self.setCookieLine(cookie))Connection: close\r\n\r\n"
         send(Data(head.utf8) + body, on: connection)
     }
 
-    private func sendRedirect(to location: String, on connection: NWConnection) {
-        send(Data("HTTP/1.1 302 Found\r\nLocation: \(location)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8), on: connection)
+    private func sendRedirect(to location: String, cookie: String?, on connection: NWConnection) {
+        let head: String =
+            "HTTP/1.1 302 Found\r\nLocation: \(location)\r\n\(Self.setCookieLine(cookie))Content-Length: 0\r\nConnection: close\r\n\r\n"
+        send(Data(head.utf8), on: connection)
+    }
+
+    private static func setCookieLine(_ cookie: String?) -> String {
+        cookie.map({ (value: String) -> String in "Set-Cookie: \(value)\r\n" }) ?? ""
     }
 
     private func send(_ data: Data, on connection: NWConnection) {
@@ -126,7 +150,7 @@ final class LocalPageServer: @unchecked Sendable {
     // RFC 8446 §5.1: every TLS connection opens with a handshake record, type 22.
     private static let tlsHandshakeRecord: UInt8 = 22
 
-    private static func parse(_ data: Data) -> (Request, host: String)? {
+    private static func parse(_ data: Data) -> Incoming? {
         let separator: Data = Data("\r\n\r\n".utf8)
         guard let end: Range<Data.Index> = data.range(of: separator) else { return nil }
         let head: String = String(decoding: data[data.startIndex..<end.lowerBound], as: UTF8.self)
@@ -136,7 +160,7 @@ final class LocalPageServer: @unchecked Sendable {
         let body: Data = data[end.upperBound...]
         guard body.count >= length else { return nil }
         let request: Request = Request(method: method, body: String(decoding: body.prefix(length), as: UTF8.self))
-        return (request, headerValue("host", in: lines) ?? "")
+        return Incoming(request: request, host: headerValue("host", in: lines) ?? "", cookie: headerValue("cookie", in: lines))
     }
 
     private static func headerValue(_ name: String, in lines: [Substring]) -> String? {

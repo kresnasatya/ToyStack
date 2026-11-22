@@ -154,7 +154,7 @@ public class WebURL: @unchecked Sendable {
 
         let urlRequest: URLRequest = await makeHTTPRequest(method: method, referrer: referrer, payload: payload, extraHeaders: extraHeaders)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: HSTSRedirect.shared)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: RedirectFollower.shared)
         let redirectedTo: String? = response.url.flatMap({ (final: URL) -> String? in
             final == urlRequest.url ? nil : final.absoluteString
         })
@@ -247,16 +247,11 @@ public class WebURL: @unchecked Sendable {
             urlRequest.setValue(ref.toString(), forHTTPHeaderField: "Referer")
         }
 
-        if let (cookie, params) = await CookieJar.shared.get(host) {
-            var allowCookie: Bool = true
-            if let ref = referrer, params["samesite"] == "lax" {
-                if method != "GET" {
-                    allowCookie = host == ref.host
-                }
-            }
-            if allowCookie {
-                urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie")
-            }
+        // ToyStack's jar is the only cookie store. URLSession's own store
+        // would keep cookies the jar and `document.cookie` never see.
+        urlRequest.httpShouldHandleCookies = false
+        if let cookie: String = await CookieJar.shared.header(for: host, method: method, referrerHost: referrer?.host) {
+            urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie")
         }
 
         if let body = payload {
@@ -275,31 +270,16 @@ public class WebURL: @unchecked Sendable {
             }
         }
 
-        if let rule: String = headers["strict-transport-security"], let responseURL: URL = httpResponse.url {
-            await HSTSStore.shared.note(rule, from: WebURL(responseURL.absoluteString))
+        // After a redirect the headers come from another host than this one;
+        // only that host may set its HSTS rule and its cookies.
+        let answeredBy: WebURL = httpResponse.url.map({ (final: URL) -> WebURL in WebURL(final.absoluteString) }) ?? self
+
+        if let rule: String = headers["strict-transport-security"] {
+            await HSTSStore.shared.note(rule, from: answeredBy)
         }
 
-        if let setCookie = headers["set-cookie"] {
-            var cookieStr: String = setCookie
-            var cookieParams: [String: String] = [:]
-            if cookieStr.contains(";") {
-                let parts: [String.SubSequence] = cookieStr.split(separator: ";", maxSplits: 1)
-                cookieStr = String(parts[0])
-                if parts.count > 1 {
-                    let rest: String = String(parts[1])
-                    for param in rest.split(separator: ";") {
-                        let trimmed: String = param.trimmingCharacters(in: .whitespaces)
-                        if trimmed.contains("=") {
-                            let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
-                            cookieParams[String(kv[0]).lowercased()] = String(kv[1]).lowercased()
-                        } else {
-                            cookieParams[trimmed.lowercased()] = "true"
-                        }
-                    }
-                }
-            }
-
-            await CookieJar.shared.set(self.host, cookie: cookieStr, params: cookieParams)
+        if let setCookie: String = headers["set-cookie"] {
+            await CookieJar.shared.receive(setCookie, from: answeredBy.host)
         }
 
         return headers
@@ -325,7 +305,7 @@ public class WebURL: @unchecked Sendable {
         }
 
         let urlRequest: URLRequest = await makeHTTPRequest(method: "GET", referrer: referrer, payload: nil, extraHeaders: [:])
-        let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: HSTSRedirect.shared)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: RedirectFollower.shared)
         guard let httpResponse = response as? HTTPURLResponse else {
             fatalError("Invalid response type")
         }
