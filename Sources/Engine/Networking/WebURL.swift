@@ -270,17 +270,7 @@ public class WebURL: @unchecked Sendable {
             }
         }
 
-        // After a redirect the headers come from another host than this one;
-        // only that host may set its HSTS rule and its cookies.
-        let answeredBy: WebURL = httpResponse.url.map({ (final: URL) -> WebURL in WebURL(final.absoluteString) }) ?? self
-
-        if let rule: String = headers["strict-transport-security"] {
-            await HSTSStore.shared.note(rule, from: answeredBy)
-        }
-
-        if let setCookie: String = headers["set-cookie"] {
-            await CookieJar.shared.receive(setCookie, from: answeredBy.host)
-        }
+        await RememberedHeaders.record(from: httpResponse)
 
         return headers
     }
