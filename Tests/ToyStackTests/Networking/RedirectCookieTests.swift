@@ -14,12 +14,12 @@ struct RedirectCookieTests {
         defer { server.stop() }
         let port: Int = WebURL(try await server.start()).port
         let cookie: String = Self.uniqueCookie()
-        server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p>canonical</p>", cookie: cookie))
+        server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p>canonical</p>", cookies: [cookie]))
 
         _ = try await WebURL("http://[::1]:\(port)/page").request(bypassingCache: true)
 
-        #expect(await CookieJar.shared.get("127.0.0.1")?.0 == cookie)
-        #expect(await CookieJar.shared.get("[::1]")?.0 != cookie)
+        #expect(await Self.cookies(sentTo: "127.0.0.1").contains(cookie))
+        #expect(await !Self.cookies(sentTo: "[::1]").contains(cookie))
     }
 
     @Test func cookieSetOnARedirectIsSentToTheNextHop() async throws {
@@ -34,7 +34,7 @@ struct RedirectCookieTests {
 
         #expect(response.content == "<p>signed in</p>")
         #expect(server.cookies.last == cookie)
-        #expect(await CookieJar.shared.get("[::1]")?.0 == cookie)
+        #expect(await Self.cookies(sentTo: "[::1]").contains(cookie))
     }
 
     @Test func redirectToAnotherHostDoesNotCarryTheFirstHostsCookie() async throws {
@@ -42,17 +42,27 @@ struct RedirectCookieTests {
         defer { server.stop() }
         let port: Int = WebURL(try await server.start()).port
         let cookie: String = Self.uniqueCookie()
-        await CookieJar.shared.set("[::1]", cookie: cookie, params: [:])
+        await CookieJar.shared.receive(cookie, from: WebURL("http://[::1]:\(port)/page"))
         server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p>canonical</p>"))
 
         _ = try await WebURL("http://[::1]:\(port)/page").request(bypassingCache: true)
 
         #expect(server.cookies.count == 2)
         #expect(server.cookies.first == cookie)
-        #expect(server.cookies.last != cookie)
+        #expect(!Self.split(server.cookies.last ?? nil).contains(cookie))
     }
 
+    /// Every test names its cookie "session", so a host holds at most one of
+    /// them; other suites may add cookies with other names to the same host.
     private static func uniqueCookie() -> String {
         "session=\(UUID().uuidString)"
+    }
+
+    private static func cookies(sentTo host: String) async -> [String] {
+        split(await CookieJar.shared.header(for: WebURL("http://\(host)/"), method: "GET", referrerHost: nil))
+    }
+
+    private static func split(_ header: String?) -> [String] {
+        header?.components(separatedBy: "; ") ?? []
     }
 }

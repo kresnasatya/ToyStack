@@ -9,9 +9,9 @@ final class LocalPageServer: @unchecked Sendable {
         case page(String)
         case redirect(String)
         /// Like a site that lives at one address only: a request naming any
-        /// other host is redirected to this one. The page sends `cookie` as
-        /// its `Set-Cookie` header when given.
-        case canonicalHost(String, page: String, cookie: String? = nil)
+        /// other host is redirected to this one. The page sends each of
+        /// `cookies` as its own `Set-Cookie` header.
+        case canonicalHost(String, page: String, cookies: [String] = [])
         /// Like a login gate: a request without `cookie` gets it set and is
         /// redirected back to the same host; with it, the page is served.
         case signIn(cookie: String, page: String)
@@ -105,39 +105,39 @@ final class LocalPageServer: @unchecked Sendable {
         case .hangUp:
             connection.cancel()
         case .page(let html):
-            sendPage(html, cookie: nil, on: connection)
+            sendPage(html, cookies: [], on: connection)
         case .redirect(let location):
-            sendRedirect(to: location, cookie: nil, on: connection)
-        case .canonicalHost(let canonical, let html, let cookie):
+            sendRedirect(to: location, cookies: [], on: connection)
+        case .canonicalHost(let canonical, let html, let cookies):
             if incoming.host == canonical {
-                sendPage(html, cookie: cookie, on: connection)
+                sendPage(html, cookies: cookies, on: connection)
             } else {
-                sendRedirect(to: "http://\(canonical)/page", cookie: nil, on: connection)
+                sendRedirect(to: "http://\(canonical)/page", cookies: [], on: connection)
             }
         case .signIn(let cookie, let html):
             if incoming.cookie == cookie {
-                sendPage(html, cookie: nil, on: connection)
+                sendPage(html, cookies: [], on: connection)
             } else {
-                sendRedirect(to: "http://\(incoming.host)/page", cookie: cookie, on: connection)
+                sendRedirect(to: "http://\(incoming.host)/page", cookies: [cookie], on: connection)
             }
         }
     }
 
-    private func sendPage(_ html: String, cookie: String?, on connection: NWConnection) {
+    private func sendPage(_ html: String, cookies: [String], on connection: NWConnection) {
         let body: Data = Data(html.utf8)
         let head: String =
-            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.count)\r\n\(Self.setCookieLine(cookie))Connection: close\r\n\r\n"
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.count)\r\n\(Self.setCookieLines(cookies))Connection: close\r\n\r\n"
         send(Data(head.utf8) + body, on: connection)
     }
 
-    private func sendRedirect(to location: String, cookie: String?, on connection: NWConnection) {
+    private func sendRedirect(to location: String, cookies: [String], on connection: NWConnection) {
         let head: String =
-            "HTTP/1.1 302 Found\r\nLocation: \(location)\r\n\(Self.setCookieLine(cookie))Content-Length: 0\r\nConnection: close\r\n\r\n"
+            "HTTP/1.1 302 Found\r\nLocation: \(location)\r\n\(Self.setCookieLines(cookies))Content-Length: 0\r\nConnection: close\r\n\r\n"
         send(Data(head.utf8), on: connection)
     }
 
-    private static func setCookieLine(_ cookie: String?) -> String {
-        cookie.map({ (value: String) -> String in "Set-Cookie: \(value)\r\n" }) ?? ""
+    private static func setCookieLines(_ cookies: [String]) -> String {
+        cookies.map({ (value: String) -> String in "Set-Cookie: \(value)\r\n" }).joined()
     }
 
     private func send(_ data: Data, on connection: NWConnection) {

@@ -250,7 +250,7 @@ public class WebURL: @unchecked Sendable {
         // ToyStack's jar is the only cookie store. URLSession's own store
         // would keep cookies the jar and `document.cookie` never see.
         urlRequest.httpShouldHandleCookies = false
-        if let cookie: String = await CookieJar.shared.header(for: host, method: method, referrerHost: referrer?.host) {
+        if let cookie: String = await CookieJar.shared.header(for: self, method: method, referrerHost: referrer?.host) {
             urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie")
         }
 

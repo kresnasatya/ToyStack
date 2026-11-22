@@ -140,16 +140,11 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject({
             [weak self] () -> String in
             guard let self, let frame = self.frame else { return "" }
-            let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
-            guard !host.isEmpty else { return "" }
+            guard let url: WebURL = MainActor.assumeIsolated({ frame.url }), !url.host.isEmpty else { return "" }
             var result: String = ""
             let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
             Task {
-                if let (cookie, params) = await CookieJar.shared.get(host) {
-                    if params["httponly"] != "true" {
-                        result = cookie
-                    }
-                }
+                result = await CookieJar.shared.scriptCookies(for: url)
                 semaphore.signal()
             }
             semaphore.wait()
@@ -159,39 +154,10 @@ class JSRuntime: @unchecked Sendable {
         jsContext.setObject({
             [weak self] (cookieStr: String) in
             guard let self, let frame = self.frame else { return }
-            let host: String = MainActor.assumeIsolated({ frame.url?.host ?? "" })
-            guard !host.isEmpty else { return }
+            guard let url: WebURL = MainActor.assumeIsolated({ frame.url }), !url.host.isEmpty else { return }
             let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)
             Task {
-                if let (_, params) = await CookieJar.shared.get(host) {
-                    if params["httponly"] == "true" {
-                        semaphore.signal()
-                        return
-                    }
-                }
-
-                var newCookieStr: String = cookieStr
-                var cookieParams: [String: String] = [:]
-                if cookieStr.contains(";") {
-                    let parts: [String.SubSequence] = cookieStr.split(separator: ";", maxSplits: 1)
-                    newCookieStr = String(parts[0])
-                    if parts.count > 1 {
-                        for param in String(parts[1]).split(separator: ";") {
-                            let trimmed: String = param.trimmingCharacters(in: .whitespaces)
-                            if trimmed.contains("=") {
-                                let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
-                                cookieParams[String(kv[0]).lowercased()] = String(kv[1])
-                                    .lowercased()
-                            } else {
-                                let key: String = trimmed.lowercased()
-                                if key != "httponly" {
-                                    cookieParams[key] = "true"
-                                }
-                            }
-                        }
-                    }
-                }
-                await CookieJar.shared.set(host, cookie: newCookieStr, params: cookieParams)
+                await CookieJar.shared.receiveFromScript(cookieStr, page: url)
                 semaphore.signal()
             }
             semaphore.wait()

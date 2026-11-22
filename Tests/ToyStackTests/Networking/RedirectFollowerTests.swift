@@ -43,6 +43,29 @@ import Testing
         #expect(!remembered)
     }
 
+    @Test func secureCookieFollowsARedirectThatHSTSUpgradedToHTTPS() async throws {
+        let host: String = "secure-cookie-hsts.test"
+
+        let next: URLRequest? = await Self.follow(
+            from: "https://\(host)/", to: "http://\(host)/next",
+            headers: ["Strict-Transport-Security": "max-age=600", "Set-Cookie": "s=1; Secure"]
+        )
+        await Self.forget(host)
+
+        #expect(next?.value(forHTTPHeaderField: "Cookie") == "s=1")
+    }
+
+    @Test func secureCookieStaysOffARedirectToPlainHTTP() async throws {
+        let host: String = "secure-cookie-plain.test"
+
+        let next: URLRequest? = await Self.follow(
+            from: "https://\(host)/", to: "http://\(host)/next", headers: ["Set-Cookie": "s=1; Secure"]
+        )
+
+        #expect(next?.url?.scheme == "http")
+        #expect(next?.value(forHTTPHeaderField: "Cookie") == nil)
+    }
+
     private static func follow(from source: String, to target: String, headers: [String: String]) async -> URLRequest? {
         let sourceURL: URL = URL(string: source)!
         var redirectHeaders: [String: String] = headers

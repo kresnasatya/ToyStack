@@ -11,7 +11,7 @@ enum RememberedHeaders {
             await HSTSStore.shared.note(rule, from: sender)
         }
         if let setCookie: String = response.value(forHTTPHeaderField: "Set-Cookie") {
-            await CookieJar.shared.receive(setCookie, from: sender.host)
+            await CookieJar.shared.receive(setCookie, from: sender)
         }
     }
 }

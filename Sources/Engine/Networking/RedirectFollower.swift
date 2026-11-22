@@ -24,8 +24,10 @@ final class RedirectFollower: NSObject, URLSessionTaskDelegate, Sendable {
             nextRequest.url = upgradedURL
         }
         let referrerHost: String? = request.value(forHTTPHeaderField: "Referer").map({ (referrer: String) -> String in WebURL(referrer).host })
+        // `next` is the address after the HSTS upgrade, so a Secure cookie
+        // goes along exactly when the hop really is https.
         let cookie: String? = await CookieJar.shared.header(
-            for: next.host, method: request.httpMethod ?? "GET", referrerHost: referrerHost
+            for: next, method: request.httpMethod ?? "GET", referrerHost: referrerHost
         )
         nextRequest.setValue(cookie, forHTTPHeaderField: "Cookie")
         return nextRequest

@@ -2,64 +2,83 @@ import Foundation
 
 // MARK: - CookieJar
 
+/// Cookies by host, each host keeping its cookies in the order they were
+/// first set (RFC 6265 §5.4 step 2 sends older cookies first).
 actor CookieJar {
     static let shared: CookieJar = CookieJar()
 
-    private var storage: [String: (cookie: String, params: [String: String], expires: Date?)] = [:]
+    private var storage: [String: [Cookie]] = [:]
 
-    func get(_ host: String) -> (String, [String: String])? {
-        guard let entry = storage[host] else { return nil }
-        if let expires = entry.expires, Date() > expires {
-            storage.removeValue(forKey: host)
-            return nil
+    /// Stores every cookie in one response's Set-Cookie header under the host
+    /// of `url`, the address that sent it.
+    func receive(_ setCookie: String, from url: WebURL) {
+        for part in Cookie.unfold(setCookie) {
+            guard let cookie: Cookie = Cookie(part) else { continue }
+            store(cookie, from: url)
         }
-        return (entry.cookie, entry.params)
     }
 
-    func set(_ host: String, cookie: String, params: [String: String]) {
-        var expires: Date? = nil
-        if let maxAge = params["max-age"], let seconds = Double(maxAge) {
-            expires = Date().addingTimeInterval(seconds)
-        } else if let expiresStr = params["expires"] {
-            let formatter: DateFormatter = DateFormatter()
-            formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            expires = formatter.date(from: expiresStr)
+    /// `document.cookie = ...` on the page at `url`: one cookie, which may not
+    /// touch HttpOnly ones. RFC 6265 §5.3 steps 10 and 11.2: a script can
+    /// neither create an HttpOnly cookie nor replace one.
+    func receiveFromScript(_ cookieString: String, page url: WebURL) {
+        guard let cookie: Cookie = Cookie(cookieString), !cookie.isHTTPOnly else { return }
+        if let old: Cookie = live(for: url.host).first(where: { $0.name == cookie.name }), old.isHTTPOnly {
+            return
         }
-        storage[host] = (cookie: cookie, params: params, expires: expires)
+        store(cookie, from: url)
     }
 
-    /// Stores the cookie from one response's `Set-Cookie` header under the
-    /// host that sent it.
-    func receive(_ setCookie: String, from host: String) {
-        var cookie: String = setCookie
-        var params: [String: String] = [:]
-        if cookie.contains(";") {
-            let parts: [String.SubSequence] = cookie.split(separator: ";", maxSplits: 1)
-            cookie = String(parts[0])
-            if parts.count > 1 {
-                for param in String(parts[1]).split(separator: ";") {
-                    let trimmed: String = param.trimmingCharacters(in: .whitespaces)
-                    if trimmed.contains("=") {
-                        let kv: [String.SubSequence] = trimmed.split(separator: "=", maxSplits: 1)
-                        params[String(kv[0]).lowercased()] = String(kv[1]).lowercased()
-                    } else {
-                        params[trimmed.lowercased()] = "true"
-                    }
-                }
-            }
-        }
-        set(host, cookie: cookie, params: params)
+    /// The `Cookie` header for a request to `url`, or nil when no cookie may
+    /// be sent. A SameSite=Lax cookie stays home when another site's page
+    /// sends a non-GET request.
+    func header(for url: WebURL, method: String, referrerHost: String?) -> String? {
+        let crossSiteWrite: Bool = method != "GET" && referrerHost.map({ $0 != url.host }) ?? false
+        let sendable: [Cookie] = visible(at: url).filter({ !(crossSiteWrite && $0.params["samesite"] == "lax") })
+        return sendable.isEmpty ? nil : sendable.map(\.pair).joined(separator: "; ")
     }
 
-    /// The `Cookie` header for a request to `host`, or nil when none may be sent.
-    /// A SameSite=Lax cookie stays home when another site's page sends a
-    /// non-GET request.
-    func header(for host: String, method: String, referrerHost: String?) -> String? {
-        guard let (cookie, params): (String, [String: String]) = get(host) else { return nil }
-        if let referrerHost, params["samesite"] == "lax", method != "GET", host != referrerHost {
-            return nil
+    /// What `document.cookie` reads on the page at `url`: every cookie a
+    /// script may see.
+    func scriptCookies(for url: WebURL) -> String {
+        visible(at: url).filter({ !$0.isHTTPOnly }).map(\.pair).joined(separator: "; ")
+    }
+
+    // RFC 6265 §5.3 step 11.3: a cookie that replaces one with the same name
+    // keeps the old one's creation time, so it keeps its place in the order.
+    // draft-ietf-httpbis-rfc6265bis-22 §5.7 steps 13 and 16: from an address
+    // that is not secure, a cookie can neither be Secure nor take the place
+    // of a Secure one, so an http page cannot plant or overwrite (and so
+    // fix) a cookie the https site relies on.
+    private func store(_ cookie: Cookie, from url: WebURL) {
+        var cookies: [Cookie] = live(for: url.host)
+        let index: Int? = cookies.firstIndex(where: { $0.name == cookie.name })
+        if !Self.isSecure(url) {
+            guard !cookie.isSecure else { return }
+            if let index: Int, cookies[index].isSecure { return }
         }
-        return cookie
+        if let index: Int {
+            cookies[index] = cookie
+        } else {
+            cookies.append(cookie)
+        }
+        storage[url.host] = cookies
+    }
+
+    // RFC 6265 §5.4 step 1: a Secure cookie belongs only to a request (or a
+    // page, for `document.cookie`) whose scheme is secure.
+    private func visible(at url: WebURL) -> [Cookie] {
+        let isSecureScheme: Bool = Self.isSecure(url)
+        return live(for: url.host).filter({ isSecureScheme || !$0.isSecure })
+    }
+
+    private static func isSecure(_ url: WebURL) -> Bool {
+        url.scheme == "https"
+    }
+
+    private func live(for host: String, now: Date = Date()) -> [Cookie] {
+        let cookies: [Cookie] = (storage[host] ?? []).filter({ !$0.isExpired(at: now) })
+        storage[host] = cookies.isEmpty ? nil : cookies
+        return cookies
     }
 }
