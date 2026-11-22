@@ -90,14 +90,7 @@ effect; keep the mechanism in the body.
 5. Conventional type (`fix` / `perf` / `feat` / `refactor` / `docs`) is just a category;
    it does not excuse a technical description.
 
-Before (mechanism-first):
-
-```
-perf(scroll): cache scroll targets per layout
-scrollAt ran a full-tree hitTest plus a treeToList allocation scan...
-```
-
-After (effect-first):
+Commit example.
 
 ```
 perf: smooth scrolling on long pages
@@ -109,11 +102,10 @@ layout time instead, so a scroll just looks them up.
 
 ## Debugging
 
-There are three options to debugging the browser engine:
+Use two options to debugging the browser engine.
 
 1. Use `browser.trace` in the root directory.
 2. Use `ToyStackHeadless` to debug visual appearance. 
-2. Use `ffmpeg` for read the video file in order to debug visual animation or transition.
 
 For profiling conventions (Profiler, metric names, `--no-profile`, how to to read the trace) are documented in [profiling.md](./profiling.md).
 
