@@ -290,8 +290,18 @@ extension LayoutTree {
         setPreviousField(newValue, of: id)
     }
 
+    // CSS 2.1 §9.6: an absolutely positioned box is out of flow, so a block is placed
+    // after the nearest earlier sibling that is still in flow.
     func blockPrevious(_ id: LayoutID) -> LayoutID? {
-        return previousID(of: id)
+        var previous: LayoutID? = previousID(of: id)
+        while let candidate: LayoutID = previous, isOutOfFlow(candidate) {
+            previous = previousID(of: candidate)
+        }
+        return previous
+    }
+
+    func isOutOfFlow(_ id: LayoutID) -> Bool {
+        return isBlock(id) && domView(id).style.computed.layout.position.kind == .absolute
     }
 
     func blockLayoutNeeded(_ id: LayoutID) -> Bool {
@@ -656,8 +666,9 @@ extension LayoutTree {
     mutating private func flowHeight(of children: [LayoutID], in parent: LayoutID) -> CGFloat {
         var total: CGFloat = 0
         for childID in children {
-            let position: LayoutStyle.Position = domView(childID).style.computed.layout.position.kind
-            if position == .absolute { return total }
+            // CSS 2.1 §10.6.3: out-of-flow children add nothing to the parent's height,
+            // but the in-flow children after them still do.
+            if isOutOfFlow(childID) { continue }
             var h: CGFloat = height(childID)
             if isBlock(childID) {
                 let floating: LayoutStyle.Floating = blockFloating(childID)

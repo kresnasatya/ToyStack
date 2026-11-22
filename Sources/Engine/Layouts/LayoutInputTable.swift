@@ -64,7 +64,6 @@ enum LayoutInputTable {
     ) -> [FieldKey] {
         let dom: NodeID = tree.domID(of: id)
         let parent: LayoutID? = tree.parentID(of: id)
-        let previous: LayoutID? = tree.previousID(of: id)
         switch field {
         case .previous:
             return []
@@ -106,11 +105,17 @@ enum LayoutInputTable {
                 .style(dom, .clear),
             ]
             if let parent { keys.insert(.layout(parent, .y), at: 0) }
-            if let previous {
+            var sibling: LayoutID? = tree.previousID(of: id)
+            while let skipped: LayoutID = sibling, tree.isOutOfFlow(skipped) {
+                keys.append(.style(tree.domID(of: skipped), .position))
+                sibling = tree.previousID(of: skipped)
+            }
+            if let previous: LayoutID = sibling {
                 let previousDom: NodeID = tree.domID(of: previous)
                 keys += [
                     .layout(previous, .y),
                     .layout(previous, .height),
+                    .style(previousDom, .position),
                     .style(previousDom, .marginBottom),
                     .style(previousDom, .paddingBottom),
                     .style(previousDom, .borderWidth),
