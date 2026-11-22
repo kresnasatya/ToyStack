@@ -51,3 +51,48 @@ Rough flow: **Networking** -> **Parsing** -> **Style** -> **Layouts** -> **Displ
 ## How to Run?
 
 To run this project, build with command `swift build` then use command `swift run ToyStack` to launch ToyStack browser.
+
+### ToyStackHeadless
+
+`ToyStackHeadless` runs the same engine without a window. It loads a page, plays it on a fixed 60 frames-per-second clock, then writes a trace and (optionally) a screenshot. Use it to check how a page looks, or to compare runs, because every run of the same command gives the same result.
+
+```bash
+swift run ToyStackHeadless <url> [options]
+```
+
+The `<url>` can be a web page or a local file. For files in `www`, use an absolute `file://` URL:
+
+```bash
+swift run ToyStackHeadless "file://$PWD/www/ch11/index.html" --screenshot /tmp/ch11.png
+```
+
+Without `--frame-limit` or `--run-for`, it runs every timed (`--*-at`) event first, then stops once the page has not changed for 30 frames (half a second). If the page never settles, it stops after 10 seconds of page time, or just after the last timed event if that comes later. Without `--screenshot` or `--screenshot-at`, it only writes the trace (default `./browser.trace`).
+
+Common options:
+
+| Option | What it does |
+|---|---|
+| `--screenshot <path>` | Save a PNG when the run ends |
+| `--screenshot-at <t> <path>` | Save a PNG after `t` seconds of page time |
+| `--trace <path>` | Write the trace here instead of `./browser.trace` |
+| `--frame-limit <n>` | Stop after `n` frames (60 frames = 1 second) |
+| `--run-for <seconds>` | Stop after this many seconds of page time |
+| `--width <px>` / `--height <px>` | Window size (default 800 × 600) |
+| `--scale <n>` | Screen pixel density (default 2) |
+| `--zoom <n>` | Page zoom (default 1) |
+| `--scroll-at <t>:<x>:<y>:<dy>` | Scroll at `t` seconds; negative `dy` scrolls down; repeatable |
+| `--click-at <t>:<x>:<y>` | Click at `t` seconds; repeatable |
+| `--type-at <t>:<text>` | Type `text` starting at `t` seconds, one key per frame; repeatable |
+| `--resize-at <t>:<w>:<h>` | Resize the window at `t` seconds; repeatable |
+| `--force-full-layout` | Rebuild the whole layout on every pass, to compare with the normal (incremental) layout |
+| `--no-profile` | Keep the trace but leave out profiler counters |
+
+Example: scroll a page twice and take a screenshot after each scroll.
+
+```bash
+swift run ToyStackHeadless "file://$PWD/www/bench/large.html" \
+  --scroll-at 0.5:400:300:-600 --screenshot-at 1.0 /tmp/scroll-1.png \
+  --scroll-at 1.5:400:300:-600 --screenshot-at 2.0 /tmp/scroll-2.png
+```
+
+For timing numbers, build in release mode first (`swift build -c release`) and run `.build/release/ToyStackHeadless` directly. See [profiling.md](profiling.md) for how to read the trace.
