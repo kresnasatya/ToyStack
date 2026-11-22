@@ -25,9 +25,12 @@ extension LayoutStyle {
         case none
         case other(String)
 
+        // CSS Display 3 §2.2 and §2.3: a value that names only the inside layout (flex,
+        // grid, flow-root, table) or list-item is block-level on the outside. ToyStack lays
+        // the children out as normal blocks, but the box still starts on its own line.
         init(css: String?) {
             switch css {
-            case "block": self = .block
+            case "block", "flex", "grid", "flow-root", "list-item", "table": self = .block
             case "none": self = .none
             case "inline": self = .inline
             case let value?: self = .other(value)
