@@ -218,7 +218,6 @@ public class WebURL: @unchecked Sendable {
 
         var urlRequest: URLRequest = URLRequest(url: foundationURL)
         urlRequest.httpMethod = method
-        urlRequest.setValue(host, forHTTPHeaderField: "Host")
         urlRequest.setValue("keep-alive", forHTTPHeaderField: "Connection")
         urlRequest.setValue(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15",

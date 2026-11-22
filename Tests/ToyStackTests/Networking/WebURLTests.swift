@@ -160,4 +160,19 @@ import Testing
         let request: URLRequest = await url.makeHTTPRequest(method: "GET", referrer: nil, payload: nil, extraHeaders: [:])
         #expect(request.url?.absoluteString == "https://example.com/100%25?q=1")
     }
+
+    // Both hosts are IP literals so no HSTS rule set by another suite can
+    // upgrade the redirect to https (RFC 6797 §8.1 never remembers an IP).
+    @Test func redirectToAnotherHostAsksThatHost() async throws {
+        let server: LocalPageServer = try LocalPageServer(reply: .page(""))
+        defer { server.stop() }
+        let port: Int = WebURL(try await server.start()).port
+        server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p>canonical</p>"))
+
+        let (status, _, body): (Int, [String: String], String) =
+            try await WebURL("http://[::1]:\(port)/page").request(bypassingCache: true)
+
+        #expect(status == 200)
+        #expect(body == "<p>canonical</p>")
+    }
 }
