@@ -18,22 +18,6 @@ This is a project to build a toy browser engine with Swift programming language.
 - When a comment cites a spec (CSS, HTML, DOM), cite the exact section number and make sure the claim matches the spec text.
 - `// MARK: -` sections (see the helper rule above) are allowed.
 
-  Bad (says *what*):
-
-  ```swift
-  // Add the line height to y
-  y += lineHeight
-  ```
-
-  Good (says *why*):
-
-  ```swift
-  // CSS 2.1 §10.8.1: every line box starts with a strut, so the block's own font
-  // and line-height count toward the line's height even when no text uses them.
-  var maxAscent: Double = strutAscent
-  var maxDescent: Double = strutDescent
-  ```
-
 ## Expected Result
 
 This project is intended to be used as learning purpose to understand how to make the actual browser engine with Swift programming language. The thinking process must be experienced web browser engineer. The output of code must be high quality and must follow the **Coding Conventions** section.
