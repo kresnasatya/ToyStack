@@ -69,4 +69,16 @@ struct BorderShorthandTests {
             "outline-color": "blue",
         ])
     }
+
+    // Tailwind's reset puts `border: 0 solid #e5e7eb` on every element. A unitless 0 is
+    // a width, so the reset draws no border until a class like `.border` sets a width.
+    @Test func unitlessZeroIsTheWidth() {
+        let props: [String: String] = declarations("border: 0 solid #e5e7eb;")
+
+        for side in Self.sides {
+            #expect(props["border-\(side)-width"] == "0")
+            #expect(props["border-\(side)-style"] == "solid")
+            #expect(props["border-\(side)-color"] == "#e5e7eb")
+        }
+    }
 }

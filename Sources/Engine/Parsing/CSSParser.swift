@@ -190,8 +190,10 @@ class CSSParser {
     private static func expandBorder(_ tokens: [String], into prefixes: [String]) -> [String: String] {
         var part: [String: String] = [:]
         for token in tokens {
-            if token.hasSuffix("px") || token.hasSuffix("em") || borderWidthKeywords.contains(token)
-            {
+            // CSS Backgrounds 3 §3.3: a <line-width> is a length or a keyword. Lengths start
+            // with a digit or ".", and a bare 0 is a length too; colors never start that way.
+            let startsLikeLength: Bool = token.first.map({ $0.isNumber || $0 == "." }) ?? false
+            if startsLikeLength || borderWidthKeywords.contains(token) {
                 part["width"] = token
             } else if borderStyleKeywords.contains(token) {
                 part["style"] = token
