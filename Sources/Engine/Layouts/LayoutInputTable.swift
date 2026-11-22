@@ -283,7 +283,10 @@ enum LayoutInputTable {
         case .input:
             return [.layout(id, .font), .layout(id, .zoom)]
         case .button:
-            return [.layout(id, .zoom)]
+            // Shrink-to-fit reads the room left in the block that owns the line.
+            var keys: [FieldKey] = [.layout(id, .font), .layout(id, .zoom)] + boxEdgeKeys(dom)
+            if let container { keys.insert(.layout(container, .width), at: 0) }
+            return keys
         case .iframe:
             return [.layout(id, .zoom), .style(dom, .aspectRatio)] + sizedByAttributeKeys(dom)
         case .canvas:

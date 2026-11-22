@@ -266,13 +266,12 @@ extension LayoutTree {
         }
 
         if inputs.style(domID(of: id)).text.direction == .rtl {
-            let usedWidth: CGFloat = contentWidth(id)
+            let usedWidth: CGFloat = contentWidth(id, trimsEndSpace: false)
             shiftChildren(id, by: width(id) - usedWidth)
         }
 
         if self[line: id].content.centered {
-            let usedWidth: CGFloat = contentWidth(id)
-            shiftChildren(id, by: (width(id) - usedWidth) / 2)
+            shiftChildren(id, by: (width(id) - contentWidth(id, trimsEndSpace: true)) / 2)
         }
 
         setField(.height, ascent(id) + descent(id), for: id)
@@ -402,10 +401,15 @@ extension LayoutTree {
         return isEmbed(child) ? embedEdges(child) : .zero
     }
 
-    private func contentWidth(_ id: LayoutID) -> CGFloat {
+    /// With `trimsEndSpace`, CSS Text 3 §4.1.2 applies: the space after the
+    /// line's last word is removed, so it does not pull centered words left.
+    private func contentWidth(_ id: LayoutID, trimsEndSpace: Bool) -> CGFloat {
         let inline: [LayoutID] = childrenIDs(of: id).filter({ isText($0) || isEmbed($0) })
         guard let last: LayoutID = inline.last else { return 0 }
-        let trailing: CGFloat = inlineWidth(id, index: inline.count - 1, child: last)
+        var trailing: CGFloat = inlineWidth(id, index: inline.count - 1, child: last)
+        if trimsEndSpace, isText(last) {
+            trailing -= font(last).spaceWidth
+        }
         let childEnd: CGFloat = x(last) - inlineEdges(last).left + trailing - x(id)
         let boxEnd: CGFloat = self[line: id].inlineBoxes.fragments.map(\.rect.right).max() ?? 0
         return max(childEnd, boxEnd)

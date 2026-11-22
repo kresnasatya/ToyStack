@@ -149,12 +149,14 @@ extension LayoutTree {
         layoutEmbedCommon(id)
         guard contentDirty else { return }
 
-        setField(.width, inputWidthPx * zoom(id), for: id)
+        let pieces: [ButtonLabelPiece] = buttonLabelPieces(domView(id), zoom: zoom(id))
+        let available: CGFloat = embedContainingWidth(id) - embedEdges(id).horizontal
+        setField(.width, ButtonLabelPiece.shrinkToFit(pieces, available: available), for: id)
 
         setChildrenField([], of: id)
         newButtonLine(id)
-        for child in domView(id).children {
-            recurseButton(id, child)
+        for piece in pieces {
+            addButtonPiece(id, piece)
         }
         for child in childrenIDs(of: id) {
             layout(child)
@@ -181,69 +183,81 @@ extension LayoutTree {
         self[embed: id] = .button(data)
         let previous: LayoutID? = childrenIDs(of: id).last
         let line: LayoutID = makeLine(dom: domID(of: id), parent: id, previous: previous)
+        self[line: line].content.centered = true
         var children: [LayoutID] = childrenIDs(of: id)
         children.append(line)
         setChildrenField(children, of: id)
     }
 
-    mutating private func recurseButton(_ id: LayoutID, _ node: LayoutDOMView) {
-        if let textNode = node.text {
-            for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
-                addButtonWord(id, node: node, word: String(word))
-            }
-        } else if let el = node.element {
-            if el.tag == "br" {
-                newButtonLine(id)
-            } else if el.tag == "input" {
-                addButtonInput(id, el)
-            } else {
-                for child in node.children { recurseButton(id, child) }
+    /// The label's words, line breaks, and inputs in order, each measured at
+    /// `zoom`, so sizing the button and filling its lines see the same pieces.
+    func buttonLabelPieces(_ node: LayoutDOMView, zoom: CGFloat) -> [ButtonLabelPiece] {
+        var pieces: [ButtonLabelPiece] = []
+        collectButtonPieces(node.children, zoom: zoom, into: &pieces)
+        return pieces
+    }
+
+    private func collectButtonPieces(_ nodes: [LayoutDOMView], zoom: CGFloat, into pieces: inout [ButtonLabelPiece]) {
+        for node in nodes {
+            if let textNode = node.text {
+                let font: BrowserFont = fontFor(node.id, zoom: zoom)
+                for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
+                    let text: String = String(word)
+                    pieces.append(ButtonLabelPiece(kind: .word(text), dom: node.id, font: font, width: font.measure(text)))
+                }
+            } else if let el = node.element {
+                let font: BrowserFont = fontFor(node.id, zoom: zoom)
+                if el.tag == "br" {
+                    pieces.append(ButtonLabelPiece(kind: .lineBreak, dom: node.id, font: font, width: 0))
+                } else if el.tag == "input" {
+                    let isCheckbox: Bool = el.attributes["type"] == "checkbox"
+                    let content: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom
+                    let edges: EdgeInsets = el.style.computed.box.paddingAndBorder.scaled(by: zoom)
+                    pieces.append(ButtonLabelPiece(kind: .input, dom: node.id, font: font, width: content + edges.horizontal))
+                } else {
+                    collectButtonPieces(node.children, zoom: zoom, into: &pieces)
+                }
             }
         }
     }
 
-    mutating private func addButtonWord(_ id: LayoutID, node: LayoutDOMView, word: String) {
-        let font: BrowserFont = fontFor(node.id, zoom: zoom(id))
-        let w: CGFloat = font.measure(word)
-        let cursorX: CGFloat = buttonCursorX(id)
-        if cursorX + w > width(id) { newButtonLine(id) }
-        guard let line: LayoutID = childrenIDs(of: id).last else { return }
-        let prev: LayoutID? = childrenIDs(of: line).last
-        let text: LayoutID = makeText(
-            TextData(
-                payload: TextPayload(word: word, display: nil, fontOverride: font),
-                fragment: nil,
-                metrics: TextMetrics(width: 0, whiteSpace: .normal)
-            ),
-            dom: node.id,
-            parent: line,
-            previous: prev
-        )
-        var lineChildren: [LayoutID] = childrenIDs(of: line)
-        lineChildren.append(text)
-        setChildrenField(lineChildren, of: line)
-        setButtonCursorX(id, buttonCursorX(id) + w)
+    mutating private func addButtonPiece(_ id: LayoutID, _ piece: ButtonLabelPiece) {
+        switch piece.kind {
+        case .lineBreak:
+            newButtonLine(id)
+        case .word(let word):
+            placeButtonPiece(id, piece) { tree, line, previous in
+                tree.makeText(
+                    TextData(
+                        payload: TextPayload(word: word, display: nil, fontOverride: piece.font),
+                        fragment: nil,
+                        metrics: TextMetrics(width: 0, whiteSpace: .normal)
+                    ),
+                    dom: piece.dom,
+                    parent: line,
+                    previous: previous
+                )
+            }
+        case .input:
+            placeButtonPiece(id, piece) { tree, line, previous in
+                tree.makeEmbed(dom: piece.dom, data: .input, parent: line, previous: previous)
+            }
+        }
     }
 
-    mutating private func addButtonInput(_ id: LayoutID, _ node: LayoutElementView) {
-        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom(id))
-        let isCheckbox: Bool = node.attributes["type"] == "checkbox"
-        let content: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom(id)
-        let w: CGFloat = content + node.style.computed.box.paddingAndBorder.scaled(by: zoom(id)).horizontal
-        let cursorX: CGFloat = buttonCursorX(id)
-        if cursorX + w > width(id) { newButtonLine(id) }
+    mutating private func placeButtonPiece(
+        _ id: LayoutID,
+        _ piece: ButtonLabelPiece,
+        make: (inout LayoutTree, LayoutID, LayoutID?) -> LayoutID
+    ) {
+        if buttonCursorX(id) + piece.width > width(id) { newButtonLine(id) }
         guard let line: LayoutID = childrenIDs(of: id).last else { return }
-        let prev: LayoutID? = childrenIDs(of: line).last
-        let input: LayoutID = makeEmbed(
-            dom: node.ref.id,
-            data: .input,
-            parent: line,
-            previous: prev
-        )
+        let previous: LayoutID? = childrenIDs(of: line).last
+        let child: LayoutID = make(&self, line, previous)
         var lineChildren: [LayoutID] = childrenIDs(of: line)
-        lineChildren.append(input)
+        lineChildren.append(child)
         setChildrenField(lineChildren, of: line)
-        setButtonCursorX(id, buttonCursorX(id) + w)
+        setButtonCursorX(id, piece.advance(from: buttonCursorX(id)))
     }
 
     private func buttonCursorX(_ id: LayoutID) -> CGFloat {
@@ -365,6 +379,7 @@ extension LayoutTree {
     /// box-sizing, plus its horizontal padding and border.
     func embedLineWidth(_ node: LayoutElementView, available: CGFloat, zoom: CGFloat) -> CGFloat {
         let metrics: EmbedMetrics = EmbedMetrics(node)
+        let edges: EdgeInsets = metrics.style.box.paddingAndBorder.scaled(by: zoom)
         let content: CGFloat
         switch node.tag {
         case "img":
@@ -374,7 +389,12 @@ extension LayoutTree {
                 ? fontFor(node.ref.id, zoom: zoom).linespace
                 : inputWidthPx * zoom
         case "button":
-            content = inputWidthPx * zoom
+            // `layoutButton` measures the label at the button's own zoom.
+            let labelZoom: CGFloat = zoom * (metrics.style.box.zoom ?? 1)
+            content = ButtonLabelPiece.shrinkToFit(
+                buttonLabelPieces(node.ref, zoom: labelZoom),
+                available: available - edges.horizontal
+            )
         case "iframe":
             content = iframeDisplaySize(metrics).width * zoom
         case "canvas":
@@ -382,7 +402,6 @@ extension LayoutTree {
         default:
             return 0
         }
-        let edges: EdgeInsets = metrics.style.box.paddingAndBorder.scaled(by: zoom)
         let used: CGFloat = metrics.specifiedContent(content, attribute: "width", paddingAndBorder: edges.horizontal)
         return used + edges.horizontal
     }
