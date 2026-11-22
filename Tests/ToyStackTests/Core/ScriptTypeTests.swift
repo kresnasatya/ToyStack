@@ -17,6 +17,12 @@ struct ScriptTypeTests {
         #expect(ScriptType.isClassic(["language": "JavaScript"]))
     }
 
+    // Old pages still write <script language="JavaScript1.2">.
+    @Test func versionedLanguageAttributeRuns() {
+        #expect(ScriptType.isClassic(["language": "JavaScript1.2"]))
+        #expect(ScriptType.isClassic(["type": "application/x-javascript"]))
+    }
+
     @Test func dataBlocksDoNotRun() {
         #expect(!ScriptType.isClassic(["type": "application/json"]))
         #expect(!ScriptType.isClassic(["type": "application/ld+json"]))
