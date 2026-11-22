@@ -98,11 +98,31 @@ All the places that measure a line agree on this:
 - Button labels: `ButtonLabelPiece.append` sets an input's `spaceAfter` from
   the piece that follows it.
 
+## Label font
+
+Browsers disagree here. All of them start from `font: -webkit-small-control`
+(or Firefox's `-moz-button`), but:
+
+- Chrome resolves it to Arial on every platform
+  (`third_party/blink/renderer/core/layout/layout_theme_font_provider.cc`,
+  `DefaultGUIFont`).
+- Safari, and Firefox on macOS, use the system font (San Francisco). This is
+  from how they render, not checked against their source.
+
+Choice: the system font, through the CSS generic family `system-ui` (CSS
+Fonts 4 §2.1.5). `browser.css` sets `button { font-family: system-ui; }`, and
+`getFont` in `BrowserFont.swift` maps `system-ui` to CoreText's interface font
+(`CTFontCreateUIFontForLanguage(.system, …)`). Text around the button keeps
+its own font.
+
 ## Still different from real browsers
 
-- The label uses the page font, not the system font.
 - No hover/pressed face (`#e5e5e5` / `#f5f5f5` in Chromium).
 - A CSS `width` on a button is ignored.
+- The label is 13px, not 13.333px: `getFont` takes a whole number of pixels,
+  so every font size is cut down to an integer.
+- A `font-family` list (`"Helvetica Neue", Arial, sans-serif`) or any family
+  other than `monospace` and `system-ui` still falls back to Georgia.
 - Two embeds with no whitespace between them (`<img><img>`) still get a space,
   because the engine does not remember where whitespace was.
 - `<img> <b>bold</b>`: the space is in the paragraph's text, but the engine
@@ -111,7 +131,9 @@ All the places that measure a line agree on this:
 ## Tests
 
 - `Tests/ToyStackTests/Resources/UserAgentButtonStyleTests.swift`: light and
-  dark defaults, box size.
+  dark defaults, box size, and a system-font label beside a Georgia paragraph.
+- `Tests/ToyStackTests/Platform/BrowserFontTests.swift`: `system-ui` and bold
+  `system-ui` are the interface font; `serif` stays Georgia.
 - `Tests/ToyStackTests/Display/ButtonPaintTests.swift`: rounded face and gray
   ring, `border: none`, transparent face, forced colors.
 - `Tests/ToyStackTests/Layouts/ButtonLayoutTests.swift`: width fits the label,

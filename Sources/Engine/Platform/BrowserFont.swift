@@ -107,18 +107,10 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
         if weight == "bold" { traits.insert(.traitBold) }
         if style == "italic" { traits.insert(.traitItalic) }
 
-        let ctFont: CTFont
-        if family == "monospace" {
-            let baseFont: CTFont = CTFontCreateWithName("Courier New" as CFString, CGFloat(size), nil)
-            ctFont =
-                CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
-                ?? baseFont
-        } else {
-            let baseFont: CTFont = CTFontCreateWithName("Georgia" as CFString, CGFloat(size), nil)
-            ctFont =
-                CTFontCreateCopyWithSymbolicTraits(baseFont, CGFloat(size), nil, traits, traits)
-                ?? baseFont
-        }
+        let base: CTFont = baseFont(family: family, size: CGFloat(size))
+        let ctFont: CTFont =
+            CTFontCreateCopyWithSymbolicTraits(base, CGFloat(size), nil, traits, traits)
+            ?? base
 
         let font: BrowserFont = BrowserFont(ctFont: ctFont)
         fontCacheLock.lock()
@@ -130,6 +122,22 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
         fontCacheLock.unlock()
         return font
     })
+}
+
+/// CSS Fonts 4 §2.1.5: `system-ui` is the platform's user interface font.
+/// Every family the engine does not know falls back to the serif face.
+private func baseFont(family: String, size: CGFloat) -> CTFont {
+    switch family {
+    case "monospace":
+        return CTFontCreateWithName("Courier New" as CFString, size, nil)
+    case "system-ui":
+        if let interface: CTFont = CTFontCreateUIFontForLanguage(.system, size, nil) {
+            return interface
+        }
+    default:
+        break
+    }
+    return CTFontCreateWithName("Georgia" as CFString, size, nil)
 }
 
 func fontInputs(for id: NodeID, in inputs: LayoutInputs) -> [FieldKey] {

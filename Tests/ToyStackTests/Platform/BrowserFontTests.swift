@@ -1,3 +1,4 @@
+import CoreText
 import Foundation
 import Testing
 
@@ -39,5 +40,32 @@ struct BrowserFontTests {
 
         #expect(font.caretOffsets("a👍🏽b").count == 4)
         #expect(font.caretOffsets("").count == 1)
+    }
+
+    private func familyName(_ font: CTFont) -> String {
+        return CTFontCopyFamilyName(font) as String
+    }
+
+    /// CSS Fonts 4 §2.1.5: `system-ui` is the platform's user interface font.
+    @Test func systemUIFamilyIsThePlatformInterfaceFont() throws {
+        let expected: CTFont = try #require(CTFontCreateUIFontForLanguage(.system, 13, nil))
+        let font: BrowserFont = getFont(size: 13, weight: "normal", style: "roman", family: "system-ui")
+
+        #expect(familyName(font.ctFont) == familyName(expected))
+        #expect(font.size == 13)
+    }
+
+    @Test func boldSystemUIStaysInTheInterfaceFont() throws {
+        let expected: CTFont = try #require(CTFontCreateUIFontForLanguage(.system, 13, nil))
+        let font: BrowserFont = getFont(size: 13, weight: "bold", style: "roman", family: "system-ui")
+
+        #expect(familyName(font.ctFont) == familyName(expected))
+        #expect(CTFontGetSymbolicTraits(font.ctFont).contains(.traitBold))
+    }
+
+    @Test func serifStaysGeorgia() {
+        let font: BrowserFont = getFont(size: 13, weight: "normal", style: "roman", family: "serif")
+
+        #expect(familyName(font.ctFont) == "Georgia")
     }
 }

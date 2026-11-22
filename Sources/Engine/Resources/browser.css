@@ -190,6 +190,7 @@ input {
     background-color: lightblue;
 }
 button {
+    font-family: system-ui;
     font-size: 13.333px;
     font-weight: normal;
     font-style: normal;
