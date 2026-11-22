@@ -288,14 +288,17 @@ class Frame {
         }
     }
 
-    /// The page is fetched at its HSTS-upgraded address, which becomes the
-    /// frame's URL so the address bar and lock show what was really loaded.
+    /// The page takes the address it was really loaded from: the HSTS-upgraded
+    /// one, or where its redirects ended. The address bar, the lock, and the
+    /// base for relative links all follow that address.
     private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?, bypassingCache: Bool) async -> (
         WebURL, Result<(status: Int, headers: [String: String], content: String), Error>
     ) {
         let target: WebURL = await HSTSStore.shared.upgrade(url)
         do {
-            return (target, .success(try await target.request(referrer: referrer, payload: payload, bypassingCache: bypassingCache)))
+            let response: (url: WebURL, status: Int, headers: [String: String], content: String) =
+                try await target.request(referrer: referrer, payload: payload, bypassingCache: bypassingCache)
+            return (response.url, .success((response.status, response.headers, response.content)))
         } catch {
             return (target, .failure(error))
         }
@@ -408,7 +411,7 @@ class Frame {
     private func fetchStyles(
         urls: [(index: Int, url: WebURL, ref: WebURL?)]
     ) async -> [(index: Int, url: WebURL, body: String)] {
-        typealias Response = (status: Int, headers: [String: String], content: String)
+        typealias Response = (url: WebURL, status: Int, headers: [String: String], content: String)
         var result: [(index: Int, url: WebURL, body: String)] = []
         var allowed: [ResourceLoad] = []
         for entry in urls {
@@ -455,7 +458,7 @@ class Frame {
     private func fetchScripts(
         urls: [(index: Int, url: WebURL, ref: WebURL?)]
     ) async -> [(index: Int, url: WebURL, body: String)] {
-        typealias Response = (status: Int, headers: [String: String], content: String)
+        typealias Response = (url: WebURL, status: Int, headers: [String: String], content: String)
         var result: [(index: Int, url: WebURL, body: String)] = []
         var allowed: [ResourceLoad] = []
         for entry in urls {
@@ -775,7 +778,7 @@ class Frame {
             }
             let urlStr: String = scriptURL.toString()
             guard !state.document.resources.loadedScripts.contains(urlStr) else { continue }
-            guard let (status, headers, body) = scriptURL.requestSync() else { continue }
+            guard let (_, status, headers, body) = scriptURL.requestSync() else { continue }
             guard BrowserTab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
             state.document.resources.loadedScripts.insert(urlStr)
             js.run(script: urlStr, code: body)
@@ -812,7 +815,7 @@ class Frame {
         if let body: String = state.document.resources.loadedStylesheets[key] {
             return body
         }
-        guard let (status, headers, body) = styleURL.requestSync(),
+        guard let (_, status, headers, body) = styleURL.requestSync(),
             BrowserTab.isUsableStylesheet(status: status, headers: headers, url: styleURL)
         else {
             return nil

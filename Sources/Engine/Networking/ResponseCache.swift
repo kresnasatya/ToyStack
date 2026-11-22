@@ -4,6 +4,7 @@ struct CacheResponse {
     let status: Int
     let headers: [String: String]
     let content: String
+    let redirectedTo: String?
 }
 
 // MARK: - CacheEntry
@@ -37,17 +38,10 @@ actor ResponseCache {
             }
         }
 
-        return CacheResponse(
-            status: entry.response.status,
-            headers: entry.response.headers,
-            content: entry.response.content
-        )
+        return entry.response
     }
 
     func set(_ url: String, response: CacheResponse, maxAge: Int) {
-        storage[url] = CacheEntry(
-            CacheResponse(status: response.status, headers: response.headers, content: response.content),
-            maxAge: maxAge
-        )
+        storage[url] = CacheEntry(response, maxAge: maxAge)
     }
 }

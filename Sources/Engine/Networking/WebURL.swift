@@ -109,31 +109,31 @@ public class WebURL: @unchecked Sendable {
     func request(
         referrer: WebURL? = nil, payload: String? = nil, extraHeaders: [String: String] = [:], bypassingCache: Bool = false
     ) async throws -> (
-        status: Int, headers: [String: String], content: String
+        url: WebURL, status: Int, headers: [String: String], content: String
     ) {
         if let source = BrowserTab.pageSource, let page = await source(scheme, path) {
-            return page
+            return (url: self, status: page.status, headers: page.headers, content: page.content)
         }
         if scheme == "about" {
-            return (status: 200, headers: [:], content: "")
+            return (url: self, status: 200, headers: [:], content: "")
         }
 
         if scheme == "file" {
             let content: String = try String(contentsOfFile: path, encoding: .utf8)
-            return (status: 200, headers: [:], content: content)
+            return (url: self, status: 200, headers: [:], content: content)
         }
 
         if scheme == "data" {
-            return (status: 200, headers: [:], content: path)
+            return (url: self, status: 200, headers: [:], content: path)
         }
 
         if scheme == "view-source" {
             let innerURL: WebURL = WebURL(path)
-            let (_, _, content) = try await innerURL.request(bypassingCache: bypassingCache)
+            let content: String = try await innerURL.request(bypassingCache: bypassingCache).content
             let highlighted: String = await MainActor.run {
                 HTMLSyntaxHighlighter(body: content).highlight()
             }
-            return (status: 200, headers: [:], content: highlighted)
+            return (url: self, status: 200, headers: [:], content: highlighted)
         }
 
         let secureURL: WebURL = await HSTSStore.shared.upgrade(self)
@@ -148,13 +148,16 @@ public class WebURL: @unchecked Sendable {
         let cacheKey: String = toString()
         if method == "GET" && !bypassingCache {
             if let cached = await ResponseCache.shared.get(cacheKey) {
-                return (cached.status, cached.headers, cached.content)
+                return (arrival(at: cached.redirectedTo), cached.status, cached.headers, cached.content)
             }
         }
 
         let urlRequest: URLRequest = await makeHTTPRequest(method: method, referrer: referrer, payload: payload, extraHeaders: extraHeaders)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest, delegate: HSTSRedirect.shared)
+        let redirectedTo: String? = response.url.flatMap({ (final: URL) -> String? in
+            final == urlRequest.url ? nil : final.absoluteString
+        })
 
         guard let httpResponse = response as? HTTPURLResponse else {
             fatalError("Invalid response type")
@@ -179,7 +182,8 @@ public class WebURL: @unchecked Sendable {
                     response: CacheResponse(
                         status: httpResponse.statusCode,
                         headers: headers,
-                        content: content
+                        content: content,
+                        redirectedTo: redirectedTo
                     ),
                     maxAge: maxAge
                 )
@@ -189,14 +193,27 @@ public class WebURL: @unchecked Sendable {
                     response: CacheResponse(
                         status: httpResponse.statusCode,
                         headers: headers,
-                        content: content
+                        content: content,
+                        redirectedTo: redirectedTo
                     ),
                     maxAge: -1
                 )
             }
         }
 
-        return (httpResponse.statusCode, headers, content)
+        return (arrival(at: redirectedTo), httpResponse.statusCode, headers, content)
+    }
+
+    /// Fetch §2.2.6 (location URL): a redirect target without a fragment
+    /// takes the fragment of the request, so `/#about` still scrolls after a
+    /// redirect to another host.
+    private func arrival(at redirectedTo: String?) -> WebURL {
+        guard let redirectedTo: String else { return self }
+        let final: WebURL = WebURL(redirectedTo)
+        if final.fragment == nil {
+            final.fragment = fragment
+        }
+        return final
     }
 
     func makeHTTPRequest(method: String, referrer: WebURL?, payload: String?, extraHeaders: [String: String]) async -> URLRequest {
@@ -317,10 +334,10 @@ public class WebURL: @unchecked Sendable {
     }
 
     func requestSync(payload: String? = nil, extraHeaders: [String: String] = [:]) -> (
-        status: Int, headers: [String: String], content: String
+        url: WebURL, status: Int, headers: [String: String], content: String
     )? {
         final class ResultBox: @unchecked Sendable {
-            var value: (status: Int, headers: [String: String], content: String)?
+            var value: (url: WebURL, status: Int, headers: [String: String], content: String)?
         }
         let box: ResultBox = ResultBox()
         let semaphore: DispatchSemaphore = DispatchSemaphore(value: 0)

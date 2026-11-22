@@ -53,7 +53,7 @@ struct HSTSRequestTests {
         let port: Int = try await Self.port(of: server)
         await Self.forgetLocalhost()
 
-        let (_, _, body): (Int, [String: String], String) =
+        let (_, _, _, body): (WebURL, Int, [String: String], String) =
             try await WebURL("http://localhost:\(port)/page").request(bypassingCache: true)
 
         #expect(body == "<p>plain</p>")

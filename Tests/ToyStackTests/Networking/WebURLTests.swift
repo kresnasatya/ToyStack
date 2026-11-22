@@ -169,10 +169,38 @@ import Testing
         let port: Int = WebURL(try await server.start()).port
         server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p>canonical</p>"))
 
-        let (status, _, body): (Int, [String: String], String) =
+        let (url, status, _, body): (WebURL, Int, [String: String], String) =
             try await WebURL("http://[::1]:\(port)/page").request(bypassingCache: true)
 
         #expect(status == 200)
         #expect(body == "<p>canonical</p>")
+        #expect(url.toString() == "http://127.0.0.1:\(port)/page")
+    }
+
+    @Test func redirectWithoutAFragmentKeepsTheRequestedOne() async throws {
+        let server: LocalPageServer = try LocalPageServer(reply: .page(""))
+        defer { server.stop() }
+        let port: Int = WebURL(try await server.start()).port
+        server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p id=about>canonical</p>"))
+
+        let response: (url: WebURL, status: Int, headers: [String: String], content: String) =
+            try await WebURL("http://[::1]:\(port)/page#about").request(bypassingCache: true)
+
+        #expect(response.url.toString() == "http://127.0.0.1:\(port)/page#about")
+    }
+
+    @Test func cachedRedirectStillReportsWhereItEnded() async throws {
+        let server: LocalPageServer = try LocalPageServer(reply: .page(""))
+        defer { server.stop() }
+        let port: Int = WebURL(try await server.start()).port
+        server.setReply(.canonicalHost("127.0.0.1:\(port)", page: "<p>canonical</p>"))
+        let address: WebURL = WebURL("http://[::1]:\(port)/page")
+        _ = try await address.request()
+        let requestsBeforeCacheHit: Int = server.requests.count
+
+        let response: (url: WebURL, status: Int, headers: [String: String], content: String) = try await address.request()
+
+        #expect(server.requests.count == requestsBeforeCacheHit)
+        #expect(response.url.toString() == "http://127.0.0.1:\(port)/page")
     }
 }

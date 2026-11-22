@@ -407,13 +407,13 @@ class JSRuntime: @unchecked Sendable {
                 }
 
                 if fullURL.origin() == frame.url.origin() {
-                    guard let (_, _, out) = fullURL.requestSync(payload: body) else { return "" }
+                    guard let (_, _, _, out) = fullURL.requestSync(payload: body) else { return "" }
                     return out
                 }
 
                 let origin: String = frame.url.origin()
                 guard
-                    let (_, headers, out) = fullURL.requestSync(
+                    let (_, _, headers, out) = fullURL.requestSync(
                         payload: body,
                         extraHeaders: ["Origin": origin]
                     )

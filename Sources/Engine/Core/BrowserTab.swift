@@ -175,8 +175,9 @@ public class BrowserTab: Identifiable {
     }
 
     /// A load can end at another address than the one asked for: HSTS turned
-    /// http into https, or a guessed https fell back to http. History keeps
-    /// the address that loaded so reload, back and forward return to it.
+    /// http into https, a guessed https fell back to http, or the server
+    /// redirected. History keeps the address that loaded so reload, back and
+    /// forward return to it.
     func replaceURL(_ requested: WebURL, with loaded: WebURL) {
         history = history.map({ (entry: HistoryEntry) -> HistoryEntry in
             HistoryEntry(
