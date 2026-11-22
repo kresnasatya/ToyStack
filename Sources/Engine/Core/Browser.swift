@@ -69,7 +69,7 @@ public class Browser: ObservableObject {
             viewport: PresentedViewport(
                 contentOffset: ContentOffset(scroll: activePresentation.scroll.scroll * pageZoom),
                 scale: ContentScale(display: displayScale, page: pageZoom),
-                canvasColor: canvasColor,
+                canvasColor: canvasColor.cgColor,
                 scrollbar: activeSidebar
             )
         )
@@ -78,9 +78,8 @@ public class Browser: ObservableObject {
     public var onPresent: ((PresentedFrame) -> Void)?
     private var lastTileScroll: CGFloat = .nan
 
-    public var canvasColor: CGColor {
-        let name: String = activePresentation.preferences.usesForcedColors ? ForcedColor.canvas : (activePresentation.preferences.prefersDark ? "black" : "white")
-        return BrowserColor(cssName: name).cgColor
+    public var canvasColor: BrowserColor {
+        return activePresentation.colors.canvas
     }
 
     private var activeScrollbar: ScrollbarGeometry? {
@@ -96,7 +95,7 @@ public class Browser: ObservableObject {
 
     public var activeSidebar: (frame: CGRect, color: CGColor)? {
         guard let geometry: ScrollbarGeometry = activeScrollbar,
-            let bar = scrollbarBarRect(geometry, forcedColors: activePresentation.preferences.usesForcedColors),
+            let bar = scrollbarBarRect(geometry, forcedColors: activePresentation.colors.preferences.usesForcedColors),
             case .rrect(let rect, _, let color) = bar
         else { return nil }
         return (rect.cgRect, color.cgColor)
@@ -329,8 +328,10 @@ public class Browser: ObservableObject {
         activePresentation.scroll.interestTop = data.scroll.interestTop
         activePresentation.scroll.interestBottom = data.scroll.interestBottom
         activePresentation.scroll.maxScroll = data.scroll.maxScroll
-        activePresentation.preferences.prefersDark = data.preferences.prefersDark
-        activePresentation.preferences.usesForcedColors = data.preferences.usesForcedColors
+        activePresentation.colors = PageColors(
+            preferences: data.preferences,
+            canvasBackground: data.display.canvasBackground
+        )
         activePresentation.display.paintRevision = data.display.revision
         activePresentation.display.compositedUpdates = data.display.updates ?? [:]
 
@@ -427,7 +428,7 @@ public class Browser: ObservableObject {
                     scale: ContentScale(display: displayScale, page: pageZoom),
                     colorSpace: displayColorSpace
                 ),
-                preferences: ColorPreferences(prefersDark: activePresentation.preferences.prefersDark, usesForcedColors: activePresentation.preferences.usesForcedColors),
+                colors: activePresentation.colors,
                 flags: RasterInvalidation(needsComposite: wantsComposite, needsDraw: needsDraw),
                 accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
             ),
@@ -444,7 +445,7 @@ public class Browser: ObservableObject {
                 paint: activePresentation.display.paintRevision,
                 effects: activePresentation.display.effectRevision
             ),
-            preferences: ColorPreferences(prefersDark: activePresentation.preferences.prefersDark, usesForcedColors: activePresentation.preferences.usesForcedColors),
+            preferences: activePresentation.colors.preferences,
             accessibility: AccessibilityBounds(hoveredBounds: hoveredA11yNode?.absoluteBounds(), readBounds: accessibilityFocusNode?.absoluteBounds())
         )
         if signature == activePresentation.render.signature && !needsTileContinuation {
@@ -639,9 +640,7 @@ public class Browser: ObservableObject {
                                 target: inputs.settings.viewport.target(
                                     scale: inputs.settings.viewport.scale.display
                                 ),
-                                backgroundColor: inputs.settings.preferences.usesForcedColors
-                                    ? BrowserColor(cssName: ForcedColor.canvas)
-                                    : (inputs.settings.preferences.prefersDark ? BrowserColor(cssName: "black") : BrowserColor(cssName: "white"))
+                                backgroundColor: inputs.settings.colors.canvas
                             ) { r in
                                 r.saveState()
                                 ContentTransform(
@@ -700,11 +699,11 @@ public class Browser: ObservableObject {
                                 self.needsTileContinuation = true
                                 self.needsRaster = true
                             }
-                            if self.commitedPrefersDark != inputs.settings.preferences.prefersDark {
-                                self.commitedPrefersDark = inputs.settings.preferences.prefersDark
+                            if self.commitedPrefersDark != inputs.settings.colors.preferences.prefersDark {
+                                self.commitedPrefersDark = inputs.settings.colors.preferences.prefersDark
                             }
-                            if self.commitedForcedColors != inputs.settings.preferences.usesForcedColors {
-                                self.commitedForcedColors = inputs.settings.preferences.usesForcedColors
+                            if self.commitedForcedColors != inputs.settings.colors.preferences.usesForcedColors {
+                                self.commitedForcedColors = inputs.settings.colors.preferences.usesForcedColors
                             }
                         }
                     }

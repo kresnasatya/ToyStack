@@ -37,7 +37,7 @@ enum RasterDrawList {
         }
 
         if let bounds = inputs.settings.accessibility.hoveredBounds {
-            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))
+            drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: inputs.settings.colors.preferences.usesForcedColors ? ForcedColor.highlight : "white"), width: 4))
             drawList.append(.outline(rect: bounds, color: BrowserColor(cssName: "black"), width: 2))
         }
 

@@ -1,6 +1,6 @@
 struct RasterSettings: Sendable {
     let viewport: Viewport
-    let preferences: ColorPreferences
+    let colors: PageColors
     let flags: RasterInvalidation
     let accessibility: AccessibilityBounds
 }

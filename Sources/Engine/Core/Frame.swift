@@ -1538,7 +1538,8 @@ class Frame {
             display: DisplaySnapshot(
                 ops: display.paint.ops,
                 updates: updates,
-                revision: display.paint.revision
+                revision: display.paint.revision,
+                canvasBackground: CanvasBackground.color(of: nodes)
             ),
             preferences: ColorPreferences(
                 prefersDark: tab?.prefersDark ?? false,

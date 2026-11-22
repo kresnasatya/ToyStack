@@ -33,7 +33,7 @@ struct RasterCompositorTests {
                     scale: ContentScale(display: 1, page: 1),
                     colorSpace: RasterTarget.sRGB
                 ),
-                preferences: ColorPreferences(prefersDark: false, usesForcedColors: false),
+                colors: PageColors(preferences: ColorPreferences(prefersDark: false, usesForcedColors: false), canvasBackground: nil),
                 flags: RasterInvalidation(needsComposite: true, needsDraw: true),
                 accessibility: AccessibilityBounds(hoveredBounds: nil, readBounds: nil)
             ),
@@ -90,7 +90,7 @@ struct RasterCompositorTests {
                     scale: ContentScale(display: 1, page: 1),
                     colorSpace: RasterTarget.sRGB
                 ),
-                preferences: ColorPreferences(prefersDark: false, usesForcedColors: false),
+                colors: PageColors(preferences: ColorPreferences(prefersDark: false, usesForcedColors: false), canvasBackground: nil),
                 flags: RasterInvalidation(needsComposite: true, needsDraw: true),
                 accessibility: AccessibilityBounds(hoveredBounds: nil, readBounds: nil)
             ),
