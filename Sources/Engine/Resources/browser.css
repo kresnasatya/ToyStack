@@ -190,10 +190,14 @@ input {
     background-color: lightblue;
 }
 button {
-    font-size: 16px;
+    font-size: 13.333px;
     font-weight: normal;
     font-style: normal;
-    background-color: orange;
+    color: black;
+    background-color: #efefef;
+    border: 1px solid #767676;
+    border-radius: 2px;
+    padding: 2px 7px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -220,6 +224,8 @@ button {
     }
 
     button {
-        background-color: #992500;
+        color: white;
+        background-color: #6b6b6b;
+        border-color: #6b6b6b;
     }
 }

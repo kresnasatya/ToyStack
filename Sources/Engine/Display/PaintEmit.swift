@@ -145,14 +145,7 @@ func emitInput(_ node: PaintNode, input: PaintInput, into items: inout [DisplayO
     let rect: Rect = node.geometry.rect
     let forced: Bool = node.surface.state.forcedColors
 
-    if let bgcolor: BrowserColor = style.visual.background.color {
-        let radii: CornerRadii = style.box.decoration.border.radii
-        if !radii.isZero {
-            items.append(.rrect(rect: rect, radii: radii, color: bgcolor))
-        } else {
-            items.append(.rect(rect: rect, color: bgcolor))
-        }
-    }
+    emitEmbedBackground(node, into: &items)
 
     if input.isCheckbox {
         items.append(.rect(
@@ -209,18 +202,20 @@ func emitInput(_ node: PaintNode, input: PaintInput, into items: inout [DisplayO
 }
 
 func emitButton(_ node: PaintNode, into items: inout [DisplayOp]) {
-    let style: ComputedStyle = node.surface.style
-    let rect: Rect = node.geometry.rect
-    let forced: Bool = node.surface.state.forcedColors
-    let displayColor: BrowserColor = style.visual.background.color
-        ?? BrowserColor(cssName: forced ? ForcedColor.buttonFace : "white")
-    items.append(.rect(rect: rect, color: displayColor))
-    items.append(.outline(
-        rect: rect,
-        color: BrowserColor(cssName: forced ? ForcedColor.buttonBorder : "black"),
-        width: 1
-    ))
+    emitEmbedBackground(node, into: &items)
     emitFocusOutline(node, coercedWidths: (4, 2), into: &items)
+}
+
+func emitEmbedBackground(_ node: PaintNode, into items: inout [DisplayOp]) {
+    let style: ComputedStyle = node.surface.style
+    guard let color: BrowserColor = style.visual.background.color else { return }
+    let rect: Rect = node.geometry.rect
+    let radii: CornerRadii = style.box.decoration.border.radii
+    if !radii.isZero {
+        items.append(.rrect(rect: rect, radii: radii, color: color))
+    } else {
+        items.append(.rect(rect: rect, color: color))
+    }
 }
 
 func emitIframe(_ node: PaintNode, into items: inout [DisplayOp]) {
