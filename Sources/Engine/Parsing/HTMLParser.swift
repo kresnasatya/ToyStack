@@ -15,6 +15,8 @@ class HTMLParser {
         "param", "source", "track", "wbr",
     ]
 
+    static let foreignRoots: Set<String> = ["svg", "math"]
+
     static let headTags: Set<String> = [
         "base", "basefont", "bgsound",
         "noscript", "link", "meta",
@@ -206,7 +208,7 @@ class HTMLParser {
             if unfinished.count == 1 { return }
             let node: NodeID = unfinished.removeLast()
             dom.append(node, to: unfinished.last!)
-        } else if HTMLParser.selfClosingTags.contains(tagName) {
+        } else if HTMLParser.selfClosingTags.contains(tagName) || closesItself(tag, tagName: tagName) {
             let parent: NodeID = unfinished.last!
             let node: NodeID = dom.createElement(tag: tagName, attributes: attributes)
             dom.append(node, to: parent)
@@ -214,6 +216,14 @@ class HTMLParser {
             let node: NodeID = dom.createElement(tag: tagName, attributes: attributes)
             unfinished.append(node)
         }
+    }
+
+    // HTML §13.2.6.4.7 and §13.2.6.5: in SVG and MathML a start tag that ends in "/"
+    // closes itself. On an HTML element the "/" is ignored (§13.2.2).
+    private func closesItself(_ rawTag: String, tagName: String) -> Bool {
+        guard rawTag.hasSuffix("/") else { return false }
+        if HTMLParser.foreignRoots.contains(tagName) { return true }
+        return unfinished.contains(where: { HTMLParser.foreignRoots.contains(dom.tag(of: $0) ?? "") })
     }
 
     private func getAttributes(_ raw: String) -> (String, [String: String]) {

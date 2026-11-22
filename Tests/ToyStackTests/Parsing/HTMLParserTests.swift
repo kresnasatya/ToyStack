@@ -123,4 +123,47 @@ struct HTMLParserTests {
         #expect(pChildren.count == 1)
         #expect(dom.text( pChildren[0])?.text == "    ")
     }
+
+    // MARK: - Self-closing tags in SVG and MathML
+
+    private func describe(_ id: NodeID, _ dom: DOMTree) -> [String] {
+        children(id, dom).map({ dom.ref($0).description })
+    }
+
+    private func firstElement(_ tagName: String, _ dom: DOMTree) -> NodeID? {
+        treeToList(dom.ref(dom.root)).first(where: { dom.tag(of: $0.id) == tagName })?.id
+    }
+
+    // HTML §13.2.6.5: inside <svg> a start tag ending in "/>" closes itself. Without
+    // that, every icon swallows the rest of the page into its last <path>.
+    @Test func svgSelfClosingChildrenStayInsideTheSVG() throws {
+        let dom: DOMTree = HTMLParser(
+            body: #"<div id="box"><svg viewBox="0 0 4 4"><path d="M0 0"/><path d="M1 1" /></svg><p>after</p></div>"#
+        ).parse()
+        let box: NodeID = try #require(firstElement("div", dom))
+        let svg: NodeID = try #require(firstElement("svg", dom))
+        #expect(describe(box, dom) == ["<svg>", "<p>"])
+        #expect(describe(svg, dom) == ["<path>", "<path>"])
+    }
+
+    // HTML §13.2.6.4.7: an <svg/> or <math/> start tag in the body is popped right away.
+    @Test func selfClosingSVGElementItselfCloses() throws {
+        let dom: DOMTree = HTMLParser(body: #"<div><svg/><p>after</p></div>"#).parse()
+        let div: NodeID = try #require(firstElement("div", dom))
+        #expect(describe(div, dom) == ["<svg>", "<p>"])
+    }
+
+    @Test func mathMLSelfClosingChildrenStayInsideTheMath() throws {
+        let dom: DOMTree = HTMLParser(body: #"<math><mspace/><mi>x</mi></math><p>after</p>"#).parse()
+        let math: NodeID = try #require(firstElement("math", dom))
+        #expect(describe(math, dom) == ["<mspace>", "<mi>"])
+    }
+
+    // HTML §13.2.2 (non-void-html-element-start-tag-with-trailing-solidus): on an
+    // ordinary HTML element the "/" is ignored, so <div/> stays open.
+    @Test func slashOnAnHTMLElementDoesNotCloseIt() throws {
+        let dom: DOMTree = HTMLParser(body: #"<div/><p>inside</p>"#).parse()
+        let div: NodeID = try #require(firstElement("div", dom))
+        #expect(describe(div, dom) == ["<p>"])
+    }
 }
