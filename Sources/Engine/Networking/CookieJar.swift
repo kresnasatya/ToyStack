@@ -49,8 +49,10 @@ actor CookieJar {
     // draft-ietf-httpbis-rfc6265bis-22 §5.7 steps 13 and 16: from an address
     // that is not secure, a cookie can neither be Secure nor take the place
     // of a Secure one, so an http page cannot plant or overwrite (and so
-    // fix) a cookie the https site relies on.
+    // fix) a cookie the https site relies on. Steps 20 and 21: a prefixed
+    // name must keep what its prefix promises.
     private func store(_ cookie: Cookie, from url: WebURL) {
+        guard cookie.keepsNamePrefixPromise else { return }
         var cookies: [Cookie] = live(for: url.host)
         let index: Int? = cookies.firstIndex(where: { $0.name == cookie.name })
         if !Self.isSecure(url) {

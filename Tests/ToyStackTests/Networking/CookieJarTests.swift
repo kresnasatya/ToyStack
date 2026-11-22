@@ -188,6 +188,65 @@ import Testing
         #expect(await jar.scriptCookies(for: Self.secure) == "a=1")
     }
 
+    @Test(arguments: [
+        "__Secure-SID=1",
+        "__secure-SID=1; Domain=example.test",
+        "__SECURE-SID=1; HttpOnly",
+        "__Host-SID=1",
+        "__host-SID=1; Secure",
+        "__Host-SID=1; Secure; Path=/login",
+        "__HOST-SID=1; Secure; Domain=example.test; Path=/",
+        "__HoSt-SID=1; Domain=example.test; Path=/",
+    ])
+    func prefixedCookieWithoutWhatItsPrefixPromisesIsIgnored(_ setCookie: String) async {
+        let jar: CookieJar = CookieJar()
+
+        await jar.receive(setCookie, from: Self.secure)
+
+        #expect(await Self.sent(by: jar) == nil)
+    }
+
+    @Test(arguments: [
+        "__Secure-SID=1; Secure",
+        "__secure-SID=1; Domain=example.test; Secure",
+        "__Host-SID=1; Secure; Path=/",
+        "__HOST-SID=1; Secure; Path=/",
+        "__Host-SID=1; Secure; Path=/; Domain=",
+    ])
+    func prefixedCookieThatKeepsItsPromiseIsStored(_ setCookie: String) async {
+        let jar: CookieJar = CookieJar()
+
+        await jar.receive(setCookie, from: Self.secure)
+
+        #expect(await Self.sent(by: jar)?.hasSuffix("SID=1") == true)
+    }
+
+    @Test func prefixedCookieWithoutItsPromiseCannotReplaceAGoodOne() async {
+        let jar: CookieJar = CookieJar()
+        await jar.receive("__Host-SID=1; Secure; Path=/", from: Self.secure)
+
+        await jar.receive("__Host-SID=evil; Secure", from: Self.secure)
+
+        #expect(await Self.sent(by: jar) == "__Host-SID=1")
+    }
+
+    @Test func scriptCannotSetAPrefixedCookieWithoutItsPromise() async {
+        let jar: CookieJar = CookieJar()
+
+        await jar.receiveFromScript("__Host-SID=1; Secure", page: Self.secure)
+        await jar.receiveFromScript("__Secure-ID=2", page: Self.secure)
+
+        #expect(await Self.sent(by: jar) == nil)
+    }
+
+    @Test func otherCookieNamesNeedNothingExtra() async {
+        let jar: CookieJar = CookieJar()
+
+        await jar.receive("Secure-SID=1, _Host-SID=2", from: Self.secure)
+
+        #expect(await Self.sent(by: jar) == "Secure-SID=1; _Host-SID=2")
+    }
+
     @Test func responseWithTwoSetCookieHeadersKeepsBoth() async throws {
         let server: LocalPageServer = try LocalPageServer(reply: .page(""))
         defer { server.stop() }

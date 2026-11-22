@@ -1,7 +1,8 @@
 import Foundation
 
 /// One stored cookie (RFC 6265 §5.3). `params` keeps each attribute under its
-/// lowercased name with a lowercased value; a flag such as HttpOnly is "true".
+/// lowercased name with a lowercased value; a flag such as HttpOnly, written
+/// without "=", has an empty value.
 struct Cookie {
     let name: String
     let value: String
@@ -22,11 +23,7 @@ struct Cookie {
             let nameAndValue: [Substring] = attribute.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             let key: String = nameAndValue[0].trimmingCharacters(in: .whitespaces).lowercased()
             guard !key.isEmpty else { continue }
-            guard nameAndValue.count == 2 else {
-                params[key] = "true"
-                continue
-            }
-            let rawValue: String = nameAndValue[1].trimmingCharacters(in: .whitespaces)
+            let rawValue: String = nameAndValue.count == 2 ? nameAndValue[1].trimmingCharacters(in: .whitespaces) : ""
             if key == "expires" { rawExpires = rawValue }
             params[key] = rawValue.lowercased()
         }
@@ -42,6 +39,26 @@ struct Cookie {
     var isHTTPOnly: Bool { params["httponly"] != nil }
 
     var isSecure: Bool { params["secure"] != nil }
+
+    /// draft-ietf-httpbis-rfc6265bis-22 §5.7 steps 20 and 21, with the prefix
+    /// matched case-insensitively (§5.4): a "__Secure-" cookie must be Secure,
+    /// and a "__Host-" cookie must also stay on this one host (no Domain) and
+    /// cover the whole site ("Path=/"). A server that reads the name can then
+    /// trust no plain-http page or sibling subdomain set it.
+    var keepsNamePrefixPromise: Bool {
+        let lowercasedName: String = name.lowercased()
+        if lowercasedName.hasPrefix("__host-") {
+            return isSecure && isHostOnly && params["path"] == "/"
+        }
+        if lowercasedName.hasPrefix("__secure-") {
+            return isSecure
+        }
+        return true
+    }
+
+    // draft-ietf-httpbis-rfc6265bis-22 §5.7 step 10: only a non-empty Domain
+    // attribute lets a cookie reach past the host that set it.
+    private var isHostOnly: Bool { (params["domain"] ?? "").isEmpty }
 
     func isExpired(at now: Date) -> Bool {
         guard let expires: Date else { return false }
