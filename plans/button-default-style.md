@@ -64,14 +64,29 @@ Choice: button lines always center, rather than adding a `text-align`
 property. A page's `text-align` on a button is ignored, like every other
 `text-align` in this engine today.
 
+## Space around buttons and other embeds
+
+Line breaking (`BlockLayoutPass.swift`, `placement.cursorX += w + font.spaceWidth`)
+keeps one space after every embed. Line layout (`LineLayoutPass.swift`,
+`place`) put that space before the embed instead. A word's width already
+carries its own space, so an embed after a word got two spaces, and the word
+after an embed got none.
+
+Line layout now adds the space after an embed, as line breaking does. An
+inline box around an embed still ends at the embed, not after its space. Inside
+a button, an input is followed by a space too (`ButtonLabelPiece.advance`), so
+the label's width still matches where its words land.
+
 ## Still different from real browsers
 
 - The label uses the page font, not the system font.
 - No hover/pressed face (`#e5e5e5` / `#f5f5f5` in Chromium).
 - A CSS `width` on a button is ignored.
-- There is no gap between a button and the word right after it: line layout
-  only adds a space before an embed, never after it. Images and inputs have
-  the same gap problem.
+- The space after an embed uses the embed's own font. In a real browser it
+  belongs to the text that follows, so after a 13.333px button it is the
+  paragraph's 16px space (about 0.6px wider).
+- Two embeds with no whitespace between them (`<img><img>`) still get a space,
+  because the engine does not remember where whitespace was.
 
 ## Tests
 
@@ -80,5 +95,8 @@ property. A page's `text-align` on a button is ignored, like every other
 - `Tests/ToyStackTests/Display/ButtonPaintTests.swift`: rounded face and gray
   ring, `border: none`, transparent face, forced colors.
 - `Tests/ToyStackTests/Layouts/ButtonLayoutTests.swift`: width fits the label,
-  centered short line, wrapping in a narrow paragraph, and incremental layout
-  matching a full rebuild after label edits, font changes, and narrowing.
+  centered short line, wrapping in a narrow paragraph, one space after the
+  button, an input inside the label, and incremental layout matching a full
+  rebuild after label edits, font changes, and narrowing.
+- `Tests/ToyStackTests/Layouts/EmbedSpacingTests.swift`: one space before and
+  after an image, and a bordered span that ends at the image inside it.

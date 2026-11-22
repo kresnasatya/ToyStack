@@ -3,7 +3,7 @@ import CoreGraphics
 // MARK: - ButtonLabelPiece
 
 /// One unbreakable part of a button's label. `width` is what the piece itself
-/// covers; a word is followed by its font's space, as on any line.
+/// covers; every word and input is followed by its font's space, as on any line.
 struct ButtonLabelPiece {
     enum Kind {
         case word(String)
@@ -18,7 +18,6 @@ struct ButtonLabelPiece {
 
     /// Where the next piece on the same line starts.
     func advance(from x: CGFloat) -> CGFloat {
-        guard case .word = kind else { return x + width }
         return x + width + font.spaceWidth
     }
 

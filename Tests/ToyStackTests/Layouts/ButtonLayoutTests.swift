@@ -97,9 +97,16 @@ struct ButtonLayoutTests {
             tree.isText(id) && tree.textString(id) == "after"
         }))
 
-        let right: CGFloat = page.tree.selfRect(button).right
-        #expect(page.tree.x(after) >= right)
-        #expect(page.tree.x(after) <= right + page.tree.font(button).spaceWidth)
+        #expect(page.tree.x(after) == page.tree.selfRect(button).right + page.tree.font(button).spaceWidth)
+    }
+
+    @Test func inputInsideTheLabelKeepsTheLabelOnOneLine() throws {
+        let page: LayoutTestPage = page(#"<p><button>Pick <input type="checkbox"> this</button></p>"#)
+        let button: LayoutID = try button(page)
+        let this: LayoutID = try word(page, "this", in: button)
+
+        #expect(page.tree.childrenIDs(of: button).count == 1)
+        #expect(page.tree.x(this) + page.tree.font(this).measure("this") == page.tree.x(button) + page.tree.width(button))
     }
 
     @Test func fontChangeInsideTheLabelResizesTheButton() throws {

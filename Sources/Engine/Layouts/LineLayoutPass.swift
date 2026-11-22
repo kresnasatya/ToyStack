@@ -200,20 +200,21 @@ extension LayoutTree {
         setField(.descent, maxDescent, for: id)
 
         var nextX: CGFloat = x(id)
-        var previousFont: BrowserFont? = nil
         let baseline: CGFloat = y(id) + ascent(id)
         func place(_ index: Int) {
             let child: LayoutID = inlineChildren[index]
-            if let previousFont, isEmbed(child) {
-                nextX += previousFont.spaceWidth
-            }
             let edges: EdgeInsets = inlineEdges(child)
             let boxTop: CGFloat = inputs.tag(domID(of: child)) == "sup"
                 ? baseline - maxAscent
                 : baseline - ascent(child)
             setPosition(x: nextX + edges.left, y: boxTop + edges.top, for: child)
             nextX += inlineWidth(id, index: index, child: child)
-            previousFont = font(child)
+            // A word's width already carries the space after it. An embed's
+            // does not, yet line breaking keeps one space after it, so the
+            // next piece starts there.
+            if isEmbed(child) {
+                nextX += font(child).spaceWidth
+            }
         }
 
         let events: [InlineFlowEvent] = self[line: id].inlineBoxes.events
@@ -223,7 +224,7 @@ extension LayoutTree {
         } else {
             var open: [OpenInlineBox] = []
             var index: Int = 0
-            // A word's width carries the space after it. That space belongs
+            // Every word and embed is followed by a space. That space belongs
             // after the element's end edge, not inside its box.
             var trailingSpace: CGFloat = 0
             for (position, event) in events.enumerated() {
@@ -231,7 +232,7 @@ extension LayoutTree {
                 case .child:
                     guard index < inlineChildren.count else { continue }
                     place(index)
-                    trailingSpace = isText(inlineChildren[index]) ? font(inlineChildren[index]).spaceWidth : 0
+                    trailingSpace = font(inlineChildren[index]).spaceWidth
                     index += 1
                 case .open(let dom, let width, let opens):
                     // Words keep their order across the line whatever the
