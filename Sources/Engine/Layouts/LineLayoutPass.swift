@@ -201,6 +201,17 @@ extension LayoutTree {
 
         var nextX: CGFloat = x(id)
         let baseline: CGFloat = y(id) + ascent(id)
+        // A word's width already carries the space after it. An embed's does
+        // not: that space belongs to the text that follows, so it takes the
+        // next word's font, or the surrounding text's before another embed.
+        func spaceAfter(_ index: Int) -> CGFloat {
+            let child: LayoutID = inlineChildren[index]
+            if isText(child) { return font(child).spaceWidth }
+            guard index + 1 < inlineChildren.count else { return 0 }
+            let next: LayoutID = inlineChildren[index + 1]
+            if isText(next) { return font(next).spaceWidth }
+            return surroundingTextFont(of: domID(of: next), zoom: zoom(id)).spaceWidth
+        }
         func place(_ index: Int) {
             let child: LayoutID = inlineChildren[index]
             let edges: EdgeInsets = inlineEdges(child)
@@ -209,11 +220,8 @@ extension LayoutTree {
                 : baseline - ascent(child)
             setPosition(x: nextX + edges.left, y: boxTop + edges.top, for: child)
             nextX += inlineWidth(id, index: index, child: child)
-            // A word's width already carries the space after it. An embed's
-            // does not, yet line breaking keeps one space after it, so the
-            // next piece starts there.
             if isEmbed(child) {
-                nextX += font(child).spaceWidth
+                nextX += spaceAfter(index)
             }
         }
 
@@ -232,7 +240,7 @@ extension LayoutTree {
                 case .child:
                     guard index < inlineChildren.count else { continue }
                     place(index)
-                    trailingSpace = font(inlineChildren[index]).spaceWidth
+                    trailingSpace = spaceAfter(index)
                     index += 1
                 case .open(let dom, let width, let opens):
                     // Words keep their order across the line whatever the

@@ -1711,7 +1711,6 @@ extension LayoutTree {
 
         let available: CGFloat = width(id)
         let zoom: CGFloat = zoom(id)
-        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
         let w: CGFloat = embedLineWidth(node, available: available, zoom: zoom)
         placement.makeRoom(for: w, extent: embedExtent(node, in: id), blockWidth: available, in: &self)
         guard let lineID: LayoutID = placement.currentLine else { return }
@@ -1728,7 +1727,7 @@ extension LayoutTree {
         }
         placement.append(input, width: w)
 
-        placement.cursorX += w + font.spaceWidth
+        placement.cursorX += w + spaceAfterEmbed(id, at: index)
     }
 
     mutating private func addButton(
@@ -1759,8 +1758,7 @@ extension LayoutTree {
             placement.setObject(button, at: index)
         }
         placement.append(button, width: w)
-        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
-        placement.cursorX += w + font.spaceWidth
+        placement.cursorX += w + spaceAfterEmbed(id, at: index)
     }
 
     mutating private func addImage(
@@ -1791,9 +1789,7 @@ extension LayoutTree {
             placement.setObject(image, at: index)
         }
         placement.append(image, width: w)
-
-        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
-        placement.cursorX += w + font.spaceWidth
+        placement.cursorX += w + spaceAfterEmbed(id, at: index)
     }
 
     mutating private func addIframe(
@@ -1824,9 +1820,7 @@ extension LayoutTree {
             placement.setObject(iframe, at: index)
         }
         placement.append(iframe, width: w)
-
-        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
-        placement.cursorX += w + font.spaceWidth
+        placement.cursorX += w + spaceAfterEmbed(id, at: index)
     }
 
     mutating private func addCanvas(
@@ -1857,9 +1851,28 @@ extension LayoutTree {
             placement.setObject(canvas, at: index)
         }
         placement.append(canvas, width: w)
+        placement.cursorX += w + spaceAfterEmbed(id, at: index)
+    }
 
-        let font: BrowserFont = fontFor(node.ref.id, zoom: zoom)
-        placement.cursorX += w + font.spaceWidth
+    /// The space after an embed belongs to the text that follows, so it takes
+    /// that text's font. Before another embed it is the surrounding text's
+    /// space; at the end of a line nothing follows it.
+    private func spaceAfterEmbed(_ id: LayoutID, at index: Int) -> CGFloat {
+        let items: [InlineItem] = self[block: id].content.inlineItems
+        for item in items[(index + 1)...] {
+            switch item {
+            case .text(let text):
+                return (text.fontOverride ?? text.run.font).spaceWidth
+            case .embed(let element):
+                if element.tag == "input", element.attributes["type"] == "hidden" { continue }
+                return surroundingTextFont(of: element.id, zoom: zoom(id)).spaceWidth
+            case .boxEdge, .float:
+                continue
+            case .lineBreak:
+                return 0
+            }
+        }
+        return 0
     }
 
     private func isInsideAbbr(_ node: LayoutDOMView) -> Bool {

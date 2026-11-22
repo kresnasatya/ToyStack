@@ -73,20 +73,40 @@ carries its own space, so an embed after a word got two spaces, and the word
 after an embed got none.
 
 Line layout now adds the space after an embed, as line breaking does. An
-inline box around an embed still ends at the embed, not after its space. Inside
-a button, an input is followed by a space too (`ButtonLabelPiece.advance`), so
-the label's width still matches where its words land.
+inline box around an embed still ends at the embed, not after its space.
+
+### Which font the space uses
+
+In a real browser the space after `</button>` is part of the text node that
+follows, so it has that text's font, not the button's. The engine splits text
+into words and forgets where the whitespace was, so it uses the closest match:
+
+- Before a word: that word's font.
+- Before another embed: the font of the text around that embed (its parent's),
+  `surroundingTextFont` in `EmbedLayoutPass.swift`.
+- At the end of a line: no space.
+
+All the places that measure a line agree on this:
+
+- Line breaking: `spaceAfterEmbed` in `BlockLayoutPass.swift` looks ahead to
+  the next word or embed, skipping box edges, floats, and hidden inputs.
+- Line layout: `spaceAfter` in `LineLayoutPass.swift` looks at the next piece
+  on the line.
+- Float sizing: `IntrinsicLine` in `IntrinsicWidthPass.swift` adds the space
+  together with the next piece (`followsEmbed`), so a float keeps its words on
+  one line.
+- Button labels: `ButtonLabelPiece.append` sets an input's `spaceAfter` from
+  the piece that follows it.
 
 ## Still different from real browsers
 
 - The label uses the page font, not the system font.
 - No hover/pressed face (`#e5e5e5` / `#f5f5f5` in Chromium).
 - A CSS `width` on a button is ignored.
-- The space after an embed uses the embed's own font. In a real browser it
-  belongs to the text that follows, so after a 13.333px button it is the
-  paragraph's 16px space (about 0.6px wider).
 - Two embeds with no whitespace between them (`<img><img>`) still get a space,
   because the engine does not remember where whitespace was.
+- `<img> <b>bold</b>`: the space is in the paragraph's text, but the engine
+  uses the bold word's font, for the same reason.
 
 ## Tests
 
@@ -96,7 +116,11 @@ the label's width still matches where its words land.
   ring, `border: none`, transparent face, forced colors.
 - `Tests/ToyStackTests/Layouts/ButtonLayoutTests.swift`: width fits the label,
   centered short line, wrapping in a narrow paragraph, one space after the
-  button, an input inside the label, and incremental layout matching a full
-  rebuild after label edits, font changes, and narrowing.
+  button, an input inside the label followed by a space in the next word's
+  font, and incremental layout matching a full rebuild after label edits, font
+  changes, and narrowing.
 - `Tests/ToyStackTests/Layouts/EmbedSpacingTests.swift`: one space before and
-  after an image, and a bordered span that ends at the image inside it.
+  after an image, a bordered span that ends at the image inside it, the space
+  after a button in the next word's font, the space between two buttons in the
+  paragraph's font (and after the span around them changes font), a word that
+  just fits after a large button, and a float around a small button.

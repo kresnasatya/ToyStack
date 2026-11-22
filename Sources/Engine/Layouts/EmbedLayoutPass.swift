@@ -203,17 +203,28 @@ extension LayoutTree {
                 let font: BrowserFont = fontFor(node.id, zoom: zoom)
                 for word in textNode.text.split(whereSeparator: { $0.isWhitespace }) {
                     let text: String = String(word)
-                    pieces.append(ButtonLabelPiece(kind: .word(text), dom: node.id, font: font, width: font.measure(text)))
+                    let piece: ButtonLabelPiece = ButtonLabelPiece(
+                        kind: .word(text, font),
+                        dom: node.id,
+                        width: font.measure(text),
+                        spaceAfter: font.spaceWidth
+                    )
+                    ButtonLabelPiece.append(piece, textFont: font, to: &pieces)
                 }
             } else if let el = node.element {
-                let font: BrowserFont = fontFor(node.id, zoom: zoom)
                 if el.tag == "br" {
-                    pieces.append(ButtonLabelPiece(kind: .lineBreak, dom: node.id, font: font, width: 0))
+                    pieces.append(ButtonLabelPiece(kind: .lineBreak, dom: node.id, width: 0, spaceAfter: 0))
                 } else if el.tag == "input" {
                     let isCheckbox: Bool = el.attributes["type"] == "checkbox"
-                    let content: CGFloat = isCheckbox ? font.linespace : inputWidthPx * zoom
+                    let content: CGFloat = isCheckbox ? fontFor(node.id, zoom: zoom).linespace : inputWidthPx * zoom
                     let edges: EdgeInsets = el.style.computed.box.paddingAndBorder.scaled(by: zoom)
-                    pieces.append(ButtonLabelPiece(kind: .input, dom: node.id, font: font, width: content + edges.horizontal))
+                    let piece: ButtonLabelPiece = ButtonLabelPiece(
+                        kind: .input,
+                        dom: node.id,
+                        width: content + edges.horizontal,
+                        spaceAfter: 0
+                    )
+                    ButtonLabelPiece.append(piece, textFont: surroundingTextFont(of: node.id, zoom: zoom), to: &pieces)
                 } else {
                     collectButtonPieces(node.children, zoom: zoom, into: &pieces)
                 }
@@ -225,11 +236,11 @@ extension LayoutTree {
         switch piece.kind {
         case .lineBreak:
             newButtonLine(id)
-        case .word(let word):
+        case .word(let word, let font):
             placeButtonPiece(id, piece) { tree, line, previous in
                 tree.makeText(
                     TextData(
-                        payload: TextPayload(word: word, display: nil, fontOverride: piece.font),
+                        payload: TextPayload(word: word, display: nil, fontOverride: font),
                         fragment: nil,
                         metrics: TextMetrics(width: 0, whiteSpace: .normal)
                     ),
@@ -366,6 +377,12 @@ extension LayoutTree {
 
     func embedBorderWidths(_ id: LayoutID) -> EdgeInsets {
         return inputs.style(domID(of: id)).box.decoration.border.usedWidths.scaled(by: embedEdgeZoom(id))
+    }
+
+    /// The font text gets next to an embed: its parent's, since the embed's
+    /// own font only reaches the text inside it.
+    func surroundingTextFont(of embed: NodeID, zoom: CGFloat) -> BrowserFont {
+        return fontFor(inputs.parent(embed) ?? embed, zoom: zoom)
     }
 
     /// CSS 2.1 §10.1: percentages resolve against the containing block, the

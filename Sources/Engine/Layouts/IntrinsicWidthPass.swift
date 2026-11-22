@@ -69,7 +69,7 @@ extension LayoutTree {
         }
         let width: CGFloat = embedLineWidth(element, available: available, zoom: zoom)
         if width > 0 {
-            line.addPiece(width + fontFor(element.id, zoom: zoom).spaceWidth, breaks: true)
+            line.addEmbed(width, textFont: surroundingTextFont(of: element.id, zoom: zoom))
             return
         }
         let edges: EdgeInsets = element.style.computed.box.paddingAndBorder.scaled(by: zoom)
@@ -96,7 +96,7 @@ extension LayoutTree {
                 ? (segment.isEmpty ? [] : [Substring(segment)])
                 : segment.split(whereSeparator: { $0.isWhitespace })
             for word in words {
-                line.addPiece(font.measure(String(word)) + font.spaceWidth, breaks: mode.wraps)
+                line.addPiece(font.measure(String(word)) + font.spaceWidth, breaks: mode.wraps, textFont: font)
             }
         }
     }
@@ -109,13 +109,26 @@ extension LayoutTree {
 private struct IntrinsicLine {
     var current: CGFloat = 0
     var widths: IntrinsicWidths = .zero
+    /// The space after an embed belongs to the text that follows, so it is
+    /// added with the next piece, in that piece's `textFont`.
+    var followsEmbed: Bool = false
 
     /// A piece that `breaks` may start a new line; otherwise it sticks to the
     /// piece before it, so the whole line so far is unbreakable.
-    mutating func addPiece(_ width: CGFloat, breaks: Bool) {
+    mutating func addPiece(_ width: CGFloat, breaks: Bool, textFont: BrowserFont) {
+        if followsEmbed {
+            current += textFont.spaceWidth
+            followsEmbed = false
+        }
         current += width
         let unbreakable: CGFloat = breaks ? width : current
         widths.minContent = max(widths.minContent, unbreakable)
+    }
+
+    /// `textFont` is the font of the text around the embed.
+    mutating func addEmbed(_ width: CGFloat, textFont: BrowserFont) {
+        addPiece(width, breaks: true, textFont: textFont)
+        followsEmbed = true
     }
 
     /// An inline element's padding and border widen the line but sit next to
@@ -127,6 +140,7 @@ private struct IntrinsicLine {
     mutating func breakLine() {
         widths.maxContent = max(widths.maxContent, current)
         current = 0
+        followsEmbed = false
     }
 
     mutating func finish() -> IntrinsicWidths {

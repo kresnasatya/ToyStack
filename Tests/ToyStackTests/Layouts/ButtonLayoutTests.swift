@@ -100,10 +100,19 @@ struct ButtonLayoutTests {
         #expect(page.tree.x(after) == page.tree.selfRect(button).right + page.tree.font(button).spaceWidth)
     }
 
+    /// The input's own font is larger than the label's, so this also checks
+    /// that the space after it takes the font of the word that follows.
     @Test func inputInsideTheLabelKeepsTheLabelOnOneLine() throws {
-        let page: LayoutTestPage = page(#"<p><button>Pick <input type="checkbox"> this</button></p>"#)
+        let page: LayoutTestPage = page(
+            #"<p><button>Pick <input type="checkbox"> this</button></p>"#,
+            rules: "input { font-size: 30px; }"
+        )
         let button: LayoutID = try button(page)
         let this: LayoutID = try word(page, "this", in: button)
+        let checkbox: ElementRef = try #require(page.firstElement(tag: "input"))
+        let input: LayoutID = try #require(page.firstEmbedID(in: checkbox))
+
+        #expect(page.tree.x(this) == page.tree.selfRect(input).right + page.tree.font(this).spaceWidth)
 
         #expect(page.tree.childrenIDs(of: button).count == 1)
         #expect(page.tree.x(this) + page.tree.font(this).measure("this") == page.tree.x(button) + page.tree.width(button))

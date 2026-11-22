@@ -4,7 +4,8 @@ import Testing
 @testable import Engine
 
 /// The space between an embed and the words around it: one space on each
-/// side, the same room line breaking keeps for it.
+/// side, the same room line breaking keeps for it. As in real browsers, the
+/// space after an embed belongs to the text that follows and takes its font.
 @Suite(.serialized)
 @MainActor
 struct EmbedSpacingTests {
@@ -30,12 +31,100 @@ struct EmbedSpacingTests {
         return try #require(page.firstEmbedID(in: element))
     }
 
+    private func buttons(_ page: LayoutTestPage) throws -> [LayoutID] {
+        let elements: [ElementRef] = treeToList(page.frame.nodes)
+            .compactMap({ $0.element })
+            .filter({ $0.tag == "button" })
+        return try elements.map({ try #require(page.embedID(in: $0, .button)) })
+    }
+
+    private static let smallButtons: String = """
+        button { font-size: 10px; padding: 2px 7px; border: 1px solid black; }
+        """
+
+    private static let largeButtons: String = """
+        button { font-size: 30px; padding: 2px 7px; border: 1px solid black; }
+        """
+
     @Test func wordAfterAnImageStartsOneSpaceAfterIt() throws {
         let page: LayoutTestPage = page(#"<p>before <img width="50" height="20"> after</p>"#)
         let image: LayoutID = try image(page)
         let after: LayoutID = try word(page, "after")
 
         #expect(page.tree.x(after) == page.tree.selfRect(image).right + page.tree.font(image).spaceWidth)
+    }
+
+    @Test func spaceAfterAButtonTakesTheFontOfTheWordAfterIt() throws {
+        let page: LayoutTestPage = page(#"<p><button>Go</button> after</p>"#, rules: Self.smallButtons)
+        let button: LayoutID = try #require(try buttons(page).first)
+        let after: LayoutID = try word(page, "after")
+
+        #expect(page.tree.x(after) == page.tree.selfRect(button).right + page.tree.font(after).spaceWidth)
+    }
+
+    @Test func spaceBetweenTwoButtonsTakesTheParagraphFont() throws {
+        let page: LayoutTestPage = page(#"<p><button>A</button> <button>B</button></p>"#, rules: Self.smallButtons)
+        let pair: [LayoutID] = try buttons(page)
+        let paragraph: ElementRef = try #require(page.firstElement(tag: "p"))
+        let block: LayoutID = try #require(page.layoutID(of: paragraph))
+        let space: CGFloat = page.tree.fontFor(paragraph.id, zoom: page.tree.zoom(block)).spaceWidth
+
+        #expect(pair.count == 2)
+        #expect(page.tree.selfRect(pair[1]).left == page.tree.selfRect(pair[0]).right + space)
+    }
+
+    @Test func spanFontChangeMovesTheSecondButton() throws {
+        let page: LayoutTestPage = page(
+            #"<p><span id="s"><button>A</button> <button>B</button></span></p>"#,
+            rules: Self.smallButtons
+        )
+        let span: ElementRef = try #require(page.firstElement(id: "s"))
+
+        InlineStyle.set(span, property: "font-size", value: "40px")
+        page.frame.setNeedsStyle(span.ref)
+        page.frame.render()
+
+        let pair: [LayoutID] = try buttons(page)
+        let line: LayoutID = try #require(page.tree.parentID(of: pair[0]))
+        let block: LayoutID = try #require(page.tree.parentID(of: line))
+        let space: CGFloat = page.tree.fontFor(span.id, zoom: page.tree.zoom(block)).spaceWidth
+        #expect(page.tree.selfRect(pair[1]).left == page.tree.selfRect(pair[0]).right + space)
+        expectIncrementalMatchesFull(page)
+    }
+
+    /// Line breaking must keep the same room the line gives the space, or a
+    /// word that fits wraps early.
+    @Test func wordThatFitsAfterALargeButtonStaysOnItsLine() throws {
+        let page: LayoutTestPage = page(#"<p id="p"><button>Go</button> after</p>"#, rules: Self.largeButtons)
+        let after: LayoutID = try word(page, "after")
+        let font: BrowserFont = page.tree.font(after)
+        let button: LayoutID = try #require(try buttons(page).first)
+        let box: Rect = page.tree.selfRect(button)
+        // A word's room includes the space after it. The half pixel absorbs
+        // rounding; a space in the button's font would need about 3px more.
+        let fit: CGFloat = (box.right - box.left) + font.spaceWidth + font.measure("after") + font.spaceWidth + 0.5
+        let paragraph: ElementRef = try #require(page.firstElement(id: "p"))
+
+        InlineStyle.set(paragraph, property: "width", value: "\(fit)px")
+        page.frame.setNeedsStyle(paragraph.ref)
+        page.frame.render()
+
+        let placed: LayoutID = try word(page, "after")
+        let line: LayoutID? = page.tree.parentID(of: try #require(try buttons(page).first))
+        #expect(page.tree.parentID(of: placed) == line)
+        expectIncrementalMatchesFull(page)
+    }
+
+    /// A float sizes itself from the same spaces, so its words do not wrap.
+    @Test func floatAroundASmallButtonKeepsTheWordAfterIt() throws {
+        let page: LayoutTestPage = page(
+            #"<p><span id="f"><button>Go</button> after</span></p>"#,
+            rules: Self.smallButtons + "#f { float: left; }"
+        )
+        let after: LayoutID = try word(page, "after")
+        let button: LayoutID = try #require(try buttons(page).first)
+
+        #expect(page.tree.parentID(of: after) == page.tree.parentID(of: button))
     }
 
     @Test func imageAfterAWordStartsOneSpaceAfterIt() throws {
