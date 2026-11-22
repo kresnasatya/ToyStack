@@ -75,4 +75,22 @@ struct NodeTraversalTests {
         #expect(page.textWidthID(in: p) > widthBefore)
         expectIncrementalMatchesFull(page)
     }
+
+    @Test func documentElementIsTheRootWithNoParent() {
+        let page: LayoutTestPage = makePage(#"<html lang="en"><body><p>x</p></body></html>"#)
+        let result: JSValue? = page.frame.js.evaluate("""
+            var root = document.documentElement;
+            [root.getAttribute('lang'), root.parentNode === null].join('|')
+        """)
+        #expect(result?.toString() == "en|true")
+    }
+
+    @Test func childNodesListsTextAndCommentsButChildrenDoesNot() {
+        let page: LayoutTestPage = makePage(#"<div id="box">a<!--m--><p>b</p></div>"#)
+        let result: JSValue? = page.frame.js.evaluate("""
+            var box = document.getElementById('box');
+            [box.childNodes.map(function (n) { return n.nodeType; }).join(''), box.children.length].join('|')
+        """)
+        #expect(result?.toString() == "381|1")
+    }
 }

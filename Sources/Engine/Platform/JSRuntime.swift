@@ -7,6 +7,7 @@ class JSRuntime: @unchecked Sendable {
     private var handleToNode: [Int: NodeID] = [:]
     private var intervalTimes: [Int: DispatchSourceTimer] = [:]
     private weak var frame: Frame?
+    private var currentScript: NodeID?
 
     private static let eventDispatchJS: String = "new Node(__handle).dispatchEvent(new Event(__type))"
 
@@ -21,10 +22,16 @@ class JSRuntime: @unchecked Sendable {
         return jsContext.evaluateScript(code)
     }
 
-    func run(script: String, code: String) {
+    // HTML §4.12.1.1 "execute the script element": currentScript is the script element
+    // while it runs, then goes back to its old value, so a script started inside another
+    // one (appendChild of a <script src>) hands it back to the outer script.
+    func run(script: String, code: String, element: NodeID? = nil) {
         jsContext.exceptionHandler = { _, exception in
             print("Script", script, "crashed:", exception?.toString() ?? "unknown error")
         }
+        let outer: NodeID? = currentScript
+        currentScript = element
+        defer { currentScript = outer }
         jsContext.evaluateScript(code)
     }
 
@@ -120,6 +127,14 @@ class JSRuntime: @unchecked Sendable {
         } as @convention(block) (Int, String) -> String, forKeyedSubscript: "_getAttribute" as NSString)
 
         jsContext.setObject({
+            [weak self] (handle: Int, attr: String) -> Bool in
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return false }
+            return MainActor.assumeIsolated { frame.dom.attribute(attr, of: id) != nil }
+        } as @convention(block) (Int, String) -> Bool, forKeyedSubscript: "_hasAttribute" as NSString)
+
+        jsContext.setObject({
             [weak self] (handle: Int, attr: String, value: String) in
             MainActor.assumeIsolated({
                 guard let self, let frame = self.frame,
@@ -162,6 +177,15 @@ class JSRuntime: @unchecked Sendable {
             }
             semaphore.wait()
         } as @convention(block) (String) -> Void, forKeyedSubscript: "_setCookie" as NSString)
+
+        jsContext.setObject({
+            [weak self] () -> Int in
+            guard let self, let frame = self.frame else { return -1 }
+            return MainActor.assumeIsolated {
+                guard let id: NodeID = self.currentScript else { return -1 }
+                return self.getHandle(frame.dom.ref(id))
+            }
+        } as @convention(block) () -> Int, forKeyedSubscript: "_currentScript" as NSString)
 
         registerNodeTraversal()
 
@@ -510,6 +534,11 @@ class JSRuntime: @unchecked Sendable {
         } as @convention(block) () -> String, forKeyedSubscript: "_getLocationHref" as NSString)
 
         jsContext.setObject({
+            (input: String, base: String) -> [String: String] in
+            URLParts.parse(input, base: base)
+        } as @convention(block) (String, String) -> [String: String], forKeyedSubscript: "_parseURL" as NSString)
+
+        jsContext.setObject({
             [weak self] (raw: String) in
             MainActor.assumeIsolated({ self?.frame?.navigateToLocation(raw) })
         } as @convention(block) (String) -> Void, forKeyedSubscript: "_setLocationHref" as NSString)
@@ -543,6 +572,22 @@ class JSRuntime: @unchecked Sendable {
         registerNodeLookup("_firstChild", { dom, id in dom.children(of: id).first })
         registerNodeLookup("_previousSibling", { dom, id in dom.previousSibling(of: id) })
         registerNodeLookup("_nextSibling", { dom, id in dom.nextSibling(of: id) })
+
+        jsContext.setObject({
+            [weak self] () -> Int in
+            guard let self, let frame = self.frame else { return -1 }
+            return MainActor.assumeIsolated { self.getHandle(frame.nodes) }
+        } as @convention(block) () -> Int, forKeyedSubscript: "_documentElement" as NSString)
+
+        jsContext.setObject({
+            [weak self] (handle: Int) -> [Int] in
+            guard let self, let frame = self.frame,
+                let id = self.handleToNode[handle]
+            else { return [] }
+            return MainActor.assumeIsolated({
+                frame.dom.children(of: id).map({ self.getHandle(frame.dom.ref($0)) })
+            })
+        } as @convention(block) (Int) -> [Int], forKeyedSubscript: "_childNodes" as NSString)
 
         jsContext.setObject({
             [weak self] (handle: Int) -> Int in

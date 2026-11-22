@@ -385,8 +385,7 @@ class Frame {
                         let styleURL: WebURL = url.resolve(link.attributes["href"]!)
                         return (i, styleURL, self.effectiveReferrer(for: styleURL))
                     })
-                let scripts: [ResourceLoad] = elements
-                    .filter({ $0.tag == "script" && $0.attributes["src"] != nil })
+                let scripts: [ResourceLoad] = Self.externalScripts(in: elements)
                     .enumerated()
                     .map({ (i, node) in
                         let scriptURL: WebURL = url.resolve(node.attributes["src"]!)
@@ -488,18 +487,19 @@ class Frame {
         url: WebURL,
         bodies: [(index: Int, url: WebURL, body: String)]
     ) {
-        for (_, scriptURL, body) in bodies.sorted(by: { $0.index < $1.index }) {
-            js.run(script: scriptURL.toString(), code: body)
+        let externalScripts: [ElementRef] = Self.externalScripts(in: treeToList(nodes).compactMap({ $0.element }))
+        for (index, scriptURL, body) in bodies.sorted(by: { $0.index < $1.index }) {
+            js.run(script: scriptURL.toString(), code: body, element: externalScripts[index].id)
             state.document.resources.loadedScripts.insert(scriptURL.toString())
         }
 
         js.defineIDs()
 
         for scriptNode in treeToList(nodes).compactMap({ $0.element })
-            .filter({ $0.tag == "script" && $0.attributes["src"] == nil })
+            .filter({ $0.tag == "script" && $0.attributes["src"] == nil && ScriptType.isClassic($0.attributes) })
         {
             let code: String = scriptNode.children.compactMap({ $0.text }).map(\.text).joined()
-            if !code.isEmpty { js.run(script: "inline", code: code) }
+            if !code.isEmpty { js.run(script: "inline", code: code, element: scriptNode.id) }
         }
 
         setNeedsRender()
@@ -507,6 +507,10 @@ class Frame {
         if let fragment = url.fragment {
             scrollToFragment(fragment)
         }
+    }
+
+    private static func externalScripts(in elements: [ElementRef]) -> [ElementRef] {
+        return elements.filter({ $0.tag == "script" && $0.attributes["src"] != nil && ScriptType.isClassic($0.attributes) })
     }
 
     private func fetchImages(
@@ -769,7 +773,7 @@ class Frame {
     func runNewScripts(in root: DOMRef) {
         for node in treeToList(root) {
             guard let el = node.element, el.tag == "script",
-                let src = el.attributes["src"]
+                let src = el.attributes["src"], ScriptType.isClassic(el.attributes)
             else { continue }
             let scriptURL: WebURL = url.resolve(src)
             guard allowedRequest(scriptURL) else {
@@ -781,7 +785,7 @@ class Frame {
             guard let (_, status, headers, body) = scriptURL.requestSync() else { continue }
             guard BrowserTab.isExecutableScript(status: status, headers: headers, url: scriptURL) else { continue }
             state.document.resources.loadedScripts.insert(urlStr)
-            js.run(script: urlStr, code: body)
+            js.run(script: urlStr, code: body, element: el.id)
         }
     }
 

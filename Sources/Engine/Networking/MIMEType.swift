@@ -27,6 +27,10 @@ enum MIMEType {
         javaScriptTypes.contains(essence(contentType))
     }
 
+    static func isJavaScriptEssenceMatch(_ string: String) -> Bool {
+        javaScriptTypes.contains(string.lowercased())
+    }
+
     static func isCSS(_ contentType: String?) -> Bool {
         essence(contentType) == "text/css"
     }

@@ -34,6 +34,24 @@ Object.defineProperty(document, "cookie", {
   },
 });
 
+Object.defineProperty(document, "currentScript", {
+  get: function () {
+    return __nodeOrNull(_currentScript());
+  },
+});
+
+Object.defineProperty(document, "scripts", {
+  get: function () {
+    return document.querySelectorAll("script");
+  },
+});
+
+Object.defineProperty(document, "documentElement", {
+  get: function () {
+    return __nodeOrNull(_documentElement());
+  },
+});
+
 function Node(handle) {
   this.handle = handle;
 }
@@ -75,6 +93,10 @@ Node.prototype.replaceChildren = function () {
 
 Node.prototype.setAttribute = function (attr, value) {
   _setAttribute(this.handle, attr, value.toString());
+};
+
+Node.prototype.hasAttribute = function (attr) {
+  return _hasAttribute(this.handle, attr);
 };
 
 var LISTENERS = {};
@@ -152,6 +174,14 @@ Object.defineProperty(Node.prototype, "children", {
   },
 });
 
+Object.defineProperty(Node.prototype, "childNodes", {
+  get: function () {
+    return _childNodes(this.handle).map(function (h) {
+      return new Node(h);
+    });
+  },
+});
+
 function __nodeOrNull(handle) {
   return handle === -1 ? null : new Node(handle);
 }
@@ -192,6 +222,101 @@ Object.defineProperty(Node.prototype, "data", {
   },
   set: function (value) {
     _setData(this.handle, value.toString());
+  },
+});
+
+function __domException(name, message) {
+  var error = new Error(message);
+  error.name = name;
+  return error;
+}
+
+function __validToken(token) {
+  token = String(token);
+  if (token === "") throw __domException("SyntaxError", "The token must not be empty.");
+  if (/[\t\n\f\r ]/.test(token)) throw __domException("InvalidCharacterError", "The token must not contain whitespace.");
+  return token;
+}
+
+function DOMTokenList(node) {
+  this._node = node;
+}
+
+DOMTokenList.prototype._tokens = function () {
+  var tokens = [];
+  var parts = this._node.getAttribute("class").split(/[\t\n\f\r ]+/);
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i] !== "" && tokens.indexOf(parts[i]) === -1) tokens.push(parts[i]);
+  }
+  return tokens;
+};
+
+// DOM §7.1 "update steps": an element with no class attribute and nothing to write
+// keeps having no class attribute.
+DOMTokenList.prototype._update = function (tokens) {
+  if (!this._node.hasAttribute("class") && tokens.length === 0) return;
+  this._node.setAttribute("class", tokens.join(" "));
+};
+
+Object.defineProperty(DOMTokenList.prototype, "length", {
+  get: function () {
+    return this._tokens().length;
+  },
+});
+
+DOMTokenList.prototype.contains = function (token) {
+  return this._tokens().indexOf(String(token)) !== -1;
+};
+
+DOMTokenList.prototype.add = function () {
+  var added = Array.prototype.map.call(arguments, __validToken);
+  var tokens = this._tokens();
+  for (var i = 0; i < added.length; i++) {
+    if (tokens.indexOf(added[i]) === -1) tokens.push(added[i]);
+  }
+  this._update(tokens);
+};
+
+DOMTokenList.prototype.remove = function () {
+  var removed = Array.prototype.map.call(arguments, __validToken);
+  var tokens = this._tokens().filter(function (token) {
+    return removed.indexOf(token) === -1;
+  });
+  this._update(tokens);
+};
+
+DOMTokenList.prototype.toggle = function (token, force) {
+  token = __validToken(token);
+  var tokens = this._tokens();
+  var index = tokens.indexOf(token);
+  if (index !== -1) {
+    if (force === true) return true;
+    tokens.splice(index, 1);
+    this._update(tokens);
+    return false;
+  }
+  if (force === false) return false;
+  tokens.push(token);
+  this._update(tokens);
+  return true;
+};
+
+Object.defineProperty(Node.prototype, "classList", {
+  get: function () {
+    return new DOMTokenList(this);
+  },
+});
+
+// HTML §4.6.4 href getter: no attribute gives "", an address that cannot be parsed
+// is returned as written, anything else is resolved against the page.
+Object.defineProperty(Node.prototype, "href", {
+  get: function () {
+    if (!this.hasAttribute("href")) return "";
+    var raw = this.getAttribute("href");
+    return _parseURL(raw, _getLocationHref()).href || raw;
+  },
+  set: function (value) {
+    this.setAttribute("href", value);
   },
 });
 
@@ -460,6 +585,18 @@ Object.defineProperty(location, "hash", {
     _setLocationHref(hash);
   }
 });
+
+function URL(url, base) {
+  var parts = _parseURL(String(url), base === undefined ? "" : String(base));
+  if (parts.href === undefined) throw new TypeError("Invalid URL: " + url);
+  for (var name in parts) this[name] = parts[name];
+}
+
+URL.prototype.toString = function () {
+  return this.href;
+};
+
+URL.prototype.toJSON = URL.prototype.toString;
 
 var window = __globalThis;
 var self = __globalThis;
