@@ -25,14 +25,14 @@ func runScene(_ options: HeadlessOptions) -> Never {
     pumpRenderIdle(browser)
 
     let scheduled: [ScheduledEvent] = options.session.events.sorted(by: { (lhs: ScheduledEvent, rhs: ScheduledEvent) -> Bool in lhs.time < rhs.time })
-    let limit: Int = options.session.frameLimit ?? animationFrameCount(for: options.session.runFor ?? 10)
-    let watchStability: Bool = options.session.frameLimit == nil && options.session.runFor == nil
+    var stop: StopCondition = StopCondition(
+        session: options.session,
+        signature: displaySignature(browser.drawList)
+    )
     var eventIndex: Int = 0
     var tick: Int = 0
-    var stableTicks: Int = 0
-    var lastSignature: String = displaySignature(browser.drawList)
 
-    while tick < limit {
+    while tick < stop.frameLimit {
         while eventIndex < scheduled.count,
             animationFrameCount(for: scheduled[eventIndex].time) <= tick
         {
@@ -43,22 +43,15 @@ func runScene(_ options: HeadlessOptions) -> Never {
                 viewport: options.viewport
             )
             eventIndex += 1
+            stop.eventApplied()
         }
 
         browser.advanceFrame()
         pumpRenderIdle(browser)
         tick += 1
 
-        if watchStability {
-            let current: String = displaySignature(browser.drawList)
-            if current == lastSignature, browser.isRenderIdle {
-                stableTicks += 1
-            } else {
-                stableTicks = 0
-                lastSignature = current
-            }
-            if stableTicks >= 30 { break }
-        }
+        stop.frameRendered(signature: displaySignature(browser.drawList), isRenderIdle: browser.isRenderIdle)
+        if stop.canStopEarly(pendingEvents: scheduled.count - eventIndex) { break }
     }
 
     if let path: String = options.output.screenshotPath {

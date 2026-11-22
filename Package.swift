@@ -39,7 +39,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ToyStackTests",
-            dependencies: ["Engine"]
+            dependencies: ["Engine", "ToyStackHeadless"]
         ),
     ]
 )
