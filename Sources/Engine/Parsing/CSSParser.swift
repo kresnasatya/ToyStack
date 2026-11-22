@@ -295,24 +295,48 @@ class CSSParser {
         return parts.normal.merging(parts.important) { _, imp in imp }
     }
 
-    private func parseSimpleSelector(_ token: String) -> any CSSSelector {
-        let parts: [String] = token.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
-        var selectors: [any CSSSelector] = []
-        if let first = parts.first {
-            let hashParts: [String] = first.split(separator: "#", omittingEmptySubsequences: false).map(
-                String.init)
-            if let tag = hashParts.first, !tag.isEmpty {
-                selectors.append(TagSelector(tag: tag.lowercased()))
-            }
-            if hashParts.count > 1, let id = hashParts.last, !id.isEmpty {
-                selectors.append(IDSelector(id: id))
+    // CSS Syntax §4.3.8: a backslash starts an escape unless a newline follows it.
+    private func startsEscape(at index: Int) -> Bool {
+        return index + 1 < chars.count && chars[index] == "\\" && !chars[index + 1].isNewline
+    }
+
+    // CSS Syntax §4.3.7: up to six hex digits name a code point and one whitespace after
+    // them ends the escape; any other character after the backslash stands for itself.
+    private func escapedCharacter() -> Character {
+        i += 1
+        var hex: String = ""
+        while i < chars.count, hex.count < 6, chars[i].isHexDigit {
+            hex.append(chars[i])
+            i += 1
+        }
+        guard !hex.isEmpty else {
+            let literal: Character = chars[i]
+            i += 1
+            return literal
+        }
+        if i < chars.count, chars[i].isWhitespace { i += 1 }
+        guard let value: UInt32 = UInt32(hex, radix: 16), value != 0,
+            let scalar: Unicode.Scalar = Unicode.Scalar(value)
+        else { return "\u{FFFD}" }
+        return Character(scalar)
+    }
+
+    // CSS Syntax §4.3.12: an ident is letters, digits, "-", "_", any non-ASCII
+    // character, and escapes. Tailwind relies on escapes for names like "md:hidden".
+    private func identifier() -> String? {
+        var result: String = ""
+        while i < chars.count {
+            let c: Character = chars[i]
+            if c.isLetter || c.isNumber || c == "-" || c == "_" || !c.isASCII {
+                result.append(c)
+                i += 1
+            } else if startsEscape(at: i) {
+                result.append(escapedCharacter())
+            } else {
+                break
             }
         }
-        for cls in parts.dropFirst() where !cls.isEmpty {
-            selectors.append(ClassSelector(cls: cls))
-        }
-        guard !selectors.isEmpty else { return TagSelector(tag: "") }
-        return selectors.count == 1 ? selectors[0] : SelectorSequence(selectors: selectors)
+        return result.isEmpty ? nil : result
     }
 
     private func attributeSelector() -> (any CSSSelector)? {
@@ -353,15 +377,20 @@ class CSSParser {
         if i < chars.count && chars[i] == "*" {
             i += 1
             parts.append(UniversalSelector())
-        } else if let w = try? word() {
-            parts.append(parseSimpleSelector(w))
+        } else if let tag = identifier() {
+            parts.append(TagSelector(tag: tag.lowercased()))
         }
 
-        while i < chars.count && chars[i] == "[" {
-            guard let attr = attributeSelector() else {
-                return TagSelector(tag: "")
+        while i < chars.count && (chars[i] == "." || chars[i] == "#" || chars[i] == "[") {
+            let marker: Character = chars[i]
+            if marker == "[" {
+                guard let attr = attributeSelector() else { return TagSelector(tag: "") }
+                parts.append(attr)
+                continue
             }
-            parts.append(attr)
+            i += 1
+            guard let name = identifier() else { return TagSelector(tag: "") }
+            parts.append(marker == "." ? ClassSelector(cls: name) : IDSelector(id: name))
         }
 
         while i < chars.count && chars[i] == ":" {

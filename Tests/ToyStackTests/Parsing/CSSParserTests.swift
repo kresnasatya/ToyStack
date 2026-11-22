@@ -155,6 +155,47 @@ struct CSSParserTests {
         #expect(!matches(selector, dom.ref(p)))
     }
 
+    // MARK: - Escaped identifiers
+
+    // Tailwind writes variants and arbitrary values as escaped class names.
+    @Test func escapedCharactersStayInTheClassName() {
+        let css: String = #".md\:hidden, .w-1\/2, .inset-\[-1px\], .py-2\.5, .min-\[570px\]\:flex { display: none }"#
+        let keys: [SelectorKey] = CSSParser(css).parse().rules.map({ $0.1.key })
+        #expect(keys == [
+            .className("md:hidden"), .className("w-1/2"), .className("inset-[-1px]"),
+            .className("py-2.5"), .className("min-[570px]:flex"),
+        ])
+    }
+
+    @Test func underscoreBelongsToTheClassName() {
+        let keys: [SelectorKey] = CSSParser(".UVV31W_gradientBorder { color: red }").parse().rules.map({ $0.1.key })
+        #expect(keys == [.className("UVV31W_gradientBorder")])
+    }
+
+    // CSS Syntax §4.3.7: a hex escape takes up to six hex digits, and one space after
+    // them belongs to the escape, not to the selector.
+    @Test func hexEscapeSwallowsOneSpace() {
+        let rules: [RuleIndex.Rule] = CSSParser(#".\31 0, #\61 b { color: red }"#).parse().rules
+        #expect(rules.map({ $0.1.key }) == [.className("10"), .id("ab")])
+    }
+
+    @Test func escapedClassAndTagStillFormOneCompound() throws {
+        let rules: [RuleIndex.Rule] = CSSParser(#"div.sm\:flex#main { color: red }"#).parse().rules
+        let selector: any CSSSelector = try #require(rules.first?.1)
+        let dom: DOMTree = DOMTree()
+        let hit: NodeID = dom.createElement(tag: "div", attributes: ["class": "sm:flex", "id": "main"])
+        let miss: NodeID = dom.createElement(tag: "div", attributes: ["class": "sm", "id": "main"])
+        #expect(matches(selector, dom.ref(hit)))
+        #expect(!matches(selector, dom.ref(miss)))
+    }
+
+    // CSS Syntax §4.3.8: a backslash before a newline is not an escape, so the
+    // selector is invalid and only its own rule is dropped.
+    @Test func backslashBeforeNewlineDropsOnlyThatRule() {
+        let rules: [RuleIndex.Rule] = CSSParser(".a\\\n{ color: red } p { color: blue }").parse().rules
+        #expect(rules.map({ $0.1.key }) == [.tag("p")])
+    }
+
     private func matches(_ selector: any CSSSelector, _ ref: DOMRef) -> Bool {
         let snapshot: StyleSnapshot = StyleSnapshotBuilder.build(dom: ref.dom)
         guard let index: Int = snapshot.index(of: ref.id) else { return false }
