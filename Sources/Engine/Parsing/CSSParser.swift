@@ -403,6 +403,13 @@ class CSSParser {
                 skipWhitespace()
                 _ = try? literal(")")
                 parts.append(HasSelector(inner: inner))
+            } else if keyword == "is" || keyword == "where" {
+                guard (try? literal("(")) != nil else { return TagSelector(tag: "") }
+                skipWhitespace()
+                guard let list = try? selectorList(), (try? literal(")")) != nil else {
+                    return TagSelector(tag: "")
+                }
+                parts.append(IsSelector(alternatives: list, keepsSpecificity: keyword == "is"))
             } else {
                 let base: any CSSSelector =
                     parts.isEmpty
