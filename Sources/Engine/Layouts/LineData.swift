@@ -19,8 +19,6 @@ struct LineData {
 
 // MARK: - LineInlineBoxes
 
-/// Inline elements with padding or border on this line: `events` is what the
-/// block's placement recorded, `fragments` is where the line put them.
 struct LineInlineBoxes {
     var events: [InlineFlowEvent]
     var fragments: [InlineBoxFragment]

@@ -1,11 +1,9 @@
 import Foundation
 
-/// Hosts that asked to be reached over https only (RFC 6797 HSTS).
+/// Hosts that asked to be reached over https only (RFC 6797 §8.1).
 public actor HSTSStore {
     public static let shared: HSTSStore = HSTSStore()
 
-    // Chromium's preload list marks these whole endings https-only, so even
-    // the first visit to any .dev or .app site never goes out over http.
     private static let preloaded: [String: HSTSEntry] = [
         "dev": HSTSEntry(expires: .distantFuture, includesSubdomains: true),
         "app": HSTSEntry(expires: .distantFuture, includesSubdomains: true),
@@ -14,7 +12,6 @@ public actor HSTSStore {
     private var entries: [String: HSTSEntry] = [:]
     private var file: URL? = nil
 
-    /// Loads rules saved by an earlier run and saves every later change there.
     public func persist(to file: URL) {
         self.file = file
         guard let data: Data = try? Data(contentsOf: file),
@@ -25,8 +22,8 @@ public actor HSTSStore {
         entries.merge(saved, uniquingKeysWith: { (current: HSTSEntry, _: HSTSEntry) -> HSTSEntry in current })
     }
 
-    /// RFC 6797 §8.1: only a header that arrived over https counts, and an IP
-    /// address is never remembered.
+    /// RFC 6797 §8.1: only a header that arrived over https counts, and §8.1.1:
+    /// an IP address is never noted as a Known HSTS Host.
     func note(_ header: String, from url: WebURL, now: Date = Date()) {
         guard url.scheme == "https", !IPAddress.isHostLiteral(url.host),
             let policy: HSTSPolicy = HSTSPolicy(header: header)
@@ -45,8 +42,8 @@ public actor HSTSStore {
         save()
     }
 
-    /// RFC 6797 §8.2: the host itself matches, and so does any parent domain
-    /// whose rule includes subdomains.
+    /// RFC 6797 §8.2 and §8.3 step 5: the host itself matches, and so does any
+    /// parent domain whose rule includes subdomains.
     func isKnown(_ host: String, now: Date = Date()) -> Bool {
         let name: String = host.lowercased()
         if rule(for: name, now: now) != nil {
@@ -62,7 +59,7 @@ public actor HSTSStore {
         return false
     }
 
-    /// RFC 6797 §8.3: http becomes https before anything is sent; port 80
+    /// RFC 6797 §8.3 step 5: http becomes https before anything is sent; port 80
     /// becomes 443 and any other port stays.
     func upgrade(_ url: WebURL, now: Date = Date()) -> WebURL {
         guard url.scheme == "http", isKnown(url.host, now: now) else {

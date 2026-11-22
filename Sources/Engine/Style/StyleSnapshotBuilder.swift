@@ -2,15 +2,12 @@ import Foundation
 
 // MARK: - StyleSnapshotBuilder
 
-/// The only style-phase code that touches `DOMRef`.
 @MainActor
 enum StyleSnapshotBuilder {
     static func build(root: DOMRef) -> StyleSnapshot {
         return build(dom: root.dom)
     }
 
-    /// Detached nodes have no parent and no children, which is what matching
-    /// saw before the snapshot existed.
     static func build(dom: DOMTree) -> StyleSnapshot {
         var nodes: [StyleNode?] = []
         var indexByID: [NodeID: Int] = [:]
@@ -26,10 +23,6 @@ enum StyleSnapshotBuilder {
         return StyleSnapshot(nodes: nodes, indexByID: indexByID, root: root, revision: dom.revision)
     }
 
-    /// Recopies only the nodes `dom` changed after `snapshot` was built. Node
-    /// IDs are never reused and their slots never emptied, so a build gives
-    /// every node a slot in ID order, and the nodes added since are the IDs
-    /// past the old end.
     static func update(_ snapshot: inout StyleSnapshot, dom: DOMTree) {
         guard snapshot.revision != dom.revision else { return }
         let baseline: UInt64 = snapshot.revision

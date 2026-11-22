@@ -2,16 +2,10 @@ import Foundation
 
 // MARK: - StyleSnapshot
 
-/// Matching is a read: it looks at tags, attributes, state flags, and the
-/// `:has` cache. Copying those into values lets the selectors run without a
-/// `DOMTree`, and keeps the pass that mutates styles separate from the pass
-/// that decides what matches.
 struct StyleSnapshot {
     var nodes: [StyleNode?]
     var indexByID: [NodeID: Int]
     var root: Int
-    /// The `DOMTree.revision` the nodes were copied at; an update recopies only
-    /// the nodes changed after it.
     var revision: UInt64
 
     func index(of id: NodeID) -> Int? {

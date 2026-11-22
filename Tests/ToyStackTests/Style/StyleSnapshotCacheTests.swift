@@ -77,7 +77,6 @@ struct StyleSnapshotCacheTests {
 
         text.append(" more")
         page.frame.setNeedsStyle(paragraph.ref)
-        // The layout phase resets the profiler; this test only observes style.
         page.frame.state.layout.tree.isDirty = false
         profiler.reset()
         page.frame.render()

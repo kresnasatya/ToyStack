@@ -20,15 +20,10 @@ class Frame {
     private var styleSnapshotCache: StyleSnapshot?
     private var transformedNodes: Set<NodeID> = []
     private var layoutInFlight: Bool = false
-    /// A viewport change does not set it; the pass's `LayoutJobKey` already
-    /// records that.
     private var layoutInFlightDirty: Bool = false
     private var layoutJobMovesViewportOnly: Bool = false
     private var layoutJobID: UInt = 0
     private var layoutJobKey: LayoutJobKey?
-    /// The next pass marks the document geometry dirty on the tree it lays
-    /// out; the installed tree is never marked, so it stays paintable while
-    /// that pass runs.
     private var viewportGeometryPending: Bool = false
     private var hoversText: Bool = false
     private var layoutSize: CGSize = .zero
@@ -48,8 +43,6 @@ class Frame {
         state.document.meta.url = newURL
     }
 
-    /// Layout and display state point at the old tree, so they are reset here
-    /// instead of in a property observer.
     func replaceDOM(_ newDOM: DOMTree) {
         guard dom !== newDOM else { return }
         newDOM.links.tab = tab
@@ -237,8 +230,6 @@ class Frame {
                     }
                     return retried
                 }
-            // A failed load keeps the address the user asked for, so Reload
-            // tries it again instead of a fallback that also failed.
             if target !== url, case .success = result {
                 self.tab?.replaceURL(url, with: target)
             }
@@ -288,9 +279,6 @@ class Frame {
         }
     }
 
-    /// The page takes the address it was really loaded from: the HSTS-upgraded
-    /// one, or where its redirects ended. The address bar, the lock, and the
-    /// base for relative links all follow that address.
     private func fetchPage(url: WebURL, referrer: WebURL?, payload: String?, bypassingCache: Bool) async -> (
         WebURL, Result<(status: Int, headers: [String: String], content: String), Error>
     ) {
@@ -812,8 +800,6 @@ class Frame {
         StyleInvalidation.markDocument(nodes)
     }
 
-    // A DOM change re-collects the page's rules, but a browser downloads each
-    // stylesheet once per page; only a <link> the page never fetched goes out.
     private func stylesheetText(at styleURL: WebURL) -> String? {
         let key: String = styleURL.toString()
         if let body: String = state.document.resources.loadedStylesheets[key] {
@@ -834,8 +820,6 @@ class Frame {
     var installedLayoutSize: CGSize { layoutSize }
     var needsPaint: Bool { state.display.paint.isNeeded }
 
-    /// A pass that only moves the viewport leaves the installed tree a valid
-    /// picture of the document, so the tab may keep painting it.
     var layoutBlocksPaint: Bool {
         return layoutInFlight && (!layoutJobMovesViewportOnly || layoutInFlightDirty)
     }
@@ -907,8 +891,6 @@ class Frame {
             browser?.measure.start("BrowserTab.style.diff")
             let animationsBefore: Int = cascade.appliedNodes.reduce(0) { $0 + $1.animations.count }
             var paintedChanged: Bool = false
-            // One trace event per tag, written after the loop: a breakpoint
-            // flip changes thousands of nodes and one event each slowed the pass.
             var fontChangesByTag: [String: Int] = [:]
             for (appliedIndex, node) in cascade.appliedNodes.enumerated() {
                 let old: ComputedStyle = cascade.oldStyle(at: appliedIndex)
@@ -927,8 +909,6 @@ class Frame {
                 if node.style.hasLayoutChanges {
                     layoutChanged = true
                 }
-                // Scroll targets are collected by layout class and computed overflow.
-                // A style-only change to either changes the target set, not just rects.
                 if old.layout.display != new.layout.display
                     || old.layout.overflow != new.layout.overflow
                 {
@@ -948,9 +928,6 @@ class Frame {
                 browser?.measure.counter("style.font-size.changed.\(tag)", ["count": count])
             }
             if paintedChanged {
-                // The paint caches are keyed by the changed node's style
-                // revision, so one element's colour change no longer has to
-                // invalidate every block and line on the page.
                 state.display.paint.isNeeded = true
             }
             browser?.measure.stop("BrowserTab.style.diff")
@@ -1000,7 +977,6 @@ class Frame {
             && !state.layout.tree.forced && !viewportGeometryPending,
             state.layout.tree.box?.tree.documentNeedsLayout(counting: false) == false
         {
-            // The pass was scheduled by a style change that only touches paint.
             state.layout.tree.isDirty = false
             state.layout.tree.forced = false
         }
@@ -1035,8 +1011,6 @@ class Frame {
                         inputs: inputs
                     ))
                     state.layout.targets.invalidate()
-                    // The new tree numbers its nodes from the start, so the
-                    // old tree's paint caches would match the wrong nodes.
                     state.display.caches = PaintCacheStore()
                 }
                 state.layout.tree.box = box
@@ -1182,10 +1156,6 @@ class Frame {
         return document.map({ $0.selfRect($0.rootID).bottom }) ?? 0
     }
 
-    /// DOM nodes whose blocks paint builds even outside the paint window: a
-    /// transform moves painting away from where layout put it, and the
-    /// block's ink extent does not know. `nil` while any animation runs,
-    /// since an animation can start moving any node without a new style pass.
     func nodesKeptByTransforms() -> Set<NodeID>? {
         guard state.runtime.animation.activeCount == 0 else { return nil }
         var kept: Set<NodeID> = []
@@ -1247,9 +1217,6 @@ class Frame {
                         if document?.documentNeedsLayout() == true {
                             needsLayoutUpdate = true
                         } else {
-                            // A layout property that marked no field is a missing edge.
-                            // Trap in debug; mark the nearest block in release so the
-                            // page still updates instead of freezing on a stale layout.
                             assertionFailure("Animation for \(property.cssName) did not dirty a layout field")
                             LayoutInvalidation.animatedPropertyChanged(node, property: property)
                             needsLayoutUpdate = true
@@ -1312,9 +1279,6 @@ class Frame {
         }
     }
 
-    /// When nothing but the width changed, the previous inputs are still
-    /// correct, so they are reused. Otherwise only the nodes changed since they
-    /// were built are rebuilt; the inputs carry the revision they were built at.
     private func resolveLayoutInputs(
         stylesDirty: Bool,
         viewportStyle: Bool,
@@ -1329,8 +1293,6 @@ class Frame {
                 || key.styleRevision != StyleRevision.epoch
         }) ?? true
         var reusable: LayoutInputs?
-        // Reused inputs carry their pending style changes into the background
-        // job. The synchronous path stays strict.
         let blockedByPending: Bool = pendingChanges && synchronous
         if !stylesDirty, !viewportStyle, !blockedByPending, !keyChanged, let previousInputs {
             reusable = previousInputs
@@ -1383,16 +1345,9 @@ class Frame {
         dom.layoutBox = box
         browser?.measure.stop("layout.async.start.tree")
         browser?.measure.start("layout.async.start.refresh")
-        // Only the inputs are replaced here; the node storage stays shared
-        // until the worker writes to it, so the geometry mark is applied
-        // there and the main thread copies nothing.
         var tree: LayoutTree = box.tree
         box.startRecordingEdits()
         tree.refreshInputs(resolved.inputs)
-        // The installed tree is only painted and hit-tested while the job
-        // runs; neither reads the dependency index, and the job's tree replaces
-        // it on install. Hand the index over so the job is its only owner and
-        // its first write does not copy both dictionaries.
         box.tree.dependencies = DependencyIndex()
         let sharedIndex: Bool = !tree.dependencies.hasNoOtherOwner()
         browser?.measure.counter("layout.async.handoff", ["sharedIndex": sharedIndex ? 1 : 0])
@@ -1412,11 +1367,7 @@ class Frame {
         let jobFrame: Int? = measure?.frame
         Task.detached(priority: .userInitiated) { [handoff, marksGeometry, width, pageZoom, jobID, measure, jobFrame] in
             var tree: LayoutTree = handoff.take()
-            // The detached task runs on a pooled thread; its own lane keeps the
-            // layout off whatever lane that thread served before.
             let lane: TraceLane? = measure?.beginThreadLane("browser.layout")
-            // This thread's profile window is the job's: the main thread keeps
-            // its own windows for style and paint meanwhile.
             profiler.reset()
             if marksGeometry {
                 tree.markDocumentGeometryDirty()
@@ -1438,9 +1389,6 @@ class Frame {
         }
     }
 
-    /// A pass that started before the viewport moved is still a complete
-    /// layout for the viewport it started with. Installing it keeps a drag
-    /// showing new layouts; the current viewport is laid out next.
     private func finishAsyncLayout(
         _ tree: LayoutTree,
         effects: [LayoutEffect],
@@ -1461,13 +1409,8 @@ class Frame {
             currentZoom: pageZoom
         )
         layoutSize = job.size
-        // The replaced tree is uniquely owned now, so freeing it frees every
-        // node; do that off the main thread.
         var retired: LayoutTree = tree
         swap(&box.tree, &retired)
-        // Edits marked while the pass ran went to the tree it just replaced.
-        // Their callers also scheduled a render, which set
-        // `layoutInFlightDirty`, so the follow-up pass is already due.
         for edit in box.takeRecordedEdits() {
             LayoutInvalidation.apply(edit, in: dom)
         }
@@ -1506,8 +1449,6 @@ class Frame {
         return true
     }
 
-    /// Waiting for the tick cost up to a frame per install during a drag.
-    /// Animations and rAF callbacks still advance only on the tick.
     private func continueAfterInstall() {
         if state.layout.tree.isDirty {
             state.runtime.schedule.needsRender = false
@@ -1611,9 +1552,6 @@ class Frame {
         state.layout.targets.blocks = blocks
     }
 
-    /// `revision` is the one the tree was laid out for: the current one for a
-    /// synchronous pass, the one recorded at job start for a background pass,
-    /// so a change made while the job ran stays pending.
     private func updateScrollTargets(
         _ doc: LayoutTree,
         removed: Set<LayoutID>,
@@ -1644,9 +1582,6 @@ class Frame {
         return true
     }
 
-    // The repaint starts one viewport before the painted content runs out, so
-    // a fast flick of up to one viewport per event still lands on painted
-    // content and can be shown while the repaint is pending.
     func scrollNeedsPaint() -> Bool {
         return !viewportFitsInPaintedWindow(margin: frameHeight)
     }
@@ -1771,9 +1706,9 @@ class Frame {
             }
         }
 
-        // CSS Overscroll Behavior 1 §3: a scroll container that has reached its
-        // boundary passes the scroll up the chain, to the box around it and then
-        // the page. Targets are in tree order, so the innermost box comes last.
+        // CSS Overscroll Behavior 1 §3: a scroll container that has reached its boundary passes
+        // the scroll up the scroll chain, to the scroll container around it and then the viewport.
+        // Targets are in tree order, so the innermost box comes last.
         for target in state.layout.targets.blocks.reversed() where target.rect.containsPoint(x, adjustedY) {
             guard let doc: LayoutTree = document,
                 doc.contains(target.layout),
@@ -1932,9 +1867,6 @@ class Frame {
             setNeedsStyle(dom.ref(element))
         }
 
-        // A descendant (e.g. `li:hover span`) can be styled by an ancestor
-        // that is still hovered after the descendant left the chain.
-        // On exit that ancestor is the only path back to the descendant.
         if let before {
             markHoverDescendants(of: changed, selectors: selectors, before: before)
         }
@@ -2001,8 +1933,6 @@ class Frame {
             state.runtime.interaction.needsFocusScroll = true
             _ = js?.dispatchEvent(type: "focus", el: ref)
         }
-        // Focus is a layout input (caret and text selection geometry), so the
-        // pass cannot be skipped even when no style property moves.
         setNeedsLayout()
     }
 
@@ -2078,7 +2008,6 @@ class Frame {
 
     // MARK: - Text selection
 
-    /// `x` and `y` are in the frame's viewport, like `click`.
     func pressText(x: CGFloat, y: CGFloat, clickCount: Int) {
         let unit: TextUnit = TextUnit(clickCount: clickCount)
         let range: TextRange? = document.flatMap({ tree in
@@ -2105,8 +2034,6 @@ class Frame {
         return text.string(in: span)
     }
 
-    /// The selection's rectangles on each line of `tree`, in layout
-    /// coordinates.
     func selectionHighlights(in tree: LayoutTree) -> [LayoutID: [Rect]] {
         guard let selection: TextSelection = textSelection, !selection.isCollapsed else { return [:] }
         let text: PageText = PageText(tree: tree)
@@ -2120,8 +2047,6 @@ class Frame {
         textSelection = selection
         let isShown: Bool = selection.map({ !$0.isCollapsed }) ?? false
         guard wasShown || isShown else { return }
-        // No new paint epoch: blocks and unselected lines keep their cached
-        // ops, and a line with a highlight is never served from the cache.
         state.display.paint.isNeeded = true
         state.runtime.schedule.needsRender = true
         requestAnimationFrame()
@@ -2295,10 +2220,6 @@ class Frame {
     }
 
     func setNeedsLayout() {
-        // Invalidation is field-based: style, structure, and geometry writes
-        // mark the fields that read them. This flag only schedules a render
-        // pass; dirtying the root here would turn every clean render into a
-        // document pass and make a skipped block count as visited.
         state.layout.tree.forced = true
         markDocumentDirty()
         state.runtime.schedule.needsRender = true
@@ -2309,9 +2230,6 @@ class Frame {
     func setNeedsViewportResize() {
         let mediaFlipped: Bool = !state.document.sheets.index.media.matches.isEmpty
             && !flippedMediaQueries(currentMedia()).isEmpty
-        // A running pass finishes at the viewport it started with. Its install
-        // sees the moved viewport and schedules the next pass, which picks up
-        // the pending geometry.
         viewportGeometryPending = true
         if mediaFlipped {
             invalidateStyle(fromViewport: true)
@@ -2369,8 +2287,6 @@ class Frame {
         setNeedsViewportResize()
     }
 
-    /// The normal profiler bundle is diagnostic, but the GUI trace needs the
-    /// style phase breakdown even when the profiler bundle is unavailable.
     private func emitStyleProfileCounters() {
         for (name, metric) in profiler.snapshot() where name.hasPrefix("style.") {
             guard metric.nanos > 0 || metric.count > 0 else { continue }
@@ -2412,8 +2328,6 @@ class Frame {
             profiler.count("style.snapshot.cacheHit")
             return snapshot
         }
-        // Taken out of the cache first, so its arrays are not shared and the
-        // update writes them in place instead of copying every node.
         styleSnapshotCache = nil
         profiler.measure("style.snapshot.update", {
             StyleSnapshotBuilder.update(&snapshot, dom: dom)

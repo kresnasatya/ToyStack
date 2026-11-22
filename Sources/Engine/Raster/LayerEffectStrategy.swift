@@ -81,8 +81,6 @@ extension LayerEffectStrategy {
                 clipRect = clipRect.map({ $0.intersect(local) }) ?? local
             }
         }
-        // Flat tiles bake in the scroll offset and scrollport clip; effect images
-        // and their Core Animation placement do not, so those keep the bitmap path.
         if insideScroll && kind == .ca {
             kind = .scrollFallback
         }

@@ -9,8 +9,8 @@ struct OriginSelector: CSSSelector {
     let base: any CSSSelector
     let origin: CascadeOrigin
     let isImportant: Bool
-    // CSS Cascade 4 §6.1: origin and importance rank before specificity. In
-    // ascending order: normal user agent, normal author, important author,
+    // CSS Cascade 4 §6.1: origin and importance rank before specificity. Of the origins
+    // ToyStack has, in ascending order: normal user agent, normal author, important author,
     // important user agent. Each band is wider than any selector's specificity.
     var priority: Int {
         switch (origin, isImportant) {

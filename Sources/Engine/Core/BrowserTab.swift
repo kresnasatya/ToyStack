@@ -25,14 +25,11 @@ public class BrowserTab: Identifiable {
         print("[confirm] \(title): \(message)")
         return true
     }
-    // Frames fetch synchronously on the main thread while a script edits the
-    // DOM, so the source must never need the main actor or the page deadlocks.
     public nonisolated(unsafe) static var pageSource: (@Sendable (_ scheme: String, _ path: String) async -> (
         status: Int, headers: [String: String], content: String
     )?)? = nil
     public nonisolated(unsafe) static var hostExists: (String) async -> Bool = HostLookup.exists
 
-    /// A machine on the local network whose name the user searched for.
     public private(set) var didYouMean: WebURL? = nil
     private var isSelectingText: Bool = false
     private var navigationSequence: UInt64 = 0
@@ -157,8 +154,6 @@ public class BrowserTab: Identifiable {
         browser?.navigationStateChanged()
     }
 
-    /// The lookup can finish after the user has moved on, so its answer only
-    /// counts while the navigation that asked is still the latest one.
     private func offerIfItExists(_ alternate: WebURL) {
         let sequence: UInt64 = navigationSequence
         Task { [weak self] in
@@ -174,10 +169,6 @@ public class BrowserTab: Identifiable {
         didYouMean = nil
     }
 
-    /// A load can end at another address than the one asked for: HSTS turned
-    /// http into https, a guessed https fell back to http, or the server
-    /// redirected. History keeps the address that loaded so reload, back and
-    /// forward return to it.
     func replaceURL(_ requested: WebURL, with loaded: WebURL) {
         history = history.map({ (entry: HistoryEntry) -> HistoryEntry in
             HistoryEntry(
@@ -291,9 +282,6 @@ public class BrowserTab: Identifiable {
 
     private func paintAndCommit(_ frames: [Frame]) {
         if frames.contains(where: { $0.isLayoutInFlight }) {
-            // A running pass holds paint back, except a pass that only moves
-            // the viewport: the installed tree still matches the document, so
-            // a newly installed tree reaches the screen while the next pass runs.
             let installedTreesAreCurrent: Bool = !frames.contains(where: { $0.layoutBlocksPaint })
             guard installedTreesAreCurrent, rootFrame.needsPaint else { return }
         }
@@ -511,8 +499,6 @@ public class BrowserTab: Identifiable {
         rootFrame.click(x: x / zoom, y: y / zoom)
     }
 
-    /// Only the top frame's text is selectable: a press over an iframe lands
-    /// on the top frame's text nearest to it.
     public func pressText(x: CGFloat, y: CGFloat, clickCount: Int) {
         let zoom: CGFloat = rootFrame.pageZoom
         rootFrame.pressText(x: x / zoom, y: y / zoom, clickCount: clickCount)

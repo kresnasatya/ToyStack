@@ -1,8 +1,5 @@
 import Foundation
 
-/// The headers a browser keeps for later requests to the host that sent
-/// them: the HSTS rule and the cookie. Every response counts, including each
-/// redirect along the way.
 enum RememberedHeaders {
     static func record(from response: HTTPURLResponse) async {
         guard let address: URL = response.url else { return }

@@ -12,7 +12,6 @@ struct TextSelectionTests {
         p { display: block; }
         """
 
-    /// The point the window reports for a page point: scrolled, then zoomed.
     private func screen(_ page: LayoutTestPage, _ point: CGPoint) -> CGPoint {
         let zoom: CGFloat = page.tab.pageZoom
         return CGPoint(x: point.x * zoom, y: (point.y - page.frame.scroll) * zoom)

@@ -171,12 +171,6 @@ private func applyNodeStyle(
             inheritedTextKeys.contains($0.key)
         })
 
-        // Percentages are resolved in exactly one place: the parser's
-        // `fontSize`, from the numeric parent. Pre-converting to a px string
-        // here used a different arithmetic order and produced a value one ULP
-        // away from the parser's, so a re-apply (hover) looked like a real
-        // font-size change.
-
         node.style.apply(
             newStyle,
             parent: node.parent?.style.computed,

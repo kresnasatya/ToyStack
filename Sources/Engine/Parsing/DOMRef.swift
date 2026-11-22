@@ -1,7 +1,5 @@
 import Foundation
 
-/// The tree reference is strong on purpose: a layout object that survives a
-/// document swap must resolve against its own tree, not trap on a dead one.
 @MainActor
 struct DOMRef {
     let id: NodeID

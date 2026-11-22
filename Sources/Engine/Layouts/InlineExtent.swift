@@ -2,8 +2,6 @@ import CoreGraphics
 
 // MARK: - InlineExtent
 
-/// How far an item reaches above and below the baseline; a line is as tall
-/// as its tallest ascent plus its deepest descent.
 struct InlineExtent: Equatable {
     var ascent: CGFloat
     var descent: CGFloat

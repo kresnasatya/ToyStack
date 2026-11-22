@@ -1,6 +1,3 @@
-/// The shorter address the toolbar shows while the user is not editing it.
-/// Chrome drops "https://", a leading "www." and a lone "/" path; http
-/// addresses stay whole so the scheme next to "Not Secure" is visible.
 public enum AddressDisplay {
     private static let securePrefix: String = "https://"
     private static let wwwPrefix: String = "www."

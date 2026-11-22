@@ -1,19 +1,11 @@
 import Foundation
 import Network
 
-/// A one-page HTTP server on 127.0.0.1. It sends no `Cache-Control`
-/// header, so the engine keeps its first answer in the response cache.
-/// It speaks no TLS: an https attempt is counted and hung up on.
 final class LocalPageServer: @unchecked Sendable {
     enum Reply {
         case page(String)
         case redirect(String)
-        /// Like a site that lives at one address only: a request naming any
-        /// other host is redirected to this one. The page sends each of
-        /// `cookies` as its own `Set-Cookie` header.
         case canonicalHost(String, page: String, cookies: [String] = [])
-        /// Like a login gate: a request without `cookie` gets it set and is
-        /// redirected back to the same host; with it, the page is served.
         case signIn(cookie: String, page: String)
         case hangUp
     }
@@ -36,7 +28,6 @@ final class LocalPageServer: @unchecked Sendable {
     private var tlsAttempts: Int = 0
 
     var requests: [Request] { lock.withLock({ log.map(\.request) }) }
-    /// The `Cookie` header of each request, in arrival order.
     var cookies: [String?] { lock.withLock({ log.map(\.cookie) }) }
     var secureAttempts: Int { lock.withLock({ tlsAttempts }) }
 
@@ -49,7 +40,6 @@ final class LocalPageServer: @unchecked Sendable {
         lock.withLock({ reply = newReply })
     }
 
-    /// Returns the address of the page once the server listens.
     func start() async throws -> String {
         let queue: DispatchQueue = DispatchQueue(label: "local-page-server")
         listener.newConnectionHandler = { [self] (connection: NWConnection) in
@@ -147,7 +137,8 @@ final class LocalPageServer: @unchecked Sendable {
         )
     }
 
-    // RFC 8446 §5.1: every TLS connection opens with a handshake record, type 22.
+    // RFC 8446 §4.1.2 and §5.1: a client opens with a ClientHello, carried in a handshake
+    // record, type 22.
     private static let tlsHandshakeRecord: UInt8 = 22
 
     private static func parse(_ data: Data) -> Incoming? {

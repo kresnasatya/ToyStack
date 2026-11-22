@@ -14,14 +14,14 @@ public enum CursorKind: Equatable, Sendable {
         }
     }
 
-    // css-ui-4 §5.1.1.1: `auto` behaves as `text` over selectable text or
+    // CSS UI 4 §5.1.1.1: `auto` behaves as `text` over selectable text or
     // editable elements, and as `default` otherwise. `auto` is kept for the
     // otherwise case because the app already draws it as the arrow.
     func resolved(overText: Bool) -> CursorKind {
         return self == .auto && overText ? .text : self
     }
 
-    // css-ui-4 §5.1.1: `cursor` is inherited with initial value `auto`. The
+    // CSS UI 4 §5.1.1: `cursor` is inherited with initial value `auto`. The
     // nearest element in the chain that declares a supported value wins, which
     // also makes `inherit`, `unset`, and unsupported values defer to the parent.
     @MainActor

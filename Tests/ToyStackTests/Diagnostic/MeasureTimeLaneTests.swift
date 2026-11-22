@@ -3,8 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// Queues share pooled OS threads. A lane label must describe only the work
-/// that set it, or later work on the same thread lands on the wrong lane.
 @Suite
 struct MeasureTimeLaneTests {
     @Test func streamLabelEndsWithItsWork() throws {
@@ -45,8 +43,6 @@ struct MeasureTimeLaneTests {
         #expect(trace.lane(of: "after") != "test.pool", "work after the pool block kept the pool's name")
     }
 
-    /// Spans that overlap on two pool threads must stay on two lanes, or their
-    /// begin and end events pair up wrongly.
     @Test func eachPoolThreadGetsItsOwnLane() throws {
         let (measure, path): (MeasureTime, String) = Self.makeMeasure()
         defer { try? FileManager.default.removeItem(atPath: path) }
@@ -86,8 +82,6 @@ struct MeasureTimeLaneTests {
         return (MeasureTime(path: path), path)
     }
 
-    /// Runs `body` on one dedicated thread, the way consecutive queue blocks
-    /// can run on one pooled thread.
     private static func onOneThread(_ body: @escaping @Sendable () -> Void) {
         let done: DispatchSemaphore = DispatchSemaphore(value: 0)
         Thread {
@@ -100,7 +94,6 @@ struct MeasureTimeLaneTests {
 
 // MARK: - TraceLanes
 
-/// The last `thread_name` for a tid wins, as in trace viewers.
 private struct TraceLanes {
     private let tidBySpan: [String: Int]
     private let nameByTid: [Int: String]

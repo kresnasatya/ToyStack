@@ -2,8 +2,6 @@ import CoreGraphics
 
 // MARK: - ButtonLabelPiece
 
-/// One unbreakable part of a button's label. `width` is what the piece itself
-/// covers, and `spaceAfter` the room before the next piece on its line.
 struct ButtonLabelPiece {
     enum Kind {
         case word(String, BrowserFont)
@@ -16,14 +14,10 @@ struct ButtonLabelPiece {
     let width: CGFloat
     var spaceAfter: CGFloat
 
-    /// Where the next piece on the same line starts.
     func advance(from x: CGFloat) -> CGFloat {
         return x + width + spaceAfter
     }
 
-    /// Adds `piece` to the end of the label. A word carries its own space, but
-    /// the space after an input belongs to the text that follows, so it takes
-    /// `textFont`, the font of that text.
     static func append(_ piece: ButtonLabelPiece, textFont: BrowserFont, to pieces: inout [ButtonLabelPiece]) {
         if let last: Int = pieces.indices.last, case .input = pieces[last].kind {
             pieces[last].spaceAfter = textFont.spaceWidth

@@ -1,7 +1,5 @@
 import Foundation
 
-/// The run owns the UTF-16 text and the character range of every item, so a
-/// line fragment only stores `(start item, count)`.
 final class TextRun {
     let text: String
     let starts: [Int]

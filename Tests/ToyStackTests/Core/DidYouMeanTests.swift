@@ -4,8 +4,6 @@ import Testing
 
 @testable import Engine
 
-/// `BrowserTab.hostExists` is shared, so these tests run one at a time and
-/// put the real lookup back when done.
 @Suite(.serialized)
 @MainActor
 struct DidYouMeanTests {
@@ -92,7 +90,6 @@ struct DidYouMeanTests {
 
     // MARK: - Helpers
 
-    /// The search page itself is not fetched: about:blank stands in for it.
     private static func searchForIntranet() -> TypedAddress {
         TypedAddress(url: WebURL("about:blank"), alternate: intranet)
     }

@@ -43,8 +43,6 @@ struct URLTests {
         #expect(result?.toString() == "true|true")
     }
 
-    // Turbopack's runtime reads URL.prototype on its first line and copies a URL's own
-    // fields with for...in.
     @Test func turbopackCanSubclassAndCopyAURL() {
         let js: JSRuntime = makeRuntime()
         let result: JSValue? = js.evaluate("""

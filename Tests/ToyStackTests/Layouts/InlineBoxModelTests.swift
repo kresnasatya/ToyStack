@@ -41,8 +41,6 @@ struct InlineBoxModelTests {
         #expect(page.tree.x(children[b + 1]) == page.tree.x(children[b]) + widths[b] + 7)
     }
 
-    /// A right-to-left element that starts and ends on one line still has
-    /// its left edges on the left and its right edges on the right.
     @Test func rightToLeftSpanOnOneLineKeepsEachEdgeOnItsOwnSide() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p>a <span id="s">b</span> c</p>"#,

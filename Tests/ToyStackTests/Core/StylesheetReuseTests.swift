@@ -94,7 +94,6 @@ struct StylesheetReuseTests {
 
 // MARK: - FakeSite
 
-/// A made-up host that serves fixed bodies by path and counts each download.
 private final class FakeSite: @unchecked Sendable {
     let url: WebURL = WebURL("https://reuse-\(UUID().uuidString.lowercased()).example/\(UUID().uuidString)")
     private let lock: NSLock = NSLock()

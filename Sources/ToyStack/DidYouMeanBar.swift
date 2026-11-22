@@ -1,8 +1,6 @@
 import Engine
 import SwiftUI
 
-/// Chrome's "Did you mean to go to http://intranet/?" bar, shown when a
-/// single searched word turns out to name a machine on the network.
 struct DidYouMeanBar: View {
     @ObservedObject var browser: Browser
 

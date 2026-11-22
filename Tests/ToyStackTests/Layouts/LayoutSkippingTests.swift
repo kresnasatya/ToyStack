@@ -31,8 +31,6 @@ struct LayoutSkippingTests {
     }
 
     @Test func dirtyLeafVisitsOnlyItsBlockPath() throws {
-        // Keep this on one line: whitespace between block tags creates anonymous
-        // BlockLayouts and changes the expected visit count.
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<div id="first"><div id="leaf">x</div></div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div>"#,
             rules: """

@@ -3,9 +3,6 @@ import CoreGraphics
 // MARK: - LayoutPaintPass
 
 extension LayoutTree {
-    /// Scroll boxes clip their content and show it shifted by their scroll
-    /// position, so a point reaches their children only inside the box, and
-    /// moves down by that position on the way.
     @MainActor
     func hitTest(_ id: LayoutID, x: CGFloat, y: CGFloat) -> LayoutHit? {
         var x: CGFloat = x
@@ -74,9 +71,6 @@ extension LayoutTree {
         return nil
     }
 
-    /// Whether `cursor: auto` turns into the text cursor at `hit`. Selectable
-    /// text is what `PageText` reads, so a button's label does not count;
-    /// editable means a text field or anything inside `contenteditable`.
     func showsTextCursor(at hit: LayoutHit) -> Bool {
         if inputs.text(hit.dom) != nil {
             var current: LayoutID? = hit.layout

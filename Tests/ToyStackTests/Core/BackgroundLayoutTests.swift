@@ -3,7 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// The tree is a value; the box is only a transport for the async result.
 private final class BackgroundLayoutTree: @unchecked Sendable {
     var tree: LayoutTree
 
@@ -12,10 +11,6 @@ private final class BackgroundLayoutTree: @unchecked Sendable {
     }
 }
 
-// Background layout suites are opt-in (TOYSTACK_BACKGROUND_LAYOUT_TEST=1) and run
-// with `swift test --no-parallel`. They wait on real background work, and whether
-// a pass reuses its inputs is keyed on the process-wide `StyleRevision.epoch`,
-// which other suites advance when they run in parallel.
 @Suite(.serialized)
 @MainActor
 struct BackgroundLayoutTests {
@@ -47,7 +42,6 @@ struct BackgroundLayoutTests {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 var result: LayoutTree = box.tree
-                // A frame's pass applies the pending viewport geometry first.
                 result.markDocumentGeometryDirty()
                 result.layoutDocument(availableWidth: 220, zoom: 1, pageZoom: 1)
                 box.tree = result

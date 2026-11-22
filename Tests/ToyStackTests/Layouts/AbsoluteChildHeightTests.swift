@@ -21,10 +21,8 @@ struct AbsoluteChildHeightTests {
         return bounds.bottom - bounds.top
     }
 
-    // CSS 2.1 §10.6.3: an absolutely positioned child is out of flow, so it adds
-    // nothing to its parent's height, and neither does it hide the children after it.
-    // theodorusclarence.com starts every section with an absolutely positioned
-    // decoration, and each section used to collapse to zero height.
+    // CSS 2.1 §10.6.3: an absolutely positioned child is ignored for its parent's height,
+    // and §9.6: it has no impact on later siblings, so it does not hide the children after it.
     @Test func inFlowChildrenAfterAnAbsoluteChildStillCount() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<section id="with"><div class="abs">decoration</div><p>one</p><p>two</p></section><section id="without"><p>one</p><p>two</p></section>"#,
@@ -62,8 +60,6 @@ struct AbsoluteChildHeightTests {
         #expect(try boxHeight(page, id: "s") == 0)
     }
 
-    // The next sibling's place depends on whether the box before it is in flow, so
-    // switching that box between absolute and static has to move the sibling.
     @Test func switchingPositionMovesTheNextSibling() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<section id="s"><p>one</p><div id="box" class="abs">decoration</div><p id="next">two</p></section>"#,

@@ -2,17 +2,12 @@ import Foundation
 
 // MARK: - LayoutInputsBuilder
 
-/// The only layout-side code that needs the document, so passes can move to
-/// values one file at a time.
 @MainActor
 enum LayoutInputsBuilder {
     static func build(dom: DOMTree) -> LayoutInputs {
         return build(dom: dom, previous: nil)
     }
 
-    /// Starts from `previous` and rebuilds only the nodes the document changed
-    /// after `previous` was built. An image change still rebuilds everything:
-    /// images are not stamped per node.
     static func build(dom: DOMTree, previous: LayoutInputs?) -> LayoutInputs {
         let reusable: LayoutInputs?
         let baseline: UInt64
@@ -27,7 +22,6 @@ enum LayoutInputsBuilder {
             baseline = 0
         }
         var nodes: [LayoutInput?] = reusable?.nodes ?? []
-        // Changes the previous inputs still hold have not reached a pass yet.
         var styleChanges: [NodeID: Set<StyleProperty>] = reusable?.styleChanges ?? [:]
         let count: Int = dom.nodeCount
         if nodes.count < count {
@@ -37,8 +31,6 @@ enum LayoutInputsBuilder {
         var touched: Int = 0
         for index in 0..<count {
             let id: NodeID = NodeID(raw: UInt32(index))
-            // Revisions are compared before the node is read: most nodes are
-            // unchanged, and reading each one cost more than the whole rebuild.
             let unchanged: Bool = dom.changeRevision(of: id) <= baseline
             if unchanged, let oldRevision: UInt64 = nodes[index]?.style.revision,
                 oldRevision == dom.styleRevision(of: id)
@@ -116,9 +108,6 @@ enum LayoutInputsBuilder {
         )
     }
 
-    /// A text node takes its font from its parent, and the parent's font can
-    /// change while the text node's own style does not (a font animation
-    /// writes the parent alone), so restyled parents pass their font down.
     private static func refreshTextFonts(of parent: NodeID, in dom: DOMTree, nodes: inout [LayoutInput?]) {
         guard let font: TextStyle.Font = nodes[Int(parent.raw)]?.style.computed.text.font else { return }
         for child in dom.children(of: parent) where dom.isText(child) {
@@ -131,7 +120,6 @@ enum LayoutInputsBuilder {
         }
     }
 
-    // Comments stay in the DOM for scripts to walk, but they never get a box.
     private static func renderedChildren(of id: NodeID, in dom: DOMTree) -> [NodeID] {
         let children: [NodeID] = dom.children(of: id)
         guard children.contains(where: { dom.isComment($0) }) else { return children }

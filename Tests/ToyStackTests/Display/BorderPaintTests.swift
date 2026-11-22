@@ -26,8 +26,6 @@ struct BorderPaintTests {
         }
     }
 
-    /// Top and bottom span the whole border box; left and right fill the
-    /// height between them.
     private func sideRects(_ box: Rect, _ widths: EdgeInsets) -> [Rect] {
         let innerTop: CGFloat = box.top + widths.top
         let innerBottom: CGFloat = box.bottom - widths.bottom
@@ -208,7 +206,6 @@ struct BorderPaintTests {
         #expect(pixels.matches(BrowserColor(cssName: "green"), x: box.right - 2, y: middleY))
         #expect(pixels.matches(BrowserColor(cssName: "blue"), x: middleX, y: box.bottom - 2))
         #expect(pixels.matches(BrowserColor(cssName: "gold"), x: box.left + 2, y: middleY))
-        // Either side of the top-left corner line, still inside the curve.
         #expect(pixels.matches(BrowserColor(cssName: "red"), x: box.left + 9, y: box.top + 2))
         #expect(pixels.matches(BrowserColor(cssName: "gold"), x: box.left + 2, y: box.top + 9))
         #expect(!page.frame.displayList.contains(where: { $0.name == "ring" }))

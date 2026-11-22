@@ -3,8 +3,6 @@ import Testing
 
 @testable import Engine
 
-// Call this last in a test: the full rebuild replaces every layout node and
-// re-attaches the DOM to the new tree.
 @MainActor
 func expectIncrementalMatchesFull(
     _ page: LayoutTestPage,
@@ -43,8 +41,6 @@ func renderSignature(_ frame: Frame) -> String {
     return parts.joined(separator: "\n")
 }
 
-// A dirty field here means a value that the next pass will recompute from
-// nothing, usually because the owner forgot to set it.
 @MainActor
 func expectAllLayoutFieldsClean(
     _ document: LayoutTree,

@@ -9,8 +9,6 @@ public struct ContentOffset: Equatable, Sendable {
 
     public var origin: CGFloat { -scroll }
 
-    /// The preview shrinks the content around the document origin, so the
-    /// scroll shrinks too; the line at the top of the page area stays there.
     public func origin(previewScale scale: CGFloat) -> CGFloat {
         return -scroll * scale
     }

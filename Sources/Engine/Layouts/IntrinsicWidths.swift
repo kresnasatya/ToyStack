@@ -2,16 +2,15 @@ import CoreGraphics
 
 // MARK: - IntrinsicWidths
 
-/// CSS 2.1 §10.3.5 preferred widths: `minContent` is the narrowest a box can
-/// get without overflowing (its widest unbreakable piece), `maxContent` the
-/// width it takes when no line has to break.
+/// CSS 2.1 §10.3.5 preferred widths: `minContent` is the preferred minimum width, the
+/// narrowest a box gets when every possible line break is taken (its widest unbreakable
+/// piece), and `maxContent` the preferred width, where lines break only at explicit breaks.
 struct IntrinsicWidths: Equatable {
     var minContent: CGFloat
     var maxContent: CGFloat
 
     static let zero: IntrinsicWidths = IntrinsicWidths(minContent: 0, maxContent: 0)
 
-    /// Boxes stacked in a block take the widest of each.
     func stacked(with other: IntrinsicWidths) -> IntrinsicWidths {
         return IntrinsicWidths(
             minContent: max(minContent, other.minContent),

@@ -7,11 +7,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct RasterColorSpaceTests {
-    /// Core Animation converts a bitmap whose colour space differs from the
-    /// screen's one pixel at a time in the commit: 0.42 ms per 256 × 256 tile,
-    /// ~12 ms for the 30 tiles of one present during a drag. Every bitmap the
-    /// presenter binds, tiles and composited effect layers alike, must already
-    /// be in the screen's colour space.
     @Test func presentedBitmapsUseTheDisplayColorSpace() async throws {
         let id: String = UUID().uuidString
         let tracePath: String = NSTemporaryDirectory() + "raster-color-\(id).trace"

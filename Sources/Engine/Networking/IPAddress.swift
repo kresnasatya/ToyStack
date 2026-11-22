@@ -9,7 +9,6 @@ enum IPAddress {
         parses(text, family: AF_INET6)
     }
 
-    /// A host as it appears in a URL: IPv6 sits inside brackets.
     static func isHostLiteral(_ host: String) -> Bool {
         if host.hasPrefix("[") && host.hasSuffix("]") {
             return isV6(String(host.dropFirst().dropLast()))

@@ -7,7 +7,8 @@ import Testing
         #expect(await HostLookup.exists("localhost"))
     }
 
-    // RFC 6761 §6.4: names under .invalid never resolve.
+    // RFC 6761 §6.4: name resolution APIs should return an immediate negative response for
+    // names under .invalid.
     @Test func invalidNameDoesNotExist() async {
         #expect(await HostLookup.exists("no-such-machine.invalid") == false)
     }

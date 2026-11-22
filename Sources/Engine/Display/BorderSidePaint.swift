@@ -2,14 +2,10 @@ import CoreGraphics
 
 // MARK: - BorderSidePaint
 
-/// One side of one band of a border. The band is the ring between two
-/// curves; `region` is this side's share of it, cut at the corner lines so
-/// neighbouring sides meet without overlapping.
 public struct BorderSidePaint: Sendable {
     let band: BorderBand
     let region: Quad
     let color: BrowserColor
-    /// Dots or dashes along the band; nil fills the whole region.
     let dash: BorderDash?
 
     func translated(dx: CGFloat, dy: CGFloat) -> BorderSidePaint {
@@ -34,8 +30,6 @@ public struct BorderBand: Sendable {
 
 // MARK: - BorderDash
 
-/// A stroke along the middle of a band, broken into dashes. A dash of
-/// length zero with round caps is a dot.
 public struct BorderDash: Sendable {
     let line: BorderSideLine
     let lineWidth: CGFloat

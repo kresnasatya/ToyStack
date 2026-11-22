@@ -27,7 +27,6 @@ struct LayoutSweepTests {
         page.frame.setNeedsViewportResize()
         profiler.reset()
         page.frame.render()
-        // Back to a width where it loses lines again, so lines are detached.
         page.frame.setViewport(width: 800, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
         profiler.reset()

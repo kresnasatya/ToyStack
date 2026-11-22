@@ -5,7 +5,7 @@ import Testing
 @testable import Engine
 
 /// Both addresses are IP literals so no HSTS rule set by another suite can
-/// send the redirect over https (RFC 6797 §8.1 never remembers an IP).
+/// send the redirect over https (RFC 6797 §8.1.1 never notes an IP as an HSTS host).
 @Suite(.serialized)
 @MainActor
 struct RedirectNavigationTests {
@@ -53,8 +53,6 @@ struct RedirectNavigationTests {
         treeToList(tab.rootFrame.nodes).compactMap({ $0.text }).map(\.text).joined()
     }
 
-    /// Fetches run one at a time in order, so an empty fetch queued now
-    /// completes only after every fetch already queued has finished.
     private static func finishQueuedFetches(_ browser: Browser) async {
         await browser.networkTaskRunner.schedule(name: "finish-queued-fetches", { @Sendable () async -> Void in })
     }

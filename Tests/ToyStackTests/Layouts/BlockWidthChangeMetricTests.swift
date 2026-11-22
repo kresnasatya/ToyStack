@@ -3,10 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// Each block whose geometry is recomputed lands in exactly one
-/// `layout.width.*` bucket, so a trace can tell which skip would pay off:
-/// width changed, width kept but moved sideways, width kept but moved down,
-/// or nothing changed at all.
 @Suite(.serialized)
 @MainActor
 struct BlockWidthChangeMetricTests {

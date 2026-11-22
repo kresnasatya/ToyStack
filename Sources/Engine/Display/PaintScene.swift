@@ -2,9 +2,6 @@ import CoreGraphics
 
 // MARK: - PaintScene
 
-/// Node children are indices into the same frame's `nodes`, so the tree is
-/// data and paint can walk it without touching a `Frame`, a `LayoutTree`, or a
-/// `DOMTree`.
 struct PaintScene {
     var frames: [PaintFrame]
 }
@@ -76,8 +73,6 @@ struct PaintBlockExtras {
 struct PaintLine {
     var canCache: Bool
     var generation: UInt
-    /// Inline element backgrounds and borders, the selection highlight, then
-    /// any focus ring: everything drawn under the line's text.
     var decorations: [DisplayOp]
     var inlineText: [PaintInlineText]
 }

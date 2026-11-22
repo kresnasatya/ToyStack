@@ -56,8 +56,6 @@ extension LayoutTree {
         return self[block: id].content.extraNodes.map({ domView($0) })
     }
 
-    /// Cheaper than `blockExtraNodes(_:).isEmpty`, which builds the
-    /// views.
     func hasExtraNodes(_ id: LayoutID) -> Bool {
         return !self[block: id].content.extraNodes.isEmpty
     }
@@ -117,8 +115,6 @@ extension LayoutTree {
         return leaves
     }
 
-    /// `hidden` gets the `display: none` elements the walk skips. They leave no
-    /// leaf behind, yet showing one must still refresh this block's inline content.
     private func collectInline(
         _ id: LayoutID,
         leaves: inout [LayoutDOMView],
@@ -139,8 +135,6 @@ extension LayoutTree {
         }
     }
 
-    /// A float inside inline content is one leaf: its own content belongs to
-    /// its own block.
     private func collectInlineNode(
         _ n: LayoutDOMView,
         leaves: inout [LayoutDOMView],
@@ -290,8 +284,9 @@ extension LayoutTree {
         setPreviousField(newValue, of: id)
     }
 
-    // CSS 2.1 §9.6: an absolutely positioned box is out of flow, so a block is placed
-    // after the nearest earlier sibling that is still in flow.
+    // CSS 2.1 §9.6: an absolutely positioned box is removed from the normal flow and has no
+    // impact on later siblings, so a block is placed after the nearest earlier sibling that is
+    // still in flow.
     func blockPrevious(_ id: LayoutID) -> LayoutID? {
         var previous: LayoutID? = previousID(of: id)
         while let candidate: LayoutID = previous, isOutOfFlow(candidate) {
@@ -329,13 +324,8 @@ extension LayoutTree {
         profiler.count("layout.visited")
         let style: BlockStyle = profiler.measure("layout.blockStyle", { blockStyle(id) })
         var skipInlineChildren: Bool = false
-        // Compared against what was stored rather than trusting the dirty
-        // flags: a block that reads floats has its `y` marked whenever a float
-        // before it changes.
         let oldGeometry: GeometryFields = self[node: id].state.fields.geometry
         let widthWasDirty: Bool = isDirty(.width, at: id)
-        // Layout reaches a float whenever anything inside it changed, which is
-        // when its shrink-to-fit width can change.
         let geometryDirty: Bool = isDirty(.zoom, at: id) || isDirty(.x, at: id)
             || isDirty(.y, at: id) || widthWasDirty || shrinksToFit(id, style: style)
         let visitSpan: ProfileSpan = profiler.begin("layout.visit")
@@ -404,13 +394,10 @@ extension LayoutTree {
                 let floatsChanged: Bool = noteWrapped(id, hasOwnFloats ? floatContext(for: id) : floats.boxes)
                 let oldPlan: InlineLinePlan? = self[block: id].content.inlineLinePlan
                 let planSpan: ProfileSpan = profiler.begin("layout.inline.plan")
-                // The cached plan assumes one width for every line.
                 let plan: InlineLinePlan? = floats.isEmpty ? inlineTextLinePlan(id) : nil
                 profiler.end(planSpan)
                 let shouldPlace: Bool
                 if !floats.isEmpty || hasOwnFloats {
-                    // Lines broken around floats change only with what is
-                    // listed here; anything else keeps them as they are.
                     let ownFloatsDirty: Bool = hasOwnFloats && childrenIDs(of: id).contains(where: { child in
                         isBlock(child) && blockLayoutNeeded(child)
                     })
@@ -509,8 +496,6 @@ extension LayoutTree {
         }
     }
 
-    /// The content width `placeBlockFrame` gives a block: its `width`, or the
-    /// room between its margins, shrunk to fit when it is an auto-width float.
     mutating private func usedBlockWidth(_ id: LayoutID, style: BlockStyle, zoom zoomValue: CGFloat) -> CGFloat {
         let ownBorder: EdgeInsets = borderValues(id).scaled(by: zoomValue)
         let padHorizontal: CGFloat = !hasExtraNodes(id)
@@ -529,14 +514,11 @@ extension LayoutTree {
         return min(max(preferred.minContent, available), preferred.maxContent)
     }
 
-    /// An auto-width float takes its width from its content, which is not
-    /// among its layout inputs.
     private func shrinksToFit(_ id: LayoutID, style: BlockStyle) -> Bool {
         return style.box.size.width == nil && style.position != .absolute
             && blockFloating(id).side != .none
     }
 
-    /// Margins, padding, and border across a block; an anonymous block has none.
     private func blockOutsideWidth(_ id: LayoutID, style: BlockStyle, zoom zoomValue: CGFloat) -> CGFloat {
         guard !hasExtraNodes(id) else { return 0 }
         let ownBorder: EdgeInsets = borderValues(id).scaled(by: zoomValue)
@@ -578,8 +560,6 @@ extension LayoutTree {
 
         var frameY: CGFloat
         var besideFloats: Bool = false
-        // A float inside inline content is placed by the block whose lines it
-        // sits in; that block re-places it whenever it breaks its lines.
         let anchor: CGPoint? = floating.side != .none ? self[document: rootID].floats.anchors[id] : nil
         if isAbsolute, let t = style.flags.top {
             let padTop: CGFloat = !hasExtraNodes(id)
@@ -626,8 +606,8 @@ extension LayoutTree {
                 frameY = max(frameY, bottom + ownBorder.top + padTop)
             }
             if floating.side == .none, !isAbsolute, !hasExtraNodes(id), establishesFormattingContext(id) {
-                // CSS 2.1 §9.5: a block that starts its own formatting context
-                // keeps its margin box off earlier floats: beside them when it
+                // CSS 2.1 §9.5: the border box of a block that starts its own formatting context
+                // must not overlap the margin box of earlier floats: it sits beside them when it
                 // fits, below them when it does not.
                 let marginTop: CGFloat = frameY - ownTop - ownBorder.top - padTop
                 let placer: FloatPlacer = floatPlacer(for: id, top: marginTop)
@@ -676,8 +656,6 @@ extension LayoutTree {
                 let childStyle: BlockStyle = blockStyle(childID)
                 let childZoom: CGFloat = zoom(childID)
                 if isPositionedByFloats(childID) {
-                    // Clearance or the floats beside it moved this block down;
-                    // the gap belongs to the parent.
                     let marginTop: CGFloat = y(childID) - childStyle.box.padding.top * childZoom
                         - borderWidths(childID).top - childStyle.box.margin.top * childZoom
                     total = max(total, marginTop - y(parent))
@@ -709,9 +687,6 @@ extension LayoutTree {
         return inputs.children(node).isEmpty && !replaced ? .block : .inline
     }
 
-    /// A width-only change that keeps the break plan leaves line contents and
-    /// heights intact. Left-to-right text with no embeds only needs new line
-    /// widths, so its line children do not have to be visited again.
     private func canSkipInlineChildren(_ id: LayoutID) -> Bool {
         guard inputs.style(domID(of: id)).text.direction == .ltr else {
             return false
@@ -742,8 +717,6 @@ extension LayoutTree {
         }
     }
 
-    /// Children whose DOM nodes still form the same block keep it, with
-    /// everything it laid out; only the rest are built again.
     mutating private func rebuildBlockChildren(_ id: LayoutID) -> [LayoutID] {
         profiler.count("layout.children.rebuilt")
         self[block: id].changes.childChanges.removeAll()
@@ -938,8 +911,6 @@ extension LayoutTree {
             if child.style.computed.layout.display == .none {
                 continue
             }
-            // A float next to inline content joins it, so the lines around
-            // it stay in one block.
             let joinsRun: Bool = inputs.isFloat(child.id) && !state.inlineRun.isEmpty
             let isBlock: Bool = child.style.computed.layout.display == .block && !joinsRun
             if isBlock {
@@ -997,8 +968,6 @@ extension LayoutTree {
         }
     }
 
-    /// The children a rebuilt list may take back, keyed by the first DOM node
-    /// each one holds.
     private func reusableChildren(of id: LayoutID) -> BlockPool {
         var blocks: [NodeID: LayoutID] = [:]
         for child in childrenIDs(of: id) where isBlock(child) {
@@ -1007,9 +976,6 @@ extension LayoutTree {
         return BlockPool(blocks)
     }
 
-    /// A block is kept only when the same DOM nodes still form it, so its
-    /// lines and descendants are still its own. It gets its new previous
-    /// sibling; the dependency index moves whatever reads that.
     mutating private func takeBlock(
         _ dom: NodeID,
         extraNodes: [NodeID],
@@ -1023,8 +989,6 @@ extension LayoutTree {
         if extraNodes.isEmpty {
             setPrimary(old, for: dom)
         } else {
-            // Text with no box of its own, such as whitespace, reports its
-            // edits to the parent, and this rebuild may be that report.
             markField(.inlineContent, at: old)
         }
         setBlockPrevious(old, previous)
@@ -1113,8 +1077,6 @@ extension LayoutTree {
         if placement.objectsChanged {
             self[block: id].content.inlineObjects = placement.objects
         }
-        // The block's floats follow its lines, so tree order keeps the text
-        // first and floats paint above the lines they sit beside.
         var floatChildren: [LayoutID] = []
         for (index, item) in items.enumerated() {
             if case .float = item, let float: LayoutID = placement.object(at: index) {
@@ -1392,7 +1354,6 @@ extension LayoutTree {
         if !preservingObjects || data.content.inlineItems.isEmpty {
             data.content.inlineLinePlan = nil
         } else {
-            // The items changed size. Keep the old breaks for line reuse only.
             data.content.inlineLinePlan?.fits = nil
         }
         let reusablePlan: Bool = preservingObjects && !data.content.inlineItems.isEmpty
@@ -1425,9 +1386,6 @@ extension LayoutTree {
         }
     }
 
-    /// The same walk as `inlineLeaves`, but it also marks where each inline
-    /// element with padding or border starts and ends. The block's own element
-    /// is never an inline box.
     private func collectItems(_ id: LayoutID, into items: inout [InlineItem]) {
         let extraNodes: [LayoutDOMView] = blockExtraNodes(id)
         if !extraNodes.isEmpty {
@@ -1450,8 +1408,6 @@ extension LayoutTree {
         boxed: Bool,
         into items: inout [InlineItem]
     ) {
-        // `boxed` is false only for the block's own element, which may itself
-        // be the float whose content this is.
         if boxed, let el = n.element, inputs.isFloat(el.id) {
             items.append(.float(el))
             return
@@ -1865,9 +1821,6 @@ extension LayoutTree {
         placement.cursorX += w + spaceAfterEmbed(id, at: index)
     }
 
-    /// The space after an embed belongs to the text that follows, so it takes
-    /// that text's font. Before another embed it is the surrounding text's
-    /// space; at the end of a line nothing follows it.
     private func spaceAfterEmbed(_ id: LayoutID, at index: Int) -> CGFloat {
         let items: [InlineItem] = self[block: id].content.inlineItems
         for item in items[(index + 1)...] {
@@ -2031,8 +1984,6 @@ extension LayoutTree {
 
     // MARK: - Scroll
 
-    /// The offset lives in the DOM, so no layout can move it back; this layout
-    /// only bounds it to the content it produced.
     @MainActor
     func blockScrollOffset(_ id: LayoutID) -> CGFloat {
         guard domView(id).element != nil,
@@ -2089,7 +2040,6 @@ private struct BlockPool {
         self.blocks = blocks
     }
 
-    /// Each block can be taken once, so two children never share one.
     mutating func take(_ node: NodeID) -> LayoutID? {
         return blocks.removeValue(forKey: node)
     }
@@ -2109,10 +2059,6 @@ private struct PendingInlineBox {
     let width: CGFloat
 }
 
-/// Inline elements with padding or border while the block fills its lines.
-/// An element's start waits for its first child, so a start right before a
-/// line break moves to the next line together with that child. A line with
-/// no such element records no events at all.
 private struct InlineBoxPlacement {
     var events: [InlineFlowEvent] = []
     var pending: [PendingInlineBox] = []
@@ -2143,8 +2089,6 @@ private struct InlineBoxPlacement {
         }
     }
 
-    /// Ends the line inside every element still open; the next line starts
-    /// inside them again, without their start edges.
     mutating func breakLine() -> [InlineFlowEvent] {
         if !open.isEmpty {
             recordEarlierChildren()
@@ -2202,16 +2146,12 @@ private struct InlinePlacementState {
     var cursor: LineCursor = LineCursor()
 }
 
-/// The line being filled: where its next item goes, its band, and the floats
-/// that may shorten it.
 private struct LineCursor {
     var x: CGFloat = 0
     var band: LineBand = LineBand()
     var floats: FloatExclusions = .none
 }
 
-/// `top` is the line's top before any drop below a float; `extent` grows with
-/// every item, and `insets` always fit the band that tall.
 private struct LineBand {
     var top: CGFloat = 0
     var insets: LineFloatInsets = .zero
@@ -2283,20 +2223,15 @@ struct InlinePlacement {
 
     var floats: FloatExclusions { state.cursor.floats }
 
-    /// The top of the line being filled, after any drop below a float.
     var lineTop: CGFloat { state.cursor.band.top + state.cursor.band.insets.gap }
 
     var lineBottom: CGFloat { lineTop + state.cursor.band.extent.height }
 
-    /// A float placed while the lines break: the current line and every later
-    /// one now avoids it too.
     mutating func avoid(_ floats: FloatExclusions) {
         state.cursor.floats = floats
         grow(.zero)
     }
 
-    /// Whether an item fits on the line once the line has grown to hold it: a
-    /// taller line can reach a float its current band misses.
     func fits(_ width: CGFloat, extent: InlineExtent, blockWidth: CGFloat) -> Bool {
         guard !state.cursor.floats.isEmpty else { return cursorX + width <= lineWidth(blockWidth) }
         let band: LineBand = state.cursor.band
@@ -2319,9 +2254,6 @@ struct InlinePlacement {
         )
     }
 
-    /// Keeps the old rule of ending a line that cannot take the item, except
-    /// that an empty line beside floats moves below them instead, then grows
-    /// the line to hold the item.
     mutating func makeRoom(
         for width: CGFloat,
         extent: InlineExtent,
@@ -2531,8 +2463,6 @@ struct InlinePlacement {
         let events: [InlineFlowEvent] = context.boxes.breakLine()
         if tree[line: line].inlineBoxes.events != events {
             tree[line: line].inlineBoxes.events = events
-            // The same children can sit at new positions when only the
-            // padding or border around them changed.
             tree.markField(.x, at: line)
         }
         profiler.measure("layout.inline.place.lineChildren", {

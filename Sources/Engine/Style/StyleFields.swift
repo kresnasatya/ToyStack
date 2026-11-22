@@ -12,8 +12,6 @@ final class StyleFields {
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
 
-    /// Style writes do not reach into the layout tree; the tree asks for this
-    /// set when it starts a pass.
     func takeLayoutChanges() -> Set<StyleProperty> {
         guard !layoutChanges.isEmpty else { return [] }
         let changes: Set<StyleProperty> = layoutChanges
@@ -21,10 +19,6 @@ final class StyleFields {
         return changes
     }
 
-    /// Paint-only properties (color, opacity, transform, z-index, …) still land
-    /// in `layoutChanges` so a later layout sees them, but they must not be the
-    /// reason a layout runs: a hover that only recolors text would otherwise
-    /// pay a document pass.
     var hasLayoutChanges: Bool {
         return layoutChanges.contains(where: { $0.affectsLayout })
     }
@@ -76,8 +70,6 @@ final class StyleFields {
         storage.computed = parsed.style
         storage.unknown = parsed.unknown
         inheritedText = textDeclarations ?? [:]
-        // A box length in em, ex, or ch moves with an inherited font-size, which
-        // the text-only shortcut in `reapplyInherited` would leave stale.
         canReinheritText = textDeclarations.map({ text in
             !newValues.contains(where: { text[$0.key] == nil && FontRelativeUnits.isFontRelative($0.value) })
         }) ?? false
@@ -94,8 +86,6 @@ final class StyleFields {
         profiler.count("style.fields.changed", by: changed.count)
     }
 
-    /// A force-only node did not match a new rule; its own declarations are
-    /// unchanged and only inherited text can move.
     func reapplyInherited(parent: ComputedStyle?) -> Bool? {
         guard canReinheritText else { return nil }
         let oldText: TextStyle = storage.computed.text

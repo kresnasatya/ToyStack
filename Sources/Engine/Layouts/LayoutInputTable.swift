@@ -1,10 +1,6 @@
 import Foundation
 
-/// This table is the only place that declares an edge:
-/// `DependencyIndex.rebuild(from:)` reconstructs the reverse index from it
-/// alone.
 enum LayoutInputTable {
-    /// Only these need the dependency table reindexed.
     static let structuralStyleProperties: Set<StyleProperty> = [
         .display, .position, .float, .clear, .direction, .whiteSpace, .aspectRatio, .maxWidth,
     ]
@@ -246,7 +242,6 @@ enum LayoutInputTable {
         case .children, .x, .y, .previous, .inlineContent:
             return []
         case .width:
-            // An image's percentages resolve against the block that owns its line.
             let container: LayoutID? = parent.map({ tree.parentID(of: $0) ?? $0 })
             return embedWidthInputs(id, container: container, dom: dom, data: data)
         case .height:
@@ -257,8 +252,6 @@ enum LayoutInputTable {
             return keys
         case .ascent:
             if case .button = data {
-                // `makeEmbed` seeds ascent with `.height`; `layoutButton`
-                // declares `.font` on top of it.
                 return [.layout(id, .height), .layout(id, .font)] + boxEdgeKeys(dom)
             }
             return [.layout(id, .height)] + boxEdgeKeys(dom)
@@ -288,7 +281,6 @@ enum LayoutInputTable {
         case .input:
             return [.layout(id, .font), .layout(id, .zoom)]
         case .button:
-            // Shrink-to-fit reads the room left in the block that owns the line.
             var keys: [FieldKey] = [.layout(id, .font), .layout(id, .zoom)] + boxEdgeKeys(dom)
             if let container { keys.insert(.layout(container, .width), at: 0) }
             return keys
@@ -329,13 +321,10 @@ enum LayoutInputTable {
         .paddingTop, .paddingRight, .paddingBottom, .paddingLeft, .borderWidth, .borderStyle,
     ]
 
-    /// Padding and border set how much room a box takes around its content.
     static func boxEdgeKeys(_ dom: NodeID) -> [FieldKey] {
         return boxEdgeProperties.map({ .style(dom, $0) })
     }
 
-    /// Box-sizing turns a width or height attribute into a content size by
-    /// taking the padding and border out of it.
     private static func sizedByAttributeKeys(_ dom: NodeID) -> [FieldKey] {
         return [.style(dom, .boxSizing)] + boxEdgeKeys(dom)
     }

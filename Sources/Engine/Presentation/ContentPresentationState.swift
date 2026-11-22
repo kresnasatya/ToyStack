@@ -1,9 +1,5 @@
 import CoreGraphics
 
-/// Content and presentation are separate revisions. A resize presents the same
-/// content several times at different sizes; those presents must preview from
-/// the size at which the content was last bound. Repeated previews are
-/// idempotent, so a tile update cannot overwrite the preview with a bind.
 public struct ContentPresentationState {
     public enum Decision: Equatable {
         case bind
@@ -11,8 +7,6 @@ public struct ContentPresentationState {
     }
 
     public private(set) var baseViewSize: CGSize?
-    /// A bound frame can still be staging behind older layers, so this can
-    /// lag the last bind.
     public private(set) var shownContentWidth: CGFloat?
     public private(set) var shownPage: CGFloat?
     private var lastRevision: PresentedRevision?
@@ -28,18 +22,11 @@ public struct ContentPresentationState {
         if !Self.fitsView(layoutSize: layoutSize, viewSize: viewSize) {
             let contentWidth: CGFloat = Self.contentWidth(layoutSize: layoutSize, viewSize: viewSize)
             lastRevision = revision
-            // The preview scales the layers on screen, not this unbound
-            // layout, so it must start from the width those layers were laid
-            // out at.
             let shownWidth: CGFloat = shownContentWidth ?? contentWidth
             return .preview(
                 from: CGSize(width: shownWidth, height: viewSize.height)
             )
         }
-        // This layout fits, but until its layers finish staging the older
-        // layers stay on screen. Scale them to the view instead of showing
-        // them at their own width next to an empty strip. Without staging
-        // nothing would replace them, so the frame binds.
         if stagingLayers, let shownWidth: CGFloat = shownContentWidth, !Self.sameWidth(shownWidth, viewSize.width) {
             lastRevision = revision
             return .preview(
@@ -65,9 +52,6 @@ public struct ContentPresentationState {
         return sameWidth(contentWidth(layoutSize: layoutSize, viewSize: viewSize), viewSize.width)
     }
 
-    /// During a drag the layout trails the window by a frame or two, so it
-    /// almost never has the window's exact width; it is still closer to the
-    /// window than the older layers on screen.
     public static func stages(generation: UInt64, shown: UInt64?) -> Bool {
         guard let shown else { return false }
         return generation != shown

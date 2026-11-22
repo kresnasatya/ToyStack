@@ -3,8 +3,6 @@ import Foundation
 
 // MARK: - PaintBuildSink
 
-/// `owners[i]` owns `scenes[i]`, so paint results can be handed back after
-/// the pass.
 struct PaintBuildSink {
     var owners: [Frame] = []
     var scenes: [PaintFrame] = []
@@ -12,15 +10,11 @@ struct PaintBuildSink {
 
 // MARK: - PaintSceneBuilder
 
-/// This is the only paint code that touches the layout tree and `DOMRef`. It
-/// also collects the few DOM facts that decide ops (focus rings, caret, iframe
-/// scrollbars), so the pass itself stays on values.
 @MainActor
 struct PaintSceneBuilder {
     private(set) var sink: PaintBuildSink = PaintBuildSink()
     private var window: PaintWindow = .full
     private var highlights: [LayoutID: [Rect]] = [:]
-    /// Nodes whose blocks are built even off screen; `nil` builds every block.
     private var keptByTransforms: Set<NodeID>? = nil
 
     mutating func build(
@@ -36,12 +30,8 @@ struct PaintSceneBuilder {
 
         var nodes: [PaintNode] = []
         nodes.reserveCapacity(64)
-        // A local array: an iframe scene is built recursively while this one
-        // is still in progress, so a builder-wide array would be reset.
         var revisions: [UInt64] = []
         revisions.reserveCapacity(64)
-        // Restored afterwards for the same reason: this may be an iframe
-        // built in the middle of its parent's scene.
         let parentHighlights: [LayoutID: [Rect]] = highlights
         let parentKept: Set<NodeID>? = keptByTransforms
         highlights = frame.selectionHighlights(in: tree)
@@ -93,11 +83,6 @@ struct PaintSceneBuilder {
         return index
     }
 
-    /// A block caches its own emitted ops, so its own style revision is the
-    /// whole input. A line caches its text ops, whose colours come from the
-    /// inherited style owner of each box; the line generation is compared
-    /// separately in `LinePaintVersion`. Using the global paint epoch here
-    /// made one hovered link re-emit every line and block on the page.
     private func paintRevision(
         _ tree: LayoutTree,
         _ id: LayoutID,
@@ -115,10 +100,6 @@ struct PaintSceneBuilder {
         return style
     }
 
-    /// Lines and text are skipped by their own box, as the paint pass does.
-    /// A block is skipped by its ink extent, which covers floats and
-    /// positioned children hanging outside it, unless a transform inside it
-    /// can move painting somewhere layout does not know about.
     private func culledAtBuild(_ tree: LayoutTree, _ id: LayoutID) -> Bool {
         guard window != .full else { return false }
         switch tree.kind(id) {
@@ -184,7 +165,6 @@ struct PaintSceneBuilder {
         )
     }
 
-    /// `.font` traps when the field is dirty; only text and input paint it.
     private func font(of tree: LayoutTree, _ id: LayoutID) -> BrowserFont {
         switch tree.kind(id) {
         case .text, .embed(.input):
@@ -218,8 +198,6 @@ struct PaintSceneBuilder {
         case .line:
             let inlineBoxes: [DisplayOp] = lineInlineBoxes(tree, id, boxes)
             let selection: [DisplayOp] = selectionHighlightOps(highlights[id] ?? [])
-            // The line cache does not know about the selection, so a cached
-            // line would come back without its highlight.
             return .line(PaintLine(
                 canCache: tree.lineCanCachePaint(id) && boxes != nil && inlineBoxes.isEmpty && selection.isEmpty,
                 generation: tree[line: id].paint.generation,
@@ -359,10 +337,6 @@ struct PaintSceneBuilder {
 
     // MARK: - Inline boxes
 
-    /// Backgrounds and borders of the inline elements on one line, outer
-    /// elements first so inner ones paint over them. An element with padding
-    /// or border has a fragment from layout; one with only a background covers
-    /// whatever of its contents landed on this line, up to its last letter.
     private func lineInlineBoxes(_ tree: LayoutTree, _ id: LayoutID, _ boxes: [InlineBox]?) -> [DisplayOp] {
         var areas: [NodeID: InlineArea] = [:]
         for fragment in tree[line: id].inlineBoxes.fragments {
@@ -373,8 +347,6 @@ struct PaintSceneBuilder {
         }
         if let boxes {
             for box in boxes {
-                // A word's measured width carries the space after it, which
-                // belongs to whatever comes next.
                 let rect: Rect = Rect(
                     left: box.geometry.x,
                     top: tree.y(id) + box.geometry.y,
@@ -412,8 +384,6 @@ struct PaintSceneBuilder {
         return ops
     }
 
-    /// Grows the background of every inline ancestor that has one but no
-    /// padding or border of its own to also cover `rect`.
     private func coverBackgrounds(
         _ rect: Rect,
         from start: DOMRef?,
@@ -506,8 +476,6 @@ private func placeholder(id: LayoutID, dom: NodeID) -> PaintNode {
 
 // MARK: - InlineArea
 
-/// Where one inline element paints on one line, and how deep it sits under
-/// the block so outer elements paint first.
 private struct InlineArea {
     let rect: Rect
     let depth: Int

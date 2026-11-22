@@ -1,8 +1,5 @@
 import Foundation
 
-/// IDs are append-only: removing a subtree detaches it and never reuses the
-/// ID, so a stale `NodeID` cannot point at another node. The root is always
-/// `NodeID(raw: 0)`.
 @MainActor
 final class DOMTree {
     private(set) var nodes: [DOMNode?]
@@ -42,15 +39,11 @@ final class DOMTree {
         }
     }
 
-    /// The `revision` at which a node itself last changed: its data, its
-    /// children, its parent, or its flags. Copies of node data made at an
-    /// earlier revision are still correct for a node that has not changed since.
     func changeRevision(of id: NodeID) -> UInt64 {
         guard id.raw < lookup.changedAt.count else { return revision }
         return lookup.changedAt[Int(id.raw)]
     }
 
-    /// Reads the style revision without copying the node.
     func styleRevision(of id: NodeID) -> UInt64 {
         return lookup.styles[Int(id.raw)].revision
     }

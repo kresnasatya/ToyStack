@@ -5,7 +5,6 @@
 /// border go only on its first fragment and its end ones only on its last.
 struct InlineBoxFragment: Equatable {
     let dom: NodeID
-    /// Relative to the line's origin, so moving the line moves the fragment.
     let rect: Rect
     let opens: Bool
     let closes: Bool

@@ -3,9 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// The space between an embed and the words around it: one space on each
-/// side, the same room line breaking keeps for it. As in real browsers, the
-/// space after an embed belongs to the text that follows and takes its font.
 @Suite(.serialized)
 @MainActor
 struct EmbedSpacingTests {
@@ -92,16 +89,12 @@ struct EmbedSpacingTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// Line breaking must keep the same room the line gives the space, or a
-    /// word that fits wraps early.
     @Test func wordThatFitsAfterALargeButtonStaysOnItsLine() throws {
         let page: LayoutTestPage = page(#"<p id="p"><button>Go</button> after</p>"#, rules: Self.largeButtons)
         let after: LayoutID = try word(page, "after")
         let font: BrowserFont = page.tree.font(after)
         let button: LayoutID = try #require(try buttons(page).first)
         let box: Rect = page.tree.selfRect(button)
-        // A word's room includes the space after it. The half pixel absorbs
-        // rounding; a space in the button's font would need about 3px more.
         let fit: CGFloat = (box.right - box.left) + font.spaceWidth + font.measure("after") + font.spaceWidth + 0.5
         let paragraph: ElementRef = try #require(page.firstElement(id: "p"))
 
@@ -115,7 +108,6 @@ struct EmbedSpacingTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// A float sizes itself from the same spaces, so its words do not wrap.
     @Test func floatAroundASmallButtonKeepsTheWordAfterIt() throws {
         let page: LayoutTestPage = page(
             #"<p><span id="f"><button>Go</button> after</span></p>"#,

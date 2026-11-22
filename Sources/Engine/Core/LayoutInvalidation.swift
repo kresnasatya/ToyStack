@@ -8,14 +8,11 @@ enum LayoutInvalidation {
     }
 
     static func childrenAppend(_ parent: DOMRef, _ child: DOMRef) {
-        // A comment never gets a box, so adding one leaves nothing to lay out.
         guard !child.dom.isComment(child.id) else { return }
         guard let block = nearestBlock(parent), block.box.tree.isBlock(block.id) else {
             childrenChanged(parent)
             return
         }
-        // A pass running now may already have read the new child from the
-        // DOM, so the replay rebuilds the children instead of appending twice.
         block.box.record(.childrenChanged(parent.id))
         block.box.tree.blockNoteAppendedChildren(block.id, [child.id])
     }

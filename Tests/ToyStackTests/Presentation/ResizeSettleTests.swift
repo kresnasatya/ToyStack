@@ -19,7 +19,6 @@ struct ResizeSettleTests {
         #expect(settle.isSettled(at: 10.0 + ResizeSettle.delay * 1.5))
     }
 
-    /// A drag sends a width change every display frame, so it never settles.
     @Test func dragAtDisplayRateNeverSettles() {
         var settle: ResizeSettle = ResizeSettle()
         var now: TimeInterval = 10.0

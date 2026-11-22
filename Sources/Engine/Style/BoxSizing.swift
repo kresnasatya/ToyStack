@@ -13,8 +13,8 @@ enum BoxSizing: Equatable {
         }
     }
 
-    // CSS Sizing 3 §3.3: under border-box the specified size includes padding
-    // and border, so the content box gets what is left, floored at zero.
+    // CSS Sizing 3 §3.3: border-box assigns the specified size to the border box, so it
+    // includes padding and border and the content box gets what is left, floored at zero.
     func contentSize(specified: CGFloat, paddingAndBorder: CGFloat) -> CGFloat {
         switch self {
         case .contentBox: return specified

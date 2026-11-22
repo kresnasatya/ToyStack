@@ -3,19 +3,10 @@ import Testing
 
 @testable import Engine
 
-/// A width reflow places lines with `collectsBoxes == true`: each line keeps
-/// its text as `LineData.content.boxes` values and has no text children. A
-/// later pass that only moves those lines used to rebuild the boxes from the
-/// (empty) child list, erasing the text while keeping the line's height. The
-/// visible result was a list bullet with no text, in a block that still
-/// occupied its full height.
 @Suite(.serialized)
 @MainActor
 struct LineBoxWipeTests {
     @Test func verticalLineMoveKeepsInlineBoxes() throws {
-        // The first paragraph must change height with the width; the second
-        // must change its line plan once (to enter the value path) and then
-        // only move.
         let aboveWords: String = Array(repeating: "word", count: 80).joined(separator: " ")
         let belowWords: String = Array(repeating: "alpha beta gamma delta", count: 30)
             .joined(separator: " ")

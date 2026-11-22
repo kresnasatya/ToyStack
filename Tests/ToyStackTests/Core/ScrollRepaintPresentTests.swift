@@ -54,9 +54,6 @@ struct ScrollRepaintPresentTests {
         try #require(await page.waitUntilRepainted())
         let before: CGFloat = frame.scroll
 
-        // The interest region still starts at 0 and ends 4 viewports down, so
-        // this scroll leaves it while the content painted at 1.9 viewports
-        // still covers the whole viewport.
         page.scroll(by: 1.55 * height)
 
         #expect(frame.scroll > before)
@@ -83,11 +80,6 @@ struct ScrollRepaintPresentTests {
         #expect(afterRepaint == false)
     }
 
-    /// Leaves the interest region while the painted content still covers the
-    /// viewport, runs `action` before the scroll's tiles come back, and tells
-    /// whether the scroll was first presented after its repaint. The tiles are
-    /// drawn off the main thread but presented on it, so a repaint that takes
-    /// the main thread first holds the scroll back until the repaint is done.
     private func leaveInterestRegion(
         _ page: ScrollTestBrowser,
         thenRun action: () -> Void
@@ -164,8 +156,6 @@ private struct ScrollTestBrowser {
         return await ScrollTestBrowser.pump(condition)
     }
 
-    /// The scroll repaint has run and every raster it started has landed, with
-    /// the animation timer paused, so nothing but the scroll itself drove it.
     func waitUntilRepainted() async -> Bool {
         return await waitUntil({ !frame.scrollNeedsPaint() && browser.isRenderIdle })
     }

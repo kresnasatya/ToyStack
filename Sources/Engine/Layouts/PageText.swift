@@ -2,10 +2,6 @@ import CoreGraphics
 
 // MARK: - PageText
 
-/// The page's laid-out text in reading order, one piece per run of text on a
-/// line. It turns a point into a position, and positions into the text and
-/// the rectangles between them, without caring how the text was split into
-/// lines.
 struct PageText {
     private let tree: LayoutTree
     private let pieces: [TextPiece]
@@ -20,10 +16,8 @@ struct PageText {
         self.piecesByNode = collector.piecesByNode
     }
 
-    // MARK: Points
+    // MARK: - Points
 
-    /// The gap, word, or paragraph at a point on the page, in page
-    /// coordinates after scrolling.
     func range(of unit: TextUnit, atX x: CGFloat, y: CGFloat) -> TextRange? {
         guard let index: Int = nearestPiece(x: x, y: y) else { return nil }
         let piece: TextPiece = pieces[index]
@@ -40,9 +34,6 @@ struct PageText {
         }
     }
 
-    /// A point between lines or past the end of one still lands on text: the
-    /// closest line wins, then the closest piece on it, so a drag that leaves
-    /// the text keeps moving the selection.
     private func nearestPiece(x: CGFloat, y: CGFloat) -> Int? {
         var best: Int? = nil
         var bestVertical: CGFloat = .infinity
@@ -68,7 +59,6 @@ struct PageText {
         return best
     }
 
-    /// The character drawn under `x`, clamped to the first or last one.
     private func characterIndex(_ offsets: [CGFloat], at x: CGFloat) -> Int? {
         let count: Int = offsets.count - 1
         guard count > 0 else { return nil }
@@ -116,10 +106,8 @@ struct PageText {
         )
     }
 
-    // MARK: Positions
+    // MARK: - Positions
 
-    /// The stretch from the first to the last end of `ranges`, or nil when any
-    /// end sits in text this layout no longer shows.
     func span(covering ranges: [TextRange]) -> TextSpan? {
         var places: [TextPlace] = []
         for range in ranges {
@@ -151,7 +139,7 @@ struct PageText {
         return TextPlace(piece: chosen, offset: offset)
     }
 
-    // MARK: Text
+    // MARK: - Text
 
     func string(in span: TextSpan) -> String {
         var result: String = ""
@@ -167,8 +155,6 @@ struct PageText {
         return result
     }
 
-    /// Text that wrapped onto the next line is joined by a space, like words
-    /// on one line; a new block or a forced break starts a new line.
     private func separator(before index: Int) -> String {
         let previous: TextPiece = pieces[index - 1]
         let current: TextPiece = pieces[index]
@@ -187,10 +173,7 @@ struct PageText {
     private func isForcedBreak(from earlier: NodeID, to later: NodeID, within block: NodeID) -> Bool {
         let inputs: LayoutInputs = tree.inputs
         let mode: WhiteSpaceMode = inputs.style(inputs.inheritedStyleOwner(earlier)).text.whiteSpace
-        // Text that never wraps only reaches a new line through a forced break.
         if !mode.wraps { return true }
-        // Kept spaces make each source line a single word, so a new line in
-        // the same text node can only come from a newline.
         if earlier == later { return mode.keepSpaces }
         var current: NodeID? = nextInDocument(after: earlier, within: block)
         while let node = current, node != later {
@@ -216,11 +199,8 @@ struct PageText {
         return nil
     }
 
-    // MARK: Paint
+    // MARK: - Paint
 
-    /// Where the selected text shows, grouped by line, in layout coordinates.
-    /// A piece the selection runs past is covered through its trailing space,
-    /// so the gaps between selected words are covered too.
     func highlights(in span: TextSpan) -> [LayoutID: [Rect]] {
         var result: [LayoutID: [Rect]] = [:]
         guard span.start != span.end else { return result }
@@ -245,8 +225,6 @@ struct PageText {
 
 // MARK: - TextPlace
 
-/// A position resolved against one layout: which piece, and which gap inside
-/// it. Two places compare in reading order.
 struct TextPlace: Comparable {
     let piece: Int
     let offset: Int
@@ -265,7 +243,6 @@ struct TextSpan: Equatable {
 
 // MARK: - TextPiece
 
-/// One run of a text node's words on one line, drawn as a single string.
 private struct TextPiece {
     let line: LayoutID
     let node: NodeID
@@ -273,16 +250,12 @@ private struct TextPiece {
     let bounds: TextPieceBounds
 }
 
-/// `start` is where the first character sits in the node's laid-out text.
 private struct TextPieceText {
     let string: String
     let font: BrowserFont
     let start: Int
 }
 
-/// `layout` is where paint draws the piece; `shown` is where it lands after
-/// transforms and scrolling, which is what the pointer sees. Both include the
-/// space after the last word.
 private struct TextPieceBounds {
     let layout: Rect
     let shown: Rect
@@ -297,11 +270,6 @@ private struct TextPieceCollector {
     var piecesByNode: [NodeID: [Int]] = [:]
     var nextStart: [NodeID: Int] = [:]
 
-    /// Reads text the way paint draws it: a line with current inline boxes
-    /// draws those instead of its text children, a line opens no transform of
-    /// its own, and a scroll box shows its children moved up by its scroll
-    /// position. Embeds are skipped, so button labels and iframe contents are
-    /// not part of this page's text.
     mutating func visit(_ id: LayoutID, shift: Point) {
         if tree.isEmbed(id) { return }
         var shift: Point = shift
@@ -348,8 +316,6 @@ private struct TextPieceCollector {
         ))
     }
 
-    /// Pieces of one node follow each other with one separator between them,
-    /// whatever line each landed on.
     private mutating func append(_ piece: TextPiece) {
         guard !piece.text.string.isEmpty else { return }
         nextStart[piece.node] = piece.text.start + piece.text.string.count + 1
@@ -360,8 +326,6 @@ private struct TextPieceCollector {
 
 // MARK: - CharacterKind
 
-/// A double click takes the run of characters of one kind around the
-/// pointer, so it stops at spaces and at punctuation.
 private enum CharacterKind {
     case space
     case word

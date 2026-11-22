@@ -34,8 +34,6 @@ struct LayoutOracleTests {
     }
 
     @Test func textEditStopsAtUnchangedSiblings() throws {
-        // One line on purpose: whitespace between block tags would create
-        // anonymous blocks and change the visit count.
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="first">alpha</p><p>beta</p><p>gamma</p><p>delta</p><p>epsilon</p><p>zeta</p><p>eta</p><p>theta</p>"#,
             rules: """
@@ -191,8 +189,6 @@ struct LayoutOracleTests {
         let zoomed: LayoutID = try #require(
             treeToList(page.tree, paragraphAfter).first(where: { page.tree.isText($0) })
         )
-        // Page zoom shrinks the layout viewport and is applied at paint time;
-        // it is not a layout `zoom` field.
         #expect(document.zoom(document.rootID) == CGFloat(1))
         #expect(document[document: document.rootID].pageZoom == CGFloat(2))
         #expect(document.width(document.rootID) == page.frame.frameWidth - 2 * HSTEP)
@@ -284,8 +280,6 @@ struct LayoutOracleTests {
             script: "test",
             code: #"document.getElementById("left").innerHTML = "<p id='new'>new text</p>";"#
         )
-        // The JS DOM helpers reload stylesheets, which drops rules that were
-        // installed directly by the test instead of through a <style> element.
         page.frame.setStyleRules(CSSParser(css).parse().rules)
         page.frame.setNeedsRender()
         page.frame.render()

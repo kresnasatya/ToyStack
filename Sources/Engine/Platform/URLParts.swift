@@ -27,8 +27,9 @@ enum URLParts {
         ]
     }
 
-    // URL Standard §4.4 "basic URL parser": an input that starts with its own scheme
-    // ("mailto:", "https:") is parsed on its own, and the base is not used.
+    // URL Standard §4.4 "scheme state": an input that starts with its own scheme ("mailto:",
+    // "https:") is parsed on its own. The spec still resolves a special scheme equal to the
+    // base's ("https:foo" on an https page) against the base; this resolver does not.
     private static func resolve(_ input: String, base: String) -> WebURL? {
         if base.isEmpty || hasScheme(input) { return loadable(input) }
         guard let baseURL: WebURL = loadable(base) else { return nil }
@@ -36,7 +37,6 @@ enum URLParts {
         return resolved.scheme == "about" ? nil : resolved
     }
 
-    // WebURL turns anything it cannot load into about:blank instead of failing.
     private static func loadable(_ input: String) -> WebURL? {
         let url: WebURL = WebURL(input)
         return url.scheme == "about" && !input.hasPrefix("about:") ? nil : url

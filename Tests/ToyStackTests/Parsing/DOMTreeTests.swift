@@ -53,7 +53,7 @@ struct DOMTreeTests {
         #expect(!dom.flags(of: node).isFocused)
     }
 
-    // MARK: Text description
+    // MARK: - Text description
     @Test func textNodeDescription() {
         let dom: DOMTree = DOMTree()
         let node: NodeID = dom.createText("world")
@@ -82,7 +82,7 @@ struct DOMTreeTests {
         #expect(!dom.isComment(text))
     }
 
-    // MARK: Siblings
+    // MARK: - Siblings
     @Test func siblingsFollowChildOrder() {
         let dom: DOMTree = DOMTree()
         let parent: NodeID = dom.createElement(tag: "div", attributes: [:])
@@ -119,7 +119,7 @@ struct DOMTreeTests {
         #expect(descriptions == ["<!--x-->", "\"y\""])
     }
 
-    // MARK: Parent-child relationships
+    // MARK: - Parent-child relationships
     @Test func parentChildLink() {
         let dom: DOMTree = DOMTree()
         let parent: NodeID = dom.createElement(tag: "div", attributes: [:])

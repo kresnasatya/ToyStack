@@ -7,8 +7,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct CanvasColorTests {
-    // The window behind the page is the canvas. Before, it was always white (or black
-    // in dark mode), so a dark page showed a white strip around and below its content.
     @Test func windowTakesTheBodyBackground() async throws {
         let presented: CGColor = try await presentedCanvas(body: "background-color: rgb(10 10 10);")
         #expect(presented.components == BrowserColor(red: 10 / 255, green: 10 / 255, blue: 10 / 255).cgColor.components)

@@ -7,10 +7,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct PageSourceTests {
-    // The app installs its page source from SwiftUI, on the main actor. A
-    // script that changes the DOM makes the frame wait for its stylesheets on
-    // the main thread, so a source that also needs the main thread would
-    // freeze the page forever.
     @Test func pageSourceInstalledOnTheMainActorDoesNotFreezeAPageThatChangesItsDOM() async throws {
         let host: String = "page-source-\(UUID().uuidString.lowercased()).example"
         let pagePath: String = "/\(UUID().uuidString)"

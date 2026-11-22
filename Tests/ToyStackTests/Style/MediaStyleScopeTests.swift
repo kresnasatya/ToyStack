@@ -18,8 +18,6 @@ struct MediaStyleScopeTests {
         let total: Int = treeToList(page.frame.nodes).count
         page.frame.setViewport(width: 400, height: page.frame.frameHeight)
         page.frame.setNeedsViewportResize()
-        // The layout phase resets the profiler. This test only observes the
-        // style phase, so drop the queued layout and render style alone.
         page.frame.state.layout.tree.isDirty = false
         page.frame.render()
 

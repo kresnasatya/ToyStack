@@ -2,14 +2,13 @@ import CoreGraphics
 
 // MARK: - InkExtent
 
-/// CSS Overflow 3 §2.2 ink overflow, vertical only: from how high to how low a
+/// CSS Overflow 3 §2.1 ink overflow, vertical only: from how high to how low a
 /// box and everything inside it paints, before any transform. Paint skips a
 /// block whose extent misses the paint window.
 struct InkExtent: Equatable {
     var top: CGFloat
     var bottom: CGFloat
 
-    /// For a child block that has no extent yet, so its parent is never skipped.
     static let unbounded: InkExtent = InkExtent(top: -.infinity, bottom: .infinity)
 
     init(top: CGFloat, bottom: CGFloat) {

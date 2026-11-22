@@ -3,12 +3,7 @@ import Foundation
 
 // MARK: - LayoutTree
 
-/// Nodes are append-only: removing a subtree writes `nil` into the hole and
-/// never reuses the ID, so a stale `LayoutID` cannot point at another node.
 struct LayoutTree: @unchecked Sendable {
-    /// Not optional: unwrapping an optional element copies the whole node
-    /// (over 400 bytes) on every read. A removed node stays as a placeholder
-    /// with `state.isRemoved`; IDs are never reused.
     private(set) var nodes: [LayoutNode]
     private(set) var primaryByNode: [NodeID: LayoutID]
     var dependencies: DependencyIndex
@@ -16,7 +11,6 @@ struct LayoutTree: @unchecked Sendable {
     private var detached: Set<LayoutID> = []
     var needsSweep: Bool { !detached.isEmpty }
     var textRuns: [LayoutID: TextRun] = [:]
-    /// Fragment values are collected while paint migrates off text nodes.
     var collectsInlineBoxes: Bool = true
 
     private var storageEffects: [LayoutEffect] {
@@ -80,7 +74,6 @@ struct LayoutTree: @unchecked Sendable {
             previous: nil
         )
         assert(document.raw == 0)
-        // The root has no parent to attach it; it is never swept.
         detached.remove(document)
         primaryByNode[root] = document
         for field in [LayoutField.zoom, .width, .x, .y, .children] {
@@ -165,9 +158,6 @@ struct LayoutTree: @unchecked Sendable {
         return ids
     }
 
-    /// Reading one field through it copies only that field, and writing
-    /// through it changes the stored node without copying the rest of it
-    /// (kind payload, children, font).
     subscript(node id: LayoutID) -> LayoutNode {
         _read {
             guard !nodes[id.raw].state.isRemoved else {
@@ -207,7 +197,6 @@ struct LayoutTree: @unchecked Sendable {
         var dropped: [LayoutID] = []
         if old != children {
             let kept: Set<LayoutID> = Set(children)
-            // A child that another parent already adopted is still in the tree.
             for child in old where !kept.contains(child)
                 && contains(child) && self[node: child].links.parent == id
             {
@@ -270,8 +259,6 @@ struct LayoutTree: @unchecked Sendable {
         nodes[id.raw] = .removed(dom: dom)
     }
 
-    /// Must run before the nodes are cleared, because the used-field mask is
-    /// read from each node.
     mutating func removeDependencyEdges(for ids: Set<LayoutID>) {
         guard !ids.isEmpty else { return }
         profiler.measure("layout.sweep.edges.dependents", {
@@ -327,8 +314,6 @@ struct LayoutTree: @unchecked Sendable {
         return removed
     }
 
-    /// A child another parent adopted is skipped: its parent link points
-    /// elsewhere.
     private func collectDetachedSubtree(
         _ id: LayoutID,
         into removed: inout Set<LayoutID>,
@@ -535,7 +520,6 @@ struct LayoutTree: @unchecked Sendable {
         markDependents(of: .layout(id, field))
     }
 
-    /// Static, so a call does not allocate an array.
     private static let frameFields: [LayoutField] = [.zoom, .x, .y, .width]
     private static let positionFields: [LayoutField] = [.x, .y]
     private static let textMetricFields: [LayoutField] = [.width, .height, .ascent, .descent]
@@ -550,8 +534,6 @@ struct LayoutTree: @unchecked Sendable {
         self[node: id].state.fields.geometry.origin.x = frame.x
         self[node: id].state.fields.geometry.origin.y = frame.y
         self[node: id].state.fields.geometry.size.width = frame.width
-        // A box's own x, y, and width depend on its zoom, so announcing the new
-        // zoom marks them dirty; do it before this call stores them as clean.
         if used & LayoutField.zoom.mask == 0 || old.zoom != frame.zoom {
             noteFieldSet(.zoom, at: id)
         }
@@ -980,12 +962,6 @@ extension LayoutTree {
         return storedInlineContent(id)
     }
 
-    // MARK: Payloads
-    // Reading copies only what the caller reads. Writing moves the payload out
-    // of the node for the duration, so the arrays inside are changed without
-    // being copied; the node holds `vacatedKind` meanwhile, and exclusive
-    // access to the tree means nothing can read it in between.
-
     subscript(document id: LayoutID) -> DocumentData {
         _read {
             switch self[node: id].kind {
@@ -1120,7 +1096,7 @@ extension LayoutTree {
         }
     }
 
-    // MARK: Structure
+    // MARK: - Structure
 
     func domID(of id: LayoutID) -> NodeID { return self[node: id].dom }
     func parentID(of id: LayoutID) -> LayoutID? { return self[node: id].links.parent }
@@ -1135,7 +1111,7 @@ extension LayoutTree {
     func isDocument(_ id: LayoutID) -> Bool { if case .document = kind(id) { return true }; return false }
     func isIframe(_ id: LayoutID) -> Bool { if case .embed(.iframe) = kind(id) { return true }; return false }
 
-    // MARK: Geometry and passes
+    // MARK: - Geometry and passes
 
     func selfRect(_ id: LayoutID) -> Rect {
         switch kind(id) {
@@ -1156,7 +1132,6 @@ extension LayoutTree {
         return Rect(left: x, top: y, right: x + width(id), bottom: y + height(id))
     }
 
-    /// The used border of a box that lays out its border: blocks and embeds.
     func borderWidths(_ id: LayoutID) -> EdgeInsets {
         switch kind(id) {
         case .block: return blockBorderWidths(id)
@@ -1165,14 +1140,12 @@ extension LayoutTree {
         }
     }
 
-    /// Where the content box starts on the page, after any CSS translation.
     func absoluteContentOrigin(_ id: LayoutID) -> Point {
         let bounds: Rect = absoluteBounds(id)
         let rect: Rect = selfRect(id)
         return Point(x: bounds.left + x(id) - rect.left, y: bounds.top + y(id) - rect.top)
     }
 
-    /// Transitional dispatch: block and embed passes still take a ref.
     mutating func layout(_ id: LayoutID) {
         switch kind(id) {
         case .document:

@@ -2,9 +2,6 @@ import Foundation
 
 @testable import Engine
 
-/// `BrowserTab.pageSource` is one global shared by every suite, and suites run
-/// in parallel, so tests that replace it take turns instead of overwriting
-/// each other's fake pages.
 @MainActor
 enum PageSourceOverride {
     typealias Source = @Sendable (_ scheme: String, _ path: String) async -> (

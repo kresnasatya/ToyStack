@@ -25,8 +25,6 @@ struct PageScriptTests {
         #expect(result?.toString() == "undefined|undefined|true")
     }
 
-    // A script that adds another script runs that one at once, so currentScript has to
-    // come back to the outer script afterward.
     @Test func eachScriptSeesItselfAsCurrentScript() async throws {
         let host: String = "page-script-\(UUID().uuidString.lowercased()).example"
         let page: String = """

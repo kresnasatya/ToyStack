@@ -2,9 +2,6 @@ import Testing
 
 @testable import Engine
 
-// The two scripts are copied unchanged from a Next.js page (palm-co.de). React
-// streams a placeholder first, then the real section in a hidden div, and these
-// scripts move the real section into place.
 @Suite(.serialized)
 @MainActor
 struct StreamedSectionSwapTests {

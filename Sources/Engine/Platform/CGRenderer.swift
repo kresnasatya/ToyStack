@@ -66,9 +66,6 @@ public final class CGRenderer: Renderer {
 
     public func fillBorderSide(_ side: BorderSidePaint) {
         cg.saveGState()
-        // Neighbouring sides share the corner line. Antialiasing both clips
-        // would leave each edge pixel part-covered twice and show a faint
-        // seam, so each pixel goes wholly to one side.
         cg.setShouldAntialias(false)
         cg.addPath(side.region.cgPath)
         cg.clip()

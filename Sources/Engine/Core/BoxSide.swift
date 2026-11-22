@@ -1,6 +1,5 @@
 // MARK: - BoxSide
 
-/// The four sides of a box, in the clockwise order CSS lists them.
 enum BoxSide: Int, CaseIterable {
     case top
     case right

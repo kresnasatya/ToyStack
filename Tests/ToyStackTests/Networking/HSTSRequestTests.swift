@@ -3,8 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// The shared store is changed for "localhost" only, and these tests run one
-/// at a time so they never see each other's rule.
 @Suite(.serialized)
 struct HSTSRequestTests {
     @Test func plainRequestToAnHTTPSOnlyHostIsSentOverHTTPS() async throws {

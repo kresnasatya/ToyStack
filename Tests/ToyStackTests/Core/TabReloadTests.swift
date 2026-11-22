@@ -132,8 +132,6 @@ struct TabReloadTests {
         treeToList(tab.rootFrame.nodes).compactMap({ $0.text }).map(\.text).joined()
     }
 
-    /// Fetches run one at a time in order, so an empty fetch queued now
-    /// completes only after every fetch already queued has finished.
     private static func finishQueuedFetches(_ browser: Browser) async {
         await browser.networkTaskRunner.schedule(name: "finish-queued-fetches", { @Sendable () async -> Void in })
     }

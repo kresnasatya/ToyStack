@@ -2,8 +2,6 @@ import CoreGraphics
 
 // MARK: - PaintPass
 
-/// Everything this pass needs is a value, so it does not touch a `Frame`,
-/// a `LayoutTree`, or a `DOMTree`.
 struct PaintPass {
     let scene: PaintScene
     var caches: [PaintCacheStore]

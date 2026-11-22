@@ -204,7 +204,7 @@ public class WebURL: @unchecked Sendable {
         return (arrival(at: redirectedTo), httpResponse.statusCode, headers, content)
     }
 
-    /// Fetch §2.2.6 (location URL): a redirect target without a fragment
+    /// Fetch §2.2.6 (location URL) step 4: a redirect target without a fragment
     /// takes the fragment of the request, so `/#about` still scrolls after a
     /// redirect to another host.
     private func arrival(at redirectedTo: String?) -> WebURL {
@@ -247,8 +247,6 @@ public class WebURL: @unchecked Sendable {
             urlRequest.setValue(ref.toString(), forHTTPHeaderField: "Referer")
         }
 
-        // ToyStack's jar is the only cookie store. URLSession's own store
-        // would keep cookies the jar and `document.cookie` never see.
         urlRequest.httpShouldHandleCookies = false
         if let cookie: String = await CookieJar.shared.header(for: self, method: method, referrerHost: referrer?.host) {
             urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie")

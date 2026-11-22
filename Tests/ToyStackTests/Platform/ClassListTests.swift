@@ -55,8 +55,6 @@ struct ClassListTests {
         #expect(result?.toString() == "SyntaxError|InvalidCharacterError|keep")
     }
 
-    // Copied unchanged from theodorusclarence.com (next-themes). It runs before the page
-    // paints and puts the saved theme on <html>.
     @Test func themeScriptPutsTheThemeClassOnTheRootElement() {
         let page: LayoutTestPage = makePage(#"<html class="light"><body><p>x</p></body></html>"#)
         page.frame.js.run(script: "inline", code: #"""

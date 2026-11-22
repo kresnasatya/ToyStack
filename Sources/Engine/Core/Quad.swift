@@ -2,7 +2,6 @@ import CoreGraphics
 
 // MARK: - Quad
 
-/// A four-sided shape given by its corners in drawing order.
 public struct Quad: Equatable, Sendable {
     var a: Point
     var b: Point

@@ -29,7 +29,7 @@ enum ComputedStyleParser {
 
         var style: ComputedStyle = ComputedStyle.inheriting(from: parent)
 
-        // MARK: Text
+        // MARK: - Text
         if let raw = take("color") {
             style.text.color = BrowserColor.parse(raw) ?? BrowserColor(red: 0, green: 0, blue: 0)
         }
@@ -53,7 +53,7 @@ enum ComputedStyleParser {
         }
         let units: FontRelativeUnits = FontRelativeUnits(font: style.text.font)
 
-        // MARK: Layout
+        // MARK: - Layout
         style.layout.display = LayoutStyle.Display(css: take("display"))
         style.layout.position = LayoutStyle.Positioning(
             kind: LayoutStyle.Position(css: take("position")),
@@ -75,7 +75,7 @@ enum ComputedStyleParser {
         style.layout.overflow = LayoutStyle.Overflow(css: take("overflow"))
         style.layout.zIndex = Int(take("z-index") ?? "0") ?? 0
 
-        // MARK: Box
+        // MARK: - Box
         style.box.size.width = units.px(take("width"))
         style.box.size.height = units.px(take("height"))
         style.box.size.boxSizing = BoxSizing(css: take("box-sizing"))
@@ -116,7 +116,7 @@ enum ComputedStyleParser {
             style.box.decoration.outline.color = BrowserColor.parse(raw)
         }
 
-        // MARK: Visual
+        // MARK: - Visual
         if let raw = take("background-color"), raw.lowercased() != "transparent" {
             style.visual.background.color = BrowserColor.parse(raw)
         }

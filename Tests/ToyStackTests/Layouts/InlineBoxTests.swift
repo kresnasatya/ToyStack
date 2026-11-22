@@ -120,9 +120,6 @@ struct InlineBoxTests {
         #expect(afterY > beforeY)
     }
 
-    /// When something above grows, every line below it only moves down.
-    /// Boxes store their position relative to the line, so those lines must
-    /// keep their boxes instead of rebuilding them from the text children.
     @Test func lineThatOnlyMovesKeepsItsBoxes() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="first">one</p><p id="second">two three</p>"#,

@@ -157,7 +157,6 @@ struct CSSParserTests {
 
     // MARK: - Escaped identifiers
 
-    // Tailwind writes variants and arbitrary values as escaped class names.
     @Test func escapedCharactersStayInTheClassName() {
         let css: String = #".md\:hidden, .w-1\/2, .inset-\[-1px\], .py-2\.5, .min-\[570px\]\:flex { display: none }"#
         let keys: [SelectorKey] = CSSParser(css).parse().rules.map({ $0.1.key })
@@ -189,7 +188,7 @@ struct CSSParserTests {
         #expect(!matches(selector, dom.ref(miss)))
     }
 
-    // CSS Syntax §4.3.8: a backslash before a newline is not an escape, so the
+    // CSS Syntax §4.3.8: a backslash before a newline is not a valid escape, so the
     // selector is invalid and only its own rule is dropped.
     @Test func backslashBeforeNewlineDropsOnlyThatRule() {
         let rules: [RuleIndex.Rule] = CSSParser(".a\\\n{ color: red } p { color: blue }").parse().rules

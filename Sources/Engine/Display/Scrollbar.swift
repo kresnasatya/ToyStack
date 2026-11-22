@@ -10,9 +10,6 @@ enum ScrollbarStyle {
 }
 
 struct ScrollbarGeometry {
-    // Chromium on Mac (cc/input/scroll_utils.h, CalculatePageStep) pages by at
-    // least 87.5% of the viewport and keeps at most 40 px of the old view, so
-    // the reader keeps a line or two of context after the jump.
     static let minPageFraction: CGFloat = 0.875
     static let maxPageOverlap: CGFloat = 40
 
@@ -49,8 +46,6 @@ struct ScrollbarGeometry {
         return gutterContains(x: x) && y >= thumb.top && y < thumb.bottom
     }
 
-    // Negative pages up, positive pages down; nil when the press is on the
-    // thumb or off the track.
     func trackPageDelta(x: CGFloat, y: CGFloat) -> CGFloat? {
         guard let thumb: Rect = thumbRect, gutterContains(x: x), y >= 0, y < contentHeight else { return nil }
         if y < thumb.top {

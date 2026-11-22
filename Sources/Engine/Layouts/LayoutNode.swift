@@ -19,9 +19,6 @@ struct LayoutNode {
 }
 
 extension LayoutNode {
-    /// The arena never reuses an ID, so the slot stays, but the payload,
-    /// links, and fields are dropped and `LayoutTree[node:]` refuses to read
-    /// it. The kind is only a placeholder.
     static func removed(dom: NodeID) -> LayoutNode {
         return LayoutNode(
             kind: .document(DocumentData(pageZoom: 1)),
@@ -62,6 +59,5 @@ struct LinkVersions {
 struct LayoutState {
     var fields: LayoutFieldStore
     var hasDirtyDescendants: Bool
-    /// The node was removed from the tree; its slot is kept so IDs stay stable.
     var isRemoved: Bool
 }

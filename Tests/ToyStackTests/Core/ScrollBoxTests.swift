@@ -6,8 +6,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct ScrollBoxTests {
-    /// A width-only resize reuses the layout inputs; the box must stay where
-    /// the user scrolled it.
     @Test func relayoutKeepsTheScrollPosition() throws {
         let page: LayoutTestPage = Self.makePage()
         let box: ElementRef = try #require(page.firstElement(id: "box"))
@@ -22,8 +20,6 @@ struct ScrollBoxTests {
         #expect(Self.paintedScrollOffsets(page) == [10], "the relayout moved the box back")
     }
 
-    /// `scrollTop` from script only asks for a paint; the box must show the
-    /// new offset without a layout.
     @Test func scriptScrollTopIsPainted() throws {
         let page: LayoutTestPage = Self.makePage()
         page.frame.setJSRuntime(JSRuntime(frame: page.frame))
@@ -64,8 +60,6 @@ struct ScrollBoxTests {
         #expect(Self.hitParagraph(page, x: x, y: y) == shown, "the click ignored the scroll position")
     }
 
-    /// Content outside the box is clipped away, so a point outside the box
-    /// must not reach it.
     @Test func hitTestSkipsContentOutsideTheBox() throws {
         let page: LayoutTestPage = Self.makePage()
         let target: ScrollBlockTarget = try #require(page.frame.state.layout.targets.blocks.first)

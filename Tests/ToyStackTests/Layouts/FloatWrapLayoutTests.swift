@@ -156,7 +156,6 @@ struct FloatWrapLayoutTests {
         profiler.reset()
         page.frame.render()
 
-        // Neither paragraph breaks its lines again.
         let metrics: [String: ProfileMetric] = profiler.snapshot()
         #expect(metrics["layout.inline.place.setup"] == nil)
         expectIncrementalMatchesFull(page)
@@ -236,8 +235,6 @@ struct FloatWrapLayoutTests {
         return profiler.snapshot()["layout.visited"]?.count
     }
 
-    /// The paragraph starts 30px above the float, so only a line taller than
-    /// the paragraph's own font reaches it.
     private static let lowFloatRules: String = """
         #f { float: left; width: 100px; height: 20px; }
         #p { margin-top: -30px; margin-bottom: 0; }

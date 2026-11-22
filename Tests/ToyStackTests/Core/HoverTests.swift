@@ -272,8 +272,6 @@ struct HoverTests {
         page.frame.setNeedsRender()
         page.tab.hover(x: stalePoint.x, y: stalePoint.y)
 
-        // Style and layout run before the hit test,
-        // so the old position is already empty by the time pointer is tested
         page.frame.render()
 
         let after: Rect = try bounds(box, in: page)

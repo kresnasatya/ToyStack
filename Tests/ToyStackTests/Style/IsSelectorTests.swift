@@ -5,8 +5,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct IsSelectorTests {
-    // Copied from theodorusclarence.com's Tailwind output: the light background comes
-    // first, and the dark one only applies inside an element with the "dark" class.
     private let tailwind: String = #"""
         .bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}
         .dark\:bg-neutral-950:is(.dark *){--tw-bg-opacity:1;background-color:rgb(10 10 10/var(--tw-bg-opacity,1))}
@@ -46,7 +44,6 @@ struct IsSelectorTests {
         #expect(try background(page, id: "b") == BrowserColor(red: 1, green: 1, blue: 1))
     }
 
-    // The theme script adds "dark" to <html> after the page is styled.
     @Test func addingTheDarkClassLaterRestylesTheBody() throws {
         let page: LayoutTestPage = render(
             #"<html><body id="b" class="bg-white dark:bg-neutral-950"><p>x</p></body></html>"#,

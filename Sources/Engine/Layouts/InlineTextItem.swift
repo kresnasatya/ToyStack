@@ -35,8 +35,6 @@ struct InlineTextItem {
     }
 }
 
-// U+00AD is `C2 AD` in UTF-8; a byte scan avoids Foundation's general
-// string search on every word of every layout pass.
 private func inlineTextItemHasSoftHypen(_ word: String) -> Bool {
     var previous: UInt8 = 0
     for byte in word.utf8 {

@@ -26,7 +26,6 @@ class HTMLSyntaxHighlighter: HTMLParser {
     }
 
     override func finish() -> DOMTree {
-        // The highlighter only reads tokens; it never builds implicit tags.
         return dom
     }
 }

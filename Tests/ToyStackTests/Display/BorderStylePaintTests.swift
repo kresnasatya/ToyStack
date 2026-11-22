@@ -31,7 +31,6 @@ struct BorderStylePaintTests {
         )
     }
 
-    /// Lengths of the painted and clear runs along one pixel row.
     private func runs(_ pixels: PagePixels, y: CGFloat, from left: CGFloat, to right: CGFloat) -> [PixelRun] {
         var runs: [PixelRun] = []
         var x: CGFloat = left + 0.5
@@ -56,7 +55,6 @@ struct BorderStylePaintTests {
         #expect(top.first?.painted == true)
         #expect(top.last?.painted == true)
         #expect(top.contains(where: { !$0.painted }))
-        // Every dash in the middle of the side is the same length.
         #expect(Set(dashLengths.dropFirst().dropLast()).count <= 2)
         #expect(border.pixels.matches(BrowserColor(cssName: "red"), x: box.left + 0.5, y: box.top + 0.5))
         #expect(border.pixels.matches(BrowserColor(cssName: "red"), x: box.right - 0.5, y: box.bottom - 0.5))
@@ -70,7 +68,6 @@ struct BorderStylePaintTests {
 
         #expect(border.dashes.allSatisfy({ $0.on == 0 && $0.lineWidth == 6 }))
         #expect(row.filter({ $0.painted }).count > 10)
-        // A round dot does not reach the square tip of the corner.
         #expect(border.pixels.isClear(x: box.left + 0.5, y: box.top + 0.5))
         #expect(border.pixels.matches(BrowserColor(cssName: "red"), x: box.left + 3, y: box.top + 3))
     }
@@ -115,8 +112,6 @@ struct BorderStylePaintTests {
         let groove: PaintedBorder = try painted("border: 6px groove red;")
         let ridge: PaintedBorder = try painted("border: 6px ridge red;")
 
-        // Groove: the top's outer half is in shadow, its inner half lit;
-        // the bottom is the other way round. Ridge swaps both.
         #expect(groove.red(top: 1) < groove.red(top: 5))
         #expect(groove.red(bottom: 1) > groove.red(bottom: 5))
         #expect(ridge.red(top: 1) > ridge.red(top: 5))
@@ -138,7 +133,6 @@ struct BorderStylePaintTests {
         let top: [PixelRun] = runs(border.pixels, y: box.top + 2, from: box.left + 20, to: box.right - 20)
 
         #expect(border.dashes.count == 4)
-        // The square tip of the corner stays outside the curve.
         #expect(border.pixels.isClear(x: box.left + 1, y: box.top + 1))
         #expect(top.contains(where: { !$0.painted }))
     }
@@ -151,12 +145,10 @@ private struct PaintedBorder {
     let pixels: PagePixels
     let dashes: [BorderDash]
 
-    /// Red channel of the top border's middle, `offset` below the box's top.
     func red(top offset: CGFloat) -> Double {
         return pixels.color(x: box.middleX, y: box.top + offset).red
     }
 
-    /// Red channel of the bottom border's middle, `offset` above the box's bottom.
     func red(bottom offset: CGFloat) -> Double {
         return pixels.color(x: box.middleX, y: box.bottom - offset).red
     }

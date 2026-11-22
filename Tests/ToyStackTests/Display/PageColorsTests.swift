@@ -19,13 +19,12 @@ struct PageColorsTests {
         #expect(PageColors(preferences: dark, canvasBackground: page).canvas == page)
     }
 
-    // CSS Color Adjustment 1 §3.1: forced colors mode replaces author backgrounds.
+    // CSS Color Adjustment 1 §3.1: forced colors mode adjusts background colors to the
+    // user's palette.
     @Test func forcedColorsIgnoreThePageBackground() {
         #expect(PageColors(preferences: forced, canvasBackground: page).canvas == BrowserColor(cssName: ForcedColor.canvas))
     }
 
-    // The window itself cannot be see-through, so a half-transparent page colour is
-    // laid over the default.
     @Test func halfTransparentBackgroundIsBlendedOverTheDefault() {
         let halfBlack: BrowserColor = BrowserColor(red: 0, green: 0, blue: 0, alpha: 0.5)
         let blended: BrowserColor = PageColors(preferences: light, canvasBackground: halfBlack).canvas

@@ -28,8 +28,6 @@ class CSSParser {
         self.origin = origin
     }
 
-    // Normal author rules stay bare; every other origin and importance level
-    // is ranked relative to them.
     private func ruleSelector(_ selector: any CSSSelector, isImportant: Bool) -> any CSSSelector {
         if origin == .author, !isImportant { return selector }
         return OriginSelector(base: selector, origin: origin, isImportant: isImportant)
@@ -190,8 +188,9 @@ class CSSParser {
     private static func expandBorder(_ tokens: [String], into prefixes: [String]) -> [String: String] {
         var part: [String: String] = [:]
         for token in tokens {
-            // CSS Backgrounds 3 §3.3: a <line-width> is a length or a keyword. Lengths start
-            // with a digit or ".", and a bare 0 is a length too; colors never start that way.
+            // CSS Backgrounds 3 §3.3: a <line-width> is a non-negative length or thin, medium, or
+            // thick. Lengths start with a digit or ".", and a bare 0 is a length too; colors never
+            // start that way.
             let startsLikeLength: Bool = token.first.map({ $0.isNumber || $0 == "." }) ?? false
             if startsLikeLength || borderWidthKeywords.contains(token) {
                 part["width"] = token
@@ -211,7 +210,7 @@ class CSSParser {
     }
 
     /// CSS Backgrounds 3 §3.3: a missing bottom copies top, and a missing
-    /// left copies right. Margin and padding spread the same way.
+    /// left copies right. Margin and padding are spread the same way here.
     private static func expandBox(_ tokens: [String], prefix: String, suffix: String) -> [String: String] {
         let top: String = tokens[0]
         let right: String = tokens.count > 1 ? tokens[1] : top
@@ -469,8 +468,6 @@ class CSSParser {
             skipWhitespace()
             mediaType = try word().lowercased()
         }
-        // ToyStack only draws to a screen, so a print or speech block can never
-        // apply; dropping it like a parse error gives the same result.
         guard CSSParser.screenMediaTypes.contains(mediaType) else { throw CSSParseError.parseError }
         skipWhitespace()
         if i < chars.count && chars[i] == "{" {

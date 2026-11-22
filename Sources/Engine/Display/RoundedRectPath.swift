@@ -18,12 +18,6 @@ public func roundedRectPath(rect: Rect, radii: CornerRadii) -> CGPath {
     return perCornerRoundedRectPath(rect: rect, radii: resolved)
 }
 
-// How far a cubic's control points sit along each edge to fit a quarter
-// circle: the same construction CoreGraphics, PDF, SVG, and Skia use.
-//
-// It's exactly `(4/3)(sqrt2 - 1)`, the value that puts the curve's midpoint (`t = 1/2`) on the arc's 45-degree point.
-// Forcing `B(1/2) = (sqrt2/2, sqrt2/2)` on the unit quarter gives `1/2 + 3k/8 = sqrt2/2`.
-// Worst radial error either side of the midpoint is 2.7e-4 of the radius.
 let quarterArcKappa: CGFloat = (4.0 / 3.0) * (2.0.squareRoot() - 1.0)
 
 private func perCornerRoundedRectPath(rect: Rect, radii: CornerRadii) -> CGPath {

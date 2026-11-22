@@ -2,8 +2,6 @@ import CoreGraphics
 
 @testable import Engine
 
-/// A display list drawn at 1x on a transparent canvas, read back pixel by
-/// pixel. Lets a test check what a reader would see, not which ops made it.
 struct PagePixels {
     private let bytes: [UInt8]
     private let width: Int
@@ -34,8 +32,6 @@ struct PagePixels {
         self.height = height
     }
 
-    /// The pixel whose area contains the point (`x`, `y`), counted from the
-    /// top left of the page.
     func color(x: CGFloat, y: CGFloat) -> BrowserColor {
         let column: Int = Int(x.rounded(.down))
         let row: Int = Int(y.rounded(.down))
@@ -55,8 +51,6 @@ struct PagePixels {
         return color(x: x, y: y).alpha < 0.1
     }
 
-    /// Close to `expected` on every channel, allowing for antialiasing and
-    /// color-space rounding.
     func matches(_ expected: BrowserColor, x: CGFloat, y: CGFloat) -> Bool {
         let actual: BrowserColor = color(x: x, y: y)
         let tolerance: Double = 0.1

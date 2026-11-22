@@ -35,8 +35,6 @@ import Testing
 
     // MARK: - HTTPS-only hosts
 
-    // Each test uses its own host name, so the shared stores never collide.
-
     @Test func httpsOnlyHostIsNeitherRetriedOverHTTPNorRememberedAsHTTPOnly() async {
         let host: String = "hsts-\(UUID().uuidString.lowercased()).example"
         await HSTSStore.shared.note("max-age=600", from: WebURL("https://\(host)/"))
@@ -64,8 +62,6 @@ import Testing
         await HTTPOnlyHosts.shared.forget(host)
     }
 
-    /// Only a page that really loads over http proves the host is http-only;
-    /// the navigation remembers it then, not the retry decision.
     @Test func ordinaryHostIsRetriedOverHTTPWithoutBeingRememberedYet() async {
         let host: String = "plain-\(UUID().uuidString.lowercased()).example"
         let fallback: WebURL = WebURL("http://\(host)/")

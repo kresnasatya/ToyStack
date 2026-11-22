@@ -3,11 +3,7 @@ import CoreGraphics
 // MARK: - IntrinsicWidthPass
 
 extension LayoutTree {
-    /// The preferred widths of a block's content, measured from the DOM the way
-    /// line breaking measures it, so a float can be sized before its content
-    /// is laid out. `available` is what percentages inside resolve against.
     func intrinsicWidths(of node: LayoutDOMView, zoom: CGFloat, available: CGFloat) -> IntrinsicWidths {
-        // A floated image or other embed is its own content.
         if let element: LayoutElementView = node.element {
             let embedWidth: CGFloat = embedLineWidth(element, available: available, zoom: zoom)
             if embedWidth > 0 {
@@ -31,8 +27,6 @@ extension LayoutTree {
 
     // MARK: - Helpers
 
-    /// A block child's margin box: a fixed width counts as it is, an auto width
-    /// as the child's own content.
     private func blockWidths(_ node: LayoutDOMView, zoom: CGFloat, available: CGFloat) -> IntrinsicWidths {
         let style: ComputedStyle = node.style.computed
         let ownZoom: CGFloat = zoom * (style.box.zoom ?? 1)
@@ -80,7 +74,6 @@ extension LayoutTree {
         line.addEdge(edges.right)
     }
 
-    /// The same words `addTextNode` makes, each followed by its space.
     private func addText(_ text: LayoutTextView, zoom: CGFloat, to line: inout IntrinsicLine) {
         let owner: NodeID = inputs.inheritedStyleOwner(text.ref.id)
         let mode: WhiteSpaceMode = inputs.style(owner).text.whiteSpace
@@ -104,17 +97,11 @@ extension LayoutTree {
 
 // MARK: - IntrinsicLine
 
-/// One run of inline content: the line being measured, and the widths of the
-/// lines and unbreakable pieces seen so far.
 private struct IntrinsicLine {
     var current: CGFloat = 0
     var widths: IntrinsicWidths = .zero
-    /// The space after an embed belongs to the text that follows, so it is
-    /// added with the next piece, in that piece's `textFont`.
     var followsEmbed: Bool = false
 
-    /// A piece that `breaks` may start a new line; otherwise it sticks to the
-    /// piece before it, so the whole line so far is unbreakable.
     mutating func addPiece(_ width: CGFloat, breaks: Bool, textFont: BrowserFont) {
         if followsEmbed {
             current += textFont.spaceWidth
@@ -125,14 +112,11 @@ private struct IntrinsicLine {
         widths.minContent = max(widths.minContent, unbreakable)
     }
 
-    /// `textFont` is the font of the text around the embed.
     mutating func addEmbed(_ width: CGFloat, textFont: BrowserFont) {
         addPiece(width, breaks: true, textFont: textFont)
         followsEmbed = true
     }
 
-    /// An inline element's padding and border widen the line but sit next to
-    /// a word, so they never make a longer unbreakable piece on their own.
     mutating func addEdge(_ width: CGFloat) {
         current += width
     }

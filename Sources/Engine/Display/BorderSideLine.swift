@@ -2,12 +2,7 @@ import CoreGraphics
 
 // MARK: - BorderSideLine
 
-/// The middle line of one border side, the path its dots or dashes follow.
-/// Walking clockwise, it takes in the whole corner curve at each end; the
-/// side's region cuts off the part that belongs to the neighbouring side.
-/// At a square corner it can run past the middle line by an overhang.
 struct BorderSideLine: Sendable {
-    /// Halfway between the outer and inner edges of the border.
     let middle: ClipShape
     let side: BoxSide
     let startOverhang: CGFloat
@@ -63,9 +58,6 @@ struct BorderSideLine: Sendable {
 
 // MARK: - MiddleCorner
 
-/// One corner of the middle line: the corner of its rectangle, and where its
-/// curve meets the side before it and the side after it, walking clockwise.
-/// A square corner has all three at the same point.
 private struct MiddleCorner {
     let point: CGPoint
     let before: CGPoint
@@ -73,7 +65,6 @@ private struct MiddleCorner {
 
     var isRound: Bool { before != after }
 
-    /// Ramanujan's approximation of a quarter of an ellipse's perimeter.
     var arcLength: CGFloat {
         let a: CGFloat = distance(before, point)
         let b: CGFloat = distance(after, point)
@@ -94,8 +85,6 @@ private struct MiddleCorner {
         )
     }
 
-    /// Top left, top right, bottom right, bottom left: the index of each
-    /// corner is the `BoxSide` that starts there.
     static func all(in shape: ClipShape) -> [MiddleCorner] {
         let rect: Rect = shape.rect
         let radii: CornerRadii = shape.radii.resolved(in: rect)

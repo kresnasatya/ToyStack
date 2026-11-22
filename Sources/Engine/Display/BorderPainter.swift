@@ -2,14 +2,9 @@ import CoreGraphics
 
 // MARK: - BorderPainter
 
-/// Turns a box's border into display ops. A border that is one solid color
-/// all round is a plain fill. Anything else is painted side by side: each
-/// side gets its share of the corners and is drawn in its own color and
-/// style.
 struct BorderPainter {
     let box: Rect
     let border: BoxStyle.Decoration.Border
-    /// Used widths at the box's zoom. A side with no width is not painted.
     let widths: EdgeInsets
 
     func emit(into items: inout [DisplayOp]) {
@@ -38,9 +33,6 @@ struct BorderPainter {
         }
     }
 
-    /// Top and bottom run the full width of the border box; left and right
-    /// fill the height between them. A rounded border is one ring between
-    /// the outer and inner curves.
     private func emitSolid(_ color: BrowserColor, into items: inout [DisplayOp]) {
         if !border.radii.isZero {
             items.append(.ring(outer: shape(inset: 0), inner: shape(inset: 1), color: color))
@@ -75,10 +67,11 @@ struct BorderPainter {
         }
     }
 
-    /// CSS Backgrounds 3 §3.2. Each band covers part of the side's width,
-    /// measured from the outside in. Light falls from the top left, so a
-    /// sunken top or left side is in shadow and a sunken bottom or right
-    /// side is lit; groove and ridge are half sunken, half raised.
+    /// CSS Backgrounds 3 §3.2: groove looks carved into the canvas, ridge looks like it comes
+    /// out of it, inset makes the content look sunken into it, and outset raised out of it.
+    /// Each band covers part of the side's width, measured from the outside in. Light falls from
+    /// the top left, so a sunken top or left side is in shadow and a sunken bottom or right side
+    /// is lit; groove and ridge are half sunken, half raised.
     private func bands(_ side: BoxSide) -> [(from: CGFloat, to: CGFloat, color: BrowserColor)] {
         let line: BoxStyle.Decoration.Border.Side = border.sides[side]
         let lit: BrowserColor = line.color
@@ -102,9 +95,9 @@ struct BorderPainter {
         }
     }
 
-    /// The darker tone of groove, ridge, inset and outset. Black has no
-    /// darker tone, so it shades to gray instead; the §3.2 note allows
-    /// colors near black to be worked out differently.
+    /// The darker tone of groove, ridge, inset and outset. Black has no darker tone, so it
+    /// shades to gray instead; the CSS Backgrounds 3 §3.2 note says colors close to black may
+    /// need different color calculations.
     private static func shadow(of color: BrowserColor) -> BrowserColor {
         let brightest: Double = max(color.red, color.green, color.blue)
         guard brightest > 0 else {
@@ -119,10 +112,10 @@ struct BorderPainter {
         )
     }
 
-    /// The §3.2 note asks for spacing that keeps the corners symmetrical, so
-    /// each side starts and ends on a dot or a dash and spreads the rest
-    /// evenly. Dots are as wide as the border with a gap of the same size;
-    /// dashes are three times as long as the border is wide.
+    /// CSS Backgrounds 3 §3.2 note: implementations are encouraged to choose a spacing that
+    /// makes the corners symmetrical. So each side starts and ends on a dot or a dash and spreads
+    /// the rest evenly. Dots are as wide as the border with a gap of the same size; dashes are
+    /// three times as long as the border is wide.
     private func dash(_ side: BoxSide) -> BorderDash? {
         let width: CGFloat = widths[side]
         let middle: ClipShape = shape(inset: 0.5)
@@ -131,8 +124,6 @@ struct BorderPainter {
             let length: CGFloat = BorderSideLine(middle: middle, side: side, startOverhang: 0, endOverhang: 0).length
             guard length > 0 else { return nil }
             let spacing: CGFloat = length / max(1, (length / (2 * width)).rounded())
-            // A path draws no dot exactly at its end, so it runs on by half
-            // a gap to reach the last one.
             let line: BorderSideLine = BorderSideLine(middle: middle, side: side, startOverhang: 0, endOverhang: spacing / 2)
             return BorderDash(line: line, lineWidth: width, on: 0, off: spacing)
         case .dashed:
@@ -183,7 +174,6 @@ struct BorderPainter {
         })
     }
 
-    /// `inward` runs from the outer corner to the padding-box corner.
     private func cornerLineEnd(_ corner: Point, inward: CGVector, curve: CornerRadius) -> Point {
         let padding: Point = Point(x: corner.x + inward.dx, y: corner.y + inward.dy)
         guard let radius: (horizontal: CGFloat, vertical: CGFloat) = curve.px,

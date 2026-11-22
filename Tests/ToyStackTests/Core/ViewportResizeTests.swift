@@ -238,9 +238,6 @@ struct ViewportResizeTests {
     }
 
     @Test func widthOnlyResizeSkipsLinePlacementWhenPlanUnchanged() throws {
-        // <br> keeps the line plan deterministic. The paragraph is
-        // multi-line and left-aligned, so a width-only change must not
-        // reposition children.
         let page: LayoutTestPage = LayoutTestPage(
             html: #"<p id="para">one two three<br>four five six</p>"#,
             rules: """
@@ -410,8 +407,6 @@ struct ViewportResizeTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// Reusing a line plan is only correct inside the exact range of widths
-    /// that produce it.
     @Test func widthSweepKeepsLineBreaksIdenticalToAFullLayout() throws {
         let html: String = #"""
             <p>ab abcdefgh abc abcdefghijkl a abcde abcdefghi abcd abcdefg abcdefghijklmnop ab abc wxyz</p>
@@ -447,8 +442,6 @@ struct ViewportResizeTests {
             let full: String = renderSignature(control.frame)
             #expect(incremental == full, "line breaks diverged at width \(width)")
         }
-        // The sweep only guards the cache if it crossed breaks and also
-        // stayed inside ranges.
         #expect(recomputed > 0)
         #expect(reused > 0)
     }

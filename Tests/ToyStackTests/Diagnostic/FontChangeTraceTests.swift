@@ -7,8 +7,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct FontChangeTraceTests {
-    /// A breakpoint flip changes the font of every node. The trace must stay
-    /// small: one event per tag, not one per node, or tracing slows the pass.
     @Test func breakpointFlipWritesOneFontEventPerTag() throws {
         let path: String = NSTemporaryDirectory() + "font-change-\(UUID().uuidString).trace"
         defer { try? FileManager.default.removeItem(atPath: path) }

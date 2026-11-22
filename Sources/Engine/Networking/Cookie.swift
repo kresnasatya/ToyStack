@@ -82,9 +82,10 @@ struct Cookie {
 
 extension Cookie {
     /// Foundation joins repeated Set-Cookie fields into one with ", ", the
-    /// folding RFC 6265 §3 warns breaks cookies because Expires dates hold a
-    /// comma too. A comma starts a new cookie only when a `name=` follows it
-    /// before the next ";"; the comma in "Wed, 21 Oct 2026" is followed by none.
+    /// folding RFC 6265 §3 warns Set-Cookie's use of the comma conflicts with.
+    /// Expires dates hold a comma too, so a comma starts a new cookie only when
+    /// a `name=` follows it before the next ";"; the comma in "Wed, 21 Oct 2026"
+    /// is followed by none.
     static func unfold(_ header: String) -> [String] {
         var cookies: [String] = []
         for piece in header.split(separator: ",", omittingEmptySubsequences: false) {

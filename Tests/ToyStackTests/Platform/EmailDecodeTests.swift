@@ -2,9 +2,6 @@ import Testing
 
 @testable import Engine
 
-// The decoder script is copied unchanged from Cloudflare (served on
-// theodorusclarence.com). Cloudflare hides e-mail links behind
-// "/cdn-cgi/l/email-protection#<hex>" and this script turns them back into "mailto:".
 @Suite(.serialized)
 @MainActor
 struct EmailDecodeTests {

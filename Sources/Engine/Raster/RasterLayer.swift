@@ -28,7 +28,6 @@ public struct RasterLayer: Sendable {
         self.tiles = [:]
     }
 
-    /// One layer holding a whole display list: the array is shared, not copied.
     init(
         items: [DisplayOp],
         bounds: Rect,

@@ -165,8 +165,6 @@ struct PaintCullingTests {
     }
 }
 
-/// A short block at the top holds `child`; the page is scrolled far enough that
-/// the block itself lies above the paint window.
 @MainActor
 private func scrolledPage(child: String, rules: String) -> LayoutTestPage {
     let page: LayoutTestPage = LayoutTestPage(
@@ -193,8 +191,6 @@ private func colorRects(_ list: [DisplayOp], _ name: String) -> [Rect] {
     return rects
 }
 
-/// A transformed block paints inside a transform scope that the compositor
-/// moves, so the scope, not its contents, shows the block was built.
 private func hasTransformScope(_ list: [DisplayOp]) -> Bool {
     return list.contains(where: { op in
         guard case .beginEffect(let scope) = op, case .transform = scope.kind else { return false }

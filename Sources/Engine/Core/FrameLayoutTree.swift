@@ -3,8 +3,6 @@ import Foundation
 struct FrameLayoutTree {
     var box: LayoutBox?
     var isDirty: Bool
-    /// A caller asked for a pass without marking a field, so the pass may not
-    /// be skipped even when the tree reports nothing dirty.
     var forced: Bool
 
     init() {

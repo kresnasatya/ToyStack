@@ -9,9 +9,6 @@ struct FloatPlacer {
     let left: CGFloat
     let right: CGFloat
 
-    /// `top` is where the normal flow would put the margin box. Rule 5 keeps the
-    /// float no higher than any earlier float, so an earlier float is beside it
-    /// exactly when it reaches below its top, whatever the float's own height.
     func origin(
         side: LayoutStyle.FloatSide,
         width: CGFloat,
@@ -29,9 +26,6 @@ struct FloatPlacer {
         return CGPoint(x: side == .right ? found.right - width : found.left, y: found.top)
     }
 
-    /// The first band at or below `top` with `width` free between the floats.
-    /// Rules 2, 3, and 7: a box goes beside the floats when it fits and below
-    /// them when it does not; with no float beside it, it may overflow.
     func room(top: CGFloat, width: CGFloat) -> FloatRoom {
         var y: CGFloat = top
         while true {
@@ -63,7 +57,6 @@ struct FloatPlacer {
 
 // MARK: - FloatRoom
 
-/// A band's top and the free span between the floats beside it.
 struct FloatRoom: Equatable {
     var top: CGFloat
     var left: CGFloat

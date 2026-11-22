@@ -6,7 +6,7 @@ import Testing
 /// The cookie jar is one store shared by every suite, so these tests run one
 /// at a time and each uses a cookie value no other test sends. Both hosts are
 /// IP literals so no HSTS rule set by another suite can send a hop over
-/// https (RFC 6797 §8.1 never remembers an IP).
+/// https (RFC 6797 §8.1.1 never notes an IP as an HSTS host).
 @Suite(.serialized)
 struct RedirectCookieTests {
     @Test func cookieFromARedirectedPageBelongsToTheHostThatAnswered() async throws {
@@ -52,8 +52,6 @@ struct RedirectCookieTests {
         #expect(!Self.split(server.cookies.last ?? nil).contains(cookie))
     }
 
-    /// Every test names its cookie "session", so a host holds at most one of
-    /// them; other suites may add cookies with other names to the same host.
     private static func uniqueCookie() -> String {
         "session=\(UUID().uuidString)"
     }

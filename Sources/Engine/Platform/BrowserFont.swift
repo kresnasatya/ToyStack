@@ -25,8 +25,6 @@ final class FontMeasureCache: @unchecked Sendable {
 }
 
 // MARK: - BrowserFont
-// CTFont is immutable but CoreText does not annotate it. The measure cache is
-// locked, so the value is safe to send.
 public struct BrowserFont: @unchecked Sendable {
     public let ctFont: CTFont
     let cache: FontMeasureCache
@@ -69,9 +67,6 @@ public struct BrowserFont: @unchecked Sendable {
         }
     }
 
-    /// How far from the start of `text` each gap between characters sits,
-    /// one entry per gap including both ends. The text is shaped once, so
-    /// kerning across a gap counts, and no prefix lands in the measure cache.
     func caretOffsets(_ text: String) -> [CGFloat] {
         let attr: NSAttributedString = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): ctFont
@@ -124,7 +119,7 @@ public func getFont(size: Int, weight: String, style: String, family: String = "
     })
 }
 
-/// CSS Fonts 4 §2.1.5: `system-ui` is the platform's user interface font.
+/// CSS Fonts 4 §2.1.5: `system-ui` renders text in the default user interface font.
 /// Every family the engine does not know falls back to the serif face.
 private func baseFont(family: String, size: CGFloat) -> CTFont {
     switch family {

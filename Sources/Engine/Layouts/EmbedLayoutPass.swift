@@ -25,9 +25,6 @@ extension LayoutTree {
         markField(.font, at: id)
 
         if case .button = data {
-            // The first inner-line pass runs before the containing line can
-            // place this button. Seed a known position so that pass does not
-            // read a dirty field.
             setField(.x, 0, for: id)
             setField(.y, 0, for: id)
         }
@@ -133,8 +130,6 @@ extension LayoutTree {
         guard embedLayoutNeeded(id) else { return }
         let descendantsDirty: Bool = hasDirtyDescendants(at: id)
         defer { setDirtyDescendants(false, at: id) }
-        // The containing line places this button after its children lay out.
-        // Seed a known position so the inner line can lay out before that.
         if isDirty(.x, at: id) {
             setField(.x, 0, for: id)
         }
@@ -165,8 +160,6 @@ extension LayoutTree {
         let contentHeight: CGFloat = childrenIDs(of: id).reduce(0) { $0 + height($1) }
         setField(.height, contentHeight == 0 ? font(id).linespace : contentHeight, for: id)
 
-        // A button is an inline container: its baseline stays the font
-        // baseline, moved down by its top padding and border.
         let edges: EdgeInsets = embedEdges(id)
         setField(.ascent, font(id).ascent + edges.top, for: id)
         setField(.descent, font(id).descent + edges.bottom, for: id)
@@ -189,8 +182,6 @@ extension LayoutTree {
         setChildrenField(children, of: id)
     }
 
-    /// The label's words, line breaks, and inputs in order, each measured at
-    /// `zoom`, so sizing the button and filling its lines see the same pieces.
     func buttonLabelPieces(_ node: LayoutDOMView, zoom: CGFloat) -> [ButtonLabelPiece] {
         var pieces: [ButtonLabelPiece] = []
         collectButtonPieces(node.children, zoom: zoom, into: &pieces)
@@ -355,7 +346,8 @@ extension EmbedMetrics {
 
 extension EmbedMetrics {
     /// HTML's width and height attributes are presentational hints for the CSS
-    /// properties, so CSS Sizing 3 §3.3 box-sizing applies to them too.
+    /// properties, and CSS Sizing 3 §3.3 box-sizing applies to every element that accepts
+    /// width or height, so it applies to them too.
     func specifiedContent(_ size: CGFloat, attribute: String, paddingAndBorder: CGFloat) -> CGFloat {
         guard attributes[attribute] != nil else { return size }
         return style.box.size.boxSizing.contentSize(specified: size, paddingAndBorder: paddingAndBorder)
@@ -363,14 +355,10 @@ extension EmbedMetrics {
 }
 
 extension LayoutTree {
-    /// Edges scale with the line's zoom, the same zoom the block used to
-    /// reserve the embed's room on that line.
     private func embedEdgeZoom(_ id: LayoutID) -> CGFloat {
         return parentID(of: id).map({ zoom($0) }) ?? 1
     }
 
-    /// Padding plus used border around an embed's content box: the room it
-    /// takes on its line beyond its content size.
     func embedEdges(_ id: LayoutID) -> EdgeInsets {
         return inputs.style(domID(of: id)).box.paddingAndBorder.scaled(by: embedEdgeZoom(id))
     }
@@ -379,21 +367,17 @@ extension LayoutTree {
         return inputs.style(domID(of: id)).box.decoration.border.usedWidths.scaled(by: embedEdgeZoom(id))
     }
 
-    /// The font text gets next to an embed: its parent's, since the embed's
-    /// own font only reaches the text inside it.
     func surroundingTextFont(of embed: NodeID, zoom: CGFloat) -> BrowserFont {
         return fontFor(inputs.parent(embed) ?? embed, zoom: zoom)
     }
 
-    /// CSS 2.1 §10.1: percentages resolve against the containing block, the
-    /// block that owns the line, not the line, which floats may shorten.
+    /// CSS 2.1 §10.1: percentages resolve against the containing block, the content edge of
+    /// the block that owns the line, not the line, which floats may shorten.
     private func embedContainingWidth(_ id: LayoutID) -> CGFloat {
         guard let line: LayoutID = parentID(of: id) else { return 0 }
         return width(parentID(of: line) ?? line)
     }
 
-    /// The room an embed takes on a line: its content width, after
-    /// box-sizing, plus its horizontal padding and border.
     func embedLineWidth(_ node: LayoutElementView, available: CGFloat, zoom: CGFloat) -> CGFloat {
         let metrics: EmbedMetrics = EmbedMetrics(node)
         let edges: EdgeInsets = metrics.style.box.paddingAndBorder.scaled(by: zoom)
@@ -406,7 +390,6 @@ extension LayoutTree {
                 ? fontFor(node.ref.id, zoom: zoom).linespace
                 : inputWidthPx * zoom
         case "button":
-            // `layoutButton` measures the label at the button's own zoom.
             let labelZoom: CGFloat = zoom * (metrics.style.box.zoom ?? 1)
             content = ButtonLabelPiece.shrinkToFit(
                 buttonLabelPieces(node.ref, zoom: labelZoom),
@@ -423,8 +406,6 @@ extension LayoutTree {
         return used + edges.horizontal
     }
 
-    /// The ascent and descent `layoutEmbed` will give this element on a line
-    /// of `block`, so line breaking can know a line's height before layout.
     func embedExtent(_ node: LayoutElementView, in block: LayoutID) -> InlineExtent {
         let lineZoom: CGFloat = zoom(block)
         let style: ComputedStyle = node.style.computed
@@ -503,8 +484,6 @@ func imageUsedHeight(_ metrics: EmbedMetrics, usedWidth: CGFloat, zoom: CGFloat)
     return CGFloat(height) * zoom
 }
 
-/// A height attribute sizes the same box as the width attribute; without one,
-/// the ratio applies to the content width.
 func imageUsedSize(
     _ metrics: EmbedMetrics,
     available: CGFloat,
@@ -527,7 +506,6 @@ func imageUsedSize(
     return (usedWidth, usedHeight)
 }
 
-/// Iframes and canvases: a fixed size in CSS pixels, after box-sizing.
 func replacedUsedSize(
     _ size: (width: CGFloat, height: CGFloat),
     metrics: EmbedMetrics,

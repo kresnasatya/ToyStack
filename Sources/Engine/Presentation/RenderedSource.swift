@@ -1,11 +1,6 @@
 import CoreGraphics
 
-/// Both values are captured when the composite starts, so a present that
-/// runs before the composite returns still describes the layers it
-/// carries, not the newest paint.
 public struct RenderedSource: Equatable, Sendable {
-    /// A new generation must be bound as one complete frame; tiles from one
-    /// generation may still arrive in later presents.
     public var generation: UInt64 = 0
     public var layoutSize: CGSize = .zero
 

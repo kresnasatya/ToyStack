@@ -31,7 +31,7 @@ struct HTMLParserTests {
         #expect(tag(rootChildren[1], dom) == "body")
     }
 
-    // MARK: Text content goes into body
+    // MARK: - Text content goes into body
     @Test func textInBody() {
         let dom: DOMTree = HTMLParser(body: "hello").parse()
         let body: NodeID = children(dom.root, dom)[0]

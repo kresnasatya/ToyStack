@@ -2,9 +2,6 @@ import CoreGraphics
 
 // MARK: - FloatExclusions
 
-/// The floats beside one inline block, with the block's content edges the
-/// line insets are measured from. A line is checked against the band from its
-/// top down by its height, never less than the block's `strut`.
 struct FloatExclusions {
     let boxes: [FloatBox]
     let left: CGFloat
@@ -31,8 +28,6 @@ struct FloatExclusions {
         return insets
     }
 
-    /// The nearest float bottom that ends the band's shortening, so a line too
-    /// narrow for its first item can move down to it.
     func nextTop(after top: CGFloat, height: CGFloat) -> CGFloat? {
         var next: CGFloat? = nil
         for box in boxes where overlaps(box, top: top, height: height) && intrudes(box) {

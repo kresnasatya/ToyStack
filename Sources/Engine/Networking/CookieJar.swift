@@ -3,14 +3,13 @@ import Foundation
 // MARK: - CookieJar
 
 /// Cookies by host, each host keeping its cookies in the order they were
-/// first set (RFC 6265 §5.4 step 2 sends older cookies first).
+/// first set (RFC 6265 §5.4 step 2 lists longer paths first and, among equal
+/// paths, older cookies first).
 actor CookieJar {
     static let shared: CookieJar = CookieJar()
 
     private var storage: [String: [Cookie]] = [:]
 
-    /// Stores every cookie in one response's Set-Cookie header under the host
-    /// of `url`, the address that sent it.
     func receive(_ setCookie: String, from url: WebURL) {
         for part in Cookie.unfold(setCookie) {
             guard let cookie: Cookie = Cookie(part) else { continue }
@@ -29,17 +28,12 @@ actor CookieJar {
         store(cookie, from: url)
     }
 
-    /// The `Cookie` header for a request to `url`, or nil when no cookie may
-    /// be sent. A SameSite=Lax cookie stays home when another site's page
-    /// sends a non-GET request.
     func header(for url: WebURL, method: String, referrerHost: String?) -> String? {
         let crossSiteWrite: Bool = method != "GET" && referrerHost.map({ $0 != url.host }) ?? false
         let sendable: [Cookie] = visible(at: url).filter({ !(crossSiteWrite && $0.params["samesite"] == "lax") })
         return sendable.isEmpty ? nil : sendable.map(\.pair).joined(separator: "; ")
     }
 
-    /// What `document.cookie` reads on the page at `url`: every cookie a
-    /// script may see.
     func scriptCookies(for url: WebURL) -> String {
         visible(at: url).filter({ !$0.isHTTPOnly }).map(\.pair).joined(separator: "; ")
     }
@@ -67,8 +61,8 @@ actor CookieJar {
         storage[url.host] = cookies
     }
 
-    // RFC 6265 §5.4 step 1: a Secure cookie belongs only to a request (or a
-    // page, for `document.cookie`) whose scheme is secure.
+    // RFC 6265 §5.4 step 1: a Secure cookie is sent only when the request's scheme is
+    // secure. `document.cookie` applies the same rule to the page's scheme.
     private func visible(at url: WebURL) -> [Cookie] {
         let isSecureScheme: Bool = Self.isSecure(url)
         return live(for: url.host).filter({ isSecureScheme || !$0.isSecure })

@@ -2,8 +2,6 @@ import Testing
 
 @testable import Engine
 
-/// Rebuilding a block's child list after one child changes must keep the
-/// boxes of the children that did not, with everything they already laid out.
 @Suite(.serialized)
 @MainActor
 struct ChildListRebuildTests {
@@ -72,9 +70,6 @@ struct ChildListRebuildTests {
         expectIncrementalMatchesFull(page)
     }
 
-    /// Text with no box of its own, like the whitespace after a paragraph,
-    /// reports its change to the parent block, so a kept anonymous block must
-    /// still pick the new text up.
     @Test func textTypedAfterABlockChildShowsUp() throws {
         let page: LayoutTestPage = LayoutTestPage(
             html: "<div id=\"box\"><p>para</p> </div>",

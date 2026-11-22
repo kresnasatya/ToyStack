@@ -124,8 +124,6 @@ extension LayoutTree {
         return textTextWidth(id, at: index, in: line)
     }
 
-    // `index` counts the text and embed children of `line`, the order
-    // `inlineWidths` was recorded in.
     func textTextWidth(_ id: LayoutID, at index: Int, in line: LayoutID) -> CGFloat {
         let widths: [CGFloat] = self[line: line].content.inlineWidths
         if index < widths.count {

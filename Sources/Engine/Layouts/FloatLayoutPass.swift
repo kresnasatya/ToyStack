@@ -3,15 +3,11 @@ import CoreGraphics
 // MARK: - FloatLayoutPass
 
 extension LayoutTree {
-    /// An anonymous block borrows the style of its first inline node, which
-    /// may itself say `float`; only element blocks float or clear.
     func blockFloating(_ id: LayoutID) -> LayoutStyle.Floating {
         guard !hasExtraNodes(id) else { return .none }
         return domView(id).style.computed.layout.position.floating
     }
 
-    /// Floats and absolutely positioned boxes take no space in the flow, so the
-    /// next sibling is placed after whatever came before them.
     func isOutOfFlow(_ node: LayoutDOMView) -> Bool {
         let position: LayoutStyle.Positioning = node.style.computed.layout.position
         return position.kind == .absolute || position.floating.side != .none
@@ -23,8 +19,6 @@ extension LayoutTree {
         return earlierFloats(before: id, where: { clear.clears($0.side) }).map({ $0.rect.bottom }).max()
     }
 
-    /// Where a float's margin box goes. Earlier floats that end above `top`
-    /// cannot be beside it, cannot hold it down, and cannot be cleared.
     func floatPlacer(for id: LayoutID, top: CGFloat) -> FloatPlacer {
         guard let parent: LayoutID = parentID(of: id) else {
             return FloatPlacer(earlier: [], left: 0, right: 0)
@@ -37,9 +31,6 @@ extension LayoutTree {
         )
     }
 
-    /// Where a float inside `block`'s inline content goes: beside the floats
-    /// before `block` and the block's `own` floats already placed. Inside a
-    /// block that starts its own formatting context only its own floats count.
     func floatPlacer(inside block: LayoutID, top: CGFloat, own: [FloatBox]) -> FloatPlacer {
         let left: CGFloat = x(block)
         let outside: [FloatBox] = !hasExtraNodes(block) && establishesFormattingContext(block)
@@ -48,9 +39,6 @@ extension LayoutTree {
         return FloatPlacer(earlier: outside + own, left: left, right: left + width(block))
     }
 
-    /// What a block with floats of its own was laid out against: every earlier
-    /// float reaching below its top, even one that leaves its lines alone,
-    /// since its own floats stack beside or below them.
     func floatContext(for id: LayoutID) -> [FloatBox] {
         if !hasExtraNodes(id), establishesFormattingContext(id) { return [] }
         let top: CGFloat = y(id)
@@ -60,10 +48,6 @@ extension LayoutTree {
         })
     }
 
-    /// The floats an inline block's lines must avoid: earlier floats in the
-    /// same block formatting context that reach below the block's top and
-    /// into its content box. A block that starts its own formatting context
-    /// keeps outside floats away from its lines.
     func floatExclusions(for id: LayoutID) -> FloatExclusions {
         if !hasExtraNodes(id), establishesFormattingContext(id) { return .none }
         let left: CGFloat = x(id)
@@ -83,8 +67,6 @@ extension LayoutTree {
         return FloatExclusions(boxes: boxes, left: left, right: right, strut: strut)
     }
 
-    /// Registered floats placed before `id` in the same block formatting
-    /// context. `include` runs first: it is cheap, the tree-order check is not.
     private func earlierFloats(before id: LayoutID, where include: (FloatBox) -> Bool) -> [FloatBox] {
         let registered: [LayoutID: FloatBox] = self[document: rootID].floats.boxes
         guard !registered.isEmpty else { return [] }
@@ -99,8 +81,6 @@ extension LayoutTree {
         return boxes
     }
 
-    /// Returns whether the floats differ from the ones the block was last laid
-    /// out against.
     mutating func noteWrapped(_ id: LayoutID, _ boxes: [FloatBox]) -> Bool {
         let old: [FloatBox] = self[document: rootID].floats.wrapped[id] ?? []
         guard old != boxes else { return false }
@@ -116,9 +96,6 @@ extension LayoutTree {
         }
     }
 
-    /// Called once a block's height is final. A float that appeared, moved,
-    /// grew, or stopped floating marks the blocks that read floats after it;
-    /// blocks beside its new box that did not read floats yet are marked too.
     mutating func recordFloatBox(_ id: LayoutID) {
         let side: LayoutStyle.FloatSide = blockFloating(id).side
         let old: FloatBox? = self[document: rootID].floats.boxes[id]
@@ -131,10 +108,6 @@ extension LayoutTree {
         }
     }
 
-    /// A float its parent dropped from the child list leaves with its box.
-    /// Only blocks inside or after `parent` can have read it, and none of
-    /// them is laid out yet: a parent replaces its children before laying
-    /// them out.
     mutating func markReadersOfDroppedFloats(_ dropped: [LayoutID], parent: LayoutID) {
         let floats: Dictionary<LayoutID, FloatBox>.Keys = self[document: rootID].floats.boxes.keys
         guard !floats.isEmpty else { return }
@@ -145,9 +118,6 @@ extension LayoutTree {
         }))
     }
 
-    /// Floats removed from the tree between passes moved text that no pass
-    /// saw, so every block that reads floats checks them again. Floats that
-    /// leave during a pass are already forgotten by the sweep.
     mutating func pruneFloatRegistry() {
         var registry: FloatRegistry = self[document: rootID].floats
         guard !registry.boxes.isEmpty || !registry.positioned.isEmpty || !registry.wrapped.isEmpty else {
@@ -163,15 +133,13 @@ extension LayoutTree {
         markMoved(floatReaders(where: { _ in true }))
     }
 
-    /// Floats, clearing blocks, and blocks moved beside floats: their margin box
-    /// can sit below the normal flow, and their parent's height must count that.
     func isPositionedByFloats(_ id: LayoutID) -> Bool {
         return self[document: rootID].floats.positioned.contains(id)
     }
 
     /// CSS 2.1 §9.4.1: floats, absolutely positioned boxes, and blocks whose
-    /// overflow is not visible start a new block formatting context, as does
-    /// the root element.
+    /// overflow is not visible start a new block formatting context. ToyStack
+    /// also starts one at the root element.
     func establishesFormattingContext(_ id: LayoutID) -> Bool {
         guard let parent: LayoutID = parentID(of: id), isBlock(parent) else { return true }
         guard !hasExtraNodes(id) else { return false }
@@ -184,9 +152,6 @@ extension LayoutTree {
 
     // MARK: - Helpers
 
-    /// Blocks that read floats: floats, clearing blocks, blocks moved beside
-    /// floats, and blocks whose lines wrap around them. A float is not one
-    /// of their layout inputs, so they are marked when one changes.
     private func floatReaders(where include: (LayoutID) -> Bool) -> [LayoutID] {
         let registry: FloatRegistry = self[document: rootID].floats
         var readers: [LayoutID] = registry.positioned.filter({ contains($0) && include($0) })
@@ -202,7 +167,6 @@ extension LayoutTree {
         }
     }
 
-    /// Whether `id` or one of its ancestors is in `nodes`.
     private func isInside(_ id: LayoutID, _ nodes: Set<LayoutID>) -> Bool {
         var current: LayoutID? = id
         while let node: LayoutID = current {
@@ -228,10 +192,6 @@ extension LayoutTree {
         }
     }
 
-    /// Returns false once the walk has passed below the float: later blocks
-    /// in the flow only sit lower. The walk runs ahead of the pass, so it reads
-    /// last pass's geometry; a block that moves is visited anyway, and a block
-    /// never laid out builds its lines from scratch.
     private mutating func markBeside(_ id: LayoutID, _ box: FloatBox) -> Bool {
         guard isBlock(id) else { return true }
         if !hasExtraNodes(id), isOutOfFlow(domView(id)) { return true }
@@ -239,8 +199,6 @@ extension LayoutTree {
         let top: CGFloat = storedCGFloat(.y, at: id)
         if top >= box.rect.bottom { return false }
         if top + storedCGFloat(.height, at: id) < box.rect.top { return true }
-        // A block that starts its own formatting context moves beside the float
-        // as a whole; its content never sees the float.
         if !hasExtraNodes(id), establishesFormattingContext(id) {
             markField(.y, at: id)
             return true
@@ -265,9 +223,6 @@ extension LayoutTree {
         return nil
     }
 
-    /// Tree order through the nearest common ancestor. A float whose path down
-    /// from that ancestor is broken was taken out of the tree this pass (its
-    /// parent rebuilt its children) and precedes nothing.
     private func precedes(_ a: LayoutID, _ b: LayoutID) -> Bool {
         let pathA: [LayoutID] = ancestorPath(a)
         let pathB: [LayoutID] = ancestorPath(b)

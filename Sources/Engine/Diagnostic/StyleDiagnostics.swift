@@ -2,10 +2,6 @@ import Foundation
 
 // MARK: - StyleDiagnostics
 
-/// When `TOYSTACK_STYLE_LOG=1` is set, every style pass writes a header
-/// (viewport or other, width, flipped media queries, applied node count) and
-/// one line for every node whose font size changes. That names the nodes that
-/// a resize failed to update, which the trace counters cannot express.
 @MainActor
 enum StyleDiagnostics {
     static let isEnabled: Bool =

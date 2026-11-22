@@ -4,7 +4,7 @@ import Testing
 @testable import Engine
 
 @Suite struct WebURLTests {
-    // MARK - init (parsing)
+    // MARK: - init (parsing)
     @Test func parsesHTTPSScheme() {
         let url = WebURL("https://example.com/path")
         #expect(url.scheme == "https")
@@ -162,7 +162,7 @@ import Testing
     }
 
     // Both hosts are IP literals so no HSTS rule set by another suite can
-    // upgrade the redirect to https (RFC 6797 §8.1 never remembers an IP).
+    // upgrade the redirect to https (RFC 6797 §8.1.1 never notes an IP as an HSTS host).
     @Test func redirectToAnotherHostAsksThatHost() async throws {
         let server: LocalPageServer = try LocalPageServer(reply: .page(""))
         defer { server.stop() }

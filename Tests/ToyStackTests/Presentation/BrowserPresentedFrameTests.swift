@@ -7,9 +7,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct BrowserPresentedFrameTests {
-    /// A present can be dispatched after a new width is painted but before its
-    /// composite is installed. The frame still carries the old layers, so it
-    /// must report the width those layers were laid out at.
     @Test func presentBeforeCompositeReportsTheShownLayoutWidth() async throws {
         let id: String = UUID().uuidString
         let tracePath: String = NSTemporaryDirectory() + "presented-frame-\(id).trace"

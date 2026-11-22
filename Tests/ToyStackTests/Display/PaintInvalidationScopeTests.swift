@@ -3,9 +3,6 @@ import Testing
 
 @testable import Engine
 
-/// The paint epoch used to be global: any painted style change bumped it, so a
-/// link's hover colour re-emitted all 113 blocks and all 58 lines on the front
-/// page.
 @Suite(.serialized)
 @MainActor
 struct PaintInvalidationScopeTests {
@@ -58,10 +55,6 @@ struct PaintInvalidationScopeTests {
         #expect(redLinkText, "the repainted line must carry the new colour")
     }
 
-    /// Crossing the font breakpoint changes both the line generation and the
-    /// style revisions of the box owners. Mixing those two inputs into one
-    /// number with XOR let the changes cancel out (`8 ^ 1 == 11 ^ 2`) and the
-    /// line cache served the old font after the flip.
     @Test func incrementalPaintMatchesFullyInvalidatedPaintAfterFontFlip() throws {
         let aboveWords: String = Array(repeating: "word", count: 80).joined(separator: " ")
         let belowWords: String = Array(repeating: "alpha beta gamma delta", count: 30)
@@ -85,8 +78,6 @@ struct PaintInvalidationScopeTests {
         }
         let incremental: String = displaySignature(page.frame.displayList)
 
-        // Bumping the epoch is the "invalidate everything" switch the paint
-        // caches used to follow on every style change.
         page.frame.state.display.paint.epoch += 1
         page.frame.setNeedsPaint()
         page.frame.paint()

@@ -25,8 +25,6 @@ struct FontRelativeUnits {
     }
 
     private func scaledMetric(_ metric: (BrowserFont) -> CGFloat) -> CGFloat {
-        // Fonts are cached at whole pixel sizes. Scaling back to the exact size
-        // keeps `font-size: 66%` from rounding its ex and ch down.
         let wholeSize: Int = max(1, Int(font.size.rounded()))
         let browserFont: BrowserFont = getFont(
             size: wholeSize,

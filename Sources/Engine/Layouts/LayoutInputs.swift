@@ -3,13 +3,9 @@ import Foundation
 
 // MARK: - LayoutInputs
 
-/// Layout passes run over these values instead of reaching into the document,
-/// so they no longer need a DOM reference to look at a tag, style, or font.
 struct LayoutInputs {
     var nodes: [LayoutInput?]
     var styleChanges: [NodeID: Set<StyleProperty>] = [:]
-    /// The document state these inputs were built from. Reusing them later only
-    /// needs to rebuild what changed since this, whatever was built in between.
     var key: LayoutInputsKey? = nil
 
     func input(_ id: NodeID) -> LayoutInput? {
@@ -49,8 +45,6 @@ struct LayoutInputs {
         return all.filter({ !isDisplayNone($0) })
     }
 
-    /// Includes `display: none` children, which get no box but must still be
-    /// watched so that showing one relays out its parent.
     func allChildren(_ id: NodeID) -> [NodeID] {
         return input(id)?.node.children ?? []
     }
@@ -66,8 +60,6 @@ struct LayoutInputs {
         return false
     }
 
-    /// A float is block-level but leaves the flow: next to inline content it
-    /// is placed with the lines, so it does not split them into blocks.
     func isInFlowBlock(_ id: NodeID) -> Bool {
         let layout: LayoutStyle = style(id).layout
         return layout.display == .block && layout.position.floating.side == .none
@@ -120,8 +112,6 @@ struct LayoutInputs {
 
 // MARK: - LayoutInput
 
-/// Immutable and shared: a build copies one reference per node, and a node
-/// that did not change keeps the same entry from build to build.
 final class LayoutInput {
     let node: LayoutInputNode
     let content: LayoutInputContent

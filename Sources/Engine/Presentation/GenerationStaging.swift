@@ -1,9 +1,5 @@
 import Foundation
 
-/// While a resize is moving, a started upload is always finished: a newer
-/// layout arrives every few presents, so restarting on each one would leave
-/// the stale layers on screen for the whole drag. Only the newest frame
-/// waits; an older waiting frame would only delay it.
 public struct GenerationStaging<Frame> {
     public struct Entry {
         public let generation: UInt64
@@ -41,14 +37,6 @@ public struct GenerationStaging<Frame> {
         return current?.frame
     }
 
-    /// The current generation was laid out for a width the window no longer
-    /// has, so finishing it would only delay the final image. The started
-    /// upload is kept while the width still moves, when the current frame
-    /// fits the view (new content at an unchanged width), or when this
-    /// present finishes it (`currentFinishesNow`): dropping an upload one
-    /// present from done saves no more than that present, and keeps an older
-    /// image on screen while the waiting frame uploads from scratch.
-    /// `currentFinishesNow` is only asked when every other condition holds.
     public mutating func skipStale(
         settled: Bool,
         currentFinishesNow: (Frame) -> Bool,

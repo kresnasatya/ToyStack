@@ -17,7 +17,6 @@ struct ScriptTypeTests {
         #expect(ScriptType.isClassic(["language": "JavaScript"]))
     }
 
-    // Old pages still write <script language="JavaScript1.2">.
     @Test func versionedLanguageAttributeRuns() {
         #expect(ScriptType.isClassic(["language": "JavaScript1.2"]))
         #expect(ScriptType.isClassic(["type": "application/x-javascript"]))
@@ -41,8 +40,6 @@ struct ScriptTypeTests {
         #expect(!ScriptType.isClassic(["type": "text/plain", "language": "javascript"]))
     }
 
-    // ToyStack cannot load modules yet; running one as a classic script would only
-    // throw on its first `import`.
     @Test func modulesAndImportMapsAreNotRunAsClassicScripts() {
         #expect(!ScriptType.isClassic(["type": "module"]))
         #expect(!ScriptType.isClassic(["type": "importmap"]))

@@ -91,8 +91,6 @@ private struct TypedHost {
             }
         }
 
-        // Machines on the local network rarely have a certificate, so browsers
-        // keep plain http for them instead of guessing https.
         var usesHTTPS: Bool {
             switch self {
             case .knownDomain, .unknownDomain: return true
@@ -160,8 +158,8 @@ private struct TypedHost {
         return (host, port)
     }
 
-    // RFC 3490 §4.1 ToASCII: labels with letters outside ASCII travel as
-    // "xn--" plus their Punycode form; RFC 1123 §2.1 keeps "-" off both ends.
+    // RFC 3490 §4.1 ToASCII: labels with letters outside ASCII travel as "xn--" plus their
+    // Punycode form, and step 3 (UseSTD3ASCIIRules) keeps "-" off both ends of a label.
     private static func asciiName(_ host: Substring) -> String? {
         let normalized: String = String(host).precomposedStringWithCanonicalMapping.lowercased()
         var labels: [String] = []

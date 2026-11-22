@@ -26,10 +26,6 @@ final class ContentPresenter: @unchecked Sendable {
     private var frameNumber: Int = 0
     private var lastUsesSublayers: Bool?
     private let graceFrames: Int = 10
-    /// Incremental tile arrivals (scroll) are spread across presents. A tile
-    /// in another colour space than the screen's costs ~0.42 ms to bind;
-    /// tiles drawn in the screen's space (`Browser.displayColorSpace`) cost
-    /// ~0.01 ms.
     private static let uploadsPerPresent: Int = 6
     private static let pixelsPerPresent: Int = 400_000
     private let lock = NSLock()
@@ -38,14 +34,10 @@ final class ContentPresenter: @unchecked Sendable {
     private var presentationState: ContentPresentationState = ContentPresentationState()
     private var presenting = false
     private var coalesced = 0
-    /// Last frame applied, kept so deferred tile binds can finish without
-    /// waiting for the engine to send another present.
     private var lastApplied: (frame: PresentedFrame, viewSize: CGSize)?
     private var lastDeferred: Int = 0
     private var lastBoundGeneration: UInt64 = 0
     private var staging: GenerationStaging<PresentedFrame> = GenerationStaging()
-    /// When the view width last changed, so a finished drag can skip an
-    /// upload laid out for a width the window no longer has.
     private var resizeSettle: ResizeSettle = ResizeSettle()
     private var lastPresentStart: CFTimeInterval = 0
     private var pendingLayers: [LayerPlacementKey: Slot] = [:]
@@ -100,11 +92,6 @@ final class ContentPresenter: @unchecked Sendable {
         }
     }
 
-    /// Tiles left unbound by the scroll budget are picked up on the next frame,
-    /// but a page that lands while the pointer is still would otherwise show
-    /// only the first few tiles until the user scrolls. A staged generation
-    /// also needs more presents to finish. Keep presenting the same frame
-    /// until both drain, one display frame after the last present started.
     private func scheduleDeferredDrain() {
         let delay: TimeInterval = PresentPacing.delay(
             lastStart: lastPresentStart,
@@ -146,9 +133,6 @@ final class ContentPresenter: @unchecked Sendable {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         if usesSublayers {
-            // Stage before deciding: a generation that completes here changes
-            // the width the preview must scale from. The skip check and the
-            // upload share one budget so they agree on what finishes now.
             offerGeneration(frame)
             let budget: PresentUploadBudget = PresentUploadBudget.generation(
                 resizeSettled: resizeSettle.isSettled(at: lastPresentStart)
@@ -215,8 +199,6 @@ final class ContentPresenter: @unchecked Sendable {
         let scale: ContentScale = frame.viewport.scale
         lastDeferred = 0
         if preview, let previousSize, previousSize.width > 0, previousSize.height > 0 {
-            // Keep the last complete frame visible, but fit it into the new
-            // viewport so a smaller window does not clip stale content.
             let fit: PreviewFit = PreviewFit(old: previousSize, new: viewSize, scale: scale)
             let layerPage: CGFloat = presentationState.layerPage(framePage: scale.page, showsOlderLayers: true)
             contentLayer.backgroundColor = frame.viewport.canvasColor
@@ -248,8 +230,6 @@ final class ContentPresenter: @unchecked Sendable {
             viewSize: viewSize
         )
         if showsOlderLayers {
-            // This generation is staging, or waiting, behind the layers on
-            // screen; `stageGeneration` swaps it in once it is complete.
             return
         }
         let placements = frame.content.placements
@@ -260,9 +240,6 @@ final class ContentPresenter: @unchecked Sendable {
             current: placements.map(\.key)
         )
         let offset: CGFloat = frame.viewport.contentOffset.origin
-        // A different page (or any wholesale replacement of the layer set) is
-        // not an incremental arrival: bind it in one go instead of showing six
-        // tiles until the next present.
         let replaced: Bool = diff.kept == 0
         let centerY: CGFloat = (-offset + viewSize.height / 2) / scale.page
         var added = 0
@@ -320,9 +297,6 @@ final class ContentPresenter: @unchecked Sendable {
             layersByPlacement.removeValue(forKey: key)
             purged += 1
         }
-        // A new compositor generation must be bound as one complete frame.
-        // Otherwise a scroll can expose layers whose images have not arrived.
-        // Within one generation, a few edge tiles may still be spread.
         let completeGeneration: Bool = frame.content.source.generation != lastBoundGeneration
         lastBoundGeneration = frame.content.source.generation
         presentationState.didShow(layoutSize: frame.displayedLayoutSize, viewSize: viewSize, page: scale.page)
@@ -362,9 +336,6 @@ final class ContentPresenter: @unchecked Sendable {
         ], frame: frame.frameID)
     }
 
-    /// Offers a frame whose generation could replace the layers on screen,
-    /// at any width: a layout for an older width is still closer to the
-    /// window than the layers on screen, and is previewed once shown.
     private func offerGeneration(_ frame: PresentedFrame) {
         let generation: UInt64 = frame.content.source.generation
         guard ContentPresentationState.stages(
@@ -374,10 +345,6 @@ final class ContentPresenter: @unchecked Sendable {
         _ = staging.offer(frame, generation: generation)
     }
 
-    /// Once the window width stops changing, drops an upload laid out for a
-    /// width the window no longer has, so the final layout starts at once
-    /// instead of waiting for a stale one. An upload this present finishes
-    /// within `budget` is kept.
     private func skipStaleGeneration(viewSize: CGSize, budget: PresentUploadBudget) -> Bool {
         let skipped: Bool = staging.skipStale(
             settled: resizeSettle.isSettled(at: lastPresentStart),
@@ -407,9 +374,6 @@ final class ContentPresenter: @unchecked Sendable {
         return budget.admitsAll(pixels: left)
     }
 
-    /// True when `layer` (nil: not created yet) does not show `placed`'s
-    /// image. `stageGeneration` binds exactly these tiles, and
-    /// `finishesThisPresent` predicts from the same test.
     private static func needsBind(_ layer: CALayer?, to placed: LayerPlacement) -> Bool {
         return (layer?.contents as AnyObject?) !== placed.image
     }
@@ -428,8 +392,6 @@ final class ContentPresenter: @unchecked Sendable {
         return shown.canStay(for: placed, scale: scale) ? slot : nil
     }
 
-    /// Runs on every present, previews included, so a resize cannot stall the
-    /// upload.
     private func stageGeneration(viewSize: CGSize, skipped: Bool, budget: PresentUploadBudget) {
         guard let entry: GenerationStaging<PresentedFrame>.Entry = staging.current else { return }
         let frame: PresentedFrame = entry.frame
@@ -547,8 +509,6 @@ final class ContentPresenter: @unchecked Sendable {
         return layer
     }
 
-    /// Geometry and effect only; the image is bound separately so the bind
-    /// count can be spread across presents.
     private func updateSublayer(_ layer: CALayer, with placed: LayerPlacement, scale: CGFloat) {
         if layer.contentsScale != scale {
             layer.contentsScale = scale

@@ -29,7 +29,6 @@ extension LayoutTree {
         let oldPrevious: LayoutID? = previousID(of: id)
         var data: LineData = LineData()
         if case .line = self[node: id].kind {
-            // The line paint cache is keyed by this generation.
             data.paint.generation = self[line: id].paint.generation + 1
         }
         setKind(.line(data), at: id)
@@ -48,16 +47,10 @@ extension LayoutTree {
         return oldPrevious != previous
     }
 
-    /// The vertical-only path then shifts `inlineYOffset` instead of
-    /// writing a position for every text child.
     @discardableResult
     mutating func reuseLine(_ id: LayoutID, previous: LayoutID?) -> Bool {
         let oldPrevious: LayoutID? = previousID(of: id)
         self[line: id].paint.generation += 1
-        // The block's inline-content revision can advance (font refresh)
-        // while its lines are reused; the boxes stay valid but the revision
-        // they were built for must follow, or `currentInlineBoxes` rejects
-        // them and paint falls back to the absent text children.
         if let block: LayoutID = parentID(of: id), let revision: UInt64 = boxRevision(block) {
             self[line: id].paint.boxRevision = revision
         }
@@ -134,9 +127,6 @@ extension LayoutTree {
             break
         }
         let hasBoxes: Bool = !self[line: id].content.boxes.isEmpty
-        // Only lines backed by text children may take the child fast path.
-        // A value line has no children; it keeps its text in `content.boxes`,
-        // and this path used to rebuild those boxes from the empty child list.
         let verticalOnly: Bool = yWasDirty && !xWasDirty && !zoomWasDirty
             && !childCountChanged && !childWidthChanged && !widthMovesChildren
             && !isDirty(.ascent, at: id)
@@ -201,9 +191,6 @@ extension LayoutTree {
 
         var nextX: CGFloat = x(id)
         let baseline: CGFloat = y(id) + ascent(id)
-        // A word's width already carries the space after it. An embed's does
-        // not: that space belongs to the text that follows, so it takes the
-        // next word's font, or the surrounding text's before another embed.
         func spaceAfter(_ index: Int) -> CGFloat {
             let child: LayoutID = inlineChildren[index]
             if isText(child) { return font(child).spaceWidth }
@@ -232,8 +219,6 @@ extension LayoutTree {
         } else {
             var open: [OpenInlineBox] = []
             var index: Int = 0
-            // Every word and embed is followed by a space. That space belongs
-            // after the element's end edge, not inside its box.
             var trailingSpace: CGFloat = 0
             for (position, event) in events.enumerated() {
                 switch event {
@@ -243,9 +228,6 @@ extension LayoutTree {
                     trailingSpace = spaceAfter(index)
                     index += 1
                 case .open(let dom, let width, let opens):
-                    // Words keep their order across the line whatever the
-                    // direction, so a right-to-left element's end edge sits
-                    // at the left of its fragment and its start at the right.
                     let end: CGFloat = closingWidth(of: dom, after: position, in: events)
                     let rightToLeft: Bool = inputs.style(dom).text.direction == .rtl
                     open.append(OpenInlineBox(
@@ -290,14 +272,10 @@ extension LayoutTree {
         syncInlineBoxes(id)
     }
 
-    /// Shadow values for the fragment-node migration. Paint and hit-test still
-    /// read the text children until the value path is complete.
     mutating private func syncInlineBoxes(_ id: LayoutID) {
         guard collectsInlineBoxes else { return }
         guard !self[line: id].content.hasEmbed else { return }
         let children: [LayoutID] = childrenIDs(of: id)
-        // A value line owns its text as boxes and has no text children;
-        // syncing from the child list would erase that text.
         if children.isEmpty, !self[line: id].content.boxes.isEmpty {
             return
         }
@@ -330,8 +308,6 @@ extension LayoutTree {
         self[line: id].paint.generation += 1
     }
 
-    /// Points the line's boxes at the block's current inline-content revision,
-    /// so `currentInlineBoxes` keeps accepting boxes that are still valid.
     mutating private func followBoxRevision(_ id: LayoutID) {
         guard collectsInlineBoxes, !self[line: id].content.hasEmbed,
             let block: LayoutID = parentID(of: id),
@@ -385,8 +361,6 @@ extension LayoutTree {
         )
     }
 
-    /// The end edge width of the element opened at `position`: every element
-    /// open on a line is closed on it too, if only by the line break.
     private func closingWidth(of dom: NodeID, after position: Int, in events: [InlineFlowEvent]) -> CGFloat {
         for event in events[(position + 1)...] {
             if case .close(let closing, let width, _) = event, closing == dom {
@@ -404,8 +378,6 @@ extension LayoutTree {
         return width(child) + inlineEdges(child).horizontal
     }
 
-    /// Text has no box of its own; an embed's content sits inside its padding
-    /// and border.
     private func inlineEdges(_ child: LayoutID) -> EdgeInsets {
         return isEmbed(child) ? embedEdges(child) : .zero
     }
@@ -479,9 +451,6 @@ extension LayoutTree {
         setField(.height, maxAscent + maxDescent, for: id)
     }
 
-    /// Boxes are only current when they still describe the live text
-    /// children. Incremental text edits can replace a child without forcing a
-    /// fresh line placement, in which case callers must fall back to nodes.
     func currentInlineBoxes(_ id: LayoutID) -> [InlineBox]? {
         let data: LineData = self[line: id]
         guard !data.content.hasEmbed, !data.content.boxes.isEmpty else { return nil }
@@ -515,8 +484,6 @@ extension LayoutTree {
 
 // MARK: - OpenInlineBox
 
-/// An inline element whose start the line has passed but whose end it has
-/// not. `rightEdge` is the room its fragment ends with on this line.
 private struct OpenInlineBox {
     let dom: NodeID
     let left: CGFloat

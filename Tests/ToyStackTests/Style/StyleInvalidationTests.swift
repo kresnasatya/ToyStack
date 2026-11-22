@@ -204,8 +204,6 @@ struct StyleInvalidationTests {
         let target: ElementRef = try #require(page.firstElement(id: "target"))
         let clean: ElementRef = try #require(page.firstElement(id: "clean"))
 
-        // The cascade inherits black here. If the clean subtree is visited,
-        // applyNodeStyle overwrites this value.
         clean.style.mutate { $0.text.color = BrowserColor(cssName: "red") }
 
         page.frame.setNeedsStyle(target.ref)

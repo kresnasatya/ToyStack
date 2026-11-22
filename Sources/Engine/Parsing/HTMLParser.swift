@@ -165,7 +165,6 @@ class HTMLParser {
         }
         sawTag = true
         if tagName == "html" {
-            // The arena root is the document element.
             dom.setAttributes(attributes, of: dom.root)
             return
         }

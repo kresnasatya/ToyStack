@@ -5,9 +5,6 @@ struct ProfileMetric {
     var count: Int = 0
 }
 
-/// Each thread records into its own window, so recording takes no lock.
-/// Names are string literals, keyed by their address, so recording does not
-/// hash a string.
 final class Profiler: @unchecked Sendable {
     let enabled: Bool
     private let windowKey: pthread_key_t
@@ -64,7 +61,6 @@ final class Profiler: @unchecked Sendable {
         window.pointee.add(name, nanos: 0, count: amount)
     }
 
-    /// Slower than a literal: the name is hashed.
     func count(named name: String, by amount: Int = 1) {
         guard enabled else { return }
         window.pointee.add(named: name, nanos: 0, count: amount)
@@ -84,8 +80,6 @@ final class Profiler: @unchecked Sendable {
         measure?.counter(event, args, frame: frame)
     }
 
-    /// Held through a raw pointer: only the owning thread touches it, so no
-    /// retain, release, or exclusivity check per call.
     private var window: UnsafeMutablePointer<ProfileWindow> {
         if let raw: UnsafeMutableRawPointer = pthread_getspecific(windowKey) {
             return raw.assumingMemoryBound(to: ProfileWindow.self)
@@ -110,8 +104,6 @@ struct ProfileSpan {
 
 // MARK: - ProfileWindow
 
-/// Literal names map to a slot in `metrics`, so adding to a known name is
-/// one pointer lookup and an in-place update.
 private struct ProfileWindow {
     private var slots: [UnsafeRawPointer: Int] = [:]
     private var names: [StaticString] = []
@@ -148,7 +140,6 @@ private struct ProfileWindow {
         byName[name] = metric
     }
 
-    /// Merges by name: the same literal can sit at two addresses.
     func snapshot() -> [String: ProfileMetric] {
         var merged: [String: ProfileMetric] = byName
         for (slot, name) in names.enumerated() {

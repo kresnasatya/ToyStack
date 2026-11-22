@@ -4,7 +4,6 @@ import Testing
 
 @testable import Engine
 
-// Opt-in for the same reason as BackgroundLayoutTests.
 @Suite(.serialized)
 @MainActor
 struct AsyncResizeRestartTests {
@@ -78,8 +77,6 @@ struct AsyncResizeRestartTests {
         page.frame.runAnimationFrame()
         #expect(page.frame.isLayoutInFlight)
 
-        // The document changes while the pass runs. The installed tree no
-        // longer matches it, so the tab must wait for the pass.
         page.frame.setNeedsLayout()
         page.frame.setNeedsPaint()
         page.tab.runAnimationFrame()
@@ -115,7 +112,6 @@ struct AsyncResizeRestartTests {
             try await Task.sleep(nanoseconds: 5_000_000)
         }
 
-        // Nothing but the width changed, so the next pass has nothing to rebuild.
         page.tab.resize(width: 300, height: 600)
         profiler.reset()
         page.frame.runAnimationFrame()
@@ -125,9 +121,6 @@ struct AsyncResizeRestartTests {
         #expect(reused > 0, "the async pass rebuilt every layout input for a width change")
     }
 
-    /// Each background pass must leave the tree ready for the next one: the
-    /// next pass only updates the fields that depend on what changed, so a
-    /// lost dependency shows up as a stale layout one pass later.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -184,9 +177,6 @@ struct AsyncResizeRestartTests {
         #expect(rebuilt == [0, 0], "a width-only install walked the whole tree: \(rebuilt)")
     }
 
-    /// A box that becomes scrollable while a pass runs: the change bumps the
-    /// target revision after the pass recorded its own. The list must still
-    /// pick the box up once the follow-up pass is installed.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"
@@ -285,7 +275,6 @@ struct AsyncResizeRestartTests {
         let text: TextRef = try #require(paragraph.children.first?.text)
         try Self.startPass(page, width: 400)
         text.append(" with many more words so that it needs several more lines to fit")
-        // `TextRef` callers schedule the render themselves.
         page.frame.setNeedsRender()
         try await Self.settle(page)
 
@@ -383,7 +372,6 @@ struct AsyncResizeRestartTests {
         try #require(page.frame.isLayoutInFlight)
     }
 
-    /// Detaches the browser so that rebuild runs synchronously.
     private static func expectMatchesFullLayout(
         _ page: LayoutTestPage,
         browser: Browser,
@@ -400,7 +388,6 @@ struct AsyncResizeRestartTests {
         + " section { display: block; }"
         + " div { display: block; height: 20px; overflow: scroll; }"
 
-    /// The tab keeps a weak reference to the browser; the caller holds it.
     private static func makeAsyncPage(
         html: String = paragraphs,
         rules: String = blockRules,

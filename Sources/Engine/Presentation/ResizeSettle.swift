@@ -1,9 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// A window drag delivers a new width about every display frame. When no
-/// width change arrives for `delay`, the drag has paused or ended, and the
-/// last layout is the one worth showing.
 public struct ResizeSettle {
     public static let delay: TimeInterval = 2.0 / 60.0
 

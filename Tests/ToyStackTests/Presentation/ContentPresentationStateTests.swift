@@ -171,8 +171,6 @@ struct ContentPresentationStateTests {
             viewSize: CGSize(width: 1440, height: 703),
             page: 1
         )
-        // Its layout fits the view, but its layers are still staging behind
-        // the 1440 layers on screen, so those are scaled to the new width.
         let staged: ContentPresentationState.Decision = state.decide(
             revision: PresentedRevision(content: 2, sequence: 2),
             viewSize: CGSize(width: 1300, height: 703),
@@ -191,8 +189,6 @@ struct ContentPresentationStateTests {
         #expect(decision == .preview(from: CGSize(width: 1440, height: 703)))
     }
 
-    /// Nothing will replace the layers on screen, so the fitting frame must
-    /// bind; previewing would keep the old width on screen forever.
     @Test func fittingFrameBindsWhenNoLayersAreStaging() {
         var state = ContentPresentationState()
         state.didShow(
@@ -360,10 +356,6 @@ struct ContentPresentationStateTests {
 
     // MARK: - Which generations are uploaded
 
-    /// During a drag the layout trails the window by a frame or two, so a
-    /// newer layout almost never has the window's exact width. It is still
-    /// closer to the window than the older layers on screen; refusing it kept
-    /// one picture on screen for up to 1.2 s on a long page.
     @Test func newerLayoutAtAnotherWidthIsStaged() {
         #expect(ContentPresentationState.stages(generation: 8, shown: 7))
     }
@@ -372,8 +364,6 @@ struct ContentPresentationStateTests {
         #expect(!ContentPresentationState.stages(generation: 7, shown: 7))
     }
 
-    /// With nothing on screen there is nothing to upload behind; the first
-    /// frame binds directly.
     @Test func firstGenerationBindsInsteadOfStaging() {
         #expect(!ContentPresentationState.stages(generation: 1, shown: nil))
     }

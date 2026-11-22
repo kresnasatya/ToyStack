@@ -58,8 +58,6 @@ struct PresentUploadBudgetTests {
 
     // MARK: - Budget for a staged generation
 
-    /// While the width moves, a heavier present would delay the next
-    /// preview, so the budget stays small.
     @Test func movingResizeKeepsTheSmallBudget() {
         let budget: PresentUploadBudget = PresentUploadBudget.generation(resizeSettled: false)
         #expect(budget.pixels == PresentUploadBudget.generationPixels)
@@ -78,10 +76,6 @@ struct PresentUploadBudgetTests {
         #expect(presents == 3)
     }
 
-    /// After a drag, an older upload with 50 tiles left waits in front of the
-    /// final frame. The skip check and the upload use this same budget, so it
-    /// must see that those 50 tiles finish in one settled present and keep the
-    /// nearly done image instead of dropping it.
     @Test func settledBudgetFinishesFiftyTilesInOnePresent() {
         let budget: PresentUploadBudget = PresentUploadBudget.generation(resizeSettled: true)
         let left: [Int] = Array(repeating: 256 * 256, count: 50)

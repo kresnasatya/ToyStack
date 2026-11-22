@@ -35,9 +35,6 @@ struct UserAgentButtonStyleTests {
         #expect(style.box.decoration.border.radii == .uniform(.px(2)))
     }
 
-    /// Real browsers give a button 2px of border plus 1px/6px of padding but
-    /// paint only a 1px ring, so 1px border plus 2px/7px padding keeps the
-    /// same size and the same look.
     @Test func buttonHasTheSizeOfRealBrowsers() throws {
         let page: LayoutTestPage = page(prefersDark: false)
         let style: ComputedStyle = try #require(page.firstElement(id: "go")).style.computed
@@ -51,8 +48,8 @@ struct UserAgentButtonStyleTests {
         return CTFontCopyFamilyName(font.ctFont) as String
     }
 
-    /// CSS Fonts 4 §2.1.5: `system-ui` is the platform's interface font, the
-    /// one Safari and Firefox on macOS give a button's label.
+    /// CSS Fonts 4 §2.1.5: `system-ui` renders text in the default user interface font,
+    /// the one Safari and Firefox on macOS give a button's label.
     @Test func labelUsesTheSystemFontWhileTheParagraphKeepsItsOwn() throws {
         let page: LayoutTestPage = page(prefersDark: false)
         let element: ElementRef = try #require(page.firstElement(id: "go"))

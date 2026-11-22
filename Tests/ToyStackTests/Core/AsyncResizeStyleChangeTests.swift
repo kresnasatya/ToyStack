@@ -4,7 +4,6 @@ import Testing
 
 @testable import Engine
 
-// Opt-in for the same reason as BackgroundLayoutTests.
 @Suite(.serialized)
 @MainActor
 struct AsyncResizeStyleChangeTests {

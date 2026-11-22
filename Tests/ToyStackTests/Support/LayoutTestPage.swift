@@ -112,9 +112,6 @@ struct LayoutTestPage {
 
     // MARK: - Text points
 
-    /// Where the gap before character `offset` of `word` shows on the page,
-    /// halfway down its line, in page coordinates before any scroll. Reads
-    /// inline boxes when a line paints from them instead of text children.
     func textPoint(_ word: String, offset: Int) -> CGPoint {
         let tree: LayoutTree = tree
         var runs: [(string: String, font: BrowserFont, rect: Rect)] = []

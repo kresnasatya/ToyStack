@@ -10,7 +10,7 @@ struct HeadlessOptions {
     let session: SessionOptions
 }
 
-// MARK: ViewportOptions
+// MARK: - ViewportOptions
 struct ViewportOptions {
     let width: CGFloat
     let height: CGFloat
@@ -46,7 +46,7 @@ struct ScheduledEvent {
     let action: Action
 }
 
-// MARK: Argument parsing
+// MARK: - Argument parsing
 func usage() -> Never {
     print("""
         Usage: swift run ToyStackHeadless <url> [options]
@@ -203,8 +203,6 @@ private func parseClickEvent(_ value: String) -> ScheduledEvent? {
     return ScheduledEvent(time: time, action: .click(x: CGFloat(x), y: CGFloat(y)))
 }
 
-/// One key per frame, so every keystroke gets its own render the way a person
-/// typing at less than 60 keys a second does.
 private func parseTypeEvents(_ value: String) -> [ScheduledEvent]? {
     guard let colon: String.Index = value.firstIndex(of: ":"),
         let time: Double = Double(value[..<colon]), time >= 0

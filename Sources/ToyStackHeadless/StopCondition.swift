@@ -18,7 +18,6 @@ struct StopCondition {
         } else {
             let defaultLimit: Int = animationFrameCount(for: StopCondition.defaultSeconds)
             let lastEventFrame: Int? = session.events.map { (event: ScheduledEvent) -> Int in animationFrameCount(for: event.time) }.max()
-            // An event fires at the start of its frame, so the run needs one frame past it.
             frameLimit = max(defaultLimit, (lastEventFrame ?? -1) + 1)
             stopsWhenSettled = true
         }

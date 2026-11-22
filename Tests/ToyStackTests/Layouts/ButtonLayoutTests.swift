@@ -22,7 +22,6 @@ struct ButtonLayoutTests {
         return try #require(page.embedID(in: element, .button))
     }
 
-    /// The words of each line inside the button, in order.
     private func labelLines(_ page: LayoutTestPage, _ button: LayoutID) -> [[LayoutID]] {
         return page.tree.childrenIDs(of: button).map({ line in
             page.tree.childrenIDs(of: line).filter({ page.tree.isText($0) })
@@ -100,8 +99,6 @@ struct ButtonLayoutTests {
         #expect(page.tree.x(after) == page.tree.selfRect(button).right + page.tree.font(button).spaceWidth)
     }
 
-    /// The input's own font is larger than the label's, so this also checks
-    /// that the space after it takes the font of the word that follows.
     @Test func inputInsideTheLabelKeepsTheLabelOnOneLine() throws {
         let page: LayoutTestPage = page(
             #"<p><button>Pick <input type="checkbox"> this</button></p>"#,

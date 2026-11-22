@@ -4,13 +4,9 @@ import Testing
 
 @testable import Engine
 
-// Opt-in for the same reason as BackgroundLayoutTests.
 @Suite(.serialized)
 @MainActor
 struct BackgroundLayoutProfileTests {
-    /// The GUI lays out on a background thread. Its trace must still carry
-    /// the layout breakdown, written on the layout lane for the frame that
-    /// started the job.
     @Test(
         .enabled(
             if: ProcessInfo.processInfo.environment["TOYSTACK_BACKGROUND_LAYOUT_TEST"] == "1"

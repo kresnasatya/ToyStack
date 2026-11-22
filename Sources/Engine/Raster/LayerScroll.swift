@@ -11,8 +11,6 @@ struct LayerScroll: Sendable {
 }
 
 extension LayerScroll {
-    /// `ancestorChain` lists the innermost scope first. An inner scrollport is
-    /// in its parent's content coordinates, so it moves with every outer offset.
     static func resolve(_ ancestorChain: [EffectScope]) -> LayerScroll? {
         var clips: [ClipShape] = []
         var offset: CGFloat = 0

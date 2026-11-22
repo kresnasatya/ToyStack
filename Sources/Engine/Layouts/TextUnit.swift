@@ -1,8 +1,5 @@
 // MARK: - TextUnit
 
-/// How much text a press takes and a drag grows by: a click works between
-/// characters, a double click in whole words, and a third click or more in
-/// whole paragraphs.
 enum TextUnit {
     case character
     case word

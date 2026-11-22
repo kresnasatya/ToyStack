@@ -67,9 +67,6 @@ struct AddressBar: NSViewRepresentable {
 final class AddressTextField: NSTextField {
     var onFocus: (() -> Void)?
 
-    // Safari, Chrome and Firefox select the whole address when it gains focus
-    // so typing replaces it. A mouse click would leave a caret where it landed,
-    // so the selection waits until AppKit has finished tracking that click.
     override func becomeFirstResponder() -> Bool {
         let accepted: Bool = super.becomeFirstResponder()
         if accepted {
@@ -79,8 +76,6 @@ final class AddressTextField: NSTextField {
         return accepted
     }
 
-    /// Editing starts from the real address: the shortened one drops parts
-    /// such as "www." that pressing Enter would otherwise lose.
     func showWhileEditing(_ fullAddress: String) {
         stringValue = fullAddress
         currentEditor()?.string = fullAddress

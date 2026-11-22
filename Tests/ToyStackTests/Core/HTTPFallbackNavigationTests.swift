@@ -4,9 +4,6 @@ import Testing
 
 @testable import Engine
 
-/// The local server speaks no TLS, so every https attempt against it fails
-/// the way a real http-only site does. The shared host memories are cleared
-/// before each test, and the tests run one at a time.
 @Suite(.serialized)
 @MainActor
 struct HTTPFallbackNavigationTests {
@@ -84,8 +81,6 @@ struct HTTPFallbackNavigationTests {
         let server: LocalPageServer = try LocalPageServer(reply: .hangUp)
         defer { server.stop() }
         let (browser, tab, port): (Browser, BrowserTab, Int) = try await Self.open(server)
-        // URLSession retries a GET whose connection is dropped, so count how
-        // many requests one engine fetch makes before checking the navigation.
         _ = try? await WebURL("http://127.0.0.1:\(port)/page").request(bypassingCache: true)
         let requestsPerFetch: Int = server.requests.count
         await HTTPOnlyHosts.shared.remember("127.0.0.1")
@@ -151,8 +146,6 @@ struct HTTPFallbackNavigationTests {
         treeToList(tab.rootFrame.nodes).compactMap({ $0.text }).map(\.text).joined()
     }
 
-    /// Fetches run one at a time in order, so an empty fetch queued now
-    /// completes only after every fetch already queued has finished.
     private static func finishQueuedFetches(_ browser: Browser) async {
         await browser.networkTaskRunner.schedule(name: "finish-queued-fetches", { @Sendable () async -> Void in })
     }

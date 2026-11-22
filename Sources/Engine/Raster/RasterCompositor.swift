@@ -79,7 +79,6 @@ enum RasterCompositor {
         return false
     }
 
-    /// One layer for the whole list: same identity and bounds as the slow path.
     private static func flatLayer(_ ops: [DisplayOp]) -> [RasterLayer] {
         guard let first: DisplayOp = ops.first else { return [] }
         var bounds: Rect = first.rect

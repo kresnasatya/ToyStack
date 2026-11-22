@@ -66,8 +66,6 @@ struct ResizeLayoutStartTests {
         browser.resize(to: CGSize(width: 500, height: 600), deferLayout: true)
         #expect(frame.paintedLayoutSize.width == 800, "a synchronous layout ran inside the resize event")
 
-        // A slow machine measures frames over twice the budget, so the resize
-        // shows a scaled preview first and the layout waits for a later tick.
         #expect(await Self.pump({
             browser.advanceFrame()
             return frame.paintedLayoutSize.width == 500
