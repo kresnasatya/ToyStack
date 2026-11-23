@@ -13,6 +13,8 @@ struct PseudoclassSelector: CSSSelector {
         case "focus": return state.isFocused
         case "focus-visible": return state.isFocusVisible
         case "hover": return state.isHovered
+        // Selectors 4 §13.1: :root is the root element of the document.
+        case "root": return snapshot.parent(of: index) == nil
         default: return false
         }
     }

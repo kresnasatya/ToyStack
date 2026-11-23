@@ -13,6 +13,11 @@ final class StyleFields {
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
 
+    var customProperties: CustomProperties {
+        get { return storage.custom }
+        set { storage.custom = newValue }
+    }
+
     func takeLayoutChanges() -> Set<StyleProperty> {
         guard !layoutChanges.isEmpty else { return [] }
         let changes: Set<StyleProperty> = layoutChanges
@@ -154,6 +159,7 @@ final class StyleFields {
 private struct StyleStorage {
     var computed: ComputedStyle = .initial
     var unknown: [String: String] = [:]
+    var custom: CustomProperties = .none
 }
 
 // MARK: - StyleInvalidationState

@@ -272,7 +272,7 @@ pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 
 | Metric | Kind | Meaning |
 |---|---|---|
-| `style.apply.flags`, `.test`, `.inline`, `.post`, `.push`, `.pop` | duration | phases of `applyStyle` |
+| `style.apply.flags`, `.test`, `.inline`, `.variables`, `.post`, `.push`, `.pop` | duration | phases of `applyStyle`; `.variables` is custom property and `var()` substitution |
 | `style.visited` | count | nodes that passed the clean-subtree gate |
 | `style.skipped` | count | child entries rejected by the clean-subtree gate |
 | `style.dirtyDescendants` | count | gate entries reached through an ancestor flag |
@@ -290,7 +290,7 @@ pay ~1.5 ms. The `jsc.*` values are inside `load.jsInit`, not additional to it.
 | `style.snapshot.nodes.updated` | count | nodes the refresh recopied: those changed since the cached snapshot was made |
 | `style.snapshot.cacheHit`, `style.snapshot.cacheMiss` | count | snapshot reused as is, or built from nothing |
 
-The seven `style.apply.*` phases are the measured subset; the enclosing
+The eight `style.apply.*` phases are the measured subset; the enclosing
 `BrowserTab.style` span also contains rules, `:has` precompute, scope, keyframes,
 and invalidation. The matching snapshot is built once per document and then
 refreshed node by node, so a keystroke recopies only the edited nodes.

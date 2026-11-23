@@ -55,6 +55,13 @@ struct ViewportLengthTests {
         #expect(try style(page).box.spacing.margin.left == 16)
     }
 
+    @Test func variableHoldingVhFollowsAResize() throws {
+        let page: LayoutTestPage = page(":root { --half: 50vh; } #x { height: var(--half); }")
+        #expect(try style(page).box.size.height == 300)
+        resize(page, width: page.frame.frameWidth, height: 400)
+        #expect(try style(page).box.size.height == 200)
+    }
+
     @Test func pageZoomShrinksTheViewportInCSSPixels() throws {
         let page: LayoutTestPage = page("#x { width: 50vw; }")
         page.frame.setPageZoom(2)

@@ -56,7 +56,7 @@ class CSSParser {
         let start: Int = i
         while i < chars.count {
             let c: Character = chars[i]
-            if c.isLetter || c.isNumber || "#-.%".contains(c) {
+            if c.isLetter || c.isNumber || "#-.%_".contains(c) {
                 i += 1
             } else {
                 break
@@ -91,6 +91,9 @@ class CSSParser {
         skipWhitespace()
         try literal(":")
         skipWhitespace()
+        if CustomProperties.isCustom(prop) {
+            return (prop, customPropertyValue())
+        }
         var val: String = try word()
         if i < chars.count && chars[i] == "(" {
             val += consumeParentheses()
@@ -99,6 +102,35 @@ class CSSParser {
             val = aspectRatioValue(val)
         }
         return (prop.lowercased(), val)
+    }
+
+    private func customPropertyValue() -> String {
+        let start: Int = i
+        var depth: Int = 0
+        var quote: Character? = nil
+        while i < chars.count {
+            let c: Character = chars[i]
+            if let open = quote {
+                if c == "\\" {
+                    i = min(i + 2, chars.count)
+                    continue
+                }
+                if c == open {
+                    quote = nil
+                }
+            } else if c == "\"" || c == "'" {
+                quote = c
+            } else if c == "(" || c == "[" || c == "{" {
+                depth += 1
+            } else if c == ")" || c == "]" || c == "}" {
+                if depth == 0 && c == "}" { break }
+                depth = max(0, depth - 1)
+            } else if depth == 0 && (c == ";" || c == "!") {
+                break
+            }
+            i += 1
+        }
+        return String(chars[start..<i]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func aspectRatioValue(_ first: String) -> String {
@@ -233,6 +265,51 @@ class CSSParser {
         return shorthands.contains(prop)
     }
 
+    private static func longhandNames(of shorthand: String) -> [String] {
+        let edges: [String] = ["width", "style", "color"]
+        switch shorthand {
+        case "font": return ["font-style", "font-weight", "font-size", "font-family"]
+        case "background": return ["background-color", "background-image"]
+        case "border": return boxSides.flatMap({ side in edges.map({ "border-\(side)-\($0)" }) })
+        case "border-top", "border-right", "border-bottom", "border-left":
+            return edges.map({ "\(shorthand)-\($0)" })
+        case "border-width", "border-style", "border-color":
+            let edge: Substring = shorthand.dropFirst("border-".count)
+            return boxSides.map({ "border-\($0)-\(edge)" })
+        case "outline": return edges.map({ "outline-\($0)" })
+        case "margin", "padding": return boxSides.map({ "\(shorthand)-\($0)" })
+        default: return []
+        }
+    }
+
+    static func longhands(of shorthand: String, value: String) -> [String: String]? {
+        let parser: CSSParser = CSSParser(value)
+        let tokens: [String] = parser.shorthandTokens()
+        parser.skipWhitespace()
+        guard !tokens.isEmpty, parser.i == parser.chars.count else { return nil }
+        return expand(shorthand: shorthand, tokens: tokens)
+    }
+
+    private func shorthandTokens() -> [String] {
+        var tokens: [String] = []
+        skipWhitespace()
+        while i < chars.count && chars[i] != ";" && chars[i] != "}" {
+            if chars[i] == "," {
+                tokens.append(",")
+                i += 1
+                skipWhitespace()
+                continue
+            }
+            guard var t = try? word() else { break }
+            if i < chars.count && chars[i] == "(" {
+                t += consumeParentheses()
+            }
+            tokens.append(t)
+            skipWhitespace()
+        }
+        return tokens
+    }
+
     private func bodyParts() -> (normal: [String: String], important: [String: String]) {
         var normal: [String: String] = [:]
         var important: [String: String] = [:]
@@ -241,21 +318,7 @@ class CSSParser {
             if let (prop, val) = try? pair() {
                 var tokens: [String] = [val]
                 if CSSParser.isShortHand(prop) {
-                    skipWhitespace()
-                    while i < chars.count && chars[i] != ";" && chars[i] != "}" {
-                        if chars[i] == "," {
-                            tokens.append(",")
-                            i += 1
-                            skipWhitespace()
-                            continue
-                        }
-                        guard var t = try? word() else { break }
-                        if i < chars.count && chars[i] == "(" {
-                            t += consumeParentheses()
-                        }
-                        tokens.append(t)
-                        skipWhitespace()
-                    }
+                    tokens.append(contentsOf: shorthandTokens())
                 }
 
                 skipWhitespace()
@@ -267,7 +330,16 @@ class CSSParser {
                     }
                 }
 
-                if let expanded = CSSParser.expand(shorthand: prop, tokens: tokens) {
+                let pendingLonghands: [String] = CSSParser.longhandNames(of: prop)
+                if !pendingLonghands.isEmpty, tokens.contains(where: CustomProperties.containsVar) {
+                    let pending: String = PendingSubstitution(
+                        shorthand: prop,
+                        value: tokens.joined(separator: " ")
+                    ).cascaded
+                    for name in pendingLonghands {
+                        isImportant ? (important[name] = pending) : (normal[name] = pending)
+                    }
+                } else if let expanded = CSSParser.expand(shorthand: prop, tokens: tokens) {
                     for (k, v) in expanded {
                         isImportant ? (important[k] = v) : (normal[k] = v)
                     }
@@ -414,7 +486,7 @@ class CSSParser {
             } else {
                 let base: any CSSSelector =
                     parts.isEmpty
-                    ? TagSelector(tag: "")
+                    ? (keyword.lowercased() == "root" ? UniversalSelector() as any CSSSelector : TagSelector(tag: ""))
                     : (parts.count == 1 ? parts[0] : SelectorSequence(selectors: parts))
                 parts = [PseudoclassSelector(pseudoclass: keyword.lowercased(), base: base)]
             }

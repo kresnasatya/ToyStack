@@ -35,6 +35,7 @@ private func applyStyle(
     let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
     let applies: Bool = force || direct || node.style.isDirty
     var inheritsChange: Bool = false
+    let oldCustom: CustomProperties = node.style.customProperties
     let oldRootFontSize: CGFloat? = node.parent == nil ? node.style.computed.text.font.size : nil
     if applies {
         if force {
@@ -52,6 +53,7 @@ private func applyStyle(
                 document: cascade.document
             )
             if let changed {
+                node.style.customProperties = node.parent?.style.customProperties ?? .none
                 if changed {
                     cascade.recordInherited(node, oldText: oldText)
                 }
@@ -74,6 +76,7 @@ private func applyStyle(
             })
             inheritsChange = old.text != node.style.computed.text
         }
+        inheritsChange = inheritsChange || oldCustom != node.style.customProperties
     }
     if let oldRootFontSize {
         let rootFontSize: CGFloat = node.style.computed.text.font.size
@@ -163,6 +166,18 @@ private func applyNodeStyle(
         }
     })
 
+    let usesVariables: Bool = profiler.measure("style.apply.variables", {
+        let inherited: CustomProperties = node.parent?.style.customProperties ?? .none
+        guard CustomProperties.usesVariables(newStyle) else {
+            node.style.customProperties = inherited
+            return false
+        }
+        let custom: CustomProperties = CustomProperties(declarations: newStyle, inherited: inherited)
+        newStyle = custom.substituted(into: newStyle)
+        node.style.customProperties = custom
+        return true
+    })
+
     profiler.measure("style.apply.post", {
         if cascade.media.preferences.usesForcedColors {
             applyForcedColors(to: &newStyle, tag: node.element?.tag)
@@ -178,9 +193,9 @@ private func applyNodeStyle(
             }
         }
 
-        let textDeclarations: [String: String] = newStyle.filter({
-            inheritedTextKeys.contains($0.key)
-        })
+        let textDeclarations: [String: String]? = usesVariables
+            ? nil
+            : newStyle.filter({ inheritedTextKeys.contains($0.key) })
 
         node.style.apply(
             newStyle,

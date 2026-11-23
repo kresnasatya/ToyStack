@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>CSS variables and rem / em / vw / vh</title>
+    <style>
+        :root {
+            --brand: steelblue;
+            --accent: tomato;
+            --space: 0.5rem 1rem;
+            --line: 4px solid var(--accent);
+            font-size: 20px;
+        }
+        @media (max-width: 500px) {
+            :root { --brand: green; font-size: 14px; }
+        }
+        body { display: block; margin: 0; }
+        div { display: block; }
+        .rem { width: 10rem; height: 2rem; background-color: var(--brand); margin: var(--space); }
+        .em { font-size: 10px; }
+        .em div { width: 20em; height: 2em; background-color: gold; margin: 0.5rem 1rem; }
+        .vw { width: 50vw; height: 10vh; background-color: lightblue; border: var(--line); margin: var(--space); }
+        .fallback { width: var(--missing, 30vw); height: 5vh; background-color: var(--missing, orchid); margin: var(--space); }
+        .local { --brand: purple; }
+        .local div { width: 15rem; height: 2rem; background-color: var(--brand); margin: var(--space); }
+    </style>
+</head>
+<body>
+    <div class="rem"></div>
+    <div class="em"><div></div></div>
+    <div class="vw"></div>
+    <div class="fallback"></div>
+    <div class="local"><div></div></div>
+</body>
+</html>
