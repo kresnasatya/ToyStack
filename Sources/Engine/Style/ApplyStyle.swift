@@ -35,6 +35,7 @@ private func applyStyle(
     let direct: Bool = cascade.scope.map({ $0.matches(node) }) ?? true
     let applies: Bool = force || direct || node.style.isDirty
     var inheritsChange: Bool = false
+    let oldRootFontSize: CGFloat? = node.parent == nil ? node.style.computed.text.font.size : nil
     if applies {
         if force {
             profiler.count("style.apply.force")
@@ -47,7 +48,8 @@ private func applyStyle(
         if forceOnly {
             let oldText: TextStyle = node.style.computed.text
             let changed: Bool? = node.style.reapplyInherited(
-                parent: node.parent?.style.computed
+                parent: node.parent?.style.computed,
+                document: cascade.document
             )
             if let changed {
                 if changed {
@@ -71,6 +73,15 @@ private func applyStyle(
                 applyNodeStyle(node: node, cascade: cascade, snapshot: snapshot, index: index)
             })
             inheritsChange = old.text != node.style.computed.text
+        }
+    }
+    if let oldRootFontSize {
+        let rootFontSize: CGFloat = node.style.computed.text.font.size
+        cascade.setRootFontSize(rootFontSize)
+        if rootFontSize != oldRootFontSize {
+            for child in node.children {
+                _ = StyleInvalidation.markDependents(child, on: .rootFont)
+            }
         }
     }
 
@@ -174,7 +185,8 @@ private func applyNodeStyle(
         node.style.apply(
             newStyle,
             parent: node.parent?.style.computed,
-            textDeclarations: textDeclarations
+            textDeclarations: textDeclarations,
+            document: cascade.document
         )
     })
 }

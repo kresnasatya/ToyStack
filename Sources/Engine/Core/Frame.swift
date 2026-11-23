@@ -77,10 +77,16 @@ class Frame {
 
     func setViewport(width: CGFloat, height: CGFloat) {
         let oldWidth: CGFloat = state.layout.viewport.width
+        let oldHeight: CGFloat = state.layout.viewport.height
         state.layout.viewport.width = width
         state.layout.viewport.height = height
         if oldWidth != width {
             viewportGeometryPending = true
+        }
+        if oldWidth != width || oldHeight != height,
+            StyleInvalidation.markDependents(nodes, on: .viewport)
+        {
+            invalidateStyle(fromViewport: true)
         }
     }
 
@@ -2303,7 +2309,7 @@ class Frame {
                 prefersDark: tab?.prefersDark ?? false,
                 usesForcedColors: tab?.forcedColors ?? false
             ),
-            frameWidth: frameWidth
+            viewport: CGSize(width: frameWidth, height: frameHeight)
         )
     }
 

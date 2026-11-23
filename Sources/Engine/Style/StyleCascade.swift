@@ -22,6 +22,11 @@ final class StyleCascade {
     let ancestorKeys: AncestorSelectorKeys = AncestorSelectorKeys()
     private var prePass: PrePassStyles = PrePassStyles()
     private(set) var appliedNodes: [DOMRef] = []
+    private(set) var rootFontSize: CGFloat = TextStyle.initial.font.size
+
+    var document: DocumentMetrics {
+        return DocumentMetrics(rootFontSize: rootFontSize, viewport: media.viewport)
+    }
 
     init(
         index: RuleIndex,
@@ -31,6 +36,10 @@ final class StyleCascade {
         self.index = index
         self.media = media
         self.scope = scope
+    }
+
+    func setRootFontSize(_ size: CGFloat) {
+        rootFontSize = size
     }
 
     func record(_ node: DOMRef, old: ComputedStyle) {

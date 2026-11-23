@@ -8,6 +8,7 @@ final class StyleFields {
     private var layoutChanges: Set<StyleProperty> = []
     private var inheritedText: [String: String] = [:]
     private var canReinheritText: Bool = false
+    private(set) var dependencies: StyleDependencies = []
 
     var computed: ComputedStyle { return storage.computed }
     var unknown: [String: String] { return storage.unknown }
@@ -45,34 +46,37 @@ final class StyleFields {
     }
 
     func apply(_ newValues: [String: String], parent: ComputedStyle? = nil) {
-        applyValues(newValues, parent: parent, textDeclarations: nil)
+        applyValues(newValues, parent: parent, textDeclarations: nil, document: .initial)
     }
 
     func apply(
         _ newValues: [String: String],
         parent: ComputedStyle?,
-        textDeclarations: [String: String]
+        textDeclarations: [String: String]?,
+        document: DocumentMetrics
     ) {
-        applyValues(newValues, parent: parent, textDeclarations: textDeclarations)
+        applyValues(newValues, parent: parent, textDeclarations: textDeclarations, document: document)
     }
 
     private func applyValues(
         _ newValues: [String: String],
         parent: ComputedStyle?,
-        textDeclarations: [String: String]?
+        textDeclarations: [String: String]?,
+        document: DocumentMetrics
     ) {
         let old: ComputedStyle = storage.computed
         let oldUnknown: [String: String] = storage.unknown
         let parsed: (style: ComputedStyle, unknown: [String: String]) =
-            ComputedStyleParser.parse(newValues, parent: parent)
+            ComputedStyleParser.parse(newValues, parent: parent, document: document)
         let changed: Set<StyleProperty> = parsed.style.changed(from: old)
 
         storage.computed = parsed.style
         storage.unknown = parsed.unknown
         inheritedText = textDeclarations ?? [:]
         canReinheritText = textDeclarations.map({ text in
-            !newValues.contains(where: { text[$0.key] == nil && FontRelativeUnits.isFontRelative($0.value) })
+            !newValues.contains(where: { text[$0.key] == nil && RelativeLengths.isFontRelative($0.value) })
         }) ?? false
+        dependencies = StyleDependencies(declarations: newValues)
 
         invalidation.dirtyKeys.removeAll()
         invalidation.needsRestyle = false
@@ -86,14 +90,14 @@ final class StyleFields {
         profiler.count("style.fields.changed", by: changed.count)
     }
 
-    func reapplyInherited(parent: ComputedStyle?) -> Bool? {
+    func reapplyInherited(parent: ComputedStyle?, document: DocumentMetrics) -> Bool? {
         guard canReinheritText else { return nil }
         let oldText: TextStyle = storage.computed.text
         let newText: TextStyle
         if inheritedText.isEmpty {
             newText = ComputedStyle.inheritingText(from: parent)
         } else {
-            newText = ComputedStyleParser.parseText(inheritedText, parent: parent)
+            newText = ComputedStyleParser.parseText(inheritedText, parent: parent, document: document)
         }
         guard oldText != newText else { return false }
         var changedCount: Int = 0

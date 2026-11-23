@@ -4,7 +4,7 @@ struct MediaFeatures {
     static let anyScreen: String = "media-type:screen"
 
     let preferences: ColorPreferences
-    let frameWidth: CGFloat
+    let viewport: CGSize
 
     func matches(_ query: String?) -> Bool {
         guard let m = query else { return true }
@@ -24,9 +24,9 @@ struct MediaFeatures {
         guard parts.count == 2, let limit = Double(parts[1]) else { return false }
         let width: CGFloat = CGFloat(limit)
         switch parts[0] {
-        case "max-width": return frameWidth <= width
-        case "min-width": return frameWidth >= width
-        case "width": return frameWidth == width
+        case "max-width": return viewport.width <= width
+        case "min-width": return viewport.width >= width
+        case "width": return viewport.width == width
         default: return false
         }
     }

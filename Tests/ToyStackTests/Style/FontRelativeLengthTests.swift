@@ -59,7 +59,7 @@ struct FontRelativeLengthTests {
     }
 
     @Test func unknownUnitsStayUnset() throws {
-        let style: ComputedStyle = try box("#x { width: 2rem; height: em; margin-left: 1.5vh; }")
+        let style: ComputedStyle = try box("#x { width: 2vmin; height: em; margin-left: 1.5lh; }")
         #expect(style.box.size.width == nil)
         #expect(style.box.size.height == nil)
         #expect(style.box.spacing.margin.left == 0)
@@ -83,6 +83,48 @@ struct FontRelativeLengthTests {
         page.frame.render()
 
         #expect(x.style.computed.text.font.size == 10)
+        #expect(x.style.computed.box.spacing.margin.left == 20)
+    }
+
+    @Test func remFollowsTheRootFontSize() throws {
+        let style: ComputedStyle = try box("""
+            html { font-size: 10px; }
+            #outer { font-size: 30px; }
+            #x { width: 3rem; font-size: 2rem; }
+            """)
+        #expect(style.box.size.width == 30)
+        #expect(style.text.font.size == 20)
+    }
+
+    @Test func remOnTheRootElement() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="x">text</div>"#,
+            rules: "html { display: block; font-size: 2rem; width: 10rem; }"
+        )
+        let root: ElementRef = try #require(page.firstElement(tag: "html"))
+        #expect(root.style.computed.text.font.size == 32)
+        #expect(root.style.computed.box.size.width == 320)
+    }
+
+    @Test func remFollowsARootFontChangePastAFixedFontSize() throws {
+        let page: LayoutTestPage = LayoutTestPage(
+            html: #"<div id="outer"><div id="x">text</div></div>"#,
+            rules: """
+                body { display: block; } div { display: block; }
+                html { font-size: 10px; }
+                @media (min-width: 600px) { html { font-size: 20px; } }
+                #outer { font-size: 12px; }
+                #x { margin-left: 2rem; }
+                """
+        )
+        let x: ElementRef = try #require(page.firstElement(id: "x"))
+        #expect(x.style.computed.box.spacing.margin.left == 40)
+
+        page.frame.setViewport(width: 400, height: page.frame.frameHeight)
+        page.frame.setNeedsViewportResize()
+        page.frame.render()
+
+        #expect(x.style.computed.text.font.size == 12)
         #expect(x.style.computed.box.spacing.margin.left == 20)
     }
 }

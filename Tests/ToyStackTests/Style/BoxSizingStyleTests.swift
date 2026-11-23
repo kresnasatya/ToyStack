@@ -7,7 +7,8 @@ struct BoxSizingStyleTests {
     private func boxSizing(_ value: String, parent: ComputedStyle? = nil) -> BoxSizing {
         let parsed: (style: ComputedStyle, unknown: [String: String]) = ComputedStyleParser.parse(
             ["box-sizing": value],
-            parent: parent
+            parent: parent,
+            document: .initial
         )
         return parsed.style.box.size.boxSizing
     }
@@ -23,15 +24,19 @@ struct BoxSizingStyleTests {
     }
 
     @Test func childrenDoNotInheritIt() {
-        let parent: ComputedStyle = ComputedStyleParser.parse(["box-sizing": "border-box"], parent: nil).style
-        let child: ComputedStyle = ComputedStyleParser.parse([:], parent: parent).style
+        let parent: ComputedStyle = ComputedStyleParser.parse(
+            ["box-sizing": "border-box"], parent: nil, document: .initial
+        ).style
+        let child: ComputedStyle = ComputedStyleParser.parse([:], parent: parent, document: .initial).style
 
         #expect(child.box.size.boxSizing == .contentBox)
     }
 
     @Test func changingItIsALayoutChange() {
-        let before: ComputedStyle = ComputedStyleParser.parse([:], parent: nil).style
-        let after: ComputedStyle = ComputedStyleParser.parse(["box-sizing": "border-box"], parent: nil).style
+        let before: ComputedStyle = ComputedStyleParser.parse([:], parent: nil, document: .initial).style
+        let after: ComputedStyle = ComputedStyleParser.parse(
+            ["box-sizing": "border-box"], parent: nil, document: .initial
+        ).style
 
         #expect(after.changed(from: before) == [.boxSizing])
         #expect(StyleProperty(cssName: "box-sizing") == .boxSizing)

@@ -24,6 +24,15 @@ enum StyleInvalidation {
         }
     }
 
+    static func markDependents(_ root: DOMRef, on dependency: StyleDependencies) -> Bool {
+        var marked: Bool = false
+        for node in treeToList(root) where node.style.dependencies.contains(dependency) {
+            markNode(node)
+            marked = true
+        }
+        return marked
+    }
+
     private static func markSubtree(_ node: DOMRef) {
         for target in treeToList(node) {
             profiler.count("style.invalidate.subtree.nodes")

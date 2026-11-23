@@ -20,7 +20,8 @@ enum ComputedStyleParser {
 
     static func parse(
         _ css: [String: String],
-        parent: ComputedStyle?
+        parent: ComputedStyle?,
+        document: DocumentMetrics
     ) -> (style: ComputedStyle, unknown: [String: String]) {
         var unknown: [String: String] = css
         func take(_ key: String) -> String? {
@@ -36,7 +37,7 @@ enum ComputedStyleParser {
         if let raw = take("font-family") {
             style.text.font.family = raw
         }
-        if let raw = take("font-size"), let size = fontSize(raw, parent: parent) {
+        if let raw = take("font-size"), let size = fontSize(raw, parent: parent, document: document) {
             style.text.font.size = size
         }
         if let raw = take("font-style") {
@@ -51,7 +52,11 @@ enum ComputedStyleParser {
         if let raw = take("direction") {
             style.text.direction = TextDirection(cssValue: raw)
         }
-        let units: FontRelativeUnits = FontRelativeUnits(font: style.text.font)
+        var lengthDocument: DocumentMetrics = document
+        if parent == nil {
+            lengthDocument.rootFontSize = style.text.font.size
+        }
+        let units: RelativeLengths = RelativeLengths(font: style.text.font, document: lengthDocument)
 
         // MARK: - Layout
         style.layout.display = LayoutStyle.Display(css: take("display"))
@@ -148,7 +153,8 @@ enum ComputedStyleParser {
 
     static func parseText(
         _ css: [String: String],
-        parent: ComputedStyle?
+        parent: ComputedStyle?,
+        document: DocumentMetrics
     ) -> TextStyle {
         var text: TextStyle = parent?.text ?? .initial
         if let raw = css["color"] {
@@ -157,7 +163,7 @@ enum ComputedStyleParser {
         if let raw = css["font-family"] {
             text.font.family = raw
         }
-        if let raw = css["font-size"], let size = fontSize(raw, parent: parent) {
+        if let raw = css["font-size"], let size = fontSize(raw, parent: parent, document: document) {
             text.font.size = size
         }
         if let raw = css["font-style"] {
@@ -177,14 +183,24 @@ enum ComputedStyleParser {
 
     // MARK: - Value helpers
 
-    private static func fontSize(_ raw: String, parent: ComputedStyle?) -> CGFloat? {
+    private static func fontSize(
+        _ raw: String,
+        parent: ComputedStyle?,
+        document: DocumentMetrics
+    ) -> CGFloat? {
         let base: TextStyle.Font = parent?.text.font ?? TextStyle.initial.font
         if raw.hasSuffix("%"), let value = Double(raw.dropLast()) {
             return base.size * CGFloat(value) / 100
         }
         // CSS Values 4 §6.1.1: inside a font-* property, em, ex, and ch resolve
-        // against the parent element's font.
-        return FontRelativeUnits(font: base).px(raw)
+        // against the parent element's font, and rem is the root element's em,
+        // so the root element's own font-size resolves rem against the initial
+        // font-size.
+        var fontDocument: DocumentMetrics = document
+        if parent == nil {
+            fontDocument.rootFontSize = TextStyle.initial.font.size
+        }
+        return RelativeLengths(font: base, document: fontDocument).px(raw)
     }
 
     private static func borderSide(
