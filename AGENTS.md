@@ -13,10 +13,10 @@ This is a project to build a toy browser engine with Swift programming language.
 - Only small helpers that are truly support one type may share that type's file, grouped under a `// MARK: -` section (e.g. `ScrollbarGeometry` and `scrollbarBarRect` in `Scrollbar.swift`).
 - Use `+=` for counts, indexes, sizes, offsets, and quantities; overflow is a bug and must trap.
 - Use `&+=` only for generation, revision, or sequence tokens where wrapping is accepted and the value is used for equality or difference. Never use `&+=` to hide an overflow bug.
-- No comments by default.
-- Do not leave commented-out code, change-log comments (e.g. `// added X`, `// fixed bug`), or comments that repeat the type or function name.
-- When a comment cites a spec (CSS, HTML, DOM), cite the exact section number and make sure the claim matches the spec text.
-- `// MARK: -` sections (see the helper rule above) are allowed.
+- Only two kinds of comments are allowed in `Sources/` and `Tests/`, `//` and `///` alike. Delete everything else, including notes that explain why, doc comments without a spec citation, commented-out code, and change-log or history notes.
+  1. `// MARK: - Name` section markers, written with the dash: at the top of a file naming its main type, around helpers (see the helper rule above), or to split a large type into sections.
+  2. Comments that cite a published spec by name, level, and exact section number: W3C/CSSWG (e.g. `CSS 2.1 §9.5.2`, `CSS Backgrounds 3 §3.2`), WHATWG (`HTML §13.2.6.5`, `DOM §4.4`, `URL Standard §4.4`, `Fetch §2.2.6`), or IETF (`RFC 6265 §5.3`).
+- A spec comment must match the spec text at that section: CSS 2.1 at w3.org/TR/CSS2, CSS modules at their Editor's Draft, WHATWG at the living standard, RFCs at rfc-editor.org. It may add a short note on what ToyStack does because of that rule, worded as engine behaviour and never credited to the spec.
 
 ## Expected Result
 
